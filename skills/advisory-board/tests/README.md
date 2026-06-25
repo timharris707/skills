@@ -1,8 +1,9 @@
 # Conductor tests
 
-Tests for `scripts/run_board.py` (the M1+M2 conductor). Python 3 standard library
-only; they run the whole pipeline against **mock CLIs** on `PATH`, so no provider
-tokens are spent and nothing leaves the machine.
+Tests for `scripts/run_board.py` (the M1–M3 conductor). Python 3 standard library
+only; they run the whole pipeline — including the real round-1 fan-out — against
+**mock CLIs** on `PATH`, so no provider tokens are spent and nothing leaves the
+machine.
 
 ## Run
 
@@ -22,8 +23,8 @@ needed beyond a Python 3 interpreter.
 
 | Path | Purpose |
 | ---- | ------- |
-| `test_run_board.py` | the suite (registry, YAML codec, config, packet, preflight, egress gate, end-to-end run flow, `--from-recipe`, delegation, toolchain currency + model self-heal) |
-| `mocks/{claude,codex,gemini,agy,ollama}` | banner-accurate CLI stubs; behavior switched by `MOCK_<SEAT>_MODE` (`go`/`nogo_version`/`nogo_smoke`/`empty`/`degraded`/`timeout`/`model_not_found`; gemini also `model_proposal`) and argv captured to `MOCK_ARGV_LOG`. `claude`/`codex`/`agy` also mock `update` (force failure with `MOCK_<SEAT>_UPDATE_FAIL=1`); `agy` also mocks `models`. (`agy` is the Antigravity seat — `MOCK_AGY_VERSION` sets its reported version. `ollama` is the local seat — prompt on stdin, no `model_not_found`/`update` arms; `MOCK_OLLAMA_VERSION` sets its reported version, default `0.5.0`) |
+| `test_run_board.py` | the suite (registry, YAML codec, config, packet, preflight, egress gate, end-to-end run flow, **round-1 fan-out: shape check, failure classifier, model-answered parser, retry/timeout, hash binding, process-group kill**, `--from-recipe`, delegation, toolchain currency + model self-heal) |
+| `mocks/{claude,codex,gemini,agy,ollama}` | banner-accurate CLI stubs; behavior switched by `MOCK_<SEAT>_MODE` (`go`/`nogo_version`/`nogo_smoke`/`empty`/`degraded`/`timeout`/`model_not_found`/`stub`; gemini also `model_proposal`) and argv captured to `MOCK_ARGV_LOG`. The smoke ping returns `ready`; a round-1 prompt returns a full multi-section review (with a `model:` banner on stderr) so a single test exercises preflight **and** the fan-out — `stub` returns a short plan-style reply (the §13 shape-check failure). `claude`/`codex`/`agy` also mock `update` (force failure with `MOCK_<SEAT>_UPDATE_FAIL=1`); `agy` also mocks `models`. (`agy` is the Antigravity seat — `MOCK_AGY_VERSION` sets its reported version. `ollama` is the local seat — prompt on stdin, no `model_not_found`/`update` arms; `MOCK_OLLAMA_VERSION` sets its reported version, default `0.5.0`) |
 | `mocks/{npm,brew}` | package-manager stubs for the toolchain check/update: latest version is env-controlled (`MOCK_NPM_CLAUDE`/`MOCK_NPM_CODEX`, `MOCK_BREW_GEMINI`/`MOCK_BREW_OLLAMA` formulae, `MOCK_BREW_CASK` for the antigravity cask; default `9.9.9` → stale); `brew upgrade` fails with `MOCK_BREW_UPGRADE_FAIL=1` |
 | `fixtures/sample-plan.md` | a small, stable source for deterministic runs |
 
@@ -52,3 +53,21 @@ These are the M2 invariants — if any regresses, a test fails:
   `--install` is consent-gated and never implies an account; and when fewer than
   two seats are usable, preflight/run emit actionable guidance (install vs auth,
   same-provider / local-seat fallbacks) instead of dead-ending.
+
+The M3 round-1 fan-out adds its own invariants:
+
+- **The egress hash is re-asserted at the point of no return**
+  (`TestRound1FanOut.test_hash_drift_refuses_to_spawn`) — if the packet no longer
+  matches the approved content hash, nothing spawns; each seat is fed the exact
+  approved blob, so the bytes that leave equal what consent was bound to.
+- **The §13 failure protocol** (`TestClassifyRound1`, `TestRound1FanOut`) — a
+  short/plan-shaped reply fails the shape check (`InvalidOutput`, the
+  {{CLAUDE_OUTPUT_OVERRIDE}} detection); `Timeout`/`InvalidOutput` retry once,
+  every other class drops immediately; auth is judged on stderr only so a review
+  that *discusses* 401s is not misread as an auth failure.
+- **Honest provenance** (`TestModelAnsweredParser`) — the answering model is parsed
+  from stderr (never mined from the review prose) and is `None` ("unknown") when
+  unreported; antigravity is structurally `None` (it silently substitutes models).
+- **Hung seats are reaped as a process group**
+  (`TestSpawnProcessGroupKill`) — a timed-out child's backgrounded grandchildren
+  are killed, not orphaned (the gap `subprocess.run(timeout=)` alone would leave).

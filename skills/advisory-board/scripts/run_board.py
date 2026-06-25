@@ -1,32 +1,37 @@
 #!/usr/bin/env python3
-"""run_board.py — the Advisory Board conductor (M1 + M2).
+"""run_board.py — the Advisory Board conductor (M1 + M2 + M3).
 
 The skill's controls used to be prose addressed to the very agent that wants to
 run the board. This conductor turns the load-bearing mechanics into code: a
 deterministic seat-adapter registry (one place that knows each CLI's quirks), an
 executable preflight (GO/NO-GO), and — before a single byte of source material
 leaves the machine — a hash-bound egress gate with a mode-dependent quarantine
-posture.
+posture, followed by a real Round-1 fan-out with a defined failure protocol.
 
-This file implements milestones M1 and M2 of design/run-board-conductor.md:
+This file implements milestones M1, M2 and M3 of design/run-board-conductor.md:
 
   M1  skeleton + arg parsing + config/mode resolution + the SeatAdapter registry
       (claude / codex / gemini) + run-recipe/run-card render + `--dry-run`.
   M2  executable preflight (GO/NO-GO) + the egress manifest (consent bound to a
       content hash) + the pre-spawn hard stop + gate-mode isolation flags wired
       through the registry.
+  M3  Round-1 fan-out: real subprocess spawn (process-group-killed on timeout),
+      isolation enforced at spawn, the §13 failure protocol (success-shape check,
+      Timeout|AuthFailure|InvalidOutput|NoOutput|ModelNotFound classes, one retry
+      on Timeout|InvalidOutput), and per-seat artifacts — round-1/<seat>.md, the
+      .raw black-box recorder (input/source/packet hashes + answered model), and
+      logs/<seat>-round-1.stderr.
 
-What is deliberately NOT here yet (later milestones): the real Round-1 fan-out
-and capture (M3), Round 2 / packets (M4), the canonical verdict + resolved
-evidence (M5). `run` performs everything up to and including the egress gate,
-then stops at the spawn boundary and says so. No board spawn, no source egress,
-happens in this milestone.
+What is deliberately NOT here yet (later milestones): Round 2 / packets (M4) and
+the canonical verdict + resolved evidence (M5). `run` stops at the round-1
+boundary and hands the clean per-seat reviews to the synthesizer (§11) rather
+than flattening them in code.
 
 Subcommands:
   init        resolve config and emit run-recipe.yaml + the run-card (no spawn)
   toolchain   check each seat CLI vs its latest release; --update upgrades stale ones
   preflight   probe each seat (version / smoke ping) and print a GO/NO-GO table
-  run         resolve -> preflight -> build packet -> egress gate -> (M3 boundary)
+  run         resolve -> preflight -> egress gate -> round-1 fan-out -> artifacts
   render      delegate to render_handoff.py (final-consensus.html from data)
   validate    delegate to board_verdict.py (validate / gate verdict.json)
 
@@ -49,6 +54,7 @@ import json
 import os
 import re
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -184,12 +190,61 @@ class SeatAdapter:
 
 
 def _model_answered_none(stdout: str, stderr: str) -> Optional[str]:
-    """Placeholder model-answered parser (refined per provider in M3).
+    """Deliberately-unknown model-answered parser.
 
-    Honest default: return None ("unknown — flag it"), never assume the
-    requested model answered. M3 wires real banner/JSON parsing per provider.
+    Returns None ("unknown — flag it"), never "assume the requested model
+    answered". Used where the CLI cannot report the answering model reliably:
+    antigravity silently SUBSTITUTES an unknown model id (rc 0, no banner), so the
+    requested model can never be trusted to have answered (design §16, handoff
+    GOTCHA). The honest provenance is "unknown", surfaced as such everywhere.
     """
     return None
+
+
+# Best-effort "which model actually answered" parser (design §12 provenance, §16
+# "a model_answered miss is 'unknown — flag it', never assume requested"). We scan
+# ONLY stderr: the review prose on stdout routinely contains the word "model" and
+# must never be mined for a false id. Most CLIs do not print the answering model in
+# plain text, so None is the common, honest v1 outcome — never a fabricated id.
+_MODEL_JSON_RE = re.compile(r'"model"\s*:\s*"([^"]+)"')
+_MODEL_BANNER_RE = re.compile(
+    r'^\s*(?:using\s+model|model)\s*[:=]\s*["\']?([A-Za-z0-9][\w.\-/()]*(?: [\w.\-/()]+)*?)["\']?\s*$',
+    re.IGNORECASE | re.MULTILINE,
+)
+
+
+def parse_model_answered(stdout: str, stderr: str) -> Optional[str]:
+    """Return the model id a CLI *reports* having used (from stderr), or None."""
+    m = _MODEL_JSON_RE.search(stderr) or _MODEL_BANNER_RE.search(stderr)
+    if not m:
+        return None
+    cand = m.group(1).strip()
+    return cand or None
+
+
+# Round-1 output success criteria (design §13 "the output artifact must contain
+# the round's required sections — a shape/length check"). A genuine 7-section
+# review is long and names several of its sections; a plan-mode summary or an "I
+# saved the review to a file" reply is short and names few. This is the DETECTION
+# half of the {{CLAUDE_OUTPUT_OVERRIDE}} fix (a short/plan-shaped Claude artifact
+# fails here). Heuristic by design: lenient on any real review, strict on stubs.
+ROUND1_MIN_CHARS = 200
+ROUND1_SECTION_CUES = ("verdict", "objection", "execution", "invariant",
+                       "risk", "evidence", "challenge", "guardrail", "assumption")
+ROUND1_MIN_CUES = 3
+
+
+def check_round1_shape(text: str) -> tuple:
+    """(ok, reason). Does this look like a real round-1 review, not a stub?"""
+    body = text.strip()
+    if len(body) < ROUND1_MIN_CHARS:
+        return False, f"too short ({len(body)} chars < {ROUND1_MIN_CHARS}) — plan-mode/stub reply"
+    low = body.lower()
+    hits = sorted({c for c in ROUND1_SECTION_CUES if c in low})
+    if len(hits) < ROUND1_MIN_CUES:
+        return False, (f"missing review sections (found {len(hits)}/{ROUND1_MIN_CUES} "
+                       f"section cues: {', '.join(hits) or 'none'})")
+    return True, ""
 
 
 # v1 is always read-only — every adapter hardcodes its provider's read-only mode
@@ -429,7 +484,7 @@ REGISTRY: dict = {
         stderr_is_fatal=True,
         supports_isolation=True,
         isolates_network=True,   # --disallowed-tools WebSearch WebFetch removes web reach
-        model_answered=_model_answered_none,
+        model_answered=parse_model_answered,
         latest_argv=claude_latest_argv,
         parse_latest=parse_npm_latest,
         update_argv=claude_update_argv,
@@ -451,7 +506,7 @@ REGISTRY: dict = {
         stderr_is_fatal=True,
         supports_isolation=True,
         isolates_network=True,   # --sandbox read-only has no network (verified: DNS fails inside)
-        model_answered=_model_answered_none,
+        model_answered=parse_model_answered,
         latest_argv=codex_latest_argv,
         parse_latest=parse_npm_latest,
         update_argv=codex_update_argv,
@@ -477,7 +532,7 @@ REGISTRY: dict = {
         stderr_is_fatal=False,   # router retries on stderr are normal; judge by the artifact
         supports_isolation=True,    # fs scoping via cwd; network is NOT removable (below)
         isolates_network=False,  # no known flag disables GoogleSearch grounding — surfaced loudly
-        model_answered=_model_answered_none,
+        model_answered=parse_model_answered,
         latest_argv=gemini_latest_argv,
         parse_latest=parse_brew_latest,
         update_argv=gemini_update_argv,
@@ -1152,36 +1207,68 @@ class SpawnResult:
 
 def spawn(adapter: SeatAdapter, argv: list, *, prompt: Optional[str] = None,
           timeout: Optional[int] = None, cwd: Optional[str] = None) -> SpawnResult:
+    """Run one seat CLI under a hard timeout, capturing stdout/stderr.
+
+    The child is launched in its OWN session (start_new_session=True) so a real
+    seat that forks worker subprocesses can be killed as a process GROUP on
+    timeout — subprocess.run only kills the direct child and would orphan the
+    workers (handoff M3 obligation; the mock `timeout` arm exec's sleep so it has
+    none, but real CLIs do). On timeout we return exit 124 + whatever partial
+    output was captured, never blocking forever on the dead child's pipes.
+    """
     timeout = timeout if timeout is not None else adapter.timeout_s
     start = _clock()
-    stdin_data = None
-    stdin_setting = None
     if adapter.prompt_on_stdin and prompt is not None:
-        stdin_data = prompt
+        stdin_arg, input_data = subprocess.PIPE, prompt
     elif adapter.close_stdin:
-        stdin_setting = subprocess.DEVNULL
+        stdin_arg, input_data = subprocess.DEVNULL, None
+    else:
+        stdin_arg, input_data = None, None   # inherit (e.g. the --version probe)
     try:
-        completed = subprocess.run(
+        proc = subprocess.Popen(
             argv,
-            input=stdin_data,
-            stdin=stdin_setting if stdin_data is None else None,
+            stdin=stdin_arg,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            timeout=timeout,
             cwd=cwd,
             text=True,
+            start_new_session=True,
         )
     except FileNotFoundError:
         return SpawnResult(127, "", f"{argv[0]}: command not found", _clock() - start, False)
-    except subprocess.TimeoutExpired as exc:
-        out = exc.stdout or ""
-        err = exc.stderr or ""
-        if isinstance(out, bytes):
-            out = out.decode("utf-8", "replace")
-        if isinstance(err, bytes):
-            err = err.decode("utf-8", "replace")
+    try:
+        out, err = proc.communicate(input=input_data, timeout=timeout)
+        return SpawnResult(proc.returncode, out or "", err or "", _clock() - start, False)
+    except subprocess.TimeoutExpired:
+        out, err = _kill_group_and_collect(proc)
         return SpawnResult(124, out, err, _clock() - start, True)
-    return SpawnResult(completed.returncode, completed.stdout, completed.stderr, _clock() - start, False)
+
+
+def _kill_group_and_collect(proc: "subprocess.Popen") -> tuple:
+    """Terminate the timed-out child's whole process group, then drain its pipes.
+
+    SIGTERM the group, give it 5s to flush and exit; if it clings, SIGKILL the
+    group. Returns (stdout, stderr) — possibly partial, never None.
+    """
+    def _killpg(sig: int) -> None:
+        try:
+            os.killpg(os.getpgid(proc.pid), sig)
+        except (ProcessLookupError, PermissionError):
+            try:
+                proc.send_signal(sig)   # group gone/denied: fall back to the child
+            except ProcessLookupError:
+                pass
+
+    _killpg(signal.SIGTERM)
+    try:
+        out, err = proc.communicate(timeout=5)
+    except subprocess.TimeoutExpired:
+        _killpg(signal.SIGKILL)
+        try:
+            out, err = proc.communicate(timeout=5)
+        except subprocess.TimeoutExpired:
+            out, err = "", ""
+    return out or "", err or ""
 
 
 def _clock() -> float:
@@ -1202,10 +1289,55 @@ def classify(result: SpawnResult, adapter: SeatAdapter) -> tuple:
         return "dropped", FAILURE_NOOUTPUT
     if result.exit_code != 0:
         # Usable content despite a non-zero exit (matches execution-harness.md:
-        # "judge by whether the artifact is usable, not by stderr"). adapter is
-        # threaded for M3 fan-out, where the artifact-shape success check (§13)
-        # and per-provider stderr handling refine this into a hard pass/fail.
+        # "judge by whether the artifact is usable, not by stderr"). This is the
+        # PREFLIGHT smoke classifier — a one-word "ready" is a valid smoke. The
+        # round-1 fan-out adds the artifact-shape check via classify_round1 below.
         return "degraded", None
+    return "ran", None
+
+
+# Failure classes the protocol retries ONCE (design §13). Everything else
+# (AuthFailure, NoOutput, ModelNotFound) is non-recoverable → immediate drop.
+RETRYABLE_FAILURES = frozenset({FAILURE_TIMEOUT, FAILURE_INVALID})
+
+# Auth-failure tells scanned ONLY on stderr (never the review on stdout, which may
+# legitimately discuss auth/401s when the material under review is an auth system).
+_AUTH_FAILURE_SIGNALS = (
+    "not authenticated", "please log in", "please sign in", "authentication failed",
+    "unauthorized", "401 ", "invalid api key", "no api key", "login required",
+    "auth error", "session expired", "expired credentials",
+)
+
+
+def auth_failed(stderr: str) -> bool:
+    blob = stderr.lower()
+    return any(sig in blob for sig in _AUTH_FAILURE_SIGNALS)
+
+
+def classify_round1(result: SpawnResult, adapter: SeatAdapter) -> tuple:
+    """Classify a round-1 fan-out spawn into (status, failure_class|None) — §13.
+
+    Stricter than the preflight classify(): the captured artifact must pass the
+    shape/length check (check_round1_shape), which is how a short plan-mode reply
+    or an "I saved it to a file" stub is caught (the {{CLAUDE_OUTPUT_OVERRIDE}}
+    detection half). Ordering matters — timeout, then model-not-found, then the
+    empty/auth split, then shape, then the usable-but-nonzero degrade.
+    """
+    if result.timed_out:
+        return "dropped", FAILURE_TIMEOUT
+    if model_not_found(result):
+        return "dropped", FAILURE_MODEL
+    if not result.stdout.strip():
+        # No usable stdout: distinguish an actionable auth failure (look only at
+        # stderr) from a bare empty run.
+        if auth_failed(result.stderr):
+            return "dropped", FAILURE_AUTH
+        return "dropped", FAILURE_NOOUTPUT
+    shape_ok, _reason = check_round1_shape(result.stdout)
+    if not shape_ok:
+        return "dropped", FAILURE_INVALID   # retryable once
+    if result.exit_code != 0:
+        return "degraded", None             # usable review despite a non-zero exit
     return "ran", None
 
 
@@ -1815,7 +1947,8 @@ def render_artifact_tree(config: RunConfig) -> str:
     return "\n".join(parts)
 
 
-def render_run_metadata(config: RunConfig, preflight: list, approval: EgressApproval) -> str:
+def render_run_metadata(config: RunConfig, preflight: list, approval: EgressApproval,
+                        round1: Optional[list] = None) -> str:
     lines = [
         f"# Run Metadata — {config.title}",
         "",
@@ -1852,12 +1985,38 @@ def render_run_metadata(config: RunConfig, preflight: list, approval: EgressAppr
         f"- Timestamp    : {approval.timestamp}",
         f"- Providers    : {', '.join(sorted({s.provider for s in config.board if s.provider != 'local'})) or '(none)'}",
         f"- Detail       : {approval.detail}",
+    ]
+    if round1 is not None:
+        usable = sum(1 for r in round1 if r.usable)
+        lines += [
+            "",
+            "## Round 1",
+            "",
+            f"{usable} of {len(round1)} seats produced a usable review.",
+            "",
+            "| Seat   | Status   | Model answered | Attempts | Elapsed | Failure |",
+            "| ------ | -------- | -------------- | -------- | ------- | ------- |",
+        ]
+        for r in round1:
+            answered = r.model_answered or "unknown"
+            lines.append(
+                f"| {r.seat:<6} | {r.status:<8} | {answered} | {r.attempts} "
+                f"| {r.elapsed_s:.1f}s | {r.failure_class or '-'} |"
+            )
+        # Provider-correlation disclosure (§12): "three voices" can be fewer
+        # providers; the answered models above expose it, and antigravity's model
+        # is structurally unknowable (it silently substitutes — never trusted).
+    lines += [
         "",
         "## Notes",
         "",
-        "- Model that *answered* per seat is captured at fan-out (M3), not here.",
-        "- Never record secrets, tokens, cookies, or private environment values.",
     ]
+    if round1 is None:
+        lines.append("- Model that *answered* per seat is captured at the round-1 fan-out, not here.")
+    else:
+        lines.append("- 'Model answered' is what the CLI *reported*; 'unknown' means it reported "
+                     "nothing parseable (never assume the requested model answered).")
+    lines.append("- Never record secrets, tokens, cookies, or private environment values.")
     if config.unenforced_network_seats:
         lines.append(
             f"- ⚠ Network NOT isolated for: {', '.join(config.unenforced_network_seats)} "
@@ -1873,8 +2032,15 @@ def render_run_metadata(config: RunConfig, preflight: list, approval: EgressAppr
     return "\n".join(lines) + "\n"
 
 
-def write_artifacts(config: RunConfig, blobs: list, approval: EgressApproval,
-                    preflight: list, content_hash: str) -> None:
+def write_pre_spawn_artifacts(config: RunConfig, blobs: list, approval: EgressApproval,
+                              content_hash: str) -> None:
+    """Persist the APPROVED packet + recipe/manifest/sensitivity BEFORE any spawn.
+
+    Writing the exact approved bytes up front means an interrupted fan-out still
+    leaves a faithful record of what was approved and would egress (the artifact
+    tree is designed for idempotent per-seat writes, §15). run-metadata is written
+    AFTER the fan-out so it can carry the answered models + per-seat outcome.
+    """
     out = config.out_dir
     os.makedirs(os.path.join(out, "prompts"), exist_ok=True)
     os.makedirs(os.path.join(out, "logs"), exist_ok=True)
@@ -1885,14 +2051,192 @@ def write_artifacts(config: RunConfig, blobs: list, approval: EgressApproval,
            render_egress_manifest(config, blobs, content_hash))
     for b in blobs:
         _write(os.path.join(out, b.relpath), b.text)
-    _write(os.path.join(out, "run-metadata.md"),
-           render_run_metadata(config, preflight, approval))
 
 
 def _write(path: str, text: str) -> None:
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     with open(path, "w", encoding="utf-8") as handle:
         handle.write(text)
+
+
+# --------------------------------------------------------------------------- #
+# Round-1 fan-out (design §11/§12/§13, milestone M3) — the first real spawn.
+# --------------------------------------------------------------------------- #
+
+
+@dataclass
+class SeatRoundResult:
+    seat: str
+    provider: str
+    model_requested: str
+    model_answered: Optional[str]
+    status: str                 # ran | degraded | dropped
+    failure_class: Optional[str]
+    attempts: int
+    elapsed_s: float
+    exit_code: int
+    timed_out: bool
+    stdout: str
+    stderr: str
+    prompt_hash: str            # sha256 of the exact bytes THIS seat received
+    source_hash: str            # sha256 of the source material (same across seats)
+    argv_preview: str           # the invocation, prompt elided (the black-box recorder)
+
+    @property
+    def usable(self) -> bool:
+        return self.status in ("ran", "degraded")
+
+
+def _run_seat_round1(seat: SeatConfig, blob: "PacketBlob", config: RunConfig,
+                     *, workdir: Optional[str], timeout: Optional[int]) -> SeatRoundResult:
+    """Spawn one seat on its approved prompt, classify, retry once per §13.
+
+    The prompt fed here is `blob.text` — the SAME canonical string the egress gate
+    hashed — so the bytes that actually leave (codex/gemini carry it in argv,
+    claude on stdin) are exactly the approved bytes. No re-templating happens
+    between consent and spawn.
+    """
+    adapter = seat.adapter
+    seat_timeout = timeout if timeout is not None else adapter.timeout_s
+    prompt = blob.text
+
+    attempts = 0
+    result = None
+    status = failure = None
+    last_argv: list = []
+    for attempt in (1, 2):
+        attempts = attempt
+        last_argv = adapter.build_argv(seat.model, prompt, reasoning=seat.reasoning,
+                                       workdir=workdir, network=config.network_on)
+        result = spawn(adapter, last_argv, prompt=prompt, timeout=seat_timeout, cwd=workdir)
+        status, failure = classify_round1(result, adapter)
+        if status in ("ran", "degraded"):
+            break
+        if attempt == 1 and failure in RETRYABLE_FAILURES:
+            continue   # the one allowed retry (Timeout | InvalidOutput)
+        break
+
+    answered = adapter.model_answered(result.stdout, result.stderr) if status in ("ran", "degraded") else None
+    return SeatRoundResult(
+        seat=seat.name,
+        provider=seat.provider,
+        model_requested=seat.model,
+        model_answered=answered,
+        status=status,
+        failure_class=failure,
+        attempts=attempts,
+        elapsed_s=result.elapsed_s,
+        exit_code=result.exit_code,
+        timed_out=result.timed_out,
+        stdout=result.stdout,
+        stderr=result.stderr,
+        prompt_hash=blob.sha256,
+        source_hash=config.source.sha256,
+        argv_preview=_argv_preview(last_argv),
+    )
+
+
+def run_round1(config: RunConfig, blobs: list, approval: EgressApproval, *,
+               timeout: Optional[int] = None, parallel: bool = True) -> list:
+    """Round-1 fan-out across the board. Returns SeatRoundResult in board order.
+
+    Re-asserts the egress hash one last time before the first spawn: the packet
+    MUST still hash to exactly what consent was bound to, or nothing leaves the
+    machine (the pre-spawn hard stop, restated at the point of no return).
+    """
+    if packet_hash(blobs) != approval.content_hash:
+        die("egress hash drift: the packet no longer matches the approved content "
+            "hash — refusing to spawn the board", EXIT_EGRESS_BLOCKED)
+    by_seat = {b.seat: b for b in blobs}
+
+    # Gate mode confines each seat to a scoped, empty cwd (same posture preflight
+    # used); advisory mode runs in the caller's cwd (your own material, by design).
+    workdir = tempfile.mkdtemp(prefix="advisory-board-round1-") if config.fs_scoped else None
+    try:
+        def _one(seat: SeatConfig) -> SeatRoundResult:
+            return _run_seat_round1(seat, by_seat[seat.name], config,
+                                    workdir=workdir, timeout=timeout)
+
+        results: dict = {}
+        if parallel and len(config.board) > 1:
+            from concurrent.futures import ThreadPoolExecutor
+            with ThreadPoolExecutor(max_workers=len(config.board)) as pool:
+                futures = {pool.submit(_one, s): s for s in config.board}
+                for fut, seat in futures.items():
+                    results[seat.name] = fut.result()
+        else:
+            for seat in config.board:
+                results[seat.name] = _one(seat)
+        return [results[s.name] for s in config.board]
+    finally:
+        if workdir:
+            shutil.rmtree(workdir, ignore_errors=True)
+
+
+def _dropped_md(r: SeatRoundResult) -> str:
+    return (f"# {r.seat} — round 1: no usable review\n\n"
+            f"Status: **{r.status}** · failure class: **{r.failure_class or '-'}** · "
+            f"attempts: {r.attempts}.\n\n"
+            f"This seat did not return a usable round-1 review. See "
+            f"`round-1/{r.seat}.raw` for the full invocation record and "
+            f"`logs/{r.seat}-round-1.stderr` for its stderr.\n")
+
+
+def render_raw_record(r: SeatRoundResult, approval: EgressApproval) -> str:
+    """The Black-Box Recorder (§12): the verbatim invocation + the hashes that
+    prove same-material independence and bind it to the egress approval. Honestly
+    'falsifiable-by-inspection', not tamper-proof — it catches empty/lazy/drifted
+    runs, not a determined forger using the same orchestrator."""
+    lines = [
+        f"# Black-box recorder — {r.seat} · round 1",
+        "",
+        f"command         : {r.argv_preview}",
+        f"prompt-source   : prompts/{r.seat}-round-1.prompt",
+        f"source-hash     : sha256:{r.source_hash}   (identical across seats → same-material independence)",
+        f"prompt-hash     : sha256:{r.prompt_hash}   (the exact bytes this seat received)",
+        f"packet-hash     : sha256:{approval.content_hash}   (egress consent was bound to this)",
+        f"model-requested : {r.model_requested}",
+        f"model-answered  : {r.model_answered or 'unknown (CLI reported none — not assumed)'}",
+        f"exit-code       : {r.exit_code}",
+        f"timed-out       : {'yes' if r.timed_out else 'no'}",
+        f"elapsed-s       : {r.elapsed_s:.2f}",
+        f"attempts        : {r.attempts}",
+        f"status          : {r.status}",
+        f"failure-class   : {r.failure_class or '-'}",
+        "",
+        "----------------8<---------------- STDOUT ----------------8<----------------",
+        r.stdout.rstrip("\n"),
+        "----------------8<---------------- STDERR ----------------8<----------------",
+        r.stderr.rstrip("\n"),
+        "",
+    ]
+    return "\n".join(lines) + "\n"
+
+
+def write_round1_artifacts(config: RunConfig, results: list, approval: EgressApproval) -> None:
+    out = config.out_dir
+    os.makedirs(os.path.join(out, "round-1"), exist_ok=True)
+    os.makedirs(os.path.join(out, "logs"), exist_ok=True)
+    for r in results:
+        review_md = r.stdout if r.usable else _dropped_md(r)
+        _write(os.path.join(out, "round-1", f"{r.seat}.md"), review_md)
+        _write(os.path.join(out, "round-1", f"{r.seat}.raw"), render_raw_record(r, approval))
+        _write(os.path.join(out, "logs", f"{r.seat}-round-1.stderr"), r.stderr)
+
+
+def render_round1_table(results: list) -> str:
+    rows = ["| Seat   | Status   | Model answered | Attempts | Elapsed | Failure |",
+            "| ------ | -------- | -------------- | -------- | ------- | ------- |"]
+    for r in results:
+        answered = r.model_answered or "unknown"
+        rows.append(
+            f"| {r.seat:<6} | {r.status:<8} | {answered:<14} | {r.attempts:<8} "
+            f"| {r.elapsed_s:>5.1f}s | {r.failure_class or '-'} |"
+        )
+    usable = sum(1 for r in results if r.usable)
+    rows.append("")
+    rows.append(f"{usable} of {len(results)} seats produced a usable round-1 review.")
+    return "\n".join(rows)
 
 
 # --------------------------------------------------------------------------- #
@@ -2026,15 +2370,35 @@ def cmd_run(args) -> int:
                render_sensitivity_json(config, approval))
         die(f"egress blocked — see {config.out_dir}/egress-manifest.md", EXIT_EGRESS_BLOCKED)
 
-    # 3. Approved: write the packet + provenance, then stop at the M3 boundary.
-    # M3 obligation (tracked): the fan-out must re-derive each seat's argv and the
-    # hashed blob from ONE canonical prompt string and re-assert packet_hash(blobs)
-    # == approval.content_hash immediately before subprocess.run, so the bytes that
-    # actually egress (codex/gemini carry the prompt in argv) match what was approved.
-    write_artifacts(config, blobs, approval, preflight, content_hash)
+    # 3. Approved: persist the exact approved packet + provenance BEFORE spawning.
+    write_pre_spawn_artifacts(config, blobs, approval, content_hash)
+
+    # 4. Round-1 fan-out (M3) — the first real spawn. run_round1 re-asserts the
+    #    egress hash one last time, then feeds each seat its approved blob verbatim
+    #    (so the bytes that actually leave equal what consent was bound to), with
+    #    per-seat timeout / one-retry / failure classification (§13).
+    print("\n=== round 1 (fan-out) ===")
+    results = run_round1(config, blobs, approval, timeout=getattr(args, "timeout", None))
+    write_round1_artifacts(config, results, approval)
+    _write(os.path.join(config.out_dir, "run-metadata.md"),
+           render_run_metadata(config, preflight, approval, round1=results))
+    print(render_round1_table(results))
     print(f"\nwrote run dir: {config.out_dir}")
-    print("Round-1 fan-out is not implemented in this milestone (M3). "
-          "The egress gate has passed; the conductor stops here without spawning any seat.")
+
+    usable = [r for r in results if r.usable]
+    if len(usable) < 2:
+        print(f"\nWARNING: only {len(usable)} of {len(results)} seats produced a usable "
+              "round-1 review — that is not a board. Inspect round-1/*.raw and logs/, fix "
+              "the failed seats, and re-run. Synthesis is intentionally NOT attempted on "
+              "fewer than two voices.")
+        return EXIT_PREFLIGHT_NOGO
+
+    # M3 boundary: Round 1 is captured. Round 2 / packets (M4) and the canonical
+    # verdict + resolved evidence (M5) are later milestones — v1 hands the clean
+    # round-1 artifacts to the synthesizer rather than flattening them in code (§11).
+    print(f"\nRound 1 complete: {len(usable)} usable reviews in {config.out_dir}/round-1/. "
+          "Next (M4/M5, not yet automated): synthesize round-1/*.md into verdict.json, "
+          "then `validate` it. The conductor stops at the round-1 boundary.")
     return EXIT_OK
 
 
@@ -2095,8 +2459,8 @@ def add_run_options(parser: argparse.ArgumentParser) -> None:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="run_board.py",
-        description="The Advisory Board conductor (M1+M2: skeleton, registry, dry-run, "
-                    "preflight, egress/quarantine gate).",
+        description="The Advisory Board conductor (M1-M3: registry, dry-run, preflight, "
+                    "egress/quarantine gate, round-1 fan-out with failure protocol).",
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -2109,7 +2473,7 @@ def build_parser() -> argparse.ArgumentParser:
     add_run_options(p_pre)
     p_pre.set_defaults(func=cmd_preflight)
 
-    p_run = sub.add_parser("run", help="resolve -> preflight -> packet -> egress gate -> (M3 boundary)")
+    p_run = sub.add_parser("run", help="resolve -> preflight -> egress gate -> round-1 fan-out")
     add_run_options(p_run)
     p_run.add_argument("--dry-run", action="store_true",
                        help="print config + run-card + preflight plan + manifest + tree; no spawn")
@@ -2120,6 +2484,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_run.add_argument("--update-tools", dest="update_tools", action="store_true",
                        help="before preflight, check each CLI vs latest and update stale ones "
                             "(consent-gated; --yes auto-approves)")
+    p_run.add_argument("--timeout", type=int, default=None, metavar="SECONDS",
+                       help="per-seat hard timeout for the round-1 fan-out "
+                            "(default: the adapter cap, 900s = 15 min)")
     p_run.set_defaults(func=cmd_run)
 
     p_tool = sub.add_parser("toolchain",

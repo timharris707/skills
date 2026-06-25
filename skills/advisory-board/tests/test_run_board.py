@@ -509,13 +509,26 @@ class TestRunFlow(EnvMixin):
         self.assertEqual(code, rb.EXIT_OK)
         for rel in ["run-recipe.yaml", "egress-manifest.md", "sensitivity.json",
                     "run-metadata.md", "prompts/claude-round-1.prompt",
-                    "prompts/codex-round-1.prompt", "prompts/gemini-round-1.prompt"]:
+                    "prompts/codex-round-1.prompt", "prompts/gemini-round-1.prompt",
+                    # M3 fan-out artifacts: per-seat review, black-box recorder, stderr log.
+                    "round-1/claude.md", "round-1/claude.raw", "logs/claude-round-1.stderr",
+                    "round-1/codex.md", "round-1/gemini.md"]:
             self.assertTrue(os.path.exists(os.path.join(out, rel)), rel)
         with open(os.path.join(out, "run-metadata.md")) as fh:
             meta = fh.read()
         self.assertIn("APPROVED", meta)
         self.assertIn("sha256:", meta)
-        self.assertIn("M3", text)  # stops at the spawn boundary
+        self.assertIn("## Round 1", meta)                  # fan-out outcome recorded
+        self.assertIn("3 of 3 seats produced a usable round-1 review", text)
+        # The captured review must be the real artifact, not the smoke "ready".
+        with open(os.path.join(out, "round-1", "claude.md")) as fh:
+            self.assertIn("Verdict", fh.read())
+        # The black-box recorder binds the run to the approved hash + source hash.
+        with open(os.path.join(out, "round-1", "claude.raw")) as fh:
+            raw = fh.read()
+        self.assertIn("packet-hash", raw)
+        self.assertIn("source-hash", raw)
+        self.assertIn("model-answered  : claude-opus-4-8", raw)
 
     def test_preflight_gates_before_egress(self):
         # Two seats down -> NO-GO -> must stop BEFORE writing any egress manifest,
@@ -1073,7 +1086,8 @@ class TestRunUpdateToolsFlag(EnvMixin):
         self.assertEqual(code, rb.EXIT_OK)
         self.assertIn("=== toolchain ===", text)
         self.assertIn("=== preflight ===", text)
-        self.assertIn("M3", text)   # still stops at the documented spawn boundary
+        self.assertIn("=== round 1 (fan-out) ===", text)   # proceeds through the fan-out
+        self.assertIn("usable round-1 review", text)
 
 
 class TestAntigravitySeat(EnvMixin):
@@ -1236,6 +1250,248 @@ class TestGracefulDegradation(EnvMixin):
         self.assertIn("board-composition.md", out)
         # nothing materialized — degraded stop is before the egress gate
         self.assertFalse(os.path.exists(os.path.join(out_dir, "prompts")))
+
+
+# --------------------------------------------------------------------------- #
+# M3 — round-1 success shape check + failure classifier + model-answered parser
+# --------------------------------------------------------------------------- #
+
+
+_REAL_REVIEW = (
+    "## Verdict\nConditional go (medium).\n\n## Strongest objections\nThe retry "
+    "path can double charge.\n\n## Recommended execution sequence\n1. Constraint. "
+    "2. Backfill.\n\n## Invariants and guardrails\nExactly-once per key.\n\n## "
+    "Risks\nAssumes strong consistency.\n\n## Concrete evidence\nSee 'Key storage'.\n"
+)
+
+
+class TestRound1ShapeCheck(unittest.TestCase):
+    def test_real_review_passes(self):
+        ok, reason = rb.check_round1_shape(_REAL_REVIEW)
+        self.assertTrue(ok, reason)
+
+    def test_short_stub_fails(self):
+        ok, reason = rb.check_round1_shape("I saved the review to review.md.")
+        self.assertFalse(ok)
+        self.assertIn("too short", reason)
+
+    def test_long_but_sectionless_fails(self):
+        # Long enough, but names no review sections -> not a review.
+        ok, reason = rb.check_round1_shape("lorem ipsum dolor sit amet " * 20)
+        self.assertFalse(ok)
+        self.assertIn("missing review sections", reason)
+
+
+class TestClassifyRound1(unittest.TestCase):
+    def _r(self, **kw):
+        base = dict(exit_code=0, stdout=_REAL_REVIEW, stderr="", elapsed_s=0.1, timed_out=False)
+        base.update(kw)
+        return rb.SpawnResult(**base)
+
+    def test_valid_review_ran(self):
+        self.assertEqual(rb.classify_round1(self._r(), rb.REGISTRY["claude"]), ("ran", None))
+
+    def test_valid_review_nonzero_is_degraded(self):
+        status, fail = rb.classify_round1(self._r(exit_code=1), rb.REGISTRY["gemini"])
+        self.assertEqual((status, fail), ("degraded", None))
+
+    def test_stub_is_invalid_output(self):
+        status, fail = rb.classify_round1(self._r(stdout="saved to file"), rb.REGISTRY["claude"])
+        self.assertEqual((status, fail), ("dropped", rb.FAILURE_INVALID))
+
+    def test_empty_is_no_output(self):
+        status, fail = rb.classify_round1(self._r(stdout="", exit_code=1), rb.REGISTRY["codex"])
+        self.assertEqual((status, fail), ("dropped", rb.FAILURE_NOOUTPUT))
+
+    def test_empty_with_auth_stderr_is_auth_failure(self):
+        status, fail = rb.classify_round1(
+            self._r(stdout="", stderr="auth error: please log in", exit_code=1),
+            rb.REGISTRY["gemini"])
+        self.assertEqual((status, fail), ("dropped", rb.FAILURE_AUTH))
+
+    def test_review_discussing_auth_is_not_auth_failure(self):
+        # A valid review that *mentions* 401/unauthorized on stdout must not be
+        # misread as an auth failure (auth is scanned on stderr only).
+        body = _REAL_REVIEW + "\nThe endpoint returns 401 unauthorized on bad keys.\n"
+        self.assertEqual(rb.classify_round1(self._r(stdout=body), rb.REGISTRY["codex"]),
+                         ("ran", None))
+
+    def test_timeout(self):
+        status, fail = rb.classify_round1(self._r(timed_out=True, exit_code=124),
+                                          rb.REGISTRY["claude"])
+        self.assertEqual((status, fail), ("dropped", rb.FAILURE_TIMEOUT))
+
+    def test_model_not_found(self):
+        out = "There's an issue with the selected model. It may not exist"
+        status, fail = rb.classify_round1(self._r(stdout=out, exit_code=1), rb.REGISTRY["claude"])
+        self.assertEqual((status, fail), ("dropped", rb.FAILURE_MODEL))
+
+    def test_retryable_set(self):
+        self.assertEqual(rb.RETRYABLE_FAILURES, frozenset({rb.FAILURE_TIMEOUT, rb.FAILURE_INVALID}))
+
+
+class TestModelAnsweredParser(unittest.TestCase):
+    def test_banner_on_stderr(self):
+        self.assertEqual(rb.parse_model_answered("review body", "model: gpt-5.5\n"), "gpt-5.5")
+
+    def test_json_field_on_stderr(self):
+        self.assertEqual(rb.parse_model_answered("", '{"model":"claude-opus-4-8"}'),
+                         "claude-opus-4-8")
+
+    def test_none_when_absent(self):
+        self.assertIsNone(rb.parse_model_answered("a long review mentioning the model", ""))
+
+    def test_not_mined_from_stdout_prose(self):
+        # "model:" appearing in the review prose (stdout) must NOT be parsed.
+        self.assertIsNone(rb.parse_model_answered("the data model: users and orders", ""))
+
+    def test_antigravity_is_deliberately_unknown(self):
+        # agy silently substitutes models, so its parser is the None stub by design.
+        self.assertIsNone(rb.REGISTRY["antigravity"].model_answered("model: x", "model: x"))
+
+
+# --------------------------------------------------------------------------- #
+# M3 — round-1 fan-out (against mock CLIs)
+# --------------------------------------------------------------------------- #
+
+
+class TestRound1FanOut(EnvMixin):
+    def _setup(self, **kw):
+        config = _config(**kw)
+        blobs = rb.build_packet(config)
+        approval = rb.EgressApproval(True, "hash-bound", rb.packet_hash(blobs),
+                                     "2026-06-25T12:00:00", "test")
+        return config, blobs, approval
+
+    def test_all_seats_usable_and_models_captured(self):
+        config, blobs, approval = self._setup()
+        results = rb.run_round1(config, blobs, approval)
+        self.assertEqual([r.seat for r in results], ["claude", "codex", "gemini"])
+        self.assertTrue(all(r.usable for r in results))
+        self.assertTrue(all(r.attempts == 1 for r in results))
+        answered = {r.seat: r.model_answered for r in results}
+        self.assertEqual(answered["claude"], "claude-opus-4-8")
+        self.assertEqual(answered["codex"], "gpt-5.5")
+        self.assertEqual(answered["gemini"], "gemini-3.5-flash")
+
+    def test_same_material_independence_and_hash_binding(self):
+        config, blobs, approval = self._setup()
+        results = rb.run_round1(config, blobs, approval)
+        # source-hash identical across seats (same material); prompt-hash differs
+        # (claude carries the output-override, lenses differ) — both honest.
+        self.assertEqual(len({r.source_hash for r in results}), 1)
+        self.assertEqual(len({r.prompt_hash for r in results}), len(results))
+        self.assertEqual(results[0].source_hash, config.source.sha256)
+
+    def test_stub_seat_retries_then_drops_invalid(self):
+        # A seat that passes the preflight smoke ("ready") but returns a plan-mode
+        # stub at fan-out is retried once, then dropped InvalidOutput (the §13 /
+        # {{CLAUDE_OUTPUT_OVERRIDE}} detection).
+        os.environ["MOCK_CLAUDE_MODE"] = "stub"
+        config, blobs, approval = self._setup()
+        results = {r.seat: r for r in rb.run_round1(config, blobs, approval)}
+        self.assertEqual(results["claude"].status, "dropped")
+        self.assertEqual(results["claude"].failure_class, rb.FAILURE_INVALID)
+        self.assertEqual(results["claude"].attempts, 2)   # one retry
+        self.assertTrue(results["codex"].usable)
+
+    def test_timeout_seat_retries_then_drops(self):
+        os.environ["MOCK_GEMINI_MODE"] = "timeout"
+        config, blobs, approval = self._setup()
+        results = {r.seat: r for r in rb.run_round1(config, blobs, approval, timeout=1)}
+        self.assertEqual(results["gemini"].status, "dropped")
+        self.assertEqual(results["gemini"].failure_class, rb.FAILURE_TIMEOUT)
+        self.assertEqual(results["gemini"].attempts, 2)
+        self.assertTrue(results["gemini"].timed_out)
+
+    def test_auth_failure_is_not_retried(self):
+        os.environ["MOCK_GEMINI_MODE"] = "nogo_smoke"   # "auth error" -> empty stdout
+        config, blobs, approval = self._setup()
+        results = {r.seat: r for r in rb.run_round1(config, blobs, approval)}
+        self.assertEqual(results["gemini"].failure_class, rb.FAILURE_AUTH)
+        self.assertEqual(results["gemini"].attempts, 1)   # non-retryable
+
+    def test_degraded_seat_is_usable(self):
+        os.environ["MOCK_CODEX_MODE"] = "degraded"   # valid review, exit 1
+        config, blobs, approval = self._setup()
+        results = {r.seat: r for r in rb.run_round1(config, blobs, approval)}
+        self.assertEqual(results["codex"].status, "degraded")
+        self.assertTrue(results["codex"].usable)
+
+    def test_antigravity_model_answered_stays_unknown(self):
+        config, blobs, approval = self._setup(board="claude,codex,antigravity")
+        results = {r.seat: r for r in rb.run_round1(config, blobs, approval)}
+        self.assertTrue(results["antigravity"].usable)
+        self.assertIsNone(results["antigravity"].model_answered)   # never trusted
+
+    def test_local_seat_fans_out_and_stays_unknown(self):
+        # The runnable local fallback (ollama) works end-to-end through the fan-out:
+        # a usable review, provider=local (no external egress), model answered
+        # 'unknown' by design.
+        config, blobs, approval = self._setup(board="claude,codex,ollama")
+        results = {r.seat: r for r in rb.run_round1(config, blobs, approval)}
+        self.assertTrue(results["ollama"].usable)
+        self.assertEqual(results["ollama"].provider, "local")
+        self.assertIsNone(results["ollama"].model_answered)
+
+    def test_hash_drift_refuses_to_spawn(self):
+        # If the packet no longer matches the approved hash, nothing spawns.
+        config, blobs, approval = self._setup()
+        blobs[0] = rb.PacketBlob(seat=blobs[0].seat, provider=blobs[0].provider,
+                                 relpath=blobs[0].relpath, text=blobs[0].text + " TAMPERED")
+        with self.assertRaises(SystemExit) as cm:
+            rb.run_round1(config, blobs, approval)
+        self.assertEqual(cm.exception.code, rb.EXIT_EGRESS_BLOCKED)
+
+
+class TestRound1RunLevel(EnvMixin):
+    def test_under_two_usable_warns_but_writes_artifacts(self):
+        # Two seats pass the smoke but stub the review -> only one usable review ->
+        # not a board. The run still writes what it captured, but exits NO-GO.
+        os.environ["MOCK_CODEX_MODE"] = "stub"
+        os.environ["MOCK_GEMINI_MODE"] = "stub"
+        out = tempfile.mkdtemp(prefix="board-1voice-")
+        code, text, _ = run_cli(["run", "--source", SAMPLE, "--out", out, "--yes",
+                                 "--timeout", "5"])
+        self.assertEqual(code, rb.EXIT_PREFLIGHT_NOGO)
+        self.assertIn("that is not a board", text)
+        # artifacts for the captured attempts are still present (idempotent writes)
+        self.assertTrue(os.path.exists(os.path.join(out, "round-1", "claude.md")))
+        self.assertTrue(os.path.exists(os.path.join(out, "round-1", "codex.raw")))
+        # the dropped seats' .md records the failure, not a fake review
+        with open(os.path.join(out, "round-1", "codex.md")) as fh:
+            self.assertIn("no usable review", fh.read())
+
+
+class TestSpawnProcessGroupKill(EnvMixin):
+    def test_timed_out_child_group_is_reaped(self):
+        # spawn() launches the child in its own session and kills the whole group
+        # on timeout. A backgrounded grandchild (sleep) must NOT survive — the bug
+        # plain subprocess.run(timeout=) would leave orphaned.
+        import time
+        work = tempfile.mkdtemp(prefix="board-pgkill-")
+        pidfile = os.path.join(work, "child.pid")
+        script = os.path.join(work, "forker.sh")
+        with open(script, "w") as fh:
+            fh.write("#!/usr/bin/env bash\nsleep 30 &\necho $! > '%s'\nwait\n" % pidfile)
+        os.chmod(script, 0o755)
+        result = rb.spawn(rb.REGISTRY["codex"], [script], timeout=1)
+        self.assertTrue(result.timed_out)
+        self.assertEqual(result.exit_code, 124)
+        # poll briefly for the backgrounded grandchild to be gone
+        with open(pidfile) as fh:
+            child = int(fh.read().strip())
+        for _ in range(30):
+            try:
+                os.kill(child, 0)
+            except ProcessLookupError:
+                break
+            time.sleep(0.1)
+        else:
+            try:
+                os.kill(child, 9)
+            finally:
+                self.fail("grandchild sleep survived the timeout — process group not killed")
 
 
 if __name__ == "__main__":

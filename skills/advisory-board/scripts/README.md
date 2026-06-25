@@ -4,7 +4,7 @@
 
 | Script | Does | Reference |
 | ------ | ---- | --------- |
-| `run_board.py` | The **conductor** (M1+M2): deterministic seat-adapter registry, `--dry-run`, toolchain currency (`toolchain` — check/update stale CLIs, propose fallback model ids), executable preflight (GO/NO-GO), and a hash-bound egress/quarantine gate before any provider call. Calls the scripts below; never reimplements them. | `design/run-board-conductor.md` |
+| `run_board.py` | The **conductor** (M1–M3): deterministic seat-adapter registry, `--dry-run`, toolchain currency (`toolchain` — check/update stale CLIs, propose fallback model ids), executable preflight (GO/NO-GO), a hash-bound egress/quarantine gate before any provider call, and the **round-1 fan-out** (real spawn, §13 failure protocol, per-seat `round-1/` artifacts). Calls the scripts below; never reimplements them. | `design/run-board-conductor.md` |
 | `board_verdict.py` | Validate `verdict.json`; gate CI on the verdict (`--gate`). | `references/verdict-schema.md` |
 | `format_output.py` | Render `verdict.json` as a TL;DR, PR comment, Slack message, or normalized JSON. | `references/output-formats.md` |
 | `render_handoff.py` | Render `final-consensus.html` from a `handoff-data.json` — deterministic, fails on any leftover placeholder. | `references/handoff-template.html` |
@@ -25,7 +25,8 @@ python3 scripts/run_board.py run --source plan.md --dry-run
 # probe the seats (GO/NO-GO); exits non-zero if fewer than two are GO
 python3 scripts/run_board.py preflight --source plan.md
 
-# resolve config + preflight + egress gate (stops at the M3 spawn boundary for now)
+# full run: preflight + egress gate + round-1 fan-out -> round-1/<seat>.md + .raw
+# (stops at the round-1 boundary; synthesis -> verdict.json is M4/M5)
 python3 scripts/run_board.py run --source plan.md --sensitivity public
 
 # validate and summarize
@@ -43,4 +44,4 @@ python3 scripts/render_handoff.py path/to/handoff-data.json -o final-consensus.h
 
 > Paths above are relative to the **skill directory** — `skills/advisory-board/` in this repo, or the installed skill root (e.g. `~/.codex/skills/advisory-board/`) — the same convention as every `references/…` path in the skill. Run the scripts from there, or prefix them with that directory; `scripts/board_verdict.py` won't resolve from the repo root.
 
-`board_verdict.py` and `format_output.py` read the `verdict.json` a *completed* run emits next to `final-consensus.md` (produced once the conductor reaches synthesis — M5). The M1+M2 `run_board.py` stops at the egress gate, before any seat is spawned, so it does not yet emit a verdict. See the repo-root `examples/payments-idempotency-review/verdict.json` for a filled-in sample, and `references/verdict-schema.md` for the schema.
+`board_verdict.py` and `format_output.py` read the `verdict.json` a *completed* run emits next to `final-consensus.md` (produced once the conductor reaches synthesis — M5). `run_board.py` currently stops at the **round-1 boundary**: it spawns the board and captures each seat's review under `round-1/`, but does not yet synthesize a `verdict.json` (M4 packets, M5 verdict). See the repo-root `examples/payments-idempotency-review/verdict.json` for a filled-in sample, and `references/verdict-schema.md` for the schema.

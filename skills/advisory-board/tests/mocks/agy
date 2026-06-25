@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
 # Mock `agy` (Antigravity CLI). Handles `agy --version`, `agy models`, `agy update`,
-# and `agy -p <prompt>` smoke. MOCK_AGY_MODE: go | nogo_version | nogo_smoke |
-# empty | degraded | timeout. MOCK_AGY_VERSION sets the reported version (default
+# and `agy -p <prompt>`. MOCK_AGY_MODE: go | nogo_version | nogo_smoke | empty |
+# degraded | timeout | stub. MOCK_AGY_VERSION sets the reported version (default
 # 1.0.0). `agy update` fails with MOCK_AGY_UPDATE_FAIL=1. Real agy reads stdin to
 # EOF, so the conductor must close it (close_stdin -> DEVNULL) or the call hangs.
+# A round-1 prompt (contains "MATERIAL UNDER REVIEW") gets a full review; the smoke
+# ping gets "ready". NOTE: agy emits a model banner here, but the conductor never
+# trusts it (antigravity silently substitutes models) — model_answered stays None.
 set -u
 
 if [ -n "${MOCK_ARGV_LOG:-}" ]; then
@@ -33,10 +36,55 @@ fi
 # leaves stdin open hangs and the conductor's timeout fires (the bug a test should catch).
 cat >/dev/null 2>&1
 
+is_review=0
+case "$*" in *"MATERIAL UNDER REVIEW"*) is_review=1 ;; esac
+model=""
+prev=""
+for a in "$@"; do
+  if [ "$prev" = "--model" ]; then model="$a"; fi
+  prev="$a"
+done
+
+emit_review() {
+  echo "model: ${model:-unknown}" >&2
+  cat <<'REVIEW'
+## Verdict
+Conditional go (confidence: medium). Changes it: a documented backfill plan for
+existing in-flight requests.
+
+## Strongest objections
+- The cutover assumes no requests are mid-retry when the constraint lands.
+- Evidence for the "no double charge" claim is asserted, not demonstrated.
+
+## Recommended execution sequence
+1. Freeze writes briefly. 2. Add the constraint. 3. Unfreeze behind a flag.
+
+## Invariants and guardrails
+The (key, request-hash) pair is unique and immutable once written.
+
+## Risks, stale assumptions, missing evidence
+Assumes a clean migration window exists in production — verify the traffic trough.
+
+## Concrete evidence
+Plan does not cite where the idempotency key is generated client-side.
+
+## What I'd ask the other seats
+Challenge the freeze-writes step's blast radius on latency SLOs.
+REVIEW
+}
+
 case "$mode" in
   nogo_smoke) echo "auth error" >&2; exit 1 ;;
   empty)      exit 0 ;;
   timeout)    exec sleep 30 ;;   # exec so no orphaned sleep survives the kill
-  degraded)   echo "harness note" >&2; echo "ready"; exit 1 ;;
-  *)          echo "ready"; exit 0 ;;
+  stub)
+    if [ "$is_review" = "1" ]; then echo "Reviewed."; else echo "ready"; fi
+    exit 0 ;;
+  degraded)
+    echo "harness note" >&2
+    if [ "$is_review" = "1" ]; then emit_review; else echo "ready"; fi
+    exit 1 ;;
+  *)
+    if [ "$is_review" = "1" ]; then emit_review; else echo "ready"; fi
+    exit 0 ;;
 esac
