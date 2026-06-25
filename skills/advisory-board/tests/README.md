@@ -1,9 +1,9 @@
 # Conductor tests
 
-Tests for `scripts/run_board.py` (the M1–M3 conductor). Python 3 standard library
-only; they run the whole pipeline — including the real round-1 fan-out — against
-**mock CLIs** on `PATH`, so no provider tokens are spent and nothing leaves the
-machine.
+Tests for `scripts/run_board.py` (the M1–M4 conductor). Python 3 standard library
+only; they run the whole pipeline — including the real round-1 and round-2
+fan-outs — against **mock CLIs** on `PATH`, so no provider tokens are spent and
+nothing leaves the machine.
 
 ## Run
 
@@ -23,7 +23,7 @@ needed beyond a Python 3 interpreter.
 
 | Path | Purpose |
 | ---- | ------- |
-| `test_run_board.py` | the suite (registry, YAML codec, config, packet, preflight, egress gate, end-to-end run flow, **round-1 fan-out: shape check, failure classifier, model-answered parser, retry/timeout, hash binding, process-group kill**, `--from-recipe`, delegation, toolchain currency + model self-heal) |
+| `test_run_board.py` | the suite (registry, YAML codec, config, packet, preflight, egress gate, end-to-end run flow, **round-1 fan-out: shape check, failure classifier, model-answered parser, retry/timeout, hash binding, process-group kill**, **round 2: cross-reading packets (full/summaries/none), dropped-seat exclusion, distinct per-round packet hashes, `run-metadata.tsv`, `--rounds`/`--cross-reading` behavior**, `--from-recipe`, delegation, toolchain currency + model self-heal) |
 | `mocks/{claude,codex,gemini,agy,ollama}` | banner-accurate CLI stubs; behavior switched by `MOCK_<SEAT>_MODE` (`go`/`nogo_version`/`nogo_smoke`/`empty`/`degraded`/`timeout`/`model_not_found`/`stub`; gemini also `model_proposal`) and argv captured to `MOCK_ARGV_LOG`. The smoke ping returns `ready`; a round-1 prompt returns a full multi-section review (with a `model:` banner on stderr) so a single test exercises preflight **and** the fan-out — `stub` returns a short plan-style reply (the §13 shape-check failure). `claude`/`codex`/`agy` also mock `update` (force failure with `MOCK_<SEAT>_UPDATE_FAIL=1`); `agy` also mocks `models`. (`agy` is the Antigravity seat — `MOCK_AGY_VERSION` sets its reported version. `ollama` is the local seat — prompt on stdin, no `model_not_found`/`update` arms; `MOCK_OLLAMA_VERSION` sets its reported version, default `0.5.0`) |
 | `mocks/{npm,brew}` | package-manager stubs for the toolchain check/update: latest version is env-controlled (`MOCK_NPM_CLAUDE`/`MOCK_NPM_CODEX`, `MOCK_BREW_GEMINI`/`MOCK_BREW_OLLAMA` formulae, `MOCK_BREW_CASK` for the antigravity cask; default `9.9.9` → stale); `brew upgrade` fails with `MOCK_BREW_UPGRADE_FAIL=1` |
 | `fixtures/sample-plan.md` | a small, stable source for deterministic runs |
@@ -71,3 +71,17 @@ The M3 round-1 fan-out adds its own invariants:
 - **Hung seats are reaped as a process group**
   (`TestSpawnProcessGroupKill`) — a timed-out child's backgrounded grandchildren
   are killed, not orphaned (the gap `subprocess.run(timeout=)` alone would leave).
+
+The M4 round-2 layer adds:
+
+- **Round 2 cross-reads correctly** (`TestRound2Builders`, `TestRound2FanOut`) —
+  `full`/`summaries`/`none` build the right packet; only *usable* round-1 seats
+  continue; the source is re-supplied (each spawn is stateless) and peers are
+  wrapped as data-under-review.
+- **Each round is its own egress with its own hash** (`TestRound2RunLevel`) —
+  `run-metadata.tsv` carries one row per seat per round; round-1 and round-2 rows
+  carry distinct packet hashes; the round-2 `.raw` records that it reuses the run's
+  approval rather than a fresh hash-bound consent.
+- **`--rounds`/`--cross-reading` honored** — `--rounds 1` skips round 2; `none`
+  skips the board packet; `--rounds 3`/`auto` caps at round 2 with a v1.x note;
+  `<2` usable round-1 reviews skips round 2 but still records what was captured.
