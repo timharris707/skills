@@ -7,6 +7,17 @@ description: Convene a multi-model advisory board (a round table) where subscrip
 
 Bring an idea, problem, plan, or architecture to a board of frontier models sitting in different roles. Each reviews it independently, then they read and challenge each other across one or more rounds, and you leave with the strongest conclusion the board can reach together and a clean takeaway — not three disconnected opinions.
 
+## Must Not
+
+Hard rules, collected here so they are never missed (each is elaborated in context below). Violating one invalidates the run.
+
+- **Never write files or make edits** unless the user explicitly asked for edits — the board is read-only by default.
+- **Never write artifacts into a tracked git tree** without naming the location first; default to a `/tmp/advisory-board-*` folder.
+- **Never substitute a model silently** — if a requested model is unavailable, use the nearest same-provider frontier model and say so.
+- **Never skip the data-handling disclosure** for non-public material — not even when the user says "use defaults." Disclose what leaves the machine and to whom, and get a go-ahead, before any external seat runs (`references/data-handling.md`).
+- **Never present a degraded or dropped seat as a full board** — label it on the seat card and in `verdict.json` (`dropped: true`); a board needs at least two seats that actually ran.
+- **Never print or store secrets** — keys, tokens, cookies, or private environment values — in prompts, packets, artifacts, logs, or metadata.
+
 ## Core Defaults
 
 - Use subscription CLIs by default, not provider API keys.
@@ -132,7 +143,7 @@ Claude seat:
 claude -p "<seat prompt>" --model claude-opus-4-8 --permission-mode plan
 ```
 
-`-p` runs non-interactively; `--permission-mode plan` keeps it read-only. Use the strongest reasoning/effort the build exposes (Claude Code defaults to `xhigh`). On long analytic prompts, `--permission-mode plan` can make the seat return a plan-style *summary* (and even claim it wrote a file) instead of the full review — so tell the seat to output its complete review as its reply and not write any files.
+`-p` runs non-interactively; `--permission-mode plan` keeps it read-only. Use the strongest reasoning/effort the build exposes (Claude Code defaults to `xhigh`). On long analytic prompts, `--permission-mode plan` can make the seat return a plan-style *summary* (and even claim it wrote a file) instead of the full review — so append the `{{CLAUDE_OUTPUT_OVERRIDE}}` block from `references/prompt-templates.md` verbatim to the Claude seat's prompt, and treat a short or plan-shaped artifact as a degraded seat to re-run.
 
 Codex seat:
 

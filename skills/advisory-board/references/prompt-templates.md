@@ -2,6 +2,16 @@
 
 Use these templates as starting points. Replace placeholders before invoking each model. Pair them with `lens-presets.md` (for each seat's role emphasis) and `epistemics.md` (confidence, independence checks, and the minority report).
 
+## Required suffix — Claude seat (`{{CLAUDE_OUTPUT_OVERRIDE}}`)
+
+`--permission-mode plan` can make the Claude seat return a plan-style *summary* — and even claim it wrote a file — instead of the full review, which silently degrades Round 1 and poisons every round downstream. Append this block **verbatim** to the Claude seat's prompt in every round (it is harmless if you also apply it to the other seats):
+
+```text
+IMPORTANT: Return your COMPLETE REVIEW as your sole response. Do not summarize, do not produce a plan, and do not write or claim to write any files. Output the full review text directly as your reply.
+```
+
+A suffix is still asking the model nicely, so pair it with detection: after capture, treat a Claude artifact that is suspiciously short or reads as a plan/summary as a degraded seat and re-run it once before accepting it.
+
 ## Round 1 Seat Prompt
 
 ```text

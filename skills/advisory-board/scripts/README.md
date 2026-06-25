@@ -1,6 +1,6 @@
 # Advisory Board Scripts
 
-Optional helpers for a board run. The skill works without them — they make two roadmap features concrete. Python 3 standard library only; no install step.
+Optional helpers for a board run. The skill works without them — they wire a board's `verdict.json` into CI and other tooling (gating, formatting, deterministic HTML rendering). Python 3 standard library only; no install step.
 
 | Script | Does | Reference |
 | ------ | ---- | --------- |
