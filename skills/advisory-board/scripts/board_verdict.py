@@ -17,7 +17,10 @@ import json
 import sys
 
 SEVERITY = {"ship": 0, "caution": 1, "block": 2}
+CONFIDENCE = {"low", "medium", "high"}
+SCHEMA = "advisory-board/verdict@1"
 REQUIRED = ("schema", "verdict", "confidence", "board", "rounds")
+SEAT_REQUIRED = ("seat", "model", "round_verdicts")
 
 
 def die(message: str) -> None:
@@ -35,14 +38,68 @@ def load(path: str) -> dict:
         die(f"{path}: invalid JSON ({exc})")
     if not isinstance(data, dict):
         die(f"{path}: top level must be a JSON object")
+    validate(data)
+    return data
+
+
+def validate(data: dict) -> None:
+    """Strict schema check: a malformed verdict must not quietly pass a gate."""
     missing = [key for key in REQUIRED if key not in data]
     if missing:
-        die(f"{path}: missing required field(s): {', '.join(missing)}")
+        die(f"missing required field(s): {', '.join(missing)}")
+
+    if data["schema"] != SCHEMA:
+        die(f"schema must be {SCHEMA!r}; got {data['schema']!r}")
     if data["verdict"] not in SEVERITY:
         die(f"verdict must be one of {', '.join(SEVERITY)}; got {data['verdict']!r}")
-    if not isinstance(data["board"], list) or not data["board"]:
+    if data["confidence"] not in CONFIDENCE:
+        die(f"confidence must be one of {', '.join(sorted(CONFIDENCE))}; got {data['confidence']!r}")
+
+    rounds = data["rounds"]
+    if isinstance(rounds, bool) or not isinstance(rounds, int) or rounds < 1:
+        die(f"rounds must be a positive integer; got {rounds!r}")
+
+    board = data["board"]
+    if not isinstance(board, list) or not board:
         die("board must be a non-empty list of seats")
-    return data
+
+    for index, seat in enumerate(board):
+        where = f"board[{index}]"
+        if not isinstance(seat, dict):
+            die(f"{where} must be an object")
+        name = seat.get("seat", where)
+        seat_missing = [key for key in SEAT_REQUIRED if key not in seat]
+        if seat_missing:
+            die(f"{where} ({name}) missing field(s): {', '.join(seat_missing)}")
+        for key in ("seat", "model"):
+            if not isinstance(seat[key], str) or not seat[key].strip():
+                die(f"{where} ({name}): {key} must be a non-empty string")
+        if "lens" in seat and not isinstance(seat["lens"], str):
+            die(f"{where} ({name}): lens must be a string")
+        if "dropped" in seat and not isinstance(seat["dropped"], bool):
+            die(f"{where} ({name}): dropped must be true or false")
+        verdicts = seat["round_verdicts"]
+        if not isinstance(verdicts, list) or not verdicts:
+            die(f"{where} ({name}): round_verdicts must be a non-empty list")
+        bad = [v for v in verdicts if v not in SEVERITY]
+        if bad:
+            die(f"{where} ({name}): round_verdicts has invalid value(s): {', '.join(map(repr, bad))}")
+
+    ran = [seat for seat in board if not seat.get("dropped")]
+    if len(ran) < 2:
+        die(f"a board needs >= 2 seats that ran; found {len(ran)} (dropped seats don't count)")
+
+    if "unanimous" in data:
+        if not isinstance(data["unanimous"], bool):
+            die(f"unanimous must be true or false; got {data['unanimous']!r}")
+        finals = {seat["round_verdicts"][-1] for seat in ran}
+        actually_unanimous = finals == {data["verdict"]}
+        if data["unanimous"] != actually_unanimous:
+            die(
+                f"unanimous={str(data['unanimous']).lower()} contradicts the seats that ran: "
+                f"their final-round verdicts are {sorted(finals)} vs the overall verdict "
+                f"{data['verdict']!r}"
+            )
 
 
 def summarize(data: dict) -> str:

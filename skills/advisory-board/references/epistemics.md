@@ -19,6 +19,16 @@ Deference is not a reason. If a seat can only cite deference, it should hold its
 
 If the board reaches a **unanimous** verdict, it must still produce the strongest case *against* that verdict before the handoff is final. Assign one seat (or the neutral synthesizer) to argue the other side in good faith. Put it in the handoff's dissent section, flagged as the minority report. If the steelman survives scrutiny, the verdict wasn't as settled as it looked — add a round or lower the confidence.
 
+## Known vs. inferred vs. unverified (shared blind spots)
+
+The minority report attacks the verdict from *inside* the board's knowledge. The larger danger sits outside it: a fact every seat assumed and none checked. Three models sharing one blind spot converge confidently and are still wrong — and the convergence reads as authority. The mitigation is to make the boundary of what was actually checked explicit, so the synthesis separates three things:
+
+- **Evidence-backed** — tied to a specific file, fact, run, or citation a seat produced.
+- **Judgment calls** — reasoned positions the board holds but can't prove in this run.
+- **Couldn't-verify** — claims the board *relied on* but did not check: assumptions taken on faith, anything outside what any seat could see (live data, production config, the real code when only a plan was reviewed), and what would flip the verdict if it turned out false.
+
+A handoff that can't name a single thing it couldn't verify is usually overconfident, not thorough. The HTML handoff carries a dedicated "What the board couldn't verify" section; fill it. Drop it only when the board genuinely verified everything load-bearing — and then say so explicitly rather than deleting it silently.
+
 ## Neutral synthesizer
 
 The chair (the orchestrating agent) should not both debate and write the final verdict. Prefer one of:

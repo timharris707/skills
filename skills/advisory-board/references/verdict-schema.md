@@ -44,6 +44,18 @@ Alongside the prose handoff, a run emits `verdict.json`: a small, machine-readab
 
 Required: `schema`, `verdict`, `confidence`, `board`, `rounds`. The rest are recommended.
 
+## What `board_verdict.py` enforces
+
+Validation is strict so a malformed verdict can't quietly pass a gate. Beyond the required fields, `scripts/board_verdict.py` checks:
+
+- `schema` is exactly `advisory-board/verdict@1`.
+- `verdict` ∈ {ship, caution, block}; `confidence` ∈ {low, medium, high}; `rounds` is a positive integer.
+- each `board[]` seat has `seat`, `model`, and a non-empty `round_verdicts` (every entry ∈ {ship, caution, block}); `lens` and `dropped` are type-checked when present.
+- at least **two** seats actually ran — a seat with `dropped: true` doesn't count, because a one-voice board isn't a board.
+- if `unanimous` is present, it matches the seats' final-round verdicts (claiming unanimity the votes don't support is rejected).
+
+A schema violation exits `2`, distinct from a clean file that simply fails the gate (`1`).
+
 ## Using it as a gate
 
 `scripts/board_verdict.py` validates the file and, with `--gate`, exits non-zero when the verdict meets a threshold:

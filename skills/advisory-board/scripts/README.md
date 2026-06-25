@@ -20,4 +20,6 @@ python3 scripts/board_verdict.py path/to/verdict.json --gate
 python3 scripts/format_output.py path/to/verdict.json --format pr
 ```
 
+> Paths above are relative to the **skill directory** — `skills/advisory-board/` in this repo, or the installed skill root (e.g. `~/.codex/skills/advisory-board/`) — the same convention as every `references/…` path in the skill. Run the scripts from there, or prefix them with that directory; `scripts/board_verdict.py` won't resolve from the repo root.
+
 Both read the `verdict.json` a run emits next to `final-consensus.md`. See `examples/payments-idempotency-review/verdict.json` for a filled-in sample.
