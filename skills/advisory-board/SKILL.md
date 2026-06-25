@@ -115,10 +115,10 @@ Codex seat:
 codex exec --sandbox read-only \
   --config model="gpt-5.5" \
   --config model_reasoning_effort="xhigh" \
-  "<seat prompt>"
+  "<seat prompt>" </dev/null
 ```
 
-`codex exec` is the non-interactive form; `--sandbox read-only` blocks edits.
+`codex exec` is the non-interactive form; `--sandbox read-only` blocks edits. Close stdin with `</dev/null`: `codex exec` reads stdin until EOF, so without it the call hangs when orchestrated in the background or any non-interactive pipeline.
 
 Gemini seat:
 
