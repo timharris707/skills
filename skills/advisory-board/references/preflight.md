@@ -14,7 +14,7 @@ run_board.py toolchain --update   # update stale CLIs (confirms first; --yes to 
 run_board.py toolchain --install  # install absent CLIs (consent-gated; auth still required)
 ```
 
-- **Check** is read-only — it never mutates anything. It reads the installed version (`<cli> --version`) and the latest published version (npm for claude/codex, Homebrew for gemini/antigravity), and reports each seat as **current / STALE / missing / unknown**, plus a *flag-drift* advisory when the installed CLI is newer than the version its argv flags were last grounded against (re-verify `--help`).
+- **Check** is read-only — it never mutates anything. It reads the installed version (`<cli> --version`) and the latest published version (npm for claude/codex, Homebrew for gemini/antigravity/ollama), and reports each seat as **current / STALE / missing / unknown**, plus a *flag-drift* advisory when the installed CLI is newer than the version its argv flags were last grounded against (re-verify `--help`).
 - **Update is consent-gated** (`detect → confirm → update`): it lists what's stale and updates only what you approve. `--yes` approves unattended; a non-interactive shell without `--yes` is a no-op, not an error.
 - **Missing CLIs**: an absent binary is reported as `missing` (distinct from `unknown`), and the exact install command is printed. `--install` runs it on consent. **Installing a CLI does not grant an account** — you still need provider auth, so it's only worth installing a CLI you can log into.
 - `run --update-tools` folds Step 0 into a run: check + (gated) update, then preflight, then the board.

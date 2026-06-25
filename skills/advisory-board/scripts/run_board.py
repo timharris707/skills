@@ -272,13 +272,39 @@ def antigravity_version():
     return ["agy", "--version"]
 
 
+def ollama_argv(model, prompt, *, reasoning="default", workdir=None, network=False):
+    # Ollama runs the model entirely on-machine, so there is NO external egress —
+    # which is exactly why a local seat is the privacy lever for sensitive material
+    # (references/data-handling.md), reflected as provider="local" + isolates_network=True.
+    # `ollama run <model>` reads the prompt on STDIN to EOF, prints the completion,
+    # and exits (the non-interactive form; a piped stdin suppresses the REPL). The
+    # prompt rides stdin (prompt_on_stdin=True), so it never lands in argv and never
+    # needs shell-escaping.
+    #
+    # `network`/`workdir`/`reasoning` are accepted for a uniform adapter signature but
+    # are NOT flags here: a local model has no web/grounding tools to remove (network
+    # isolation is intrinsic), no dir-scoping flag (fs scoping is the subprocess cwd at
+    # spawn), and no reasoning-effort knob.
+    #
+    # NOTE: grounded against Ollama's documented/stable CLI, NOT a live local install
+    # (ollama was absent on the dev box). The `ollama run <model>` stdin form has been
+    # stable across releases; flags_verified_version is left empty (no live grounding to
+    # claim) — re-verify `ollama run --help` before a large run.
+    return ["ollama", "run", model]
+
+
+def ollama_version():
+    return ["ollama", "--version"]
+
+
 # --------------------------------------------------------------------------- #
 # Toolchain currency (design §7a). Each seat CLI is installed by a different
 # package manager, so "what is the latest version" and "update it" live here,
 # per seat, next to that CLI's other quirks. The whole point is self-healing: a
 # stale CLI is the single most common reason a freshly-renamed frontier model id
 # (gemini-3-flash-preview -> gemini-3.5-flash) suddenly 404s. Grounded against
-# the installed managers on 2026-06-25: npm for claude/codex, Homebrew for gemini.
+# the installed managers on 2026-06-25: npm for claude/codex, Homebrew for gemini
+# (formula), antigravity (cask), and ollama (formula).
 # --------------------------------------------------------------------------- #
 
 def claude_latest_argv():  return ["npm", "view", "@anthropic-ai/claude-code", "version"]
@@ -296,6 +322,10 @@ def gemini_install_argv(): return ["brew", "install", "gemini-cli"]
 def antigravity_latest_argv():  return ["brew", "info", "--json=v2", "--cask", "antigravity-cli"]
 def antigravity_update_argv():  return ["brew", "upgrade", "--cask", "antigravity-cli"]
 def antigravity_install_argv(): return ["brew", "install", "--cask", "antigravity-cli"]
+
+def ollama_latest_argv():  return ["brew", "info", "--json=v2", "ollama"]   # ships as a brew formula
+def ollama_update_argv():  return ["brew", "upgrade", "ollama"]
+def ollama_install_argv(): return ["brew", "install", "ollama"]
 
 
 _SEMVER_RE = re.compile(r"\d+(?:\.\d+)+")
@@ -482,6 +512,34 @@ REGISTRY: dict = {
         pkg_label="brew --cask antigravity-cli",
         flags_verified_version="1.0.12",
         fallback_models=(),      # agy never 404s a model (it silently substitutes) — no probe to do
+    ),
+    "ollama": SeatAdapter(
+        name="ollama",
+        # A local model is user-chosen — this is a sensible, broadly-pullable default
+        # to override with `--model ollama=<your pulled model>` (see `ollama list`).
+        # Pinned inline per the model-id policy; no fallback probing, because what
+        # resolves depends entirely on what the user has pulled locally, not on a
+        # renamable hosted id (fallback_models=()).
+        default_model="llama3.3",
+        provider="local",          # NOT external egress — the privacy lever (data-handling.md)
+        default_reasoning="default",   # local models have no reasoning-effort knob
+        build_argv=ollama_argv,
+        version_argv=ollama_version,
+        prompt_on_stdin=True,      # `ollama run <model>` reads the prompt on stdin (like claude)
+        close_stdin=False,
+        stderr_is_fatal=False,     # ollama prints model-load / pull progress to stderr — not fatal
+        supports_isolation=True,   # fs scoping via cwd; a local model has nothing external to scope
+        isolates_network=True,     # local model: no external network at all (intrinsic, not a flag)
+        model_answered=_model_answered_none,
+        latest_argv=ollama_latest_argv,
+        parse_latest=parse_brew_latest,
+        update_argv=ollama_update_argv,
+        install_argv=ollama_install_argv,
+        auth_hint="no account needed — local models stay on your machine; pull one with "
+                  "`ollama pull <model>` (see `ollama list`)",
+        pkg_label="brew ollama",
+        flags_verified_version="",  # ollama absent on the dev box — no live grounding to claim
+        fallback_models=(),
     ),
 }
 
@@ -1498,7 +1556,10 @@ def render_board_guidance(preflight: list, config: RunConfig) -> str:
         lines.append(f"  • Same-provider, multi-lens board with what works ({', '.join(p.seat for p in go)}): "
                      "two seats on the same model with different lenses. Less independent — flag it in "
                      "provenance. See references/board-composition.md.")
-    lines.append("  • Add a human or local-model seat (no extra account needed). "
+    lines.append("  • Add a local-model seat — runnable now, no account or egress: "
+                 "`brew install ollama`, pull a model (`ollama pull <model>`), then add it "
+                 "with `--board " + (",".join(p.seat for p in go) + "," if go else "") +
+                 "ollama --model ollama=<model>`. Or capture a human review as a seat. "
                  "See references/board-composition.md.")
     return "\n".join(lines)
 
@@ -1519,10 +1580,20 @@ class EgressApproval:
 
 def render_egress_manifest(config: RunConfig, blobs: list, content_hash: str) -> str:
     consent = consent_mode_for(config.sensitivity)
+    # Only external blobs actually leave the machine; a local seat (provider="local",
+    # e.g. ollama) is materialized on disk but never egresses, so it must NOT appear
+    # under "Files leaving this machine". Split them up front so even the intro line
+    # never overstates what egresses (a fully-local board sends nothing).
+    external = sorted((b for b in blobs if b.provider != "local"), key=lambda x: x.relpath)
+    local = sorted((b for b in blobs if b.provider == "local"), key=lambda x: x.relpath)
+    intro = ("This run will send the bytes below to external providers. Review before approving."
+             if external else
+             "This run sends NOTHING to external providers (local-only board); the prompts below "
+             "stay on this machine.")
     lines = [
         f"# Egress Manifest — {config.title}",
         "",
-        "This run will send the bytes below to external providers. Review before approving.",
+        intro,
         "",
         f"Packet content hash (sha256): {content_hash}",
         f"Sensitivity: {config.sensitivity}",
@@ -1539,11 +1610,21 @@ def render_egress_manifest(config: RunConfig, blobs: list, content_hash: str) ->
         "| File                          | Bytes | Lines | Goes to |",
         "| ----------------------------- | ----- | ----- | ------- |",
     ]
-    for b in sorted(blobs, key=lambda x: x.relpath):
-        lines.append(f"| {b.relpath:<29} | {b.nbytes:>5} | {b.nlines:>5} | {b.provider} ({b.seat}) |")
+    if external:
+        for b in external:
+            lines.append(f"| {b.relpath:<29} | {b.nbytes:>5} | {b.nlines:>5} | {b.provider} ({b.seat}) |")
+    else:
+        lines.append("| (none — local-only board)     |       |       |         |")
+    if local:
+        lines += ["", "## Stays on this machine (local seats — no egress)", ""]
+        for b in local:
+            lines.append(f"- {b.relpath} — {b.seat} (local model, on-machine; never sent)")
     lines += ["", "## Providers", ""]
-    for b in sorted(blobs, key=lambda x: x.relpath):
-        lines.append(f"- {b.provider} ({b.seat}) — receives {b.relpath}")
+    if external:
+        for b in external:
+            lines.append(f"- {b.provider} ({b.seat}) — receives {b.relpath}")
+    else:
+        lines.append("- (none — no external providers receive any bytes)")
     lines += ["", "Approval: <PENDING — bound to the content hash above>"]
     return "\n".join(lines) + "\n"
 

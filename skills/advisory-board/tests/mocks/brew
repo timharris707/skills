@@ -1,18 +1,25 @@
 #!/usr/bin/env bash
 # Mock `brew` for toolchain-currency tests. Handles:
 #   brew info --json=v2 gemini-cli            -> formula json with versions.stable
+#   brew info --json=v2 ollama                -> formula json (separate env knob)
 #   brew info --json=v2 --cask antigravity-cli-> cask json with version
 #   brew upgrade [--cask] <name>              -> exit 0 (or 1 if MOCK_BREW_UPGRADE_FAIL=1)
-# Latest is env-controlled: MOCK_BREW_GEMINI (formula) / MOCK_BREW_CASK (cask),
-# both default 9.9.9 => stale.
+# Latest is env-controlled: MOCK_BREW_GEMINI / MOCK_BREW_OLLAMA (formulae),
+# MOCK_BREW_CASK (cask); all default 9.9.9 => stale.
 set -u
 
 case "${1:-}" in
   info)
     is_cask=0
-    for a in "$@"; do [ "$a" = "--cask" ] && is_cask=1; done
+    is_ollama=0
+    for a in "$@"; do
+      [ "$a" = "--cask" ] && is_cask=1
+      [ "$a" = "ollama" ] && is_ollama=1
+    done
     if [ "$is_cask" = "1" ]; then
       printf '{"casks":[{"version":"%s"}]}\n' "${MOCK_BREW_CASK:-9.9.9}"
+    elif [ "$is_ollama" = "1" ]; then
+      printf '{"formulae":[{"versions":{"stable":"%s"}}]}\n' "${MOCK_BREW_OLLAMA:-9.9.9}"
     else
       printf '{"formulae":[{"versions":{"stable":"%s"}}]}\n' "${MOCK_BREW_GEMINI:-9.9.9}"
     fi

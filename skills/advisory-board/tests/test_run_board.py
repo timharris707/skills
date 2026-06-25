@@ -57,7 +57,7 @@ class EnvMixin(unittest.TestCase):
         os.environ["PATH"] = MOCKS + os.pathsep + os.environ.get("PATH", "")
         os.environ["ADVISORY_BOARD_NOW"] = "2026-06-25"
         os.environ["ADVISORY_BOARD_NOW_TS"] = "2026-06-25T12:00:00"
-        for seat in ("CLAUDE", "CODEX", "GEMINI", "AGY"):
+        for seat in ("CLAUDE", "CODEX", "GEMINI", "AGY", "OLLAMA"):
             os.environ[f"MOCK_{seat}_MODE"] = "go"
         os.environ.pop("MOCK_ARGV_LOG", None)
 
@@ -73,7 +73,7 @@ class EnvMixin(unittest.TestCase):
 
 class TestRegistry(unittest.TestCase):
     def test_seats_registered(self):
-        self.assertEqual(set(rb.REGISTRY), {"claude", "codex", "gemini", "antigravity"})
+        self.assertEqual(set(rb.REGISTRY), {"claude", "codex", "gemini", "antigravity", "ollama"})
 
     def test_antigravity_flags(self):
         a = rb.REGISTRY["antigravity"]
@@ -967,6 +967,7 @@ class TestToolchainCheck(EnvMixin):
         os.environ["MOCK_NPM_CODEX"] = "0.30.0"
         os.environ["MOCK_BREW_GEMINI"] = "0.46.0"
         os.environ["MOCK_BREW_CASK"] = "1.0.0"   # matches the mock agy --version
+        os.environ["MOCK_BREW_OLLAMA"] = "0.5.0"  # matches the mock ollama --version
         code, out, _ = run_cli(["toolchain"])
         self.assertEqual(code, rb.EXIT_OK)
         self.assertNotIn("STALE", out)
@@ -1100,6 +1101,74 @@ class TestAntigravitySeat(EnvMixin):
         self.assertEqual(code, rb.EXIT_OK)
         self.assertIn("antigravity", out)
         self.assertIn("3 of 3 seats GO", out)
+
+
+class TestOllamaSeat(EnvMixin):
+    """The local-model seat: the documented single-provider / sensitive-material
+    fallback, now actually runnable (`--board claude,ollama`)."""
+
+    def test_default_board_excludes_ollama(self):
+        names = [s.name for s in _config().board]
+        self.assertEqual(names, ["claude", "codex", "gemini"])
+        self.assertNotIn("ollama", names)   # opt-in via --board, never default
+
+    def test_ollama_flags_and_local_isolation(self):
+        a = rb.REGISTRY["ollama"]
+        argv = a.build_argv("llama3.3", "PROMPT", network=False)
+        self.assertEqual(argv, ["ollama", "run", "llama3.3"])  # prompt is on stdin, not argv
+        self.assertNotIn("PROMPT", argv)
+        self.assertTrue(a.prompt_on_stdin)      # `ollama run` reads the prompt on stdin
+        self.assertFalse(a.close_stdin)
+        self.assertEqual(a.provider, "local")   # NOT external egress
+        self.assertTrue(a.isolates_network)     # local model: no external network, intrinsic
+        self.assertEqual(a.default_model, "llama3.3")
+
+    def test_local_seat_is_not_external_egress(self):
+        # A claude+ollama board: only the claude prompt is external; ollama stays local.
+        c = _config(board="claude,ollama")
+        blobs = rb.build_packet(c)
+        by_seat = {b.seat: b for b in blobs}
+        self.assertEqual(by_seat["ollama"].provider, "local")
+        external = [b for b in blobs if b.provider != "local"]
+        self.assertEqual([b.seat for b in external], ["claude"])   # ollama excluded
+        # disclosure names only the external provider, never the local seat.
+        disclosure = rb.disclosure_line(c)
+        self.assertIn("Anthropic", disclosure)
+        self.assertNotIn("local", disclosure)
+
+    def test_egress_gate_treats_local_blob_as_no_egress(self):
+        # Even a single local seat with must-not-leave sensitivity is allowed: nothing
+        # leaves the machine, so the gate approves it (the privacy lever, end to end).
+        c = _config(board="ollama", sensitivity="local-only")
+        blobs = rb.build_packet(c)
+        with contextlib.redirect_stdout(io.StringIO()):
+            ap = rb.enforce_egress_gate(c, blobs, assume_yes=False, skip_gate=False,
+                                        interactive=False)
+        self.assertTrue(ap.approved)
+        self.assertEqual(ap.mode, "disclosure")
+        self.assertIn("no external egress", ap.detail)
+
+    def test_manifest_does_not_list_local_seat_as_leaving(self):
+        c = _config(board="claude,ollama")
+        blobs = rb.build_packet(c)
+        manifest = rb.render_egress_manifest(c, blobs, rb.packet_hash(blobs))
+        self.assertIn("Anthropic (claude)", manifest)         # claude prompt leaves
+        self.assertNotIn("local (ollama)", manifest)          # ollama is NOT in the leaving/providers list
+        self.assertIn("Stays on this machine", manifest)      # local seat is accounted for separately
+        self.assertIn("ollama-round-1.prompt", manifest)
+
+    def test_board_with_ollama_preflights(self):
+        code, out, _ = run_cli(["preflight", "--source", SAMPLE, "--board", "claude,ollama"])
+        self.assertEqual(code, rb.EXIT_OK)
+        self.assertIn("ollama", out)
+        self.assertIn("2 of 2 seats GO", out)
+
+    def test_toolchain_includes_ollama_via_formula(self):
+        code, out, _ = run_cli(["toolchain", "--board", "ollama"])
+        self.assertEqual(code, rb.EXIT_OK)
+        self.assertIn("ollama", out)
+        self.assertIn("brew ollama", out)   # formula manager label
+        self.assertIn("STALE", out)         # mock ollama 0.5.0 < formula latest 9.9.9
 
 
 class TestGracefulDegradation(EnvMixin):
