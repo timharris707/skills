@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# Mock `gemini` CLI. Gemini routinely prints router noise to stderr yet returns a
+# valid answer; the `degraded` mode exercises that "degraded-but-ran" path.
+# MOCK_GEMINI_MODE: go | nogo_version | nogo_smoke | empty | degraded | timeout
+set -u
+
+if [ -n "${MOCK_ARGV_LOG:-}" ]; then
+  printf 'gemini\t%s\n' "$*" >>"$MOCK_ARGV_LOG"
+fi
+
+mode="${MOCK_GEMINI_MODE:-go}"
+
+for a in "$@"; do
+  if [ "$a" = "--version" ] || [ "$a" = "-v" ]; then
+    if [ "$mode" = "nogo_version" ]; then exit 1; fi
+    echo "0.12.0 (mock)"
+    exit 0
+  fi
+done
+
+case "$mode" in
+  nogo_smoke) echo "auth error" >&2; exit 1 ;;
+  empty)      exit 0 ;;
+  timeout)    exec sleep 30 ;;   # exec so no orphaned sleep survives the kill
+  degraded)   echo "[router] retrying with fallback" >&2; echo "ready"; exit 1 ;;
+  # go (default): router noise on stderr but a valid review on stdout, exit 0:
+  *)          echo "[router] retrying with fallback" >&2; echo "ready"; exit 0 ;;
+esac

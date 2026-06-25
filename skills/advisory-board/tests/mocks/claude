@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# Mock `claude` CLI for testing the conductor without burning tokens or network.
+# Banner-accurate enough for preflight; behavior switched by MOCK_CLAUDE_MODE.
+#   go (default) | nogo_version | nogo_smoke | empty | degraded | timeout
+# If MOCK_ARGV_LOG is set, the full argv is appended for end-to-end assertions.
+set -u
+
+if [ -n "${MOCK_ARGV_LOG:-}" ]; then
+  printf 'claude\t%s\n' "$*" >>"$MOCK_ARGV_LOG"
+fi
+
+mode="${MOCK_CLAUDE_MODE:-go}"
+
+for a in "$@"; do
+  if [ "$a" = "--version" ]; then
+    if [ "$mode" = "nogo_version" ]; then exit 1; fi
+    echo "2.0.0 (Claude Code mock)"
+    exit 0
+  fi
+done
+
+case "$mode" in
+  nogo_smoke) exit 1 ;;
+  empty)      exit 0 ;;
+  timeout)    exec sleep 30 ;;   # exec so no orphaned sleep survives the kill
+  degraded)   echo "model-router retry" >&2; echo "ready"; exit 1 ;;
+  *)          echo "ready"; exit 0 ;;
+esac
