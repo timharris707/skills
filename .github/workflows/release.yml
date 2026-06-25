@@ -1,0 +1,103 @@
+name: release
+
+# Publish a GitHub release whenever a skill-scoped version tag is pushed.
+#
+# Tag format:  <skill>/vX.Y.Z   e.g.  advisory-board/v0.5.0
+# Release body: that skill's CHANGELOG.md section for the version
+#               (skills/<skill>/CHANGELOG.md, heading "## [vX.Y.Z]"),
+#               falling back to GitHub's auto-generated notes if the
+#               section is missing. See RELEASING.md.
+
+on:
+  push:
+    tags:
+      - "*/v*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Derive + VALIDATE skill/version from the tag. GITHUB_REF_NAME is an env
+      # var (safe); downstream steps read these via env, never via ${{ }} inside a
+      # run block, so a crafted tag name can't inject into the shell.
+      - name: Resolve tag, skill, and version
+        id: meta
+        env:
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          tag="$REF_NAME"
+          skill="${tag%/*}"        # advisory-board/v0.5.0 -> advisory-board
+          version="${tag##*/}"     # advisory-board/v0.5.0 -> v0.5.0
+          if ! printf '%s' "$skill" | grep -Eq '^[a-z0-9][a-z0-9._-]*$'; then
+            echo "::error::tag '$tag' has an unexpected skill segment '$skill'" >&2
+            exit 1
+          fi
+          if ! printf '%s' "$version" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::tag '$tag' is not <skill>/vMAJOR.MINOR.PATCH" >&2
+            exit 1
+          fi
+          {
+            echo "tag=$tag"
+            echo "skill=$skill"
+            echo "version=$version"
+            echo "changelog=skills/$skill/CHANGELOG.md"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Extract release notes from the changelog
+        id: notes
+        env:
+          CHANGELOG: ${{ steps.meta.outputs.changelog }}
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          set -euo pipefail
+          : > notes.md
+          if [ -f "$CHANGELOG" ]; then
+            awk -v ver="$VERSION" '
+              { sub(/\r$/, "") }                                # tolerate CRLF
+              index($0, "## [" ver "]") == 1 { capture = 1; next }
+              capture && /^## \[/            { exit }
+              capture                        { print }
+            ' "$CHANGELOG" > notes.md
+          fi
+          if grep -q '[^[:space:]]' notes.md; then
+            echo "have_notes=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "have_notes=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::no '## [$VERSION]' section in $CHANGELOG — using auto-generated notes"
+          fi
+
+      - name: Publish release (from changelog)
+        if: steps.notes.outputs.have_notes == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.meta.outputs.tag }}
+          SKILL: ${{ steps.meta.outputs.skill }}
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          set -euo pipefail
+          gh release create "$TAG" \
+            --title "$SKILL $VERSION" \
+            --notes-file notes.md \
+            --verify-tag
+
+      - name: Publish release (auto-generated fallback)
+        if: steps.notes.outputs.have_notes == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.meta.outputs.tag }}
+          SKILL: ${{ steps.meta.outputs.skill }}
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          set -euo pipefail
+          gh release create "$TAG" \
+            --title "$SKILL $VERSION" \
+            --generate-notes \
+            --verify-tag

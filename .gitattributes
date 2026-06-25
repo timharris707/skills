@@ -1,0 +1,7 @@
+# Keep text files LF so tooling (e.g. the release workflow's changelog parser)
+# never sees stray carriage returns, regardless of contributor platform.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.gif binary
+*.pdf binary

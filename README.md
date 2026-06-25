@@ -81,6 +81,13 @@ For Codex-compatible runtimes, copy or sync a skill directory into your local sk
 
 GitHub Pages-ready documentation lives in [`docs/`](./docs/) — the Advisory Board page covers what the workflow does and how it is meant to be used.
 
+## Releases
+
+Each skill is versioned independently and published as a GitHub release from a skill-scoped tag
+(`<skill>/vX.Y.Z`). Per-skill changes are tracked in that skill's `CHANGELOG.md` (e.g.
+[`skills/advisory-board/CHANGELOG.md`](./skills/advisory-board/CHANGELOG.md)); see
+[`RELEASING.md`](./RELEASING.md) for how releases are cut.
+
 ## License
 
 Released under the [MIT License](./LICENSE.md) — free to use, copy, modify, and adapt with attribution.

@@ -27,3 +27,11 @@ skills/<skill-name>/
 ## Validation
 
 When a skill is Codex-compatible, validate it with the local skill validator before publishing changes.
+
+## Releases
+
+Skills are published as GitHub releases cut from **skill-scoped semver tags** (`<skill>/vX.Y.Z`,
+e.g. `advisory-board/v0.5.0`). Pushing a version tag triggers the `release` workflow, which
+publishes the release from that skill's `CHANGELOG.md`. Cut a release when a **milestone PR merges
+to `main`** — not on every PR. Keep the skill's `CHANGELOG.md` current as you work. See
+[`RELEASING.md`](./RELEASING.md) for the scheme, cadence, and exact commands.
