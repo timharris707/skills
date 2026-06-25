@@ -126,7 +126,9 @@ Never store secrets. Redact keys, tokens, cookies, and private environment value
 
 ## How A Run Executes
 
-You (the orchestrating agent) drive the board by shelling out to each provider's CLI and collecting its written artifact:
+**The conductor — `scripts/run_board.py` — is the canonical way to drive a board.** It owns the load-bearing mechanics in code: a seat-adapter **registry** (the one place that knows each CLI's flags, isolation, and model-id self-heal), an executable **preflight** (GO/NO-GO), a hash-bound **egress/quarantine gate** before any byte leaves, the **round-1 + round-2 fan-out** with the failure protocol, and the **verdict chain** (`verify` evidence → `consensus` md/html → `validate`/gate). Run `scripts/run_board.py run …` (see `scripts/README.md`); a real run is in the repo-root `examples/payments-idempotency-review/`. Synthesis stays your reasoning task — the conductor stops at clean per-round packets and hands them to you (or one neutral seat) to fill `verdict.json`, then you call the chain.
+
+The rest of this section and the **CLI Execution Notes** below are the **portable, script-free fallback** — the same protocol an agent runs by hand where the conductor isn't available. The principles hold either way:
 
 - Run every seat as its own CLI subprocess — including the Claude seat as a separate `claude` process — so each reviews the source independently rather than reusing the orchestrator's context. That independence is what makes Round 1 worth anything.
 - Keep the orchestrator and the chair neutral: assemble packets and synthesize, but don't also count yourself as a debating seat. If you must, say so in the handoff and use a minority report to check chair bias (`references/epistemics.md`).
@@ -137,7 +139,9 @@ For a concrete, copy-pasteable capture pattern — prompts written to files, std
 
 ## CLI Execution Notes
 
-Prefer read-only modes. The commands below are starting templates — confirm every flag against the installed CLI (`<cli> --help`) before a large run, because CLI syntax changes between versions and these are not guaranteed current.
+> The conductor's seat-adapter **registry** (`scripts/_conductor/registry.py`) is the **canonical, self-healing** source for these mechanics — exact flags, gate-mode isolation, stdin handling, and model-id self-heal — kept current and asserted by tests. When a flag drifts, fix it there, in one place. The templates below are the **portable fallback** for running a seat by hand without the conductor; they are illustrative and not guaranteed current.
+
+Prefer read-only modes. Confirm every flag against the installed CLI (`<cli> --help`) before a large run — or just use the conductor, which does.
 
 Claude seat:
 

@@ -13,6 +13,7 @@ __all__ = [
     "_model_answered_none",
     "_MODEL_JSON_RE",
     "_MODEL_BANNER_RE",
+    "_PROMPT_ECHO_MARKER",
     "parse_model_answered",
     "claude_argv",
     "claude_version",
@@ -118,11 +119,23 @@ _MODEL_BANNER_RE = re.compile(
     r'^\s*(?:using\s+model|model)\s*[:=]\s*["\']?([A-Za-z0-9][\w.\-/()]*(?: [\w.\-/()]+)*?)["\']?\s*$',
     re.IGNORECASE | re.MULTILINE,
 )
+# A CLI like codex echoes its prompt to stderr, and the cross-reading packet inside
+# that prompt can carry `model:` / `"model": "…"` lines (e.g. a quoted CLI example) —
+# which must NEVER be mined as the answering model. The conductor wraps every prompt's
+# payload in this marker, so a CLI's own banner is always in the text BEFORE the first
+# occurrence. Scanning only that head keeps echoed content out of the provenance.
+_PROMPT_ECHO_MARKER = "MATERIAL UNDER REVIEW"
 
 
 def parse_model_answered(stdout: str, stderr: str) -> Optional[str]:
-    """Return the model id a CLI *reports* having used (from stderr), or None."""
-    m = _MODEL_JSON_RE.search(stderr) or _MODEL_BANNER_RE.search(stderr)
+    """Return the model id a CLI *reports* having used (from stderr), or None.
+
+    Scans only the banner region — the stderr BEFORE the echoed prompt — so a
+    `model:` line inside the (echoed) cross-reading packet can't be mistaken for the
+    CLI's own banner. Round 2 of a `--cross-reading full` run is exactly this case.
+    """
+    banner = stderr.split(_PROMPT_ECHO_MARKER, 1)[0]
+    m = _MODEL_JSON_RE.search(banner) or _MODEL_BANNER_RE.search(banner)
     if not m:
         return None
     cand = m.group(1).strip()

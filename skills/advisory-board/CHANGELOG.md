@@ -10,6 +10,35 @@ reserved for an explicit production-ready call. The verdict-JSON schema is versi
 
 ## [Unreleased]
 
+## [v0.6.0] - 2026-06-25 — M6: docs/drift + the real proof-of-life run
+
+The first token-spending board run: the conductor drove three subscription CLIs through
+the full pipeline (preflight → egress gate → round-1/2 fan-out → synthesis → verify →
+consensus → validate), end to end, against real models.
+
+### Added
+- **`examples/payments-idempotency-review/` regenerated via the conductor** as the real
+  proof-of-life run (`claude-opus-4-8` · `gpt-5.5` · `gemini-3.5-flash`, 2 rounds, `full`
+  cross-reading). The example is now an `advisory-board/verdict@2` with resolved evidence
+  (8 `source` quotes verified against the captured packet), the rendered `final-consensus.md`/
+  `.html`, and the run's provenance/consent summary (`run-recipe.yaml`, `run-metadata.{md,tsv}`,
+  `egress-manifest.md`, `sensitivity.json`). All three seats independently converged on a
+  unanimous `block`.
+
+### Fixed
+- **`parse_model_answered` no longer mines the echoed cross-reading packet.** A CLI like codex
+  echoes its prompt to stderr; in a `--cross-reading full` round 2 that packet can carry a
+  `"model": "…"` line (e.g. a quoted CLI example), which was being reported as the answering
+  model — a false provenance value that violated the "never assume, unknown means unknown"
+  rule. The parser now bounds its scan to the banner region before the `MATERIAL UNDER REVIEW`
+  delimiter. Surfaced by the proof-of-life run itself.
+
+### Changed
+- **`SKILL.md`**: the conductor (`scripts/run_board.py`) is now documented as the canonical run
+  driver; the `CLI Execution Notes` point at the seat-adapter **registry** as the canonical,
+  self-healing source for execution mechanics, with the manual per-CLI templates reframed as
+  the portable, script-free fallback (design §12 drift-resolution).
+
 ## [v0.5.0] - 2026-06-25 — M5: canonical verdict + resolved evidence
 
 `verdict.json` becomes the source of truth for the board's decision; the Markdown and HTML

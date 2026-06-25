@@ -1,9 +1,0 @@
-**Claude (architecture) — Round 2**
-
-1. **Under-weighted:** Codex's point that transient 5xx must not be cached as authoritative is sharper than my generic "cache the response." A 502 stored as the canonical reply would permanently poison the key. And Gemini's insistence on cache-hit/latency *alerting* — I named Redis-down behavior but not the observability to detect it.
-
-2. **Changed my view:** I'm dropping any tolerance for big-bang. Gemini + Codex converge on phased rollout, and on a core payments path the blast radius argument is decisive. Rollout sequencing is now a blocker, not a footnote.
-
-3. **Still dispute:** Codex's overall "SHIP WITH CHANGES." The atomic-claim race and fingerprint binding aren't tweaks — without them the feature double-charges under the exact concurrency it exists to prevent. That's not-ready, not ship-with-changes.
-
-4. **Recommendation:** DO NOT SHIP — block on atomic claim+sentinel, key↔fingerprint binding (422), defined Redis-down + non-caching of transient 5xx, and a phased rollout with latency/hit alerting.
