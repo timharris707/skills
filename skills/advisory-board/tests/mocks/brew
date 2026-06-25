@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# Mock `brew` for toolchain-currency tests. Handles:
+#   brew info --json=v2 gemini-cli   -> minimal json=v2 with versions.stable
+#   brew upgrade gemini-cli          -> exit 0 (or 1 if MOCK_BREW_UPGRADE_FAIL=1)
+# MOCK_BREW_GEMINI sets the "latest" stable version (default 9.9.9 => stale).
+set -u
+
+case "${1:-}" in
+  info)
+    printf '{"formulae":[{"versions":{"stable":"%s"}}]}\n' "${MOCK_BREW_GEMINI:-9.9.9}"
+    exit 0 ;;
+  upgrade)
+    if [ "${MOCK_BREW_UPGRADE_FAIL:-}" = "1" ]; then
+      echo "Error: mock brew upgrade failed" >&2
+      exit 1
+    fi
+    echo "==> Upgrading ${2:-formula}"
+    exit 0 ;;
+  *)
+    exit 0 ;;
+esac

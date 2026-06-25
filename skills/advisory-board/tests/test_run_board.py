@@ -119,6 +119,13 @@ class TestRegistry(unittest.TestCase):
         self.assertIn("gemini-3.1-pro", argv)
         self.assertIn("--approval-mode", argv)
         self.assertIn("plan", argv)
+        # gemini-cli >= 0.46 "trusted folders": headless runs in an untrusted dir
+        # exit 55 with no output without this. Pin it so the fix can't regress.
+        self.assertIn("--skip-trust", argv)
+
+    def test_gemini_default_model_is_ga_id(self):
+        # The GA id (gemini-3.5-flash) needs CLI >= 0.46 to resolve; pinned inline.
+        self.assertEqual(rb.REGISTRY["gemini"].default_model, "gemini-3.5-flash")
 
     def test_stdin_modes(self):
         self.assertTrue(rb.REGISTRY["claude"].prompt_on_stdin)
@@ -877,6 +884,182 @@ class TestCodexMockGuardsStdin(EnvMixin):
             os.close(w)
         self.assertFalse(result.timed_out)
         self.assertIn("ready", result.stdout)
+
+
+# --------------------------------------------------------------------------- #
+# Toolchain currency + model self-heal (§7a)
+# --------------------------------------------------------------------------- #
+
+
+def _capture(fn, *, stdin=None):
+    """Run fn() capturing (return_value, stdout), optionally feeding stdin."""
+    out = io.StringIO()
+    old_stdin = sys.stdin
+    if stdin is not None:
+        sys.stdin = io.StringIO(stdin)
+    try:
+        with contextlib.redirect_stdout(out):
+            rv = fn()
+    finally:
+        sys.stdin = old_stdin
+    return rv, out.getvalue()
+
+
+class TestVersionHelpers(unittest.TestCase):
+    def test_parse_semver_across_banner_formats(self):
+        self.assertEqual(rb.parse_semver("2.1.177 (Claude Code)"), "2.1.177")
+        self.assertEqual(rb.parse_semver("codex-cli 0.135.0"), "0.135.0")
+        self.assertEqual(rb.parse_semver("0.46.0"), "0.46.0")
+        self.assertIsNone(rb.parse_semver("no version here"))
+        self.assertIsNone(rb.parse_semver(""))
+
+    def test_version_is_current(self):
+        self.assertIs(rb.version_is_current("2.1.191", "2.1.191"), True)
+        self.assertIs(rb.version_is_current("2.2.0", "2.1.191"), True)    # ahead
+        self.assertIs(rb.version_is_current("2.1.177", "2.1.191"), False)
+        self.assertIsNone(rb.version_is_current(None, "2.1.191"))         # unknown installed
+        self.assertIsNone(rb.version_is_current("2.1.177", None))         # unknown latest
+        self.assertIs(rb.version_is_current("0.46", "0.46.0"), True)      # padded, not string-len
+
+    def test_parse_brew_latest(self):
+        self.assertEqual(rb.parse_brew_latest('{"formulae":[{"versions":{"stable":"0.46.0"}}]}'), "0.46.0")
+        self.assertIsNone(rb.parse_brew_latest("not json"))
+        self.assertIsNone(rb.parse_brew_latest("{}"))
+
+
+class TestModelNotFoundDetector(unittest.TestCase):
+    def _r(self, out="", err=""):
+        return rb.SpawnResult(1, out, err, 0.0, False)
+
+    def test_detects_each_providers_grounded_signature(self):
+        self.assertTrue(rb.model_not_found(self._r(err="ModelNotFoundError: Requested entity was not found.")))
+        self.assertTrue(rb.model_not_found(self._r(out="It may not exist or you may not have access to it.")))
+        self.assertTrue(rb.model_not_found(self._r(err='"message":"The model is not supported when using Codex"')))
+
+    def test_clean_output_is_not_flagged(self):
+        self.assertFalse(rb.model_not_found(self._r(out="ready")))
+
+
+class TestToolchainCheck(EnvMixin):
+    def test_all_stale_by_default(self):
+        # mock npm/brew report "latest" 9.9.9, far ahead of the mock CLIs' versions.
+        code, out, _ = run_cli(["toolchain"])
+        self.assertEqual(code, rb.EXIT_OK)
+        for seat in ("claude", "codex", "gemini"):
+            self.assertIn(seat, out)
+        self.assertIn("STALE", out)
+        self.assertIn("behind latest", out)
+
+    def test_current_when_versions_match(self):
+        os.environ["MOCK_NPM_CLAUDE"] = "2.0.0"
+        os.environ["MOCK_NPM_CODEX"] = "0.30.0"
+        os.environ["MOCK_BREW_GEMINI"] = "0.46.0"
+        code, out, _ = run_cli(["toolchain"])
+        self.assertEqual(code, rb.EXIT_OK)
+        self.assertNotIn("STALE", out)
+        self.assertIn("current", out)
+
+    def test_board_subset_only_checks_those_seats(self):
+        code, out, _ = run_cli(["toolchain", "--board", "claude,gemini"])
+        self.assertEqual(code, rb.EXIT_OK)
+        self.assertIn("claude", out)
+        self.assertIn("gemini", out)
+        # codex row absent (only its name as a seat label would appear)
+        self.assertNotIn("@openai/codex", out)
+
+    def test_missing_manager_reads_unknown_not_stale(self):
+        import dataclasses
+        bad = dataclasses.replace(rb.REGISTRY["claude"],
+                                  latest_argv=lambda: ["definitely-no-such-tool-xyz", "view"])
+        st = rb.check_tool(bad)
+        self.assertIsNone(st.current)       # cannot judge -> not "stale"
+        self.assertIsNone(st.update_argv)   # and therefore never auto-updated
+        self.assertIn("unknown", st.note)
+
+    def test_flag_drift_note_when_cli_newer_than_grounding(self):
+        import dataclasses
+        a = dataclasses.replace(rb.REGISTRY["claude"], flags_verified_version="1.0.0")
+        st = rb.check_tool(a)   # mock claude --version is 2.0.0 > 1.0.0
+        self.assertIn("re-verify", st.note)
+
+
+class TestToolchainUpdate(EnvMixin):
+    def _stale_statuses(self):
+        return rb.check_toolchain([rb.REGISTRY[n] for n in ("claude", "codex", "gemini")])
+
+    def test_interactive_decline_does_not_update(self):
+        log = os.path.join(tempfile.mkdtemp(), "argv.log")
+        os.environ["MOCK_ARGV_LOG"] = log
+        statuses = self._stale_statuses()
+        rv, out = _capture(
+            lambda: rb.update_stale_tools(statuses, assume_yes=False, interactive=True),
+            stdin="n\n")
+        self.assertEqual(rv, 0)
+        self.assertIn("no update performed", out)
+        logged = ""
+        if os.path.exists(log):
+            with open(log) as fh:
+                logged = fh.read()
+        self.assertNotIn("\tupdate", logged)   # no `claude update` / `codex update` ran
+
+    def test_interactive_accept_updates_each_stale_seat(self):
+        log = os.path.join(tempfile.mkdtemp(), "argv.log")
+        os.environ["MOCK_ARGV_LOG"] = log
+        statuses = self._stale_statuses()
+        rv, out = _capture(
+            lambda: rb.update_stale_tools(statuses, assume_yes=False, interactive=True),
+            stdin="y\n")
+        self.assertEqual(rv, 0)
+        for seat in ("claude", "codex", "gemini"):
+            self.assertIn(f"{seat}: updated", out)
+        with open(log) as fh:
+            logged = fh.read()
+        self.assertIn("claude\tupdate", logged)
+        self.assertIn("codex\tupdate", logged)
+
+    def test_yes_flag_skips_prompt(self):
+        code, out, _ = run_cli(["toolchain", "--update", "--yes"])
+        self.assertEqual(code, rb.EXIT_OK)
+        self.assertIn("claude: updated", out)
+
+    def test_nontty_without_yes_is_a_noop(self):
+        code, out, _ = run_cli(["toolchain", "--update"], stdin="")
+        self.assertEqual(code, rb.EXIT_OK)
+        self.assertIn("re-run with --yes", out)
+
+    def test_update_failure_sets_nonzero_exit(self):
+        os.environ["MOCK_BREW_UPGRADE_FAIL"] = "1"
+        code, out, _ = run_cli(["toolchain", "--update", "--yes"])
+        self.assertEqual(code, rb.EXIT_USAGE)
+        self.assertIn("update failed", out)
+
+
+class TestModelProposal(EnvMixin):
+    def test_pinned_model_404_proposes_resolvable_fallback(self):
+        # gemini's pinned id (gemini-3.5-flash) 404s; a fallback resolves.
+        os.environ["MOCK_GEMINI_MODE"] = "model_proposal"
+        code, out, _ = run_cli(["preflight", "--source", SAMPLE])
+        # claude + codex still GO -> board can proceed (>= 2 voices)
+        self.assertEqual(code, rb.EXIT_OK)
+        self.assertIn("proposal (gemini)", out)
+        self.assertIn("gemini-3-flash-preview", out)
+
+    def test_propose_model_returns_first_resolvable(self):
+        os.environ["MOCK_GEMINI_MODE"] = "model_proposal"
+        seat = next(s for s in _config().board if s.name == "gemini")
+        proposal = rb.propose_model(seat, network_on=False, workdir=None)
+        self.assertEqual(proposal, "gemini-3-flash-preview")
+
+
+class TestRunUpdateToolsFlag(EnvMixin):
+    def test_run_update_tools_runs_toolchain_then_proceeds(self):
+        out = tempfile.mkdtemp(prefix="board-upd-")
+        code, text, _ = run_cli(["run", "--source", SAMPLE, "--out", out,
+                                 "--update-tools", "--yes"])
+        self.assertEqual(code, rb.EXIT_OK)
+        self.assertIn("=== toolchain ===", text)
+        self.assertIn("=== preflight ===", text)
+        self.assertIn("M3", text)   # still stops at the documented spawn boundary
 
 
 if __name__ == "__main__":

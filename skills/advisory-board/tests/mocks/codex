@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Mock `codex` CLI. Handles `codex --version` and `codex exec ... <prompt>`.
-# MOCK_CODEX_MODE: go | nogo_version | nogo_smoke | empty | degraded | timeout
+# Mock `codex` CLI. Handles `codex --version`, `codex update`, `codex exec ... <prompt>`.
+# MOCK_CODEX_MODE: go | nogo_version | nogo_smoke | empty | degraded | timeout | model_not_found
+# `codex update` is mocked too (MOCK_CODEX_UPDATE_FAIL=1 to force a failure).
 set -u
 
 if [ -n "${MOCK_ARGV_LOG:-}" ]; then
@@ -12,6 +13,13 @@ mode="${MOCK_CODEX_MODE:-go}"
 if [ "${1:-}" = "--version" ]; then
   if [ "$mode" = "nogo_version" ]; then exit 1; fi
   echo "codex-cli 0.30.0 (mock)"
+  exit 0
+fi
+
+# `codex update` — toolchain self-update path.
+if [ "${1:-}" = "update" ]; then
+  if [ "${MOCK_CODEX_UPDATE_FAIL:-}" = "1" ]; then echo "update failed" >&2; exit 1; fi
+  echo "codex updated"
   exit 0
 fi
 
@@ -27,5 +35,7 @@ case "$mode" in
   empty)      exit 0 ;;
   timeout)    exec sleep 30 ;;   # exec so no orphaned sleep survives the kill
   degraded)   echo "warning: sandbox note" >&2; echo "ready"; exit 1 ;;
+  # Unknown model: codex emits an invalid_request_error to STDERR (grounded 2026-06-25).
+  model_not_found) echo '{"type":"error","error":{"type":"invalid_request_error","message":"The model is not supported when using Codex with a ChatGPT account."}}' >&2; exit 1 ;;
   *)          echo "ready"; exit 0 ;;
 esac

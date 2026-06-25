@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Mock `claude` CLI for testing the conductor without burning tokens or network.
 # Banner-accurate enough for preflight; behavior switched by MOCK_CLAUDE_MODE.
-#   go (default) | nogo_version | nogo_smoke | empty | degraded | timeout
+#   go (default) | nogo_version | nogo_smoke | empty | degraded | timeout | model_not_found
+# `claude update` is mocked too (MOCK_CLAUDE_UPDATE_FAIL=1 to force a failure).
 # If MOCK_ARGV_LOG is set, the full argv is appended for end-to-end assertions.
 set -u
 
@@ -19,7 +20,16 @@ for a in "$@"; do
   fi
 done
 
+# `claude update` — toolchain self-update path.
+if [ "${1:-}" = "update" ]; then
+  if [ "${MOCK_CLAUDE_UPDATE_FAIL:-}" = "1" ]; then echo "update failed" >&2; exit 1; fi
+  echo "claude updated"
+  exit 0
+fi
+
 case "$mode" in
+  # Unknown model: claude prints this to STDOUT with exit 1 (grounded 2026-06-25).
+  model_not_found) echo "There's an issue with the selected model. It may not exist or you may not have access to it."; exit 1 ;;
   nogo_smoke) exit 1 ;;
   empty)      exit 0 ;;
   timeout)    exec sleep 30 ;;   # exec so no orphaned sleep survives the kill

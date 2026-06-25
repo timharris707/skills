@@ -4,7 +4,7 @@
 
 | Script | Does | Reference |
 | ------ | ---- | --------- |
-| `run_board.py` | The **conductor** (M1+M2): deterministic seat-adapter registry, `--dry-run`, executable preflight (GO/NO-GO), and a hash-bound egress/quarantine gate before any provider call. Calls the scripts below; never reimplements them. | `design/run-board-conductor.md` |
+| `run_board.py` | The **conductor** (M1+M2): deterministic seat-adapter registry, `--dry-run`, toolchain currency (`toolchain` — check/update stale CLIs, propose fallback model ids), executable preflight (GO/NO-GO), and a hash-bound egress/quarantine gate before any provider call. Calls the scripts below; never reimplements them. | `design/run-board-conductor.md` |
 | `board_verdict.py` | Validate `verdict.json`; gate CI on the verdict (`--gate`). | `references/verdict-schema.md` |
 | `format_output.py` | Render `verdict.json` as a TL;DR, PR comment, Slack message, or normalized JSON. | `references/output-formats.md` |
 | `render_handoff.py` | Render `final-consensus.html` from a `handoff-data.json` — deterministic, fails on any leftover placeholder. | `references/handoff-template.html` |
@@ -12,6 +12,12 @@
 ## Quick start
 
 ```
+# check each seat CLI vs its latest release (read-only)
+python3 scripts/run_board.py toolchain
+
+# update stale CLIs first (consent-gated; --yes approves unattended), then run as usual
+python3 scripts/run_board.py toolchain --update
+
 # preview a run — config, run-card, preflight plan, egress manifest, artifact tree (no spawn)
 python3 scripts/run_board.py run --source plan.md --dry-run
 

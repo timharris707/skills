@@ -52,6 +52,7 @@ Model names and flags move fast — verify them against the installed CLIs or of
 
 Preflight — run `references/preflight.md` before launching: for each seat, check the CLI is present, auth is active (subscription-backed where possible), the requested model resolves, and a one-token smoke ping returns. Proceed only with at least two seats GO; label any degraded or dropped seat in the handoff. In summary:
 
+- **Toolchain currency first** — `run_board.py toolchain` checks each CLI against its latest release and (`--update`, consent-gated) upgrades stale ones. A stale CLI is the usual reason a freshly-renamed frontier model id 404s; updating first keeps the board from half-failing. Model ids stay pinned — if one still won't resolve, preflight *proposes* a working fallback rather than swapping silently.
 - Confirm Claude subscription auth is active.
 - Confirm Codex is on ChatGPT/subscription auth, not API-key-only, when possible.
 - Confirm Gemini auth and model/config support.

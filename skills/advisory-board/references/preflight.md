@@ -4,6 +4,21 @@ Run this before launching a board. Most board failures are environmental — a C
 
 Goal: a go/no-go table. Proceed only when at least two seats are **GO** (a board needs at least two voices). Label any seat that is degraded or dropped in the final handoff.
 
+## Step 0: toolchain currency (run this first)
+
+A stale seat CLI is the single most common reason a board half-fails: a frontier model gets renamed (e.g. `gemini-3-flash-preview` → `gemini-3.5-flash` on GA) and the pinned id suddenly 404s on a CLI too old to know the new route. So the conductor checks each CLI against its latest release *before* probing models, and offers to update the stale ones.
+
+```
+run_board.py toolchain            # read-only: installed vs latest, per seat
+run_board.py toolchain --update   # update stale CLIs (confirms first; --yes to skip the prompt)
+```
+
+- **Check** is read-only — it never mutates anything. It reads the installed version (`<cli> --version`) and the latest published version (npm for claude/codex, Homebrew for gemini), and flags anything behind, plus a *flag-drift* advisory when the installed CLI is newer than the version its argv flags were last grounded against (re-verify `--help`).
+- **Update is consent-gated** (`detect → confirm → update`): it lists what's stale and updates only what you approve. `--yes` approves unattended; a non-interactive shell without `--yes` is a no-op, not an error.
+- `run --update-tools` folds Step 0 into a run: check + (gated) update, then preflight, then the board.
+
+**Model ids stay pinned, never auto-swapped.** If a pinned model id still doesn't resolve after the CLI is current, preflight probes that seat's known fallbacks and **proposes** a resolvable id (surfaced in the preflight table and `run-metadata.md`) — it does not silently switch models. Apply it yourself with `--model <seat>=<id>` or by updating the registry.
+
 ## What to check, per seat
 
 For each seat in the lineup (Claude, Codex, Gemini, or whatever you're running):
