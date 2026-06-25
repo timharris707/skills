@@ -10,6 +10,30 @@ reserved for an explicit production-ready call. The verdict-JSON schema is versi
 
 ## [Unreleased]
 
+## [v1.0.0] - 2026-06-25 — v1: production-ready
+
+The conductor's v1 scope (milestones M1–M6) is complete and has been exercised end-to-end
+against real models. Declaring the line **stable**. No code change from `v0.6.0` — this is the
+deliberate production-ready call the pre-1.0 scheme reserved.
+
+### What v1 is
+- **Engine** — a seat-adapter registry (claude / codex / gemini, plus antigravity and a local
+  ollama seat), an executable preflight (GO/NO-GO), and round-1 + round-2 cross-reading fan-out
+  with the §13 failure protocol (timeout / retry / classification, honest `model_answered`).
+- **Safety** — a hash-bound egress/quarantine gate with tiered consent and a pre-spawn hard stop,
+  capability-removal isolation in gate mode, and the evidence gate.
+- **Verdict** — the canonical `advisory-board/verdict@2` with typed, resolved evidence
+  (`verify_evidence.py`), Markdown/HTML rendered *from* the verdict (`render_verdict.py`), and the
+  observed-agreement `abstain` gate (`board_verdict.py`).
+- **Proven** — the first real, token-spending board run is the committed
+  `examples/payments-idempotency-review/` (self-verifying).
+
+### The v1 contract (stable)
+- The `advisory-board/verdict@2` schema, the `run-recipe@1` format, the CLI subcommand surface,
+  and `board_verdict.py` exit codes (`0` pass / `1` block / `2` schema / `3` abstain).
+- Future work (Round 3 / `auto`, a spawned neutral synthesizer, `command`-evidence execution) is
+  additive v1.x — see `design/run-board-conductor.md` §15.
+
 ## [v0.6.0] - 2026-06-25 — M6: docs/drift + the real proof-of-life run
 
 The first token-spending board run: the conductor drove three subscription CLIs through
