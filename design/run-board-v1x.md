@@ -4,7 +4,7 @@
 - **Updated:** 2026-06-25
 - **Source:** design/run-board-conductor.md §15 + the 2026-06-25 handoff (scope)
 - **Owner:** Tim
-- **Baseline:** advisory-board/v1.0.0 · 229 tests green
+- **Baseline:** advisory-board/v1.0.0 + plan view · 268 tests green
 
 ## Overview
 v1.0.0 shipped the full board: **preflight → egress gate → round-1 fan-out → round-2 cross-reading → canonical verdict chain**. The v1.x line sharpens four edges that the M6 proof-of-life run exposed: the board always runs a fixed number of rounds, the verdict is still an agent hand-off rather than one command, `command`-evidence is captured but never re-executed, and the cross-reading digest is coarse.
@@ -18,21 +18,23 @@ status: wip
 Today the board runs a fixed two rounds. A third round only helps when seats are still *moving* — when round 2 changed minds. `--rounds auto` keeps going while a measurable convergence signal says the debate is live, and stops the moment it goes quiet (or hits a hard ceiling), so we never pay for a round that just restates round 2.
 
 ### Phase 1 — Define the convergence signal
-- [x] Specify the per-seat *movement* metric (verdict shift + new-citation delta between rounds)
-- [x] Decide the stop predicate: stop when board-wide movement < threshold, or `--max-rounds` reached
-- [x] Write the metric as a pure function over `round-N/*.md`
+The round artifacts (`round-N/<seat>.md`) are the seat's free-form prose, so the conductor must **not** infer a verdict from them — that would be reasoning (§11 / principle 1). The seat emits a machine-parseable token the conductor can diff.
+- [x] DECISION: the round template emits one literal `VERDICT: ship|caution|block` line per seat — the model reasons, the conductor only reads the token (this changes the egressed prompt, so `prompt_template_sha` and the prompt version bump)
+- [x] DECISION: movement = verdict-token shift + new-citation delta between a seat's round N-1 and N; board-wide movement `< threshold` (or `--max-rounds`) stops
+- [ ] Add the `VERDICT:` line to the ROUND1/ROUND2 templates and bump the prompt version
+- [ ] Implement the metric as a pure function over the parsed token + citation set (no prose inference)
 - [wip] Decide sane defaults for the threshold and the ceiling
-Testing: unit tests for the metric on hand-built two-round fixtures (moved / unchanged / mixed); a property test that movement is zero when round N == round N-1.
+Testing: unit tests on hand-built two-round fixtures (moved / unchanged / mixed); a property test that movement is zero when round N == round N-1; an adversarial fixture where a seat rephrases its prose but the `VERDICT` token is unchanged (must read as *no move*).
 Gate: `python3 -m unittest discover -s tests -t tests`
 
 ### Phase 2 — Wire `--rounds auto` through the conductor
 status: todo
-- [ ] Add `auto` to the `--rounds` arg and the recipe schema
+- [ ] Replace the clamp-to-2 deferral note (`auto`/`3` already parse — `cli.py`/`config.py`/`recipe.py`) with the real round loop
 - [ ] Loop rounds in `rounds.py` until the stop predicate fires
 - [ ] Record the per-round movement + stop reason in provenance
 - [ ] A mock run that converges in 2 and one that needs 3, both deterministic
 Testing: end-to-end mock-CLI runs asserting the stop reason and round count; provenance has the movement trace.
-Gate: `PATH="$PWD/tests/mocks:$PATH" python3 scripts/run_board.py run --recipe tests/fixtures/auto.json --check`
+Gate: `PATH="$PWD/tests/mocks:$PATH" python3 scripts/run_board.py run --source tests/fixtures/sample-plan.md --rounds auto --out "$(mktemp -d)" --yes`
 
 ## Milestone: Neutral synthesizer seat
 status: todo
@@ -44,7 +46,7 @@ status: todo
 - [ ] Spawn it as a no-lens seat that reads `round-N/*.md` only
 - [ ] Validate its output against the `verdict@2` schema before accepting
 Testing: feed the committed example's rounds to the synthesizer mock; assert schema-valid `verdict@2` and that evidence ids resolve.
-Gate: `python3 scripts/run_board.py verify /tmp/v.json --run examples/payments-idempotency-review --check`
+Gate: `python3 scripts/run_board.py verify /tmp/v.json --run ../../examples/payments-idempotency-review --check`
 
 ### Phase 2 — Make it optional + auditable
 status: todo
@@ -68,10 +70,11 @@ Gate: `python3 -m unittest discover -s tests -t tests`
 
 ## Milestone: Smarter cross-reading digest
 status: todo
-Round 2 hands each seat a digest of the others' round-1 reviews via `prompts._digest`. It is currently a flat concatenation. A structured digest — grouped by claim, with agreements and conflicts surfaced — gives round 2 (and the `auto` stop-rule) a sharper signal to debate against.
+Round 2 hands each seat a round-2 packet of the others' round-1 reviews, assembled by `prompts.build_round2_packet`. Under `cross_reading=summaries` each review is head-truncated to a char budget by `prompts._digest`; under `full` the reviews are concatenated verbatim. A structured digest — grouped by claim, with agreements and conflicts surfaced — would replace this, giving round 2 (and the `auto` stop-rule) a sharper signal to debate against.
 
 ### Phase 1 — Structure the digest
 status: todo
+- [ ] Decide scope: does the structured digest replace the `summaries` path only, or `full` too
 - [ ] Extract per-seat claims and cluster the overlapping ones
 - [ ] Render agreements vs. conflicts, not a raw dump
 - [ ] Keep it within the token budget the seats already assume
@@ -88,17 +91,18 @@ Gate: `python3 -m unittest discover -s tests -t tests`
 - **R1** Auto-rounds runaway — a board that never converges burns tokens; the `--max-rounds` ceiling and a flagged-large-run prompt are the backstop.
 - **R2** Synthesizer smuggles in new opinion — mitigated by schema validation, the no-lens briefing, and keeping the human gate on the final call.
 - **R3** Command re-execution side effects — mitigated by the allowlist plus the existing egress/quarantine gate; anything off-list stays `unverified`, never silently trusted.
+- **R4** The convergence signal must not make the conductor reason over prose — the round artifacts are free-form, so M1 has each seat emit a machine-parseable `VERDICT:` token and the conductor only diffs tokens + citations (§11 / principle 1). A seat that moves its mind without changing the token is the residual risk; the adversarial-rephrasing fixture in M1 Phase 1 covers it.
 
 ## Dependency order
 ```svg
-<svg viewBox="0 0 720 250" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Milestone dependency order: the smarter digest (M4) feeds the auto stop-rule (M1), which feeds the neutral synthesizer (M2); command re-execution (M3) is independent and can ship any time." font-family="'Poppins',-apple-system,sans-serif">
+<svg viewBox="0 0 720 250" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Milestone dependency order: the smarter digest (M4) sharpens the debate signal the auto stop-rule (M1) measures (a soft dependency, shown dashed); M1 then feeds the neutral synthesizer (M2); command re-execution (M3) is independent and can ship any time." font-family="'Poppins',-apple-system,sans-serif">
   <title>Milestone dependency order</title>
   <defs>
     <marker id="arr" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M0,0 L10,5 L0,10 z" fill="#b0aea5"/>
     </marker>
   </defs>
-  <line x1="222" y1="76" x2="258" y2="76" stroke="#b0aea5" stroke-width="2" marker-end="url(#arr)"/>
+  <line x1="222" y1="76" x2="258" y2="76" stroke="#b0aea5" stroke-width="2" stroke-dasharray="4 3" marker-end="url(#arr)"/>
   <line x1="462" y1="76" x2="498" y2="76" stroke="#b0aea5" stroke-width="2" marker-end="url(#arr)"/>
 
   <g>
