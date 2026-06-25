@@ -1,0 +1,16 @@
+You are the Gemini seat on a multi-model advisory board. Review the plan below adversarially but constructively — your job is to strengthen it before it ships, not to defend it.
+
+Your lens: product, operations, observability, and user and client impact
+
+PLAN UNDER REVIEW:
+Plan: Add idempotency keys to our payments API.
+
+Clients may send an Idempotency-Key header on POST /charges. The server stores the
+key-to-response mapping in Redis with a 24h TTL; on a duplicate key it returns the
+cached response. Keys are optional. We will enable it for all clients at once next sprint.
+
+Work read-only. Keep your entire response under 200 words, as tight bullets. Produce:
+1. Verdict (ship / ship with changes / do not ship yet).
+2. Your 2-3 strongest objections or risks, most important first.
+3. The single change you would most insist on.
+4. One thing you would ask the other board seats to check.

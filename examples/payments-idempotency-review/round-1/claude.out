@@ -1,0 +1,13 @@
+**Verdict: Do not ship yet** (close — fix two things first).
+
+**Top risks**
+- **Concurrent in-flight duplicates.** Redis store-on-completion leaves a race: two requests with the same key arriving near-simultaneously both miss the cache and double-charge. You need an atomic reserve (`SET NX`) on receipt, with an in-progress sentinel, not store-after-response.
+- **Key collision / weak semantics.** A cached response keyed on the header alone ignores the request body. Client reusing a key with a *different* payload silently gets the old charge — or worse, masks a real second charge. Must bind key→request-fingerprint and return 422 on mismatch.
+- **Big-bang rollout.** "All clients at once next sprint" gives no blast-radius control. Redis is now in the critical payment path — define behavior when Redis is down (fail-open = lost idempotency; fail-closed = outage).
+
+**The one change I'd insist on**
+Atomic `SET NX` reservation at request entry + persist the response under that key, so the dedup window covers in-flight requests, not just completed ones.
+
+**Ask another seat to check**
+24h TTL vs. client retry/settlement windows — does a legitimate retry after expiry double-charge? Verify against payment-processor reconciliation semantics.
+( cat "$OUT/round-1/claude.prompt" | claude -p; )  1.43s user 0.45s system 13% cpu 14.105 total

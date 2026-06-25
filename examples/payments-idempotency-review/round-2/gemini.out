@@ -1,0 +1,4 @@
+* **Under-weighted:** Codex’s point about not caching 5xx errors. From an ops perspective, caching a transient 500 would permanently block a user's legitimate retry for 24 hours, causing a massive spike in unresolvable support tickets. 
+* **Changed my view:** Claude and Codex's alignment on request fingerprinting. I focused heavily on concurrency and rollout, but they correctly identified that a client reusing a key for a *different* payload without triggering a 422 mismatch is a catastrophic product flaw.
+* **Still dispute:** Codex's "SHIP WITH CHANGES" rating. This plan lacks fundamental architectural safety (atomic locks, fingerprinting) and operational safety (phased rollout). This isn't a minor tweak; it's a complete structural redesign of a core payments path. We cannot greenlight this conditionally.
+* **Recommendation:** DO NOT SHIP; mandate atomic SET NX locks, payload fingerprinting, 5xx cache exclusion, and a dark-launched, phased rollout.

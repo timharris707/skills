@@ -11,7 +11,7 @@ Bring an idea, problem, plan, or architecture to a board of frontier models sitt
 
 - Use subscription CLIs by default, not provider API keys.
 - Run read-only unless the user explicitly asks for edits.
-- Rounds: 2. Cross-reading: summaries. Final artifact: full handoff.
+- Rounds: 2. Cross-reading: summaries. Final artifact: full handoff (Markdown plus a self-contained HTML view).
 - Save artifacts in a timestamped folder near the reviewed material, or in `/tmp/advisory-board-*` if there is no obvious project folder.
 - Quick pass: 1 round with `summaries`. High-stakes: 3 rounds with `full` cross-reading. Three frontier models at high reasoning across several rounds can take minutes and meaningful tokens — flag a large run to the user before launching it.
 
@@ -84,7 +84,8 @@ Write:
 
 - `round-1/<seat>.md` (and `round-2/`, `round-3/` as rounds run)
 - `board-packet-round-2.md` (and `board-packet-round-3.md` when needed)
-- `final-consensus.md`
+- `final-consensus.md` — the handoff in Markdown
+- `final-consensus.html` — a self-contained, human-readable version of the handoff (inline CSS, no external files) so anyone can open it in a browser; render it from `references/handoff-template.html`
 - optional `run-metadata.md`: commands, model names, auth/account status (no secrets), timestamps, and source paths
 
 Never store secrets. Redact keys, tokens, cookies, and private environment values.

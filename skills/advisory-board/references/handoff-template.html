@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<!--
+  ============================================================================
+  ADVISORY BOARD — HANDOFF TEMPLATE
+  ============================================================================
+  This is a SELF-CONTAINED HTML template for rendering a finished multi-model
+  advisory board review into a clean, human-readable handoff page.
+
+  HOW TO USE
+  ----------
+  1. Copy this file to your run's output folder (e.g. final-consensus.html).
+  2. Replace every {{TOKEN}} below with real content from the review run.
+     Tokens are documented inline at each insertion point.
+  3. The page is fully self-contained: inline CSS only, no external fonts,
+     CDNs, or JS frameworks. It MUST keep working when opened by double-click
+     (offline). Do not add <link>/<script src> to remote resources.
+  4. HTML-escape any user/model text you inject (& -> &amp;  < -> &lt;
+     > -> &gt;). Inline code can be wrapped in <code>...</code>.
+
+  REPEATABLE BLOCKS
+  -----------------
+  - SEAT CARD: duplicate the block marked "BEGIN SEAT CARD" once per board
+    seat (e.g. Claude / Codex / Gemini). Inside each seat card, duplicate the
+    "BEGIN ROUND" block once per round (Round 1, Round 2, ...).
+  - BLOCKER ITEM: duplicate one <li> per consensus blocker.
+  - DISSENT / QUESTION / ACTION items: duplicate their <li> as needed.
+
+  TOP-LEVEL TOKENS
+  ----------------
+  {{TITLE}}          Page + banner title, e.g. "Advisory Board Review".
+  {{SUBTITLE}}       One-line description of what was reviewed.
+  {{DATE}}           Review date, e.g. "2026-06-24".
+  {{BOARD}}          Board roster: models + lenses (HTML allowed).
+  {{ROUNDS}}         Number of rounds, e.g. "2".
+  {{VERDICT}}        Final verdict text, e.g. "Do not ship yet — unanimous".
+  {{VERDICT_CLASS}}  One of: ship | caution | block
+                     -> colors the banner green / amber / red.
+  {{VERDICT_NOTE}}   One-line explanation under the verdict headline.
+  {{PLAN}}           The plan that was reviewed (HTML allowed; use <p>).
+  {{CONSENSUS_BLOCKERS}}  <li>...</li> items (numbered checklist).
+  {{DISSENT}}        Preserved-dissent block(s) (HTML allowed).
+  {{OPEN_QUESTIONS}} <li>...</li> items.
+  {{NEXT_ACTIONS}}   <li>...</li> items or a <p>.
+  {{METADATA}}       Footer provenance (models, flags, paths, timestamps).
+  ============================================================================
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{TITLE}}</title>
+<style>
+  :root {
+    --maxw: 820px;
+    --ink: #1c1d22;
+    --ink-soft: #4a4d57;
+    --ink-faint: #74777f;
+    --line: #e4e3dd;
+    --line-strong: #d2d1c9;
+    --surface: #ffffff;
+    --page: #f6f5f1;
+    --surface-soft: #faf9f5;
+    --accent: #4f46b8;
+    /* verdict palettes */
+    --ship-bg: #e9f5ec;     --ship-edge: #2f7d46;   --ship-ink: #1d5e31;
+    --caution-bg: #fdf2dd;  --caution-edge: #b9791b; --caution-ink: #7a4d09;
+    --block-bg: #fbe9e9;    --block-edge: #b23535;  --block-ink: #7e1f1f;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--page);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                 Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji", sans-serif;
+    font-size: 17px;
+    line-height: 1.65;
+  }
+  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 32px 20px 72px; }
+
+  /* ---- header ---- */
+  header.masthead { margin-bottom: 24px; }
+  .eyebrow {
+    font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--ink-faint); font-weight: 600; margin: 0 0 8px;
+  }
+  h1 { font-size: 30px; line-height: 1.2; font-weight: 700; margin: 0 0 8px; letter-spacing: -0.01em; }
+  .subtitle { font-size: 17px; color: var(--ink-soft); margin: 0 0 18px; }
+  .meta-row { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--surface); border: 1px solid var(--line-strong);
+    border-radius: 999px; padding: 5px 13px; font-size: 13.5px; color: var(--ink-soft);
+  }
+  .chip b { font-weight: 600; color: var(--ink); }
+
+  /* ---- verdict banner ---- */
+  .verdict {
+    border-radius: 14px; padding: 22px 24px; margin: 8px 0 32px;
+    border: 1px solid transparent; border-left-width: 6px;
+  }
+  .verdict .label {
+    font-size: 12px; letter-spacing: 0.09em; text-transform: uppercase;
+    font-weight: 700; margin: 0 0 6px; opacity: 0.85;
+  }
+  .verdict .headline { font-size: 23px; font-weight: 700; margin: 0; line-height: 1.25; }
+  .verdict .note { margin: 10px 0 0; font-size: 15.5px; line-height: 1.55; }
+  .verdict.ship    { background: var(--ship-bg);    border-color: var(--ship-edge);    color: var(--ship-ink); }
+  .verdict.caution { background: var(--caution-bg); border-color: var(--caution-edge); color: var(--caution-ink); }
+  .verdict.block   { background: var(--block-bg);   border-color: var(--block-edge);   color: var(--block-ink); }
+
+  /* ---- sections ---- */
+  section { margin: 0 0 34px; }
+  h2 {
+    font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase;
+    font-weight: 700; color: var(--ink-faint); margin: 0 0 14px;
+    padding-bottom: 8px; border-bottom: 1px solid var(--line);
+  }
+
+  /* ---- plan callout ---- */
+  .plan {
+    background: var(--surface-soft); border: 1px solid var(--line);
+    border-left: 4px solid var(--accent); border-radius: 0 10px 10px 0;
+    padding: 16px 20px;
+  }
+  .plan p { margin: 0 0 10px; } .plan p:last-child { margin: 0; }
+
+  /* ---- seat cards ---- */
+  .seat {
+    background: var(--surface); border: 1px solid var(--line-strong);
+    border-radius: 14px; padding: 20px 22px; margin: 0 0 18px;
+  }
+  .seat-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 12px; margin-bottom: 4px; }
+  .seat-name { font-size: 19px; font-weight: 700; margin: 0; }
+  .seat-lens {
+    font-size: 12.5px; font-weight: 600; color: var(--accent);
+    background: #efeefb; border-radius: 999px; padding: 3px 11px;
+  }
+  .seat-model { font-size: 13px; color: var(--ink-faint); }
+  .round { margin-top: 16px; padding-top: 16px; border-top: 1px dashed var(--line); }
+  .round:first-of-type { margin-top: 12px; }
+  .round-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .round-tag { font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-faint); }
+  /* per-round verdict pill */
+  .vpill { font-size: 12px; font-weight: 700; border-radius: 999px; padding: 3px 11px; line-height: 1.4; }
+  .vpill.ship    { background: var(--ship-bg);    color: var(--ship-ink); }
+  .vpill.caution { background: var(--caution-bg); color: var(--caution-ink); }
+  .vpill.block   { background: var(--block-bg);   color: var(--block-ink); }
+  .vpill.moved::after { content: " ↓"; }
+
+  .review-body { font-size: 15.5px; color: var(--ink); }
+  .review-body strong { font-weight: 600; }
+  .review-body ul { margin: 6px 0; padding-left: 22px; }
+  .review-body li { margin: 5px 0; }
+  .review-body p { margin: 6px 0; }
+  .review-body p.r-title { font-weight: 600; margin-top: 12px; }
+  code {
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.86em; background: #f0efe9; border: 1px solid var(--line);
+    border-radius: 5px; padding: 1px 5px;
+  }
+
+  /* highlight callout (e.g. a seat that changed its verdict) */
+  .highlight {
+    background: #fff8e8; border: 1px solid #ecd9a3; border-radius: 10px;
+    padding: 12px 16px; margin: 14px 0 0; font-size: 14.5px; color: #6f5212;
+  }
+  .highlight b { color: #5a4209; }
+
+  /* ---- numbered blocker checklist ---- */
+  ol.blockers { list-style: none; counter-reset: blk; margin: 0; padding: 0; }
+  ol.blockers > li {
+    counter-increment: blk; position: relative;
+    background: var(--surface); border: 1px solid var(--line-strong);
+    border-radius: 11px; padding: 15px 18px 15px 56px; margin: 0 0 11px;
+  }
+  ol.blockers > li::before {
+    content: counter(blk); position: absolute; left: 14px; top: 14px;
+    width: 28px; height: 28px; border-radius: 50%;
+    background: var(--block-bg); color: var(--block-ink);
+    font-size: 14px; font-weight: 700; display: flex; align-items: center; justify-content: center;
+  }
+  ol.blockers .b-title { font-weight: 600; }
+  ol.blockers .b-body { font-size: 15px; color: var(--ink-soft); margin-top: 3px; }
+
+  /* ---- dissent (visually distinct) ---- */
+  .dissent {
+    background: #fbf3ec; border: 1px dashed var(--caution-edge);
+    border-radius: 12px; padding: 16px 20px;
+  }
+  .dissent .d-flag {
+    display: inline-block; font-size: 11.5px; font-weight: 700;
+    letter-spacing: 0.07em; text-transform: uppercase; color: var(--caution-ink);
+    background: var(--caution-bg); border-radius: 999px; padding: 3px 10px; margin-bottom: 8px;
+  }
+  .dissent p { margin: 6px 0; font-size: 15.5px; color: #5e4a31; }
+  .dissent .who { font-weight: 700; color: var(--caution-ink); }
+
+  /* ---- simple lists ---- */
+  ul.plain { margin: 0; padding-left: 22px; }
+  ul.plain li { margin: 7px 0; font-size: 15.5px; }
+
+  .actions {
+    background: var(--surface-soft); border: 1px solid var(--line);
+    border-radius: 12px; padding: 16px 20px; font-size: 15.5px;
+  }
+
+  /* ---- footer ---- */
+  footer.meta {
+    margin-top: 40px; padding-top: 18px; border-top: 1px solid var(--line);
+    font-size: 13px; color: var(--ink-faint); line-height: 1.7;
+  }
+  footer.meta code { background: #efeee8; }
+
+  /* ---- responsive ---- */
+  @media (max-width: 560px) {
+    body { font-size: 16px; }
+    .wrap { padding: 22px 15px 56px; }
+    h1 { font-size: 25px; }
+    .verdict .headline { font-size: 20px; }
+    .seat, ol.blockers > li { padding-left: 16px; padding-right: 16px; }
+    ol.blockers > li { padding-left: 50px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ===================== HEADER ===================== -->
+  <header class="masthead">
+    <p class="eyebrow">Advisory Board · Multi-model review</p>
+    <h1>{{TITLE}}</h1>
+    <p class="subtitle">{{SUBTITLE}}</p>
+    <div class="meta-row">
+      <span class="chip"><b>Date</b> {{DATE}}</span>
+      <span class="chip"><b>Rounds</b> {{ROUNDS}}</span>
+      <span class="chip"><b>Board</b> {{BOARD}}</span>
+    </div>
+  </header>
+
+  <!-- ===================== VERDICT BANNER ===================== -->
+  <!-- {{VERDICT_CLASS}} = ship | caution | block  (controls color) -->
+  <div class="verdict {{VERDICT_CLASS}}">
+    <p class="label">Final verdict</p>
+    <p class="headline">{{VERDICT}}</p>
+    <p class="note">{{VERDICT_NOTE}}</p>
+  </div>
+
+  <!-- ===================== PLAN UNDER REVIEW ===================== -->
+  <section>
+    <h2>Plan under review</h2>
+    <div class="plan">
+      {{PLAN}}
+    </div>
+  </section>
+
+  <!-- ===================== SEAT REVIEWS ===================== -->
+  <section>
+    <h2>Board reviews — round by round</h2>
+
+    <!-- ----- BEGIN SEAT CARD (duplicate per seat) ----- -->
+    <article class="seat">
+      <div class="seat-head">
+        <h3 class="seat-name">{{SEAT_NAME}}</h3>
+        <span class="seat-lens">{{SEAT_LENS}}</span>
+        <span class="seat-model">{{SEAT_MODEL}}</span>
+      </div>
+
+      <!-- ..... BEGIN ROUND (duplicate per round) ..... -->
+      <div class="round">
+        <div class="round-head">
+          <span class="round-tag">{{ROUND_LABEL}}</span>
+          <!-- vpill class: ship | caution | block ; add "moved" to show a ↓ when the verdict shifted -->
+          <span class="vpill {{ROUND_VERDICT_CLASS}}">{{ROUND_VERDICT}}</span>
+        </div>
+        <div class="review-body">
+          {{ROUND_REVIEW}}
+        </div>
+      </div>
+      <!-- ..... END ROUND ..... -->
+
+      <!-- Optional per-seat highlight (e.g. a verdict change worth calling out) -->
+      <div class="highlight">{{SEAT_HIGHLIGHT}}</div>
+
+    </article>
+    <!-- ----- END SEAT CARD ----- -->
+
+  </section>
+
+  <!-- ===================== CONSENSUS BLOCKERS ===================== -->
+  <section>
+    <h2>Consensus blockers — must fix before ship</h2>
+    <ol class="blockers">
+      <!-- duplicate one <li> per blocker -->
+      <li>
+        <span class="b-title">{{BLOCKER_TITLE}}</span>
+        <div class="b-body">{{BLOCKER_BODY}}</div>
+      </li>
+      {{CONSENSUS_BLOCKERS}}
+    </ol>
+  </section>
+
+  <!-- ===================== PRESERVED DISSENT ===================== -->
+  <section>
+    <h2>Preserved dissent</h2>
+    <div class="dissent">
+      <span class="d-flag">Dissent on the record</span>
+      {{DISSENT}}
+    </div>
+  </section>
+
+  <!-- ===================== OPEN QUESTIONS ===================== -->
+  <section>
+    <h2>Open questions</h2>
+    <ul class="plain">
+      {{OPEN_QUESTIONS}}
+    </ul>
+  </section>
+
+  <!-- ===================== NEXT ACTIONS ===================== -->
+  <section>
+    <h2>Next actions</h2>
+    <div class="actions">
+      {{NEXT_ACTIONS}}
+    </div>
+  </section>
+
+  <!-- ===================== FOOTER / PROVENANCE ===================== -->
+  <footer class="meta">
+    {{METADATA}}
+  </footer>
+
+</div>
+</body>
+</html>
