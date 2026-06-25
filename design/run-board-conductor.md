@@ -193,6 +193,14 @@ Subcommands (the Implementation Lead's framing): `init` (emit recipe) · `prefli
 
 **Honest effort.** Henry's "2 weeks per item" beats the first competition's "one day," but rev 2's v1 is genuinely three things at once. Realistic: **~2 weeks** for a solid, tested v1 if the safety + verdict layers ship with the engine (they share the same artifact/provenance plumbing). The temptation to ship "just the CLI" first is exactly what principle #3 forbids.
 
+## Decisions locked (M0 — 2026-06-25, with Tim)
+
+These resolve the matching open questions below; treat them as settled for the build.
+
+1. **Gate-mode trigger** → *untrusted source OR the verdict gates something.* A human reviewing their own non-sensitive material opts into advisory mode; every other run defaults to quarantined gate mode (§4).
+2. **Egress consent** → *tiered by sensitivity.* Clearly-public material proceeds after the disclosure is shown; non-public material renders the hash-bound manifest and **blocks for explicit approval** (§8).
+3. **Evidence resolution in v1** → *code citations **and** `source` quotes.* Resolve `path:line`/`symbol` against the source, **and** re-check each `source` URL quote against the **captured packet** (never a live fetch — respects quarantine). `command` re-execution stays deferred to v1.x (§9).
+
 ## 16. Risks & open questions
 
 - **Mode-default friction.** Gate-by-default could make casual runs tedious (the "Quarantine UX friction" risk). Mitigation is the two-mode split (§4) — but the *trigger* for gate mode ("source is untrusted OR verdict gates something") needs a crisp, non-annoying rule. Open.
