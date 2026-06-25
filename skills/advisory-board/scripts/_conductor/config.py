@@ -10,6 +10,7 @@ from typing import Optional
 
 from _conductor.constants import (
     DEFAULT_LENS,
+    DEFAULT_MAX_ROUNDS,
     LENS_PRESETS,
     die,
     now_date,
@@ -66,6 +67,7 @@ class RunConfig:
     mode: str            # gate | advisory
     sensitivity: str     # public | redacted | local-only
     rounds: str          # 1 | 2 | 3 | auto
+    max_rounds: int      # hard ceiling for `auto` (ignored for an explicit 1|2|3)
     cross_reading: str   # none | summaries | full
     lens: str            # preset name
     output: str          # quick-verdict | full-handoff | implementation-sequence
@@ -187,6 +189,19 @@ def resolve_config(args) -> RunConfig:
     if rounds not in ("1", "2", "3", "auto"):
         die(f"--rounds must be 1, 2, 3, or auto; got {rounds!r}")
 
+    # The `auto` ceiling. Persisted in the recipe (so an `auto` run reproduces its
+    # ceiling via --from-recipe); a CLI --max-rounds wins, else the recipe's, else
+    # the default. Ignored at runtime for an explicit --rounds 1|2|3.
+    max_rounds_raw = getattr(args, "max_rounds", None)
+    if max_rounds_raw is None:
+        max_rounds_raw = (base or {}).get("max_rounds")
+    try:
+        max_rounds = int(max_rounds_raw) if max_rounds_raw is not None else DEFAULT_MAX_ROUNDS
+    except (TypeError, ValueError):
+        die(f"--max-rounds must be an integer; got {max_rounds_raw!r}")
+    if max_rounds < 1:
+        die(f"--max-rounds must be >= 1; got {max_rounds}")
+
     cross = getattr(args, "cross_reading", None) or (base or {}).get("cross_reading") or "summaries"
     if cross not in ("none", "summaries", "full"):
         die(f"--cross-reading must be none, summaries, or full; got {cross!r}")
@@ -209,6 +224,7 @@ def resolve_config(args) -> RunConfig:
         mode=mode,
         sensitivity=sensitivity,
         rounds=rounds,
+        max_rounds=max_rounds,
         cross_reading=cross,
         lens=lens_preset,
         output=output,

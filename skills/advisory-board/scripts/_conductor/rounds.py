@@ -25,6 +25,7 @@ from _conductor.egress import (
     EgressApproval,
     packet_hash,
 )
+from _conductor.convergence import parse_verdict
 from _conductor.artifacts import _write
 
 __all__ = [
@@ -65,6 +66,13 @@ class SeatRoundResult:
     @property
     def usable(self) -> bool:
         return self.status in ("ran", "degraded")
+
+    @property
+    def verdict(self):
+        """The seat's machine-readable VERDICT token (ship|caution|block) parsed
+        from its review, or None if unusable or no clean token was emitted (M1).
+        The conductor only reads this token, never the prose (principle #1)."""
+        return parse_verdict(self.stdout) if self.usable else None
 
 
 def _run_seat_round(seat: SeatConfig, blob: "PacketBlob", config: RunConfig, *,
@@ -187,7 +195,7 @@ def render_raw_record(r: SeatRoundResult) -> str:
     if r.round_no == 1:
         packet_note = "(egress consent was bound to this)"
     else:
-        packet_note = ("(round-2 packet; reuses the run's egress approval — "
+        packet_note = (f"(round-{r.round_no} packet; reuses the run's egress approval — "
                        "derivatives of already-approved source to the same providers)")
     lines = [
         f"# Black-box recorder — {r.seat} · round {r.round_no}",

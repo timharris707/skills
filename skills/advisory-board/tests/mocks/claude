@@ -45,6 +45,27 @@ prompt="$(cat)"
 is_review=0
 case "$prompt" in *"MATERIAL UNDER REVIEW"*) is_review=1 ;; esac
 
+# Which round is this? The round-N (N>=2) template header names the round; round 1
+# has no such marker. Used by the `moving` mode to shift its VERDICT across rounds.
+round=1
+case "$prompt" in
+  *"This is round 2"*) round=2 ;;
+  *"This is round 3"*) round=3 ;;
+  *"This is round 4"*) round=4 ;;
+esac
+
+# The seat's machine-readable VERDICT token (M1). Default: a fixed standing verdict
+# (so successive rounds DON'T move -> `--rounds auto` converges at 2). `moving`:
+# block in round 1, caution from round 2 on (a real shift -> auto needs a 3rd round
+# to see the board go quiet).
+verdict_token() {
+  if [ "$mode" = "moving" ]; then
+    if [ "$round" -ge 2 ]; then echo "caution"; else echo "block"; fi
+  else
+    echo "caution"   # claude's standing "Conditional go"
+  fi
+}
+
 emit_review() {
   # A realistic answering-model banner goes to stderr (never mined from stdout).
   echo "model: ${model:-unknown}" >&2
@@ -72,9 +93,85 @@ Plan section "Key storage" omits the conflict-resolution policy.
 ## What I'd ask the other seats
 Challenge the TTL choice and the read-after-write guarantee.
 REVIEW
+  echo ""
+  echo "VERDICT: $(verdict_token)"
+}
+
+# `moving_cites` (M1 test): HOLD the verdict (caution) every round but introduce a
+# NEW backticked citation from round 2 on — so movement is driven purely by the
+# new-citation delta, not the token. Lets an e2e auto run exercise the citation arm.
+emit_moving_cites() {
+  echo "model: ${model:-unknown}" >&2
+  cat <<'REVIEW'
+## Verdict
+Conditional go (medium).
+## Strongest objections
+The retry path can double-charge under concurrent retries.
+## Recommended execution sequence
+1. Add the unique constraint. 2. Backfill. 3. Ship behind a flag.
+## Invariants and guardrails
+Exactly-once settlement per idempotency key.
+## Risks, stale assumptions, missing evidence
+Assumes strong consistency under partition.
+## Concrete evidence
+REVIEW
+  if [ "$round" -ge 2 ]; then echo "See \`auth.py:42\` and \`db.py:7\`."; else echo "See \`auth.py:42\`."; fi
+  cat <<'REVIEW'
+## What I'd ask the other seats
+Challenge the TTL choice and the read-after-write guarantee.
+REVIEW
+  echo ""
+  echo "VERDICT: caution"
+}
+
+# `rephrase` (M1 test): REWORD the prose from round 2 on but keep the SAME verdict
+# token (caution) and the SAME (empty) citation set — must read as NO movement, so an
+# e2e auto run converges at 2 even though the round artifacts differ byte-for-byte
+# (proving the loop diffs tokens/citations, not raw prose).
+emit_rephrase() {
+  echo "model: ${model:-unknown}" >&2
+  if [ "$round" -ge 2 ]; then
+    cat <<'REVIEW'
+## Verdict
+Conditional go (medium).
+## Strongest objections
+A duplicate settlement can occur when a request is retried after a timeout.
+## Recommended execution sequence
+1. Constraint first. 2. Backfill existing rows. 3. Gate the rollout.
+## Invariants and guardrails
+Each idempotency key settles exactly once.
+## Risks, stale assumptions, missing evidence
+The store is assumed strongly consistent during a partition.
+## What I'd ask the other seats
+Probe the read-after-write guarantee.
+REVIEW
+  else
+    cat <<'REVIEW'
+## Verdict
+Conditional go (medium).
+## Strongest objections
+The retry path can double-charge if the idempotency key expires mid-flight.
+## Recommended execution sequence
+1. Add the constraint. 2. Backfill. 3. Ship behind a flag.
+## Invariants and guardrails
+Exactly-once settlement per idempotency key.
+## Risks, stale assumptions, missing evidence
+Assumes the store is strongly consistent under partition.
+## What I'd ask the other seats
+Challenge the TTL choice.
+REVIEW
+  fi
+  echo ""
+  echo "VERDICT: caution"
 }
 
 case "$mode" in
+  moving_cites)
+    if [ "$is_review" = "1" ]; then emit_moving_cites; else echo "ready"; fi
+    exit 0 ;;
+  rephrase)
+    if [ "$is_review" = "1" ]; then emit_rephrase; else echo "ready"; fi
+    exit 0 ;;
   # Unknown model: claude prints this to STDOUT with exit 1 (grounded 2026-06-25).
   model_not_found) echo "There's an issue with the selected model. It may not exist or you may not have access to it."; exit 1 ;;
   nogo_smoke) exit 1 ;;

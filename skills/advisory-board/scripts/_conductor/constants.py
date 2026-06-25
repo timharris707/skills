@@ -10,6 +10,7 @@ __all__ = [
     "RECIPE_SCHEMA",
     "SENSITIVITY_SCHEMA",
     "SMOKE_PROMPT",
+    "DEFAULT_MAX_ROUNDS",
     "EXIT_OK",
     "EXIT_PREFLIGHT_NOGO",
     "EXIT_USAGE",
@@ -31,6 +32,12 @@ __all__ = [
 RECIPE_SCHEMA = "advisory-board/run-recipe@1"
 SENSITIVITY_SCHEMA = "advisory-board/sensitivity@1"
 SMOKE_PROMPT = "Reply with the single word: ready"
+
+# The hard ceiling on `--rounds auto` (M1): the convergence stop-rule keeps going
+# while the board is still moving, but never past this many rounds. Overridable
+# per run with `--max-rounds`. Default 3 keeps the common case bounded (round 3 is
+# the headline "extra" round) while still letting `auto` stop early at 2.
+DEFAULT_MAX_ROUNDS = 3
 
 # Exit codes (distinct so callers / CI can branch).
 EXIT_OK = 0

@@ -33,12 +33,14 @@ __all__ = [
 ]
 
 
-def build_round2(config: RunConfig, round1_results: list) -> tuple:
-    """Build the round-2 egress blobs (one per USABLE round-1 seat) + the shared
-    board packet. A dropped round-1 seat has no review to build on, so it does not
-    continue to round 2 (recorded as such)."""
-    usable = [r for r in round1_results if r.usable]
-    board_packet = build_round2_packet(usable, config.cross_reading)
+def build_round2(config: RunConfig, prev_results: list, round_no: int = 2) -> tuple:
+    """Build round `round_no`'s egress blobs (one per seat USABLE in the previous
+    round) + the shared board packet, from `prev_results` (round_no − 1's results).
+    A seat that dropped in the previous round has no review to build on, so it does
+    not continue (recorded as such). `round_no` defaults to 2 so existing callers
+    are unchanged; `--rounds auto` (M1) calls it for round 3, 4, … as well."""
+    usable = [r for r in prev_results if r.usable]
+    board_packet = build_round2_packet(usable, config.cross_reading, round_no=round_no)
     by_name = {s.name: s for s in config.board}
     own = {r.seat: r.stdout for r in usable}
     blobs: list = []
@@ -47,11 +49,12 @@ def build_round2(config: RunConfig, round1_results: list) -> tuple:
         prompt = build_round2_prompt(seat, config.source.text,
                                      board_packet=board_packet,
                                      own_review=own[r.seat],
-                                     cross_reading=config.cross_reading)
+                                     cross_reading=config.cross_reading,
+                                     round_no=round_no)
         blobs.append(PacketBlob(
             seat=seat.name,
             provider=seat.provider,
-            relpath=f"prompts/{seat.name}-round-2.prompt",
+            relpath=f"prompts/{seat.name}-round-{round_no}.prompt",
             text=prompt,
         ))
     return blobs, board_packet

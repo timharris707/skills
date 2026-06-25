@@ -100,7 +100,8 @@ def render_sensitivity_json(config: RunConfig, approval: Optional[EgressApproval
 
 def render_artifact_tree(config: RunConfig) -> str:
     rounds = []
-    n = 3 if config.rounds == "auto" else int(config.rounds)
+    # `auto` may run up to the ceiling; preview the maximum tree it could create.
+    n = config.max_rounds if config.rounds == "auto" else int(config.rounds)
     for r in range(1, n + 1):
         rounds.append(f"  round-{r}/<seat>.md   round-{r}/<seat>.raw")
     packet_rounds = "\n".join(
@@ -125,10 +126,51 @@ def render_artifact_tree(config: RunConfig) -> str:
     return "\n".join(parts)
 
 
+def render_convergence_section(convergence: dict) -> list:
+    """The M1 convergence trace: why `--rounds auto` stopped, plus a per-transition
+    movement table (verdict-token shifts + new-citation counts). `convergence` is
+    the dict the conductor's round loop assembles; absent for a single-round run."""
+    from _conductor.convergence import movement_detail_line
+    movements = convergence.get("movements") or []
+    stop_reason = convergence.get("stop_reason", "-")
+    rounds_run = convergence.get("rounds_run", "-")
+    mode = "auto" if convergence.get("is_auto") else f"fixed ({convergence.get('requested', '-')})"
+    ceiling = convergence.get("max_rounds", "-")
+    lines = [
+        "",
+        "## Convergence",
+        "",
+        f"Stop reason: {stop_reason}   ·   Rounds run: {rounds_run}   ·   "
+        f"Ceiling (--max-rounds): {ceiling}   ·   Rounds mode: {mode}",
+    ]
+    if not movements:
+        lines += ["", "Single round — no cross-round movement to measure."]
+        return lines
+    lines += [
+        "",
+        "| Transition | Seats moved | Considered | Per-seat movement |",
+        "| ---------- | ----------- | ---------- | ----------------- |",
+    ]
+    for mv in movements:
+        lines.append(
+            f"| {mv['from_round']} → {mv['to_round']} | {mv['moved']} | "
+            f"{mv['considered']} | {movement_detail_line(mv)} |"
+        )
+    lines += [
+        "",
+        "Movement is a pure function over each seat's parsed `VERDICT:` token and its "
+        "concrete citation set (inline-code spans + slash paths) — never its prose "
+        "(principle #1 / §11). A seat moved if its verdict token shifted or it added a "
+        "new citation; `auto` stops when board-wide movement falls below the threshold.",
+    ]
+    return lines
+
+
 def render_run_metadata(config: RunConfig, preflight: list, approval: EgressApproval,
-                        rounds: Optional[list] = None) -> str:
+                        rounds: Optional[list] = None, convergence: Optional[dict] = None) -> str:
     # `rounds` is an ordered list of per-round result lists: [round1_results,
-    # round2_results, ...]. None until the first fan-out completes.
+    # round2_results, ...]. None until the first fan-out completes. `convergence`
+    # is the M1 stop-rule trace (movement per transition + stop reason).
     lines = [
         f"# Run Metadata — {config.title}",
         "",
@@ -189,6 +231,8 @@ def render_run_metadata(config: RunConfig, preflight: list, approval: EgressAppr
         # Provider-correlation disclosure (§12): "three voices" can be fewer
         # providers; the answered models above expose it, and antigravity's model
         # is structurally unknowable (it silently substitutes — never trusted).
+    if convergence is not None:
+        lines += render_convergence_section(convergence)
     lines += [
         "",
         "## Notes",
@@ -220,15 +264,16 @@ def render_run_metadata(config: RunConfig, preflight: list, approval: EgressAppr
 
 RUN_METADATA_TSV_COLUMNS = (
     "round", "seat", "provider", "model_requested", "model_answered", "status",
-    "failure_class", "attempts", "elapsed_s", "exit_code", "timed_out",
+    "verdict", "failure_class", "attempts", "elapsed_s", "exit_code", "timed_out",
     "prompt_sha256", "packet_sha256",
 )
 
 
 def render_run_metadata_tsv(rounds: list) -> str:
     """The diffable, machine-readable provenance companion to run-metadata.md
-    (§12): one row per seat per round. Tabs are stripped from any field so the TSV
-    can't be corrupted by a stray tab in a model id."""
+    (§12): one row per seat per round, including the parsed `VERDICT:` token (M1)
+    so the movement trace is reproducible from the TSV. Tabs are stripped from any
+    field so the TSV can't be corrupted by a stray tab in a model id."""
     def cell(v) -> str:
         return str(v).replace("\t", " ").replace("\n", " ")
     out = ["\t".join(RUN_METADATA_TSV_COLUMNS)]
@@ -236,8 +281,8 @@ def render_run_metadata_tsv(rounds: list) -> str:
         for r in round_results:
             out.append("\t".join(cell(v) for v in (
                 r.round_no, r.seat, r.provider, r.model_requested,
-                r.model_answered or "unknown", r.status, r.failure_class or "-",
-                r.attempts, f"{r.elapsed_s:.2f}", r.exit_code,
+                r.model_answered or "unknown", r.status, r.verdict or "-",
+                r.failure_class or "-", r.attempts, f"{r.elapsed_s:.2f}", r.exit_code,
                 "yes" if r.timed_out else "no", r.prompt_hash, r.round_packet_hash,
             )))
     return "\n".join(out) + "\n"

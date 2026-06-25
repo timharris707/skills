@@ -4,7 +4,7 @@
 - **Updated:** 2026-06-25
 - **Source:** design/run-board-conductor.md §15 + the 2026-06-25 handoff (scope)
 - **Owner:** Tim
-- **Baseline:** advisory-board/v1.0.0 + plan view · 268 tests green
+- **Baseline:** advisory-board/v1.0.0 + plan view · **M1 shipped (v1.1.0)** · 313 tests green
 
 ## Overview
 v1.0.0 shipped the full board: **preflight → egress gate → round-1 fan-out → round-2 cross-reading → canonical verdict chain**. The v1.x line sharpens four edges that the M6 proof-of-life run exposed: the board always runs a fixed number of rounds, the verdict is still an agent hand-off rather than one command, `command`-evidence is captured but never re-executed, and the cross-reading digest is coarse.
@@ -14,25 +14,25 @@ This cut takes §15's Round-3/`auto` and neutral-synthesizer items, adds `comman
 This plan is the **source of truth** for that work. Each milestone is its own PR and its own `advisory-board/v1.x` release; the markdown is reviewed line-by-line and this HTML view is rendered from it so the two never drift. **Every milestone gets an adversarial review before merge** — and this plan itself gets one before any code is written.
 
 ## Milestone: Round 3 / `auto` stop-rule
-status: wip
+status: done
 Today the board runs a fixed two rounds. A third round only helps when seats are still *moving* — when round 2 changed minds. `--rounds auto` keeps going while a measurable convergence signal says the debate is live, and stops the moment it goes quiet (or hits a hard ceiling), so we never pay for a round that just restates round 2.
 
 ### Phase 1 — Define the convergence signal
 The round artifacts (`round-N/<seat>.md`) are the seat's free-form prose, so the conductor must **not** infer a verdict from them — that would be reasoning (§11 / principle 1). The seat emits a machine-parseable token the conductor can diff.
 - [x] DECISION: the round template emits one literal `VERDICT: ship|caution|block` line per seat — the model reasons, the conductor only reads the token (this changes the egressed prompt, so `prompt_template_sha` and the prompt version bump)
 - [x] DECISION: movement = verdict-token shift + new-citation delta between a seat's round N-1 and N; board-wide movement `< threshold` (or `--max-rounds`) stops
-- [ ] Add the `VERDICT:` line to the ROUND1/ROUND2 templates and bump the prompt version
-- [ ] Implement the metric as a pure function over the parsed token + citation set (no prose inference)
-- [wip] Decide sane defaults for the threshold and the ceiling
+- [x] Add the `VERDICT:` line to the ROUND1/ROUND2 templates and bump the prompt version (`round1@2`/`round2@2`)
+- [x] Implement the metric as a pure function over the parsed token + citation set (no prose inference) — `_conductor/convergence.py`
+- [x] Decide sane defaults for the threshold and the ceiling — converge when 0 seats move (threshold 1 mover to continue); ceiling `--max-rounds`, default 3
 Testing: unit tests on hand-built two-round fixtures (moved / unchanged / mixed); a property test that movement is zero when round N == round N-1; an adversarial fixture where a seat rephrases its prose but the `VERDICT` token is unchanged (must read as *no move*).
 Gate: `python3 -m unittest discover -s tests -t tests`
 
 ### Phase 2 — Wire `--rounds auto` through the conductor
-status: todo
-- [ ] Replace the clamp-to-2 deferral note (`auto`/`3` already parse — `cli.py`/`config.py`/`recipe.py`) with the real round loop
-- [ ] Loop rounds in `rounds.py` until the stop predicate fires
-- [ ] Record the per-round movement + stop reason in provenance
-- [ ] A mock run that converges in 2 and one that needs 3, both deterministic
+status: done
+- [x] Replace the clamp-to-2 deferral note (`auto`/`3` already parse — `cli.py`/`config.py`/`recipe.py`) with the real round loop
+- [x] Loop rounds (the `cmd_run` orchestration calls `run_round` per round) until the stop predicate fires
+- [x] Record the per-round movement + stop reason in provenance (`run-metadata.md` `## Convergence` + the tsv `verdict` column)
+- [x] A mock run that converges in 2 and one that needs 3 (`moving` mock mode), both deterministic
 Testing: end-to-end mock-CLI runs asserting the stop reason and round count; provenance has the movement trace.
 Gate: `PATH="$PWD/tests/mocks:$PATH" python3 scripts/run_board.py run --source tests/fixtures/sample-plan.md --rounds auto --out "$(mktemp -d)" --yes`
 

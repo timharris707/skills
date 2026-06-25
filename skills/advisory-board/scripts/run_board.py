@@ -27,7 +27,15 @@ This file implements milestones M1, M2 and M3 of design/run-board-conductor.md:
       diffable run-metadata.tsv (one row per seat per round). Round 2 egresses only
       derivatives of already-approved source to the same providers, so it records
       its own packet hash but reuses the run's approval (the run-card disclosed the
-      multi-round plan). Round 3 / `auto` stay v1.x.
+      multi-round plan).
+
+  M1' Round 3 / `auto` stop-rule (v1.x): each seat ends its review with a machine-
+      readable `VERDICT: ship|caution|block` line; _conductor/convergence.py measures
+      movement between rounds as a PURE function over that token + the seat's citation
+      set (never the prose — principle #1). `--rounds auto` loops rounds 2…N while the
+      board is still moving and stops at `converged` (or `--max-rounds`, default 3);
+      an explicit `--rounds N` runs N rounds. The per-transition movement + stop reason
+      land in run-metadata.md's `## Convergence` section and the tsv's `verdict` column.
 
   M5  Canonical verdict + resolved evidence. `run` still stops at the last round's
       boundary and hands the clean per-seat reviews to the synthesizer (§11) — the
@@ -78,6 +86,7 @@ from _conductor.toolchain import *  # noqa: F401,F403
 from _conductor.egress import *  # noqa: F401,F403
 from _conductor.preflight import *  # noqa: F401,F403
 from _conductor.recipe import *  # noqa: F401,F403
+from _conductor.convergence import *  # noqa: F401,F403
 from _conductor.artifacts import *  # noqa: F401,F403
 from _conductor.rounds import *  # noqa: F401,F403
 from _conductor.cli import *  # noqa: F401,F403
