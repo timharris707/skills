@@ -1,7 +1,7 @@
 # Skill Index
 
-## Advisory Board Review
+## Advisory Board
 
-Path: [`skills/advisory-board-review`](./advisory-board-review/)
+Path: [`skills/advisory-board`](./advisory-board/)
 
-Runs a reusable multi-model advisory board review. It is designed for architectural reviews, adversarial planning, and consensus handoff creation before execution begins.
+Runs a reusable multi-model advisory board (round table). Several frontier models review the same material, debate by reading each other's findings, and converge on a single working handoff — useful for adversarial review of plans, designs, decisions, and documents, not just code.

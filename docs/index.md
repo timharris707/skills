@@ -10,9 +10,9 @@ This repository is provider-agnostic. Individual skills may include runtime-spec
 
 ## Available Skills
 
-### [Advisory Board Review](./advisory-board-review)
+### [Advisory Board](./advisory-board)
 
-A multi-model adversarial review workflow for strengthening plans before execution. It is designed for architecture reviews, implementation sequencing, risk discovery, and consensus handoff creation.
+A multi-model round table for strengthening any plan, design, decision, or document before you commit to it. Several frontier models review the same material, debate across rounds, and converge on a single working handoff.
 
 ## Repository Principles
 
