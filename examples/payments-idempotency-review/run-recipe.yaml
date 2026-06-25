@@ -1,0 +1,54 @@
+schema: advisory-board/run-recipe@1
+title: Payments API idempotency keys
+date: 2026-06-25
+
+# run shape
+mode: gate
+sensitivity: public
+rounds: "2"
+cross_reading: full
+lens: software-architecture
+output: full-handoff
+out_dir: examples/payments-idempotency-review
+
+# prompt template (bump/hash changes when the egressed prompt shape changes)
+prompt_template: advisory-board/round1@1
+prompt_template_sha256: ce61188376b21441915aaa1dc6d2855e799ce3ae551b6422f3058cdbb853b599
+
+# source
+source_kind: path
+source_ref: examples/payments-idempotency-review/plan.md
+source_bytes: 306
+source_lines: 5
+source_sha256: 4a6a493f42d27563a064af44daf996513122c04df0ab76cb1a3d04e0003da272
+
+# board (seat -> provider, model, lens, reasoning)
+board:
+  - seat: claude
+    provider: Anthropic
+    model: claude-opus-4-8
+    lens: Architecture & systems — design soundness, invariants, failure modes, adversarial review
+    reasoning: xhigh
+  - seat: codex
+    provider: OpenAI
+    model: gpt-5.5
+    lens: Implementation & testing — repo-grounded execution, migration, test strategy, edge cases
+    reasoning: xhigh
+  - seat: gemini
+    provider: Google
+    model: gemini-3.5-flash
+    lens: Product & operations — rollout, latency, observability, evaluation, user-workflow risk
+    reasoning: HIGH
+
+# egress (consent is bound to the content hash in egress-manifest.md)
+egress_consent: tiered
+egress_providers:
+  - claude seat -> Anthropic
+  - codex seat -> OpenAI
+  - gemini seat -> Google
+
+# isolation posture (follows mode); 'partial' = some seats not network-isolated
+isolation_network: partial
+isolation_network_unenforced:
+  - gemini
+isolation_filesystem: scoped

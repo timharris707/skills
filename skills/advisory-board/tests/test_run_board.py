@@ -1357,6 +1357,26 @@ class TestModelAnsweredParser(unittest.TestCase):
         # agy silently substitutes models, so its parser is the None stub by design.
         self.assertIsNone(rb.REGISTRY["antigravity"].model_answered("model: x", "model: x"))
 
+    def test_echoed_prompt_does_not_poison_banner(self):
+        # A real M6 finding: codex echoes its prompt to stderr, and a --cross-reading
+        # full round-2 packet can carry a `"model": "..."` line (e.g. a quoted CLI
+        # example). The CLI's own banner precedes the conductor's MATERIAL UNDER REVIEW
+        # delimiter, so only that head must be mined — never the echoed packet.
+        stderr = (
+            "OpenAI Codex v0.142.2\n--------\nmodel: gpt-5.5\nprovider: openai\n--------\n"
+            "<<<<<<<< BEGIN MATERIAL UNDER REVIEW >>>>>>>>\n"
+            'gemini -p "<seat prompt>" -m "<latest-frontier-gemini-model>"\n'
+            '  "model": "<latest-frontier-gemini-model>",\n'
+            "<<<<<<<< END MATERIAL UNDER REVIEW >>>>>>>>\n"
+        )
+        self.assertEqual(rb.parse_model_answered("review body", stderr), "gpt-5.5")
+
+    def test_banner_absent_but_echo_present_is_unknown(self):
+        # If the banner is missing and the only "model:" lines are inside the echoed
+        # packet, the honest answer is None — never a model id mined from the prompt.
+        stderr = ("MATERIAL UNDER REVIEW\n" '  "model": "gpt-5.5",\nmodel: claude-opus-4-8\n')
+        self.assertIsNone(rb.parse_model_answered("", stderr))
+
 
 # --------------------------------------------------------------------------- #
 # M3 — round-1 fan-out (against mock CLIs)

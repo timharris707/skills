@@ -1,0 +1,7 @@
+round	seat	provider	model_requested	model_answered	status	failure_class	attempts	elapsed_s	exit_code	timed_out	prompt_sha256	packet_sha256
+1	claude	Anthropic	claude-opus-4-8	unknown	ran	-	1	82.29	0	no	23e30dc0e932bca00006133477304548845925ed7be492a806d761b70e2d9690	56d6bf7af7a3ae9d5c7da1149a2f54a1001518a917a6fd9e41f562b2db37a607
+1	codex	OpenAI	gpt-5.5	gpt-5.5	ran	-	1	33.79	0	no	c140bdba1ef723abb6a1fa48a7006ce3020d60e0320e68d0fb64b1dab958185b	56d6bf7af7a3ae9d5c7da1149a2f54a1001518a917a6fd9e41f562b2db37a607
+1	gemini	Google	gemini-3.5-flash	unknown	ran	-	1	48.19	0	no	dcb9cc32983353e497a9c805a906fa2a7050ca63532f8ddd7338ca7c64393710	56d6bf7af7a3ae9d5c7da1149a2f54a1001518a917a6fd9e41f562b2db37a607
+2	claude	Anthropic	claude-opus-4-8	unknown	ran	-	1	81.92	0	no	ff41f3ac0e983d3f7900a9b69e80b72b6475474b05bfe47fe7f323d981178c06	8023d06aa6503a7c25a48bcb9f0a8fa2443717b8a53877bc787a4b9f70746abb
+2	codex	OpenAI	gpt-5.5	gpt-5.5	ran	-	1	33.50	0	no	6adc40d5f1158e79aef732d1faa8e42ecd748d685706766d4f2289f954a1086c	8023d06aa6503a7c25a48bcb9f0a8fa2443717b8a53877bc787a4b9f70746abb
+2	gemini	Google	gemini-3.5-flash	unknown	ran	-	1	56.04	0	no	3a10ce0dae10a3f085c6538e3287fedf106a81c970bc619ea9247934cc4bb338	8023d06aa6503a7c25a48bcb9f0a8fa2443717b8a53877bc787a4b9f70746abb
