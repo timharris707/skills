@@ -17,12 +17,15 @@ Bring an idea, problem, plan, or architecture to a board of frontier models sitt
 
 ## Upfront Choices
 
-Ask only for whatever the user hasn't already given:
+Optionally open with the intake interview (`references/intake-interview.md`) — a short structured Q&A, using the `grilling` or `grill-with-docs` skills as the engine when available — to settle the run. Otherwise ask only for whatever the user hasn't already given:
 
 1. Source material: file(s), repo, URL, or goal to review.
-2. Rounds: `1`, `2`, or `3` (default `2`).
+2. Rounds: `1`, `2`, `3`, or `auto` (default `2`; `auto` adapts — see Round Protocol).
 3. Cross-reading: `none`, `summaries`, or `full` (default `summaries`).
 4. Output: `quick verdict`, `full handoff`, or `implementation sequence` (default `full handoff`).
+5. Lens preset: the seat lineup's focus, from `references/lens-presets.md` (default: inferred from the material, falling back to `software-architecture`).
+6. Sensitivity: can the material go to external providers? (`references/data-handling.md` — may force a local-only board.)
+7. Board: seats and size, from `references/board-composition.md` (default: three seats — Claude, Codex, Gemini).
 
 If the user says "use defaults", stop asking and run.
 
@@ -36,7 +39,7 @@ Target the strongest reasoning model each provider offers:
 
 Model names and flags move fast — verify them against the installed CLIs or official docs before a large run. If a named model is unavailable, use the nearest same-provider frontier model and say so; never substitute silently.
 
-Preflight:
+Preflight — run `references/preflight.md` before launching: for each seat, check the CLI is present, auth is active (subscription-backed where possible), the requested model resolves, and a one-token smoke ping returns. Proceed only with at least two seats GO; label any degraded or dropped seat in the handoff. In summary:
 
 - Confirm Claude subscription auth is active.
 - Confirm Codex is on ChatGPT/subscription auth, not API-key-only, when possible.
@@ -45,7 +48,7 @@ Preflight:
 
 ## Seats
 
-Give each seat a distinct lens so the board covers more ground than any single reviewer, and match the lenses to the subject. For software and technical work, a strong default split:
+Give each seat a distinct lens so the board covers more ground than any single reviewer, and match the lenses to the subject. Pick a ready-made lens set from `references/lens-presets.md` — `software-architecture` (default), `product-strategy`, `research-paper`, `legal-contract`, `business-decision`, `writing-editing` — or compose your own. For software and technical work, the default split:
 
 - Claude: architecture, systems, and adversarial design review.
 - Codex: repo-grounded implementation, migration, testing, and execution.
@@ -55,28 +58,41 @@ For non-software subjects (strategy, research, writing, business, policy), assig
 
 Every seat still answers the full brief; the lens reduces blind spots, it doesn't narrow responsibility.
 
+The board defaults to three seats but isn't fixed at three — for sizing (2–5), the same provider in two seats, a human or local-model seat, and minimal "works with what you have" lineups, see `references/board-composition.md`.
+
+## Data Handling
+
+A board sends the same source material to every seat's provider. Before the first call, if the material isn't already public, tell the user what will leave the machine and to whom, and get a go-ahead. For sensitive material, redact the shared source packet; for must-not-leave material, run a local-only board or don't run it. Full guidance: `references/data-handling.md`.
+
 ## Round Protocol
 
 **Round 1 — independent.**
 
 - Give each seat the same source packet and its role lens, nothing else.
 - No other seat's opinions.
-- Require: verdict, strongest objections, revised sequence, invariants, risks, and concrete evidence.
+- Require: verdict (with a confidence level — low/medium/high), strongest objections, revised sequence, invariants, risks, and concrete evidence.
 
 **Round 2 — rebuttal (default).**
 
 - Build a board packet from Round 1: summaries with links/paths to the full artifacts (`summaries`), or full prior responses when the token budget allows (`full`).
-- Ask each seat: what another seat caught that you missed, what changed your view, what you still dispute, what should become consensus, and what stays unresolved.
+- Ask each seat: what another seat caught that you missed, what changed your view (and whether the change is driven by evidence or mere deference — see `references/epistemics.md`), what you still dispute, what should become consensus, and what stays unresolved.
 
 **Round 3 — convergence (optional).**
 
 - Give each seat the Round 2 packet.
 - Ask for the final position, hard dissent, and the smallest viable plan.
 
+**Adaptive rounds (`auto`).**
+
+- Stop early when the board has converged — a shared verdict, high confidence, and no material dissent after a round — rather than spending a round to rubber-stamp.
+- Add a round (up to 3) when material dissent or low confidence remains and another exchange could plausibly resolve it.
+
 **Final synthesis.**
 
 - After the last round, write the handoff: consensus, dissent (and why it matters), revised plan, risks, invariants, evidence, and next actions.
-- Label model and round provenance, and keep evidence-backed conclusions separate from judgment calls.
+- Prefer a neutral synthesizer — a seat that didn't debate, or a blind merge — so the chair doesn't grade its own work (`references/epistemics.md`). If the board is unanimous, include a minority report: the strongest case against the verdict.
+- Label model and round provenance (the model that actually answered, not just the one requested), and keep evidence-backed conclusions separate from judgment calls.
+- Emit `verdict.json` alongside the prose (`references/verdict-schema.md`) so the result can drive a gate or other tooling.
 
 ## Artifact Standard
 
@@ -85,8 +101,13 @@ Write:
 - `round-1/<seat>.md` (and `round-2/`, `round-3/` as rounds run)
 - `board-packet-round-2.md` (and `board-packet-round-3.md` when needed)
 - `final-consensus.md` — the handoff in Markdown
-- `final-consensus.html` — a self-contained, human-readable version of the handoff (inline CSS, no external files) so anyone can open it in a browser; render it from `references/handoff-template.html`
-- optional `run-metadata.md`: commands, model names, auth/account status (no secrets), timestamps, and source paths
+- `final-consensus.html` — a self-contained, human-readable view of the handoff, rendered from `references/handoff-template.html`
+- `verdict.json` — the machine-readable verdict (`references/verdict-schema.md`); gate or reformat it with `scripts/`
+- `run-metadata.md` — provenance: commands, the model that actually answered per seat, auth mode (no secrets), per-seat status (ran / degraded / dropped), timings, and source paths. Use `references/run-metadata-template.md`.
+
+When a seat is degraded or dropped, show it on its HTML seat card (status pill) and in `verdict.json` (`dropped: true`) — never let a smaller board look like a full one. Derive lighter shares (TL;DR, PR comment, Slack, print/PDF) per `references/output-formats.md`.
+
+**Output contract for the HTML.** It is a *view* of `final-consensus.md`, not a second source of truth — the two must not disagree. The rendered file must contain no leftover `{{tokens}}` and no template scaffolding comments, and must stay self-contained (inline CSS only; no external fonts, CDNs, scripts, or remote `<link>`/`<script src>`) so it opens offline on a double-click. Follow the template's two-placeholder convention: replace each single `{{TOKEN}}` in place, and duplicate each `BEGIN`/`END` block once per item (delete the sample block if there are none).
 
 Never store secrets. Redact keys, tokens, cookies, and private environment values.
 
@@ -95,7 +116,7 @@ Never store secrets. Redact keys, tokens, cookies, and private environment value
 You (the orchestrating agent) drive the board by shelling out to each provider's CLI and collecting its written artifact:
 
 - Run every seat as its own CLI subprocess — including the Claude seat as a separate `claude` process — so each reviews the source independently rather than reusing the orchestrator's context. That independence is what makes Round 1 worth anything.
-- Keep the orchestrator and the chair neutral: assemble packets and synthesize, but don't also count yourself as a debating seat. If you must, say so in the handoff.
+- Keep the orchestrator and the chair neutral: assemble packets and synthesize, but don't also count yourself as a debating seat. If you must, say so in the handoff and use a minority report to check chair bias (`references/epistemics.md`).
 - When the source is a repo or local files, decide once how seats reach it and record it in `run-metadata.md`: either every CLI reads the same shared path, or you build one source packet and hand identical bytes to each seat. Use one method for all seats so they review the same thing.
 
 ## CLI Execution Notes
@@ -154,6 +175,10 @@ Prefer a CLI flag or environment variable if the installed Gemini CLI exposes on
 
 Load `references/prompt-templates.md` when running a board. Use the templates as a starting point, then adapt them to the source material, output type, and project constraints.
 
+## Scripts
+
+Optional helpers in `scripts/` (Python 3 stdlib, no install): `board_verdict.py` validates `verdict.json` and gates CI on the verdict (`--gate`); `format_output.py` renders it as a TL;DR, PR comment, Slack message, or JSON. The skill runs fine without them — they're for wiring a board into CI and other tooling. See `scripts/README.md`.
+
 ## When To Stop
 
 Stop and ask or report if:
@@ -161,6 +186,7 @@ Stop and ask or report if:
 - no source material is given and none is inferable from an obvious file or repo;
 - fewer than two seats can authenticate or run — a board needs at least two voices;
 - a step would need write access but the user asked for review only;
-- full cross-reading would blow the context budget — fall back to summaries and say so.
+- full cross-reading would blow the context budget — fall back to summaries and say so;
+- the material is too sensitive to send to external providers and no local-only board is available (`references/data-handling.md`).
 
 If a provider is unavailable, or fails partway through, but at least two seats remain, continue as a smaller board and label the missing seat (and the round it dropped out) in the handoff rather than silently omitting it.

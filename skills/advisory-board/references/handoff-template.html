@@ -3,44 +3,44 @@
   ============================================================================
   ADVISORY BOARD — HANDOFF TEMPLATE
   ============================================================================
-  This is a SELF-CONTAINED HTML template for rendering a finished multi-model
-  advisory board review into a clean, human-readable handoff page.
+  A SELF-CONTAINED HTML template for rendering a finished multi-model advisory
+  board review into a clean, human-readable handoff page.
 
-  HOW TO USE
-  ----------
-  1. Copy this file to your run's output folder (e.g. final-consensus.html).
-  2. Replace every {{TOKEN}} below with real content from the review run.
-     Tokens are documented inline at each insertion point.
-  3. The page is fully self-contained: inline CSS only, no external fonts,
-     CDNs, or JS frameworks. It MUST keep working when opened by double-click
-     (offline). Do not add <link>/<script src> to remote resources.
-  4. HTML-escape any user/model text you inject (& -> &amp;  < -> &lt;
-     > -> &gt;). Inline code can be wrapped in <code>...</code>.
+  OUTPUT CONTRACT (read first)
+  ----------------------------
+  The file you produce MUST:
+    - contain ZERO "{{...}}" placeholders and ZERO authoring comments (the
+      BEGIN/END and OPTIONAL notes below) — strip every one. The "====="
+      section dividers may stay.
+    - be a faithful VIEW of final-consensus.md — the Markdown handoff is the
+      source of truth; the HTML must not contradict it.
+    - stay fully self-contained: inline CSS only, no external fonts, CDNs, JS,
+      <link>, or <script src>. It MUST render offline on a double-click.
+    - HTML-escape every injected string ( & -> &amp;  < -> &lt;  > -> &gt; );
+      wrap inline code in <code>...</code>.
 
-  REPEATABLE BLOCKS
-  -----------------
-  - SEAT CARD: duplicate the block marked "BEGIN SEAT CARD" once per board
-    seat (e.g. Claude / Codex / Gemini). Inside each seat card, duplicate the
-    "BEGIN ROUND" block once per round (Round 1, Round 2, ...).
-  - BLOCKER ITEM: duplicate one <li> per consensus blocker.
-  - DISSENT / QUESTION / ACTION items: duplicate their <li> as needed.
+  TWO KINDS OF PLACEHOLDER
+  ------------------------
+  1. SINGLE TOKEN  — "{{TOKEN}}" appearing once. Replace it in place with text.
+  2. REPEATABLE BLOCK — markup between "BEGIN X" / "END X" comments. Duplicate
+     the whole block once per item and fill its tokens. If there are zero
+     items, delete the sample block (don't leave an empty shell).
 
-  TOP-LEVEL TOKENS
-  ----------------
+  Repeatable blocks here: SEAT CARD (per seat) > ROUND (per round, nested in a
+  seat) ; BLOCKER (per consensus blocker) ; DISSENT (per dissenting point) ;
+  QUESTION (per open question) ; ACTION (per next action).
+
+  SINGLE TOKENS
+  -------------
   {{TITLE}}          Page + banner title, e.g. "Advisory Board Review".
   {{SUBTITLE}}       One-line description of what was reviewed.
   {{DATE}}           Review date, e.g. "2026-06-24".
   {{BOARD}}          Board roster: models + lenses (HTML allowed).
   {{ROUNDS}}         Number of rounds, e.g. "2".
   {{VERDICT}}        Final verdict text, e.g. "Do not ship yet — unanimous".
-  {{VERDICT_CLASS}}  One of: ship | caution | block
-                     -> colors the banner green / amber / red.
+  {{VERDICT_CLASS}}  One of: ship | caution | block  (colors the banner).
   {{VERDICT_NOTE}}   One-line explanation under the verdict headline.
   {{PLAN}}           The plan that was reviewed (HTML allowed; use <p>).
-  {{CONSENSUS_BLOCKERS}}  <li>...</li> items (numbered checklist).
-  {{DISSENT}}        Preserved-dissent block(s) (HTML allowed).
-  {{OPEN_QUESTIONS}} <li>...</li> items.
-  {{NEXT_ACTIONS}}   <li>...</li> items or a <p>.
   {{METADATA}}       Footer provenance (models, flags, paths, timestamps).
   ============================================================================
 -->
@@ -138,6 +138,13 @@
     background: #efeefb; border-radius: 999px; padding: 3px 11px;
   }
   .seat-model { font-size: 13px; color: var(--ink-faint); }
+  .seat-status {
+    font-size: 11.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+    border-radius: 999px; padding: 3px 10px;
+  }
+  .seat-status.ran      { background: #efeee8;           color: var(--ink-faint); }
+  .seat-status.degraded { background: var(--caution-bg); color: var(--caution-ink); }
+  .seat-status.dropped  { background: var(--block-bg);   color: var(--block-ink); }
   .round { margin-top: 16px; padding-top: 16px; border-top: 1px dashed var(--line); }
   .round:first-of-type { margin-top: 12px; }
   .round-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 8px; }
@@ -148,6 +155,11 @@
   .vpill.caution { background: var(--caution-bg); color: var(--caution-ink); }
   .vpill.block   { background: var(--block-bg);   color: var(--block-ink); }
   .vpill.moved::after { content: " ↓"; }
+  .conf {
+    font-size: 11.5px; font-weight: 600; color: var(--ink-faint);
+    background: var(--surface-soft); border: 1px solid var(--line);
+    border-radius: 999px; padding: 2px 9px;
+  }
 
   .review-body { font-size: 15.5px; color: var(--ink); }
   .review-body strong { font-weight: 600; }
@@ -205,6 +217,8 @@
     background: var(--surface-soft); border: 1px solid var(--line);
     border-radius: 12px; padding: 16px 20px; font-size: 15.5px;
   }
+  .actions ol { margin: 0; padding-left: 20px; }
+  .actions li { margin: 6px 0; }
 
   /* ---- footer ---- */
   footer.meta {
@@ -212,6 +226,7 @@
     font-size: 13px; color: var(--ink-faint); line-height: 1.7;
   }
   footer.meta code { background: #efeee8; }
+  footer.meta .prov { display: block; margin-top: 6px; }
 
   /* ---- responsive ---- */
   @media (max-width: 560px) {
@@ -221,6 +236,14 @@
     .verdict .headline { font-size: 20px; }
     .seat, ol.blockers > li { padding-left: 16px; padding-right: 16px; }
     ol.blockers > li { padding-left: 50px; }
+  }
+
+  /* ---- print / PDF (Print -> Save as PDF) ---- */
+  @media print {
+    body { background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .wrap { max-width: none; padding: 8px 0 0; }
+    .verdict, .plan, .seat, .round, ol.blockers > li, .dissent, .actions { break-inside: avoid; }
+    a { color: inherit; text-decoration: none; }
   }
 </style>
 </head>
@@ -259,32 +282,38 @@
   <section>
     <h2>Board reviews — round by round</h2>
 
-    <!-- ----- BEGIN SEAT CARD (duplicate per seat) ----- -->
+    <!-- BEGIN SEAT CARD (duplicate per seat) -->
     <article class="seat">
       <div class="seat-head">
         <h3 class="seat-name">{{SEAT_NAME}}</h3>
         <span class="seat-lens">{{SEAT_LENS}}</span>
         <span class="seat-model">{{SEAT_MODEL}}</span>
+        <!-- OPTIONAL seat status: class ran | degraded | dropped. Show only for a degraded or dropped seat; delete for a clean run. -->
+        <span class="seat-status {{SEAT_STATUS_CLASS}}">{{SEAT_STATUS}}</span>
       </div>
 
-      <!-- ..... BEGIN ROUND (duplicate per round) ..... -->
+      <!-- BEGIN ROUND (duplicate per round) -->
       <div class="round">
         <div class="round-head">
           <span class="round-tag">{{ROUND_LABEL}}</span>
           <!-- vpill class: ship | caution | block ; add "moved" to show a ↓ when the verdict shifted -->
           <span class="vpill {{ROUND_VERDICT_CLASS}}">{{ROUND_VERDICT}}</span>
+          <!-- OPTIONAL confidence chip: low | medium | high. Delete if confidence wasn't tracked. -->
+          <span class="conf">confidence: {{ROUND_CONFIDENCE}}</span>
         </div>
         <div class="review-body">
+          <!-- {{ROUND_REVIEW}}: this seat's findings as HTML — <p>, <ul>/<li>,
+               <p class="r-title"> sub-heads, <code> for inline code. -->
           {{ROUND_REVIEW}}
         </div>
       </div>
-      <!-- ..... END ROUND ..... -->
+      <!-- END ROUND -->
 
-      <!-- Optional per-seat highlight (e.g. a verdict change worth calling out) -->
+      <!-- OPTIONAL per-seat highlight (e.g. a verdict change). Delete if unused. -->
       <div class="highlight">{{SEAT_HIGHLIGHT}}</div>
 
     </article>
-    <!-- ----- END SEAT CARD ----- -->
+    <!-- END SEAT CARD -->
 
   </section>
 
@@ -292,21 +321,27 @@
   <section>
     <h2>Consensus blockers — must fix before ship</h2>
     <ol class="blockers">
-      <!-- duplicate one <li> per blocker -->
+      <!-- BEGIN BLOCKER (duplicate per blocker; the number is added automatically) -->
       <li>
         <span class="b-title">{{BLOCKER_TITLE}}</span>
         <div class="b-body">{{BLOCKER_BODY}}</div>
       </li>
-      {{CONSENSUS_BLOCKERS}}
+      <!-- END BLOCKER -->
     </ol>
   </section>
 
-  <!-- ===================== PRESERVED DISSENT ===================== -->
+  <!-- ===================== DISSENT / MINORITY REPORT ===================== -->
+  <!-- Records disagreement that survived the debate. If the board was UNANIMOUS, this
+       holds the minority report — the strongest case against the verdict (see
+       references/epistemics.md); set {{DISSENT_FLAG}} to "Minority report". Delete the
+       section only if there is genuinely neither dissent nor a minority report. -->
   <section>
-    <h2>Preserved dissent</h2>
+    <h2>Dissent &amp; minority report</h2>
     <div class="dissent">
-      <span class="d-flag">Dissent on the record</span>
-      {{DISSENT}}
+      <span class="d-flag">{{DISSENT_FLAG}}</span>
+      <!-- BEGIN DISSENT (duplicate per point; name the seat in .who, or use "Minority report") -->
+      <p><span class="who">{{DISSENT_WHO}}:</span> {{DISSENT_BODY}}</p>
+      <!-- END DISSENT -->
     </div>
   </section>
 
@@ -314,7 +349,9 @@
   <section>
     <h2>Open questions</h2>
     <ul class="plain">
-      {{OPEN_QUESTIONS}}
+      <!-- BEGIN QUESTION (duplicate per open question) -->
+      <li>{{QUESTION}}</li>
+      <!-- END QUESTION -->
     </ul>
   </section>
 
@@ -322,7 +359,11 @@
   <section>
     <h2>Next actions</h2>
     <div class="actions">
-      {{NEXT_ACTIONS}}
+      <ol>
+        <!-- BEGIN ACTION (duplicate per next action) -->
+        <li>{{ACTION}}</li>
+        <!-- END ACTION -->
+      </ol>
     </div>
   </section>
 

@@ -12,7 +12,7 @@ This repository is provider-agnostic. Individual skills may include runtime-spec
 
 ### [Advisory Board](./advisory-board)
 
-A multi-model round table for strengthening any plan, design, decision, or document before you commit to it. Several frontier models review the same material, debate across rounds, and converge on a single working handoff.
+A multi-model round table for strengthening any plan, design, decision, or document before you commit to it. Several frontier models review the same material, debate across rounds, and converge on a single working handoff — plus a machine-readable verdict you can gate CI on. Domain lens presets cover software, product, research, legal, business, and writing.
 
 ## Repository Principles
 
