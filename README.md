@@ -28,7 +28,18 @@ Use it to:
 - stress a decision, strategy, or proposal from several angles at once;
 - surface risks, stale assumptions, and missing evidence;
 - let strong models debate and sharpen each other's thinking;
-- collapse several model opinions into a single, clean takeaway.
+- collapse several model opinions into a single, clean takeaway;
+- review non-software work too — product, research, legal, business, and writing — via built-in lens presets.
+
+## See It In Action
+
+Every run ends in a single, self-contained HTML handoff — verdict, the round-by-round debate, consensus blockers, preserved dissent, and next actions — that opens offline in any browser with no dependencies.
+
+- **View a live sample:** [rendered handoff for a payments idempotency review](https://htmlpreview.github.io/?https://github.com/timharris707/skills/blob/main/examples/payments-idempotency-review/final-consensus.html)
+- **Browse the full run:** [`examples/payments-idempotency-review/`](./examples/payments-idempotency-review/) — per-seat round notes, the board packet, and both the Markdown and HTML handoffs.
+- **Gate on it:** every run also emits a machine-readable [`verdict.json`](./examples/payments-idempotency-review/verdict.json); `scripts/board_verdict.py --gate` turns the board's `ship | caution | block` call into a CI exit code, and `scripts/format_output.py` reshapes it into a PR comment, Slack message, or TL;DR.
+
+The look comes from one template, [`handoff-template.html`](./skills/advisory-board/references/handoff-template.html), so any agent that installs the skill renders the same clean output.
 
 ## Repository Layout
 
@@ -40,9 +51,24 @@ skills/
       openai.yaml
     references/
       prompt-templates.md
+      lens-presets.md
+      preflight.md
+      board-composition.md
+      data-handling.md
+      epistemics.md
+      run-metadata-template.md
+      verdict-schema.md
+      output-formats.md
+      intake-interview.md
+      handoff-template.html
+    scripts/
+      board_verdict.py
+      format_output.py
+      README.md
 docs/
   index.md
   advisory-board.md
+  sample-handoff.html
 ```
 
 ## Using A Skill

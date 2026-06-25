@@ -6,3 +6,7 @@ tmp/
 dist/
 .cache/
 .claude/
+
+# Python
+__pycache__/
+*.pyc

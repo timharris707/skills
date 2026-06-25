@@ -1,0 +1,37 @@
+{
+  "schema": "advisory-board/verdict@1",
+  "title": "Payments API idempotency keys",
+  "date": "2026-06-24",
+  "verdict": "block",
+  "confidence": "high",
+  "unanimous": true,
+  "rounds": 2,
+  "board": [
+    { "seat": "Claude", "model": "claude-opus-4-8", "lens": "architecture", "round_verdicts": ["block", "block"], "dropped": false },
+    { "seat": "Codex", "model": "gpt-5.5", "lens": "implementation/testing", "round_verdicts": ["caution", "block"], "dropped": false },
+    { "seat": "Gemini", "model": "gemini-3.1-pro", "lens": "product/ops", "round_verdicts": ["block", "block"], "dropped": false }
+  ],
+  "blockers": [
+    { "title": "Atomic dedup", "body": "SET NX claim with an in-progress sentinel that completes only after a durable charge result; without it two concurrent same-key requests both miss the cache and double-charge." },
+    { "title": "Request-fingerprint binding", "body": "Bind key -> hash(request); a reused key with a different payload returns 409/422, never a replayed or unrelated charge." },
+    { "title": "Redis failure policy + kill switch", "body": "Redis is now in the critical payment path; decide fail-open vs fail-closed explicitly, with a kill switch." },
+    { "title": "Never cache transient failures", "body": "Do not store 5xx/timeouts as authoritative; a cached 500 poisons the key and blocks legitimate retries for 24h." },
+    { "title": "Replay fidelity", "body": "Replay status code, body, and headers consistently." },
+    { "title": "Phased rollout + observability", "body": "Dark-launch then cohort/percentage ramp; alert on Redis latency and cache-hit rate. Replace the big-bang enablement." }
+  ],
+  "dissent": [
+    { "who": "Codex", "body": "\"All clients at once\" is not inherently impossible given optional keys and backwards-compatible server behavior - but only with a kill switch, metrics, and staged enablement by route/client cohort. The rollout aggressiveness is debatable; the correctness blockers are not." }
+  ],
+  "open_questions": [
+    "24h TTL vs client retry/settlement windows - does a legitimate retry after expiry double-charge?",
+    "Alignment with the downstream payment processor's own idempotency guarantees.",
+    "Dispute/audit retention needs vs the 24h window."
+  ],
+  "next_actions": [
+    "Spec the atomic state machine + fingerprint.",
+    "Decide Redis failure policy + kill switch.",
+    "Enumerate non-cacheable status codes.",
+    "Design the phased rollout + dashboards.",
+    "Then re-review."
+  ]
+}
