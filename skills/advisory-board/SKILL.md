@@ -98,7 +98,8 @@ A board sends the same source material to every seat's provider. Before the firs
 **Adaptive rounds (`auto`).**
 
 - Stop early when the board has converged — a shared verdict, high confidence, and no material dissent after a round — rather than spending a round to rubber-stamp.
-- Add a round (up to 3) when material dissent or low confidence remains and another exchange could plausibly resolve it.
+- Add a round when material dissent or low confidence remains and another exchange could plausibly resolve it, up to the `--max-rounds` ceiling (default 3).
+- `run_board.py --rounds auto` makes this concrete: each seat ends its review with a `VERDICT: ship|caution|block` line, and the conductor measures **movement** between rounds as a pure function over that token plus the seat's concrete citations — never the prose (the model reasons; the conductor diffs tokens). It keeps going while the board is still moving and stops the moment it goes quiet; the per-round movement and the stop reason are recorded in `run-metadata.md` (`## Convergence`).
 
 **Final synthesis.**
 

@@ -8,9 +8,29 @@ Pre-1.0 the minor tracks the conductor milestone (M5 → `v0.5.0`, M6 → `v0.6.
 reserved for an explicit production-ready call. The verdict-JSON schema is versioned separately
 (`advisory-board/verdict@N`) and is not the same axis as the release version.
 
-## [Unreleased]
+## [v1.1.0] - 2026-06-25 — M1: Round 3 / `auto` stop-rule
+
+The board no longer always runs a fixed two rounds. `--rounds auto` keeps debating
+**while the board is still moving** and stops the moment it goes quiet; `--rounds 3`
+now runs a real third round (the old clamp-to-2 note is gone).
 
 ### Added
+- **Round 3 / `auto` stop-rule (M1)** — each seat now ends its review with a machine-readable
+  `VERDICT: ship|caution|block` line, and a new pure module `scripts/_conductor/convergence.py`
+  measures **movement** between consecutive rounds as a function over *only* the parsed token and
+  the seat's concrete citation set (inline-code spans + file-shaped paths) — never the prose
+  (principle #1 / §11: the model reasons, the conductor diffs tokens). A seat *moved* if its
+  verdict token shifted or it brought a new citation; `--rounds auto` loops rounds 2…N while
+  board-wide movement stays at/above the threshold and stops at `converged` (or the `--max-rounds`
+  ceiling, default 3). The per-transition movement and the stop reason are recorded in a new
+  **`## Convergence`** section of `run-metadata.md`, and each seat's parsed verdict token is a new
+  `verdict` column in `run-metadata.tsv`. New flag `--max-rounds N` (persisted in the recipe, so an
+  `auto` run reproduces its ceiling). The suite is **325 tests** (up from 287), including the
+  adversarial rephrase property (same token + same citations ⇒ *no movement*, exercised end-to-end),
+  the citation-delta movement arm, and the mid-debate-collapse guard (a board that drops below two
+  voices in round 2+ is never handed off for synthesis). Hardened by two rounds of adversarial review.
+
+### Added (workflow tooling — shipped with this release)
 - **Plan view** — `scripts/render_plan.py` renders a self-contained HTML view of a planning
   document deterministically **from** its markdown (`design/<plan>.md` is the source of truth),
   the same render-from-source discipline as `verdict.json → final-consensus.html`. It parses a
@@ -26,6 +46,13 @@ reserved for an explicit production-ready call. The verdict-JSON schema is versi
   plan, authored in the new dialect as the first real plan view (a reviewable starting draft).
 
 ### Changed
+- **Prompt templates bumped to `round1@2` / `round2@2`** — the `VERDICT:` line is appended to both
+  round templates and the round-2 template is generalized to any round N (it keeps the same structure
+  and markers — `This is round 2`, `BOARD ROUND-1 REVIEWS` — for round 2, with the VERDICT line
+  appended and a minor intro rewording). This changes the egressed bytes, so `prompt_template_sha` and
+  the template versions bump (the recorded sha is the tamper-evident record of the change). The
+  committed `examples/payments-idempotency-review/` is left untouched — it faithfully records a
+  historical `round2@1` run.
 - **Shared template engine** — the block / `{{TOKEN}}` machinery that `render_handoff.py`,
   `render_verdict.py`, and `render_plan.py` each carried (separately, and re-copied by
   `render_plan`) is extracted into `scripts/_render_engine.py`, parameterized by each caller's

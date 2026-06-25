@@ -624,6 +624,27 @@ class TestFromRecipe(EnvMixin):
         self.assertEqual(models["codex"], "gpt-5.6")   # exact model restored
         self.assertEqual([s.name for s in c.board], ["claude", "codex", "gemini"])
 
+    def test_max_rounds_persists_in_recipe(self):
+        # An `auto` run's ceiling must survive --from-recipe (reproducibility).
+        c = _config(rounds="auto", max_rounds=6)
+        recipe_text = rb.dump_recipe(rb.config_to_recipe(c))
+        self.assertIn("max_rounds: 6", recipe_text)
+        path = os.path.join(tempfile.mkdtemp(prefix="board-mr-"), "run-recipe.yaml")
+        with open(path, "w") as fh:
+            fh.write(recipe_text)
+        restored = rb.resolve_config(_args(source=None, from_recipe=path))
+        self.assertEqual(restored.max_rounds, 6)
+        self.assertEqual(restored.rounds, "auto")
+
+    def test_init_can_scaffold_max_rounds(self):
+        # `init` (the recipe scaffolder) must expose --max-rounds, not just `run`.
+        out = tempfile.mkdtemp(prefix="board-init-mr-")
+        code, _, _ = run_cli(["init", "--source", SAMPLE, "--out", out,
+                              "--rounds", "auto", "--max-rounds", "5"])
+        self.assertEqual(code, rb.EXIT_OK)
+        with open(os.path.join(out, "run-recipe.yaml")) as fh:
+            self.assertIn("max_rounds: 5", fh.read())
+
 
 # --------------------------------------------------------------------------- #
 # Delegation to existing scripts
@@ -1664,13 +1685,23 @@ class TestRound2RunLevel(EnvMixin):
         self.assertTrue(os.path.exists(os.path.join(out, "round-2", "claude.md")))
         self.assertFalse(os.path.exists(os.path.join(out, "board-packet-round-2.md")))
 
-    def test_rounds_three_caps_at_two_with_note(self):
+    def test_rounds_three_runs_three_rounds(self):
+        # M1: an explicit --rounds 3 now runs a real third round (no clamp, no note).
         out = self._out()
         code, text, _ = run_cli(["run", "--source", SAMPLE, "--out", out, "--yes", "--rounds", "3"])
         self.assertEqual(code, rb.EXIT_OK)
-        self.assertTrue(os.path.exists(os.path.join(out, "round-2")))
-        self.assertFalse(os.path.exists(os.path.join(out, "round-3")))
-        self.assertIn("Round 3 / `auto` is a v1.x", text)
+        self.assertTrue(os.path.exists(os.path.join(out, "round-3", "claude.md")))
+        self.assertTrue(os.path.exists(os.path.join(out, "board-packet-round-3.md")))
+        self.assertNotIn("v1.x", text)
+        with open(os.path.join(out, "run-metadata.tsv")) as fh:
+            lines = [ln for ln in fh.read().splitlines() if ln.strip()]
+        self.assertEqual(len(lines), 1 + 3 * 3)                # header + 3 seats x 3 rounds
+        self.assertIn("stop reason: round-count", text)
+        # the black-box recorder names the ACTUAL round's packet, not a hardcoded "round-2"
+        with open(os.path.join(out, "round-3", "claude.raw")) as fh:
+            self.assertIn("round-3 packet", fh.read())
+        with open(os.path.join(out, "round-2", "claude.raw")) as fh:
+            self.assertIn("round-2 packet", fh.read())
 
     def test_under_two_usable_round1_skips_round_two(self):
         # `stub` passes the preflight smoke but fails the round-1 shape check, so two
@@ -1684,6 +1715,303 @@ class TestRound2RunLevel(EnvMixin):
         self.assertFalse(os.path.exists(os.path.join(out, "round-2")))
         # a one-voice run still records what round 1 captured
         self.assertTrue(os.path.exists(os.path.join(out, "run-metadata.tsv")))
+
+
+# --------------------------------------------------------------------------- #
+# M1 (v1.x) — Round 3 / `auto` stop-rule: the convergence signal + the round loop
+# --------------------------------------------------------------------------- #
+
+
+def _sr(seat, round_no, stdout, status="ran"):
+    """A SeatRoundResult fixture with controllable stdout (for the metric tests)."""
+    return rb.SeatRoundResult(
+        seat=seat, provider=rb.PROVIDERS.get(seat, "x"), round_no=round_no,
+        model_requested="m", model_answered="m" if status != "dropped" else None,
+        status=status, failure_class=None if status != "dropped" else rb.FAILURE_INVALID,
+        attempts=1, elapsed_s=0.1, exit_code=0, timed_out=False,
+        stdout=stdout, stderr="", prompt_hash="p" + seat, source_hash="src",
+        round_packet_hash="pk" + str(round_no), argv_preview="x")
+
+
+class TestVerdictTokenParse(unittest.TestCase):
+    def test_plain_token(self):
+        self.assertEqual(rb.parse_verdict("...\nVERDICT: ship"), "ship")
+
+    def test_case_and_trailing_punctuation(self):
+        self.assertEqual(rb.parse_verdict("verdict:  Caution."), "caution")
+
+    def test_one_clean_token_amid_a_clause(self):
+        self.assertEqual(rb.parse_verdict("VERDICT: block (do not proceed)"), "block")
+
+    def test_echoed_instruction_is_rejected(self):
+        # The instruction line names all three tokens -> ambiguous -> ignored.
+        self.assertIsNone(rb.parse_verdict("VERDICT: ship | caution | block"))
+
+    def test_ambiguous_two_tokens_ignored(self):
+        self.assertIsNone(rb.parse_verdict("VERDICT: not ship but block"))
+
+    def test_echoed_instruction_then_real_token(self):
+        # An echoed instruction (3 tokens, ignored) plus one clean token -> the token.
+        text = "VERDICT: ship|caution|block\n...prose...\nVERDICT: caution"
+        self.assertEqual(rb.parse_verdict(text), "caution")
+
+    def test_tolerates_markdown_and_list_prefixes(self):
+        # Real models decorate the label; the parser must still read the token.
+        self.assertEqual(rb.parse_verdict("**VERDICT:** ship"), "ship")
+        self.assertEqual(rb.parse_verdict("- VERDICT: block"), "block")
+        self.assertEqual(rb.parse_verdict("Final VERDICT: caution"), "caution")
+
+    def test_quoted_peer_then_own_verdict_takes_own(self):
+        # The templates put the seat's verdict on the LAST line. An earlier QUOTED
+        # peer VERDICT (named per "where you changed your mind") must be superseded by
+        # the seat's own closing token, not override it or void the parse.
+        text = ("I weighed codex's view:\nVERDICT: block\n\n"
+                "But I hold my position.\nVERDICT: caution")
+        self.assertEqual(rb.parse_verdict(text), "caution")
+
+    def test_token_as_substring_does_not_match(self):
+        self.assertEqual(rb.parse_verdict("we ship the shipment on the blockchain\nVERDICT: caution"),
+                         "caution")
+
+    def test_absent_is_none(self):
+        self.assertIsNone(rb.parse_verdict("a review with no verdict line"))
+
+    def test_seat_result_verdict_property(self):
+        self.assertEqual(_sr("claude", 1, "x\nVERDICT: ship").verdict, "ship")
+        self.assertIsNone(_sr("claude", 1, "no token", status="dropped").verdict)
+
+
+class TestCitationSet(unittest.TestCase):
+    def test_inline_code_and_paths(self):
+        c = rb.citations("bug in `parse()` at src/auth.py:42 and config/x.yaml")
+        self.assertIn("parse()", c)
+        self.assertIn("src/auth.py:42", c)
+        self.assertIn("config/x.yaml", c)
+
+    def test_plain_slash_word_is_not_a_citation(self):
+        self.assertEqual(rb.citations("ship and/or hold; e.g. nothing here"), frozenset())
+
+    def test_backticked_prose_phrase_is_not_a_citation(self):
+        # A backticked free-prose phrase must NOT count — else rewording it would fake
+        # movement and keep `auto` from ever converging (the rephrase-invariance promise).
+        self.assertEqual(rb.citations("My concern is `the retry path doubles charges`."),
+                         frozenset())
+        # but a backticked identifier/path still counts
+        self.assertIn("parse()", rb.citations("the `parse()` helper"))
+
+    def test_trailing_punctuation_is_stripped(self):
+        self.assertEqual(rb.citations("the bug is in lib/x.py."), rb.citations("lib/x.py here"))
+
+    def test_decimal_ratios_are_not_citations(self):
+        # SLA/latency ratios in prose (p50/p99.9, 3/4.5) are not file citations —
+        # they aren't rephrase-stable and would block convergence.
+        self.assertEqual(rb.citations("p50/p99.9 latency, target 99.9/100 SLA, 3/4.5 ratio"),
+                         frozenset())
+
+    def test_normalization_is_stable(self):
+        self.assertEqual(rb.citations("see  `Foo.Bar`"), rb.citations("`foo.bar`"))
+
+
+class TestSeatMovement(unittest.TestCase):
+    def test_identical_text_does_not_move(self):
+        t = "Issue at `auth.py:42`.\nVERDICT: caution"
+        self.assertFalse(rb.seat_movement(t, t)["moved"])
+
+    def test_verdict_shift_moves(self):
+        m = rb.seat_movement("x\nVERDICT: block", "x\nVERDICT: caution")
+        self.assertTrue(m["moved"])
+        self.assertTrue(m["verdict_shift"])
+        self.assertEqual((m["verdict_from"], m["verdict_to"]), ("block", "caution"))
+
+    def test_new_citation_moves_even_with_same_verdict(self):
+        prev = "Issue at `auth.py:42`.\nVERDICT: caution"
+        curr = "Issue at `auth.py:42` and now `db.py:7`.\nVERDICT: caution"
+        m = rb.seat_movement(prev, curr)
+        self.assertTrue(m["moved"])
+        self.assertFalse(m["verdict_shift"])
+        self.assertEqual(m["new_citations"], 1)
+
+    def test_rephrase_with_same_token_and_cites_does_not_move(self):
+        # The adversarial property (R4): a seat reworks its PROSE but keeps the same
+        # VERDICT token and the same concrete citations -> read as NO movement.
+        prev = "The retry path in `auth.py:42` can double-charge.\nVERDICT: caution"
+        curr = "A double charge is possible via `auth.py:42` on retry.\nVERDICT: caution"
+        self.assertFalse(rb.seat_movement(prev, curr)["moved"])
+
+
+class TestBoardMovement(unittest.TestCase):
+    def test_round_n_equals_n_minus_1_is_zero_movement(self):
+        # The property test from the plan: movement is zero when round N == round N-1.
+        prev = [_sr("claude", 1, "a `x.py:1`\nVERDICT: caution"),
+                _sr("codex", 1, "b `y.py:2`\nVERDICT: ship")]
+        curr = [_sr("claude", 2, "a `x.py:1`\nVERDICT: caution"),
+                _sr("codex", 2, "b `y.py:2`\nVERDICT: ship")]
+        mv = rb.board_movement(prev, curr)
+        self.assertEqual(mv["moved"], 0)
+        self.assertEqual(mv["considered"], 2)
+        self.assertEqual((mv["from_round"], mv["to_round"]), (1, 2))
+
+    def test_counts_only_movers(self):
+        prev = [_sr("claude", 1, "VERDICT: block"), _sr("codex", 1, "VERDICT: ship")]
+        curr = [_sr("claude", 2, "VERDICT: caution"),   # moved
+                _sr("codex", 2, "VERDICT: ship")]       # held
+        self.assertEqual(rb.board_movement(prev, curr)["moved"], 1)
+
+    def test_dropped_seat_is_not_considered(self):
+        prev = [_sr("claude", 1, "VERDICT: block"), _sr("codex", 1, "VERDICT: ship")]
+        curr = [_sr("claude", 2, "VERDICT: caution"),
+                _sr("codex", 2, "", status="dropped")]
+        mv = rb.board_movement(prev, curr)
+        self.assertEqual(mv["considered"], 1)   # only claude is usable in both
+        self.assertEqual(mv["moved"], 1)
+
+    def test_held_verdict_with_new_citation_is_a_mover(self):
+        # The citation arm at board level: same token, but a new concrete citation.
+        prev = [_sr("claude", 1, "issue at `auth.py:42`\nVERDICT: caution"),
+                _sr("codex", 1, "VERDICT: ship")]
+        curr = [_sr("claude", 2, "issue at `auth.py:42` and `db.py:7`\nVERDICT: caution"),
+                _sr("codex", 2, "VERDICT: ship")]
+        mv = rb.board_movement(prev, curr)
+        self.assertEqual(mv["moved"], 1)
+        self.assertEqual(mv["seats"]["claude"]["new_citations"], 1)
+        self.assertFalse(mv["seats"]["claude"]["verdict_shift"])
+
+
+class TestRoundTemplatesVerdictLine(unittest.TestCase):
+    def test_both_templates_carry_the_verdict_instruction(self):
+        self.assertIn("VERDICT:", rb.ROUND1_TEMPLATE)
+        self.assertIn("VERDICT:", rb.ROUND2_TEMPLATE)
+
+    def test_prompt_versions_bumped(self):
+        self.assertEqual(rb.PROMPT_TEMPLATE_VERSION, "advisory-board/round1@2")
+        self.assertEqual(rb.ROUND2_TEMPLATE_VERSION, "advisory-board/round2@2")
+
+    def test_built_round1_prompt_includes_verdict_line(self):
+        seat = _config().board[0]
+        prompt = rb.build_round1_prompt(seat, "SOME SOURCE")
+        self.assertIn("VERDICT:", prompt)
+
+    def test_round_n_template_generalizes(self):
+        # Round 3 packet/prompt name round 3 and the previous round (2).
+        r2 = _round_results(["claude", "codex"], round_no=2)
+        packet = rb.build_round2_packet(r2, "full", round_no=3)
+        self.assertIn("Board packet — round 3", packet)
+        self.assertIn("round-2 review", packet)
+        seat = _config().board[0]
+        prompt = rb.build_round2_prompt(seat, "SRC", board_packet=packet, own_review="X",
+                                        cross_reading="full", round_no=3)
+        self.assertIn("This is round 3", prompt)
+        self.assertIn("BOARD ROUND-2 REVIEWS", prompt)
+
+
+class TestAutoRounds(EnvMixin):
+    def _out(self):
+        return tempfile.mkdtemp(prefix="board-m1-")
+
+    def test_auto_converges_at_two_when_quiet(self):
+        # Default mocks emit a fixed VERDICT each round -> no movement -> stop at 2.
+        out = self._out()
+        code, text, _ = run_cli(["run", "--source", SAMPLE, "--out", out, "--yes", "--rounds", "auto"])
+        self.assertEqual(code, rb.EXIT_OK)
+        self.assertTrue(os.path.exists(os.path.join(out, "round-2", "claude.md")))
+        self.assertFalse(os.path.exists(os.path.join(out, "round-3")))
+        self.assertIn("stop reason: converged", text)
+        with open(os.path.join(out, "run-metadata.md")) as fh:
+            meta = fh.read()
+        self.assertIn("## Convergence", meta)
+        self.assertIn("Stop reason: converged", meta)
+        self.assertIn("1 → 2", meta)
+
+    def test_auto_runs_a_third_round_when_seats_move(self):
+        # `moving` mocks shift block->caution at round 2, then hold -> stop at 3.
+        for seat in ("CLAUDE", "CODEX", "GEMINI"):
+            os.environ[f"MOCK_{seat}_MODE"] = "moving"
+        out = self._out()
+        code, text, _ = run_cli(["run", "--source", SAMPLE, "--out", out, "--yes", "--rounds", "auto"])
+        self.assertEqual(code, rb.EXIT_OK)
+        self.assertTrue(os.path.exists(os.path.join(out, "round-3", "claude.md")))
+        self.assertFalse(os.path.exists(os.path.join(out, "round-4")))
+        self.assertIn("stop reason: converged", text)
+        with open(os.path.join(out, "run-metadata.tsv")) as fh:
+            lines = [ln for ln in fh.read().splitlines() if ln.strip()]
+        self.assertEqual(len(lines), 1 + 3 * 3)    # header + 3 seats x 3 rounds
+        # verdict column: round-1 rows are 'block', round-2/3 are 'caution'.
+        cols = lines[0].split("\t")
+        vi = cols.index("verdict")
+        r1 = [ln.split("\t")[vi] for ln in lines[1:4]]
+        self.assertEqual(set(r1), {"block"})
+        # round-2 and round-3 verdict cells are the moved token (caution), not stale.
+        self.assertEqual({ln.split("\t")[vi] for ln in lines[4:10]}, {"caution"})
+        # the convergence movement table shows the real mover transition with detail.
+        with open(os.path.join(out, "run-metadata.md")) as fh:
+            meta = fh.read()
+        self.assertIn("block→caution", meta)
+        self.assertIn("| 1 → 2 | 3 | 3 |", meta)
+        self.assertIn("| 2 → 3 | 0 | 3 |", meta)
+
+    def test_auto_runs_a_third_round_on_citation_delta(self):
+        # The CITATION arm end-to-end: claude holds its token but adds a new citation
+        # at round 2, so the board moves (1->2) then goes quiet (2->3) -> stop at 3.
+        os.environ["MOCK_CLAUDE_MODE"] = "moving_cites"
+        out = self._out()
+        code, text, _ = run_cli(["run", "--source", SAMPLE, "--out", out, "--yes", "--rounds", "auto"])
+        self.assertEqual(code, rb.EXIT_OK)
+        self.assertTrue(os.path.exists(os.path.join(out, "round-3", "claude.md")))
+        self.assertFalse(os.path.exists(os.path.join(out, "round-4")))
+        self.assertIn("stop reason: converged", text)
+        with open(os.path.join(out, "run-metadata.md")) as fh:
+            meta = fh.read()
+        self.assertIn("claude +1 cite", meta)   # movement driven by the citation delta, not the token
+
+    def test_auto_converges_despite_reworded_prose(self):
+        # Rephrase-invariance end-to-end (R4 / principle #1): claude rewords its prose
+        # at round 2 but holds its token and citations -> NO movement -> converge at 2,
+        # even though the round artifacts differ byte-for-byte (so the loop is NOT
+        # diffing raw prose).
+        os.environ["MOCK_CLAUDE_MODE"] = "rephrase"
+        out = self._out()
+        code, text, _ = run_cli(["run", "--source", SAMPLE, "--out", out, "--yes", "--rounds", "auto"])
+        self.assertEqual(code, rb.EXIT_OK)
+        self.assertFalse(os.path.exists(os.path.join(out, "round-3")))
+        self.assertIn("stop reason: converged", text)
+        with open(os.path.join(out, "round-1", "claude.md")) as fh:
+            r1 = fh.read()
+        with open(os.path.join(out, "round-2", "claude.md")) as fh:
+            r2 = fh.read()
+        self.assertNotEqual(r1, r2)   # prose genuinely differs round-to-round
+
+    def test_mid_debate_collapse_is_not_handed_off_as_a_board(self):
+        # The "one voice is not a board" invariant must hold when the board collapses
+        # DURING the debate (seats drop in round 2+), not just at round 1.
+        os.environ["MOCK_CODEX_MODE"] = "dropr2"
+        os.environ["MOCK_GEMINI_MODE"] = "dropr2"
+        for rounds in ("2", "auto"):
+            out = self._out()
+            code, text, _ = run_cli(["run", "--source", SAMPLE, "--out", out, "--yes",
+                                     "--rounds", rounds])
+            self.assertEqual(code, rb.EXIT_PREFLIGHT_NOGO, rounds)
+            self.assertIn("collapsed to 1 usable voice", text)
+            self.assertNotIn("Next — synthesize", text)   # no synthesis hand-off
+            self.assertTrue(os.path.exists(os.path.join(out, "round-2")))
+
+    def test_auto_stops_at_ceiling_while_still_moving(self):
+        # A low --max-rounds caps an always-moving board -> stop reason 'max-rounds'.
+        for seat in ("CLAUDE", "CODEX", "GEMINI"):
+            os.environ[f"MOCK_{seat}_MODE"] = "moving"
+        out = self._out()
+        code, text, _ = run_cli(["run", "--source", SAMPLE, "--out", out, "--yes",
+                                 "--rounds", "auto", "--max-rounds", "2"])
+        self.assertEqual(code, rb.EXIT_OK)
+        self.assertTrue(os.path.exists(os.path.join(out, "round-2")))
+        self.assertFalse(os.path.exists(os.path.join(out, "round-3")))
+        self.assertIn("stop reason: max-rounds", text)
+
+    def test_max_rounds_must_be_positive(self):
+        out = self._out()
+        code, _, err = run_cli(["run", "--source", SAMPLE, "--out", out, "--yes",
+                                "--rounds", "auto", "--max-rounds", "0"])
+        self.assertEqual(code, rb.EXIT_USAGE)
+        self.assertIn("--max-rounds must be >= 1", err)
 
 
 # --------------------------------------------------------------------------- #

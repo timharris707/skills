@@ -8,6 +8,7 @@ import sys
 
 from _conductor.constants import (
     DEFAULT_LENS,
+    DEFAULT_MAX_ROUNDS,
     EXIT_EGRESS_BLOCKED,
     EXIT_OK,
     EXIT_PREFLIGHT_NOGO,
@@ -16,6 +17,11 @@ from _conductor.constants import (
     die,
 )
 from _conductor.registry import REGISTRY
+from _conductor.convergence import (
+    DEFAULT_CONVERGE_THRESHOLD,
+    board_movement,
+    movement_detail_line,
+)
 from _conductor.config import (
     parse_board,
     resolve_config,
@@ -140,7 +146,7 @@ def _maybe_update_tools(config, args) -> None:
 
 
 def cmd_run(args) -> int:
-    config = resolve_config(args)
+    config = resolve_config(args)   # validates --max-rounds (>= 1) too
     blobs = build_packet(config)
     content_hash = packet_hash(blobs)
 
@@ -230,40 +236,93 @@ def cmd_run(args) -> int:
               "attempted on fewer than two voices.")
         return EXIT_PREFLIGHT_NOGO
 
-    # 5. Round 2 (M4) — cross-reading + debate. Only the usable round-1 seats
-    #    continue; each is re-supplied the source AND (per --cross-reading) the
-    #    board's round-1 reviews. This egresses derivatives of already-approved
-    #    source to the same providers under the disclosed multi-round plan, so it
-    #    records its own packet hash but reuses the run's approval (no re-prompt).
-    want_rounds = 3 if config.rounds == "auto" else int(config.rounds)
-    if want_rounds >= 2:
-        r2_blobs, board_packet = build_round2(config, r1)
+    # 5. Rounds 2…N (M4 + M1) — cross-reading + debate, looped under the stop-rule.
+    #    Only seats usable in the PREVIOUS round continue; each is re-supplied the
+    #    source AND (per --cross-reading) that round's reviews. This egresses
+    #    derivatives of already-approved source to the same providers under the
+    #    disclosed multi-round plan, so each round records its own packet hash but
+    #    reuses the run's approval (no re-prompt). `--rounds auto` keeps looping
+    #    while the board is still MOVING — a verdict-token shift or a new citation,
+    #    measured by a pure function over the parsed tokens (principle #1) — and
+    #    stops the moment movement falls below the threshold, or at --max-rounds.
+    #    An explicit `--rounds N` runs exactly N rounds (movement is still recorded).
+    is_auto = config.rounds == "auto"
+    max_rounds = config.max_rounds
+    target = max_rounds if is_auto else int(config.rounds)
+    movements: list = []
+    stop_reason = None
+    prev = r1
+    round_no = 2
+    while round_no <= target:
+        if len([r for r in prev if r.usable]) < 2:
+            stop_reason = "insufficient-voices"   # a one-voice round is not a board
+            break
+        rN_blobs, board_packet = build_round2(config, prev, round_no=round_no)
         if board_packet is not None:
-            _write(os.path.join(config.out_dir, "board-packet-round-2.md"), board_packet)
-        for b in r2_blobs:
+            _write(os.path.join(config.out_dir, f"board-packet-round-{round_no}.md"), board_packet)
+        for b in rN_blobs:
             _write(os.path.join(config.out_dir, b.relpath), b.text)
-        r2_hash = packet_hash(r2_blobs)
-        print("\n=== round 2 (cross-reading + debate) ===")
-        print(f"cross-reading: {config.cross_reading}  ·  round-2 packet hash: sha256:{r2_hash}")
-        print("(round 2 sends each seat's round-1 review to the others at the same providers — "
-              "no new source egresses; covered by the run-card's disclosed multi-round plan.)")
-        r2 = run_round(config, r2_blobs, approval, round_no=2, timeout=timeout)
-        write_round_artifacts(config, r2, 2)
-        rounds_done.append(r2)
-        print(render_round_table(r2, 2))
-        if want_rounds > 2:
-            print(f"\n(note: --rounds {config.rounds} requested; Round 3 / `auto` is a v1.x "
-                  "milestone — this run stops after Round 2.)")
+        rN_hash = packet_hash(rN_blobs)
+        print(f"\n=== round {round_no} (cross-reading + debate) ===")
+        print(f"cross-reading: {config.cross_reading}  ·  round-{round_no} packet hash: sha256:{rN_hash}")
+        print(f"(round {round_no} sends each seat's round-{round_no - 1} review to the others at the "
+              "same providers — no new source egresses; covered by the run-card's disclosed "
+              "multi-round plan.)")
+        rN = run_round(config, rN_blobs, approval, round_no=round_no, timeout=timeout)
+        write_round_artifacts(config, rN, round_no)
+        rounds_done.append(rN)
+        print(render_round_table(rN, round_no))
+        mv = board_movement(prev, rN)
+        movements.append(mv)
+        print(f"movement {mv['from_round']} → {mv['to_round']}: {mv['moved']} of "
+              f"{mv['considered']} seat(s) moved — {movement_detail_line(mv)}")
+        prev = rN
+        if is_auto:
+            if mv["considered"] < 2:
+                stop_reason = "insufficient-voices"   # too few overlapping voices to judge
+                break
+            if mv["moved"] < DEFAULT_CONVERGE_THRESHOLD:
+                stop_reason = "converged"             # the board went quiet
+                break
+        round_no += 1
+    else:
+        stop_reason = "max-rounds" if is_auto else "round-count"
 
-    # Provenance after the last fan-out (carries every round's outcome).
+    convergence = {
+        "is_auto": is_auto,
+        "requested": config.rounds,
+        "max_rounds": max_rounds,
+        "rounds_run": len(rounds_done),
+        "stop_reason": stop_reason,
+        "movements": movements,
+    }
+
+    # Provenance after the last fan-out (carries every round's outcome + the M1
+    # convergence trace: per-transition movement and why the loop stopped).
     _write(os.path.join(config.out_dir, "run-metadata.md"),
-           render_run_metadata(config, preflight, approval, rounds=rounds_done))
+           render_run_metadata(config, preflight, approval, rounds=rounds_done,
+                               convergence=convergence))
     _write(os.path.join(config.out_dir, "run-metadata.tsv"),
            render_run_metadata_tsv(rounds_done))
     print(f"\nwrote run dir: {config.out_dir}")
+    print(f"rounds run: {len(rounds_done)}  ·  stop reason: {stop_reason}"
+          + (f"  ·  ceiling (--max-rounds): {max_rounds}" if is_auto else ""))
 
     last = rounds_done[-1]
     usable_last = [r for r in last if r.usable]
+    # "One voice is not a board" — the same invariant preflight and round 1 enforce
+    # (§13). A board can also COLLAPSE mid-debate (seats drop in round 2+), so re-check
+    # the last round here: fewer than two usable reviews must NOT be handed off as a
+    # synthesizable board. Exit NO-GO with a loud warning instead of inviting a verdict
+    # over one (or zero) voices. (stop_reason is already 'insufficient-voices' for the
+    # auto path; an explicit --rounds N collapse is caught here too.)
+    if len(usable_last) < 2:
+        print(f"\nWARNING: the board collapsed to {len(usable_last)} usable voice(s) by round "
+              f"{last[0].round_no} — that is not a board. Inspect round-{last[0].round_no}/*.raw and "
+              "logs/, fix the failed seats, and re-run. Synthesis is intentionally NOT attempted on "
+              "fewer than two voices.")
+        return EXIT_PREFLIGHT_NOGO
+
     # Rounds are captured. Synthesis stays a REASONING task (§11): the conductor
     # produces clean packets and hands the latest round's reviews to the orchestrating
     # agent (or one neutral seat) to fill verdict.json — it does NOT generate the
@@ -316,6 +375,10 @@ def add_run_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--mode", choices=("gate", "advisory"),
                         help="gate (default; quarantined) or advisory (opt-in; your own non-sensitive material)")
     parser.add_argument("--rounds", choices=("1", "2", "3", "auto"))
+    parser.add_argument("--max-rounds", dest="max_rounds", type=int, default=None, metavar="N",
+                        help=f"hard ceiling for --rounds auto (default {DEFAULT_MAX_ROUNDS}); the "
+                             "convergence stop-rule may stop earlier. Ignored for an explicit "
+                             "--rounds 1|2|3. Persisted in the recipe so an auto run reproduces.")
     parser.add_argument("--cross-reading", dest="cross_reading",
                         choices=("none", "summaries", "full"))
     parser.add_argument("--lens", help=f"lens preset (default {DEFAULT_LENS})")

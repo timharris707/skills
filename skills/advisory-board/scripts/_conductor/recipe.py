@@ -215,6 +215,7 @@ def config_to_recipe(config: RunConfig) -> dict:
         "mode": config.mode,
         "sensitivity": config.sensitivity,
         "rounds": config.rounds,
+        "max_rounds": config.max_rounds,
         "cross_reading": config.cross_reading,
         "lens": config.lens,
         "output": config.output,
@@ -276,6 +277,10 @@ def validate_recipe(recipe: dict) -> None:
     for key, allowed in _RECIPE_ENUMS.items():
         if key in recipe and str(recipe[key]) not in allowed:
             die(f"recipe: {key} must be one of {', '.join(allowed)}; got {recipe[key]!r}")
+    if "max_rounds" in recipe:
+        mr = recipe["max_rounds"]
+        if not isinstance(mr, int) or isinstance(mr, bool) or mr < 1:
+            die(f"recipe: 'max_rounds' must be an integer >= 1; got {mr!r}")
 
 
 def recipe_to_config(path: str) -> dict:

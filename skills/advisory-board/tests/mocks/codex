@@ -43,6 +43,23 @@ for a in "$@"; do
   case "$a" in model=*) model="${a#model=}" ;; esac
 done
 
+# Round detection (the round-N>=2 template header names the round); drives the
+# `moving` mode's cross-round VERDICT shift (M1).
+round=1
+case "$*" in
+  *"This is round 2"*) round=2 ;;
+  *"This is round 3"*) round=3 ;;
+  *"This is round 4"*) round=4 ;;
+esac
+
+verdict_token() {
+  if [ "$mode" = "moving" ]; then
+    if [ "$round" -ge 2 ]; then echo "caution"; else echo "block"; fi
+  else
+    echo "caution"   # codex's standing "Go with conditions"
+  fi
+}
+
 emit_review() {
   echo "model: ${model:-unknown}" >&2
   cat <<'REVIEW'
@@ -69,11 +86,19 @@ The plan's "Migration" step lacks a CONCURRENTLY note (would lock writes).
 ## What I'd ask the other seats
 Challenge whether the rollback path is actually exercised in staging.
 REVIEW
+  echo ""
+  echo "VERDICT: $(verdict_token)"
 }
 
 case "$mode" in
   nogo_smoke) exit 1 ;;
   empty)      exit 0 ;;
+  dropr2)   # M1 test: a real round-1 review, then empty (NoOutput -> dropped) in round 2+
+    if [ "$is_review" = "1" ]; then
+      if [ "$round" -ge 2 ]; then exit 0; fi
+      emit_review
+    else echo "ready"; fi
+    exit 0 ;;
   timeout)    exec sleep 30 ;;   # exec so no orphaned sleep survives the kill
   stub)
     if [ "$is_review" = "1" ]; then echo "Done — wrote the review."; else echo "ready"; fi
