@@ -1,0 +1,4 @@
+interface:
+  display_name: "Advisory Board Review"
+  short_description: "Multi-model adversarial plan review"
+  default_prompt: "Use $advisory-board-review to run a two-round Opus/GPT/Gemini advisory review of this plan."
