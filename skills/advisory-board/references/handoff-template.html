@@ -28,7 +28,8 @@
 
   Repeatable blocks here: SEAT CARD (per seat) > ROUND (per round, nested in a
   seat) ; BLOCKER (per consensus blocker) ; DISSENT (per dissenting point) ;
-  QUESTION (per open question) ; ACTION (per next action).
+  CAVEAT (per couldn't-verify item) ; QUESTION (per open question) ;
+  ACTION (per next action).
 
   SINGLE TOKENS
   -------------
@@ -209,6 +210,17 @@
   .dissent p { margin: 6px 0; font-size: 15.5px; color: #5e4a31; }
   .dissent .who { font-weight: 700; color: var(--caution-ink); }
 
+  /* ---- what the board couldn't verify (epistemic caveats) ---- */
+  .caveats {
+    background: var(--surface-soft); border: 1px solid var(--line);
+    border-left: 4px solid var(--ink-faint); border-radius: 0 12px 12px 0;
+    padding: 16px 20px;
+  }
+  .caveats ul { margin: 0; padding-left: 22px; }
+  .caveats li { margin: 7px 0; font-size: 15.5px; }
+  .caveats .c-claim { font-weight: 600; }
+  .caveats .c-change { color: var(--ink-soft); }
+
   /* ---- simple lists ---- */
   ul.plain { margin: 0; padding-left: 22px; }
   ul.plain li { margin: 7px 0; font-size: 15.5px; }
@@ -342,6 +354,24 @@
       <!-- BEGIN DISSENT (duplicate per point; name the seat in .who, or use "Minority report") -->
       <p><span class="who">{{DISSENT_WHO}}:</span> {{DISSENT_BODY}}</p>
       <!-- END DISSENT -->
+    </div>
+  </section>
+
+  <!-- ===================== WHAT THE BOARD COULDN'T VERIFY ===================== -->
+  <!-- Claims the board relied on but did NOT check, and shared blind spots: facts every
+       seat assumed, things outside what any seat could see (live data, prod config, the
+       real code when only a plan was reviewed), and what would flip the verdict if false.
+       Guards against a confident, unanimous, wrong call (see references/epistemics.md).
+       Delete this section only if the board verified everything load-bearing — rare; say
+       so in the verdict note instead of dropping it silently. -->
+  <section>
+    <h2>What the board couldn't verify</h2>
+    <div class="caveats">
+      <ul>
+        <!-- BEGIN CAVEAT (duplicate per couldn't-verify item) -->
+        <li><span class="c-claim">{{CAVEAT_CLAIM}}</span> — <span class="c-change">{{CAVEAT_IMPACT}}</span></li>
+        <!-- END CAVEAT -->
+      </ul>
     </div>
   </section>
 

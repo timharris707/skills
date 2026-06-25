@@ -12,7 +12,7 @@ Bring an idea, problem, plan, or architecture to a board of frontier models sitt
 - Use subscription CLIs by default, not provider API keys.
 - Run read-only unless the user explicitly asks for edits.
 - Rounds: 2. Cross-reading: summaries. Final artifact: full handoff (Markdown plus a self-contained HTML view).
-- Save artifacts in a timestamped folder near the reviewed material, or in `/tmp/advisory-board-*` if there is no obvious project folder.
+- Write run artifacts to a timestamped `/tmp/advisory-board-*` folder by default. Writing them into the reviewed project is itself a write, even on a read-only review: do that only when the user asks or agrees, prefer a dedicated `advisory-board/<timestamp>/` (or `docs/advisory-board/<timestamp>/`) folder, and never write into a tracked git tree without naming the location first.
 - Quick pass: 1 round with `summaries`. High-stakes: 3 rounds with `full` cross-reading. Three frontier models at high reasoning across several rounds can take minutes and meaningful tokens — flag a large run to the user before launching it.
 
 ## Upfront Choices
@@ -27,7 +27,7 @@ Optionally open with the intake interview (`references/intake-interview.md`) —
 6. Sensitivity: can the material go to external providers? (`references/data-handling.md` — may force a local-only board.)
 7. Board: seats and size, from `references/board-composition.md` (default: three seats — Claude, Codex, Gemini).
 
-If the user says "use defaults", stop asking and run.
+If the user says "use defaults", stop asking the *optional* setup questions and run with the defaults — with one exception. The data-handling check (choice 6) is mandatory: if the material isn't clearly public, still disclose which providers will receive it and get an explicit go-ahead before launching any external seat (`references/data-handling.md`). "Use defaults" settles the optional choices; it never waives that consent.
 
 ## Model Lineup
 
@@ -91,7 +91,7 @@ A board sends the same source material to every seat's provider. Before the firs
 
 - After the last round, write the handoff: consensus, dissent (and why it matters), revised plan, risks, invariants, evidence, and next actions.
 - Prefer a neutral synthesizer — a seat that didn't debate, or a blind merge — so the chair doesn't grade its own work (`references/epistemics.md`). If the board is unanimous, include a minority report: the strongest case against the verdict.
-- Label model and round provenance (the model that actually answered, not just the one requested), and keep evidence-backed conclusions separate from judgment calls.
+- Label model and round provenance (the model that actually answered, not just the one requested), and split the findings into three explicit buckets: **evidence-backed** (tied to a file, fact, run, or citation), **judgment calls** (reasoned but unproven here), and **couldn't-verify** (claims the board leaned on but didn't check, plus the shared blind spots no seat could see). For each load-bearing conclusion, note what would change it. The couldn't-verify bucket is the main guard against a confident, unanimous, *wrong* call — three models can converge on the same missing fact (`references/epistemics.md`).
 - Emit `verdict.json` alongside the prose (`references/verdict-schema.md`) so the result can drive a gate or other tooling.
 
 ## Artifact Standard
