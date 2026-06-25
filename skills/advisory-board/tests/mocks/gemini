@@ -1,9 +1,13 @@
 #!/usr/bin/env bash
 # Mock `gemini` CLI. Gemini routinely prints router noise to stderr yet returns a
 # valid answer; the `degraded` mode exercises that "degraded-but-ran" path.
-# MOCK_GEMINI_MODE: go | nogo_version | nogo_smoke | empty | degraded | timeout | model_proposal
+# MOCK_GEMINI_MODE: go | nogo_version | nogo_smoke | empty | degraded | timeout
+#   | model_proposal | stub
 #   model_proposal: the pinned id (gemini-3.5-flash) 404s but a fallback resolves,
 #   exercising the model-not-found -> propose-fallback path.
+# A round-1 prompt (contains "MATERIAL UNDER REVIEW") gets a full review; the smoke
+# ping gets "ready". `stub` returns a short reply to a round-1 prompt (§13 shape
+# check). Gemini reads stdin to EOF (close_stdin); drain it so a regression hangs.
 set -u
 
 if [ -n "${MOCK_ARGV_LOG:-}" ]; then
@@ -12,7 +16,8 @@ fi
 
 mode="${MOCK_GEMINI_MODE:-go}"
 
-# Extract the requested model (-m/--model <id>) so a mode can branch on it.
+# Extract the requested model (-m/--model <id>) so a mode can branch on it and so
+# it can be echoed back as the answered-model banner.
 model=""
 prev=""
 for a in "$@"; do
@@ -28,17 +33,57 @@ for a in "$@"; do
   fi
 done
 
+is_review=0
+case "$*" in *"MATERIAL UNDER REVIEW"*) is_review=1 ;; esac
+
+emit_review() {
+  echo "model: ${model:-unknown}" >&2
+  cat <<'REVIEW'
+## Verdict
+Hold (confidence: medium). Changes it: a rollout/observability plan for the new
+idempotency path.
+
+## Strongest objections
+- The plan ships the storage change without a metric for duplicate settlements.
+- No guardrail caps retry amplification under a downstream outage.
+
+## Recommended execution sequence
+1. Add the duplicate-charge counter. 2. Alert on it. 3. Then enable the new path.
+
+## Invariants and guardrails
+Every settlement is observable and attributable to exactly one idempotency key.
+
+## Risks, stale assumptions, missing evidence
+Assumes traffic shape is steady — a retry storm is the untested failure mode.
+
+## Concrete evidence
+Plan's "Rollout" section names no SLO for the new code path.
+
+## What I'd ask the other seats
+Challenge the assumption that the client never reuses a key across requests.
+REVIEW
+}
+
 case "$mode" in
   nogo_smoke) echo "auth error" >&2; exit 1 ;;
   empty)      exit 0 ;;
   timeout)    exec sleep 30 ;;   # exec so no orphaned sleep survives the kill
-  degraded)   echo "[router] retrying with fallback" >&2; echo "ready"; exit 1 ;;
+  stub)
+    if [ "$is_review" = "1" ]; then echo "Reviewed; summary follows: looks fine."; else echo "ready"; fi
+    exit 0 ;;
+  degraded)
+    echo "[router] retrying with fallback" >&2
+    if [ "$is_review" = "1" ]; then emit_review; else echo "ready"; fi
+    exit 1 ;;
   model_proposal)
     case "$model" in
       # The pinned GA id 404s on a (simulated) stale CLI; a fallback id resolves.
       *3.5-flash*) echo "ModelNotFoundError: Requested entity was not found." >&2; exit 1 ;;
       *)           echo "ready"; exit 0 ;;
     esac ;;
-  # go (default): router noise on stderr but a valid review on stdout, exit 0:
-  *)          echo "[router] retrying with fallback" >&2; echo "ready"; exit 0 ;;
+  # go (default): router noise on stderr but a valid answer on stdout, exit 0:
+  *)
+    echo "[router] retrying with fallback" >&2
+    if [ "$is_review" = "1" ]; then emit_review; else echo "ready"; fi
+    exit 0 ;;
 esac

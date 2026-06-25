@@ -1,11 +1,15 @@
 #!/usr/bin/env bash
 # Mock `ollama` CLI — a local-model seat that runs entirely on-machine (no tokens,
-# no network). Like claude, the prompt arrives on STDIN (which this stub ignores).
-# Behavior switched by MOCK_OLLAMA_MODE:
-#   go (default) | nogo_version | nogo_smoke | empty | degraded | timeout
-# `ollama` itself has no self-update subcommand (currency is via brew), so there is
-# no `update` arm here. Reported version: MOCK_OLLAMA_VERSION (default 0.5.0).
-# If MOCK_ARGV_LOG is set, the full argv is appended for end-to-end assertions.
+# no network). Like claude, the prompt arrives on STDIN. Behavior switched by
+# MOCK_OLLAMA_MODE:
+#   go (default) | nogo_version | nogo_smoke | empty | degraded | timeout | stub
+# The smoke ping returns "ready"; a round-1 prompt (contains "MATERIAL UNDER
+# REVIEW") returns a full multi-section review, so a single test exercises preflight
+# AND the fan-out. `stub` returns a short reply (the §13 shape-check failure).
+# `ollama` has no self-update subcommand (currency is via brew), so no `update` arm;
+# and it never 404s a model (you run what you pulled), so no `model_not_found` arm —
+# model_answered stays unknown by design (the conductor uses the None stub for it).
+# Reported version: MOCK_OLLAMA_VERSION (default 0.5.0). Argv -> MOCK_ARGV_LOG.
 set -u
 
 if [ -n "${MOCK_ARGV_LOG:-}" ]; then
@@ -22,11 +26,50 @@ for a in "$@"; do
   fi
 done
 
-# `ollama run <model>` — the smoke ping / round-1 form. Prompt is on stdin (ignored).
+# `ollama run <model>` — the smoke ping / round-1 form. Prompt is on stdin.
+prompt="$(cat)"
+is_review=0
+case "$prompt" in *"MATERIAL UNDER REVIEW"*) is_review=1 ;; esac
+
+emit_review() {
+  cat <<'REVIEW'
+## Verdict
+Conditional go (confidence: medium). Changes it: a benchmark of the local store
+under the concurrent-retry workload.
+
+## Strongest objections
+- The plan trusts a single-node store for an exactly-once guarantee.
+- No invariant is stated for partial-failure replay.
+
+## Recommended execution sequence
+1. Define the uniqueness invariant. 2. Enforce it in storage. 3. Test replay.
+
+## Invariants and guardrails
+One settlement per idempotency key, even across process restarts.
+
+## Risks, stale assumptions, missing evidence
+Assumes clocks are monotonic for the TTL — verify on the target hosts.
+
+## Concrete evidence
+The plan's "Storage" section names no durability guarantee.
+
+## What I'd ask the other seats
+Challenge the single-node assumption and the replay-after-crash path.
+REVIEW
+}
+
 case "$mode" in
   nogo_smoke) echo "Error: could not connect to ollama server" >&2; exit 1 ;;
   empty)      exit 0 ;;
   timeout)    exec sleep 30 ;;   # exec so no orphaned sleep survives the kill
-  degraded)   echo "loading model" >&2; echo "ready"; exit 1 ;;  # stderr noise, usable stdout
-  *)          echo "ready"; exit 0 ;;
+  stub)
+    if [ "$is_review" = "1" ]; then echo "Reviewed locally; looks fine."; else echo "ready"; fi
+    exit 0 ;;
+  degraded)
+    echo "loading model" >&2   # stderr noise, usable stdout
+    if [ "$is_review" = "1" ]; then emit_review; else echo "ready"; fi
+    exit 1 ;;
+  *)
+    if [ "$is_review" = "1" ]; then emit_review; else echo "ready"; fi
+    exit 0 ;;
 esac

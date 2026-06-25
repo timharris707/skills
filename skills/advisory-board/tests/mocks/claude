@@ -1,9 +1,14 @@
 #!/usr/bin/env bash
 # Mock `claude` CLI for testing the conductor without burning tokens or network.
 # Banner-accurate enough for preflight; behavior switched by MOCK_CLAUDE_MODE.
-#   go (default) | nogo_version | nogo_smoke | empty | degraded | timeout | model_not_found
-# `claude update` is mocked too (MOCK_CLAUDE_UPDATE_FAIL=1 to force a failure).
-# If MOCK_ARGV_LOG is set, the full argv is appended for end-to-end assertions.
+#   go (default) | nogo_version | nogo_smoke | empty | degraded | timeout
+#   | model_not_found | stub
+# The smoke ping ("Reply with the single word: ready") gets "ready"; a round-1
+# prompt (contains "MATERIAL UNDER REVIEW") gets a full multi-section review, so a
+# single test can exercise preflight AND the fan-out. `stub` returns a short
+# plan-style reply to a round-1 prompt — the {{CLAUDE_OUTPUT_OVERRIDE}} failure the
+# §13 shape check must catch. `claude update` is mocked (MOCK_CLAUDE_UPDATE_FAIL=1
+# forces a failure). If MOCK_ARGV_LOG is set, the full argv is logged.
 set -u
 
 if [ -n "${MOCK_ARGV_LOG:-}" ]; then
@@ -11,6 +16,14 @@ if [ -n "${MOCK_ARGV_LOG:-}" ]; then
 fi
 
 mode="${MOCK_CLAUDE_MODE:-go}"
+
+# Requested model (--model <id>), echoed back as the answered-model banner.
+model=""
+prev=""
+for a in "$@"; do
+  if [ "$prev" = "--model" ]; then model="$a"; fi
+  prev="$a"
+done
 
 for a in "$@"; do
   if [ "$a" = "--version" ]; then
@@ -27,12 +40,58 @@ if [ "${1:-}" = "update" ]; then
   exit 0
 fi
 
+# claude -p reads the prompt from stdin; capture it to tell smoke from review.
+prompt="$(cat)"
+is_review=0
+case "$prompt" in *"MATERIAL UNDER REVIEW"*) is_review=1 ;; esac
+
+emit_review() {
+  # A realistic answering-model banner goes to stderr (never mined from stdout).
+  echo "model: ${model:-unknown}" >&2
+  cat <<'REVIEW'
+## Verdict
+Conditional go (confidence: medium). What would change it: a load test of the
+idempotency-key store under concurrent retries.
+
+## Strongest objections
+- The retry path can double-charge if the key TTL expires mid-flight.
+- No invariant pins the (idempotency-key, request-hash) pairing.
+
+## Recommended execution sequence
+1. Add the unique constraint. 2. Backfill existing rows. 3. Ship behind a flag.
+
+## Invariants and guardrails
+Exactly-once settlement per idempotency key, enforced at the storage layer.
+
+## Risks, stale assumptions, missing evidence
+Assumes the store is strongly consistent under partition — verify before rollout.
+
+## Concrete evidence
+Plan section "Key storage" omits the conflict-resolution policy.
+
+## What I'd ask the other seats
+Challenge the TTL choice and the read-after-write guarantee.
+REVIEW
+}
+
 case "$mode" in
   # Unknown model: claude prints this to STDOUT with exit 1 (grounded 2026-06-25).
   model_not_found) echo "There's an issue with the selected model. It may not exist or you may not have access to it."; exit 1 ;;
   nogo_smoke) exit 1 ;;
   empty)      exit 0 ;;
   timeout)    exec sleep 30 ;;   # exec so no orphaned sleep survives the kill
-  degraded)   echo "model-router retry" >&2; echo "ready"; exit 1 ;;
-  *)          echo "ready"; exit 0 ;;
+  stub)
+    if [ "$is_review" = "1" ]; then
+      echo "I've reviewed the plan and saved my full notes to review.md."   # plan-mode stub
+    else
+      echo "ready"
+    fi
+    exit 0 ;;
+  degraded)
+    echo "model-router retry" >&2
+    if [ "$is_review" = "1" ]; then emit_review; else echo "ready"; fi
+    exit 1 ;;
+  *)
+    if [ "$is_review" = "1" ]; then emit_review; else echo "ready"; fi
+    exit 0 ;;
 esac

@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
 # Mock `codex` CLI. Handles `codex --version`, `codex update`, `codex exec ... <prompt>`.
-# MOCK_CODEX_MODE: go | nogo_version | nogo_smoke | empty | degraded | timeout | model_not_found
-# `codex update` is mocked too (MOCK_CODEX_UPDATE_FAIL=1 to force a failure).
+# MOCK_CODEX_MODE: go | nogo_version | nogo_smoke | empty | degraded | timeout
+#   | model_not_found | stub
+# A round-1 prompt (contains "MATERIAL UNDER REVIEW") gets a full multi-section
+# review; the smoke ping gets "ready". `stub` returns a short plan-style reply to a
+# round-1 prompt (the §13 shape-check failure). `codex update` is mocked
+# (MOCK_CODEX_UPDATE_FAIL=1 to force a failure).
 set -u
 
 if [ -n "${MOCK_ARGV_LOG:-}" ]; then
@@ -30,12 +34,57 @@ fi
 # which is exactly the failure a test should catch, not hide.
 cat >/dev/null 2>&1
 
+# codex carries the prompt in argv; detect a round-1 prompt and the model id
+# (--config model=<id>), echoed back as the answered-model banner on stderr.
+is_review=0
+case "$*" in *"MATERIAL UNDER REVIEW"*) is_review=1 ;; esac
+model=""
+for a in "$@"; do
+  case "$a" in model=*) model="${a#model=}" ;; esac
+done
+
+emit_review() {
+  echo "model: ${model:-unknown}" >&2
+  cat <<'REVIEW'
+## Verdict
+Go with conditions (confidence: medium). Changes it: evidence the migration is
+backward-compatible during the deploy window.
+
+## Strongest objections
+- Implementation glosses over the dual-write window during the index build.
+- No test covers the concurrent-retry race the plan depends on.
+
+## Recommended execution sequence
+1. Add the index CONCURRENTLY. 2. Dual-read. 3. Cut over. 4. Drop the old path.
+
+## Invariants and guardrails
+A retried request with the same key must never create a second charge row.
+
+## Risks, stale assumptions, missing evidence
+Assumes the ORM serializes the constraint violation cleanly — verify the driver.
+
+## Concrete evidence
+The plan's "Migration" step lacks a CONCURRENTLY note (would lock writes).
+
+## What I'd ask the other seats
+Challenge whether the rollback path is actually exercised in staging.
+REVIEW
+}
+
 case "$mode" in
   nogo_smoke) exit 1 ;;
   empty)      exit 0 ;;
   timeout)    exec sleep 30 ;;   # exec so no orphaned sleep survives the kill
-  degraded)   echo "warning: sandbox note" >&2; echo "ready"; exit 1 ;;
+  stub)
+    if [ "$is_review" = "1" ]; then echo "Done — wrote the review."; else echo "ready"; fi
+    exit 0 ;;
+  degraded)
+    echo "warning: sandbox note" >&2
+    if [ "$is_review" = "1" ]; then emit_review; else echo "ready"; fi
+    exit 1 ;;
   # Unknown model: codex emits an invalid_request_error to STDERR (grounded 2026-06-25).
   model_not_found) echo '{"type":"error","error":{"type":"invalid_request_error","message":"The model is not supported when using Codex with a ChatGPT account."}}' >&2; exit 1 ;;
-  *)          echo "ready"; exit 0 ;;
+  *)
+    if [ "$is_review" = "1" ]; then emit_review; else echo "ready"; fi
+    exit 0 ;;
 esac
