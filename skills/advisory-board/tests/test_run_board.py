@@ -57,7 +57,7 @@ class EnvMixin(unittest.TestCase):
         os.environ["PATH"] = MOCKS + os.pathsep + os.environ.get("PATH", "")
         os.environ["ADVISORY_BOARD_NOW"] = "2026-06-25"
         os.environ["ADVISORY_BOARD_NOW_TS"] = "2026-06-25T12:00:00"
-        for seat in ("CLAUDE", "CODEX", "GEMINI"):
+        for seat in ("CLAUDE", "CODEX", "GEMINI", "AGY", "OLLAMA"):
             os.environ[f"MOCK_{seat}_MODE"] = "go"
         os.environ.pop("MOCK_ARGV_LOG", None)
 
@@ -72,8 +72,20 @@ class EnvMixin(unittest.TestCase):
 
 
 class TestRegistry(unittest.TestCase):
-    def test_three_seats_registered(self):
-        self.assertEqual(set(rb.REGISTRY), {"claude", "codex", "gemini"})
+    def test_seats_registered(self):
+        self.assertEqual(set(rb.REGISTRY), {"claude", "codex", "gemini", "antigravity", "ollama"})
+
+    def test_antigravity_flags(self):
+        a = rb.REGISTRY["antigravity"]
+        argv = a.build_argv("Gemini 3.5 Flash (High)", "PROMPT", network=False)
+        self.assertEqual(argv[:2], ["agy", "-p"])
+        self.assertIn("PROMPT", argv)
+        self.assertIn("--model", argv)
+        self.assertIn("Gemini 3.5 Flash (High)", argv)
+        self.assertIn("--sandbox", argv)
+        self.assertTrue(a.close_stdin)        # agy reads stdin to EOF — must be closed
+        self.assertFalse(a.isolates_network)  # agentic harness; network not removable
+        self.assertEqual(a.default_model, "Gemini 3.5 Flash (High)")
 
     def test_claude_gate_isolation_flags(self):
         a = rb.REGISTRY["claude"]
@@ -119,6 +131,13 @@ class TestRegistry(unittest.TestCase):
         self.assertIn("gemini-3.1-pro", argv)
         self.assertIn("--approval-mode", argv)
         self.assertIn("plan", argv)
+        # gemini-cli >= 0.46 "trusted folders": headless runs in an untrusted dir
+        # exit 55 with no output without this. Pin it so the fix can't regress.
+        self.assertIn("--skip-trust", argv)
+
+    def test_gemini_default_model_is_ga_id(self):
+        # The GA id (gemini-3.5-flash) needs CLI >= 0.46 to resolve; pinned inline.
+        self.assertEqual(rb.REGISTRY["gemini"].default_model, "gemini-3.5-flash")
 
     def test_stdin_modes(self):
         self.assertTrue(rb.REGISTRY["claude"].prompt_on_stdin)
@@ -877,6 +896,346 @@ class TestCodexMockGuardsStdin(EnvMixin):
             os.close(w)
         self.assertFalse(result.timed_out)
         self.assertIn("ready", result.stdout)
+
+
+# --------------------------------------------------------------------------- #
+# Toolchain currency + model self-heal (§7a)
+# --------------------------------------------------------------------------- #
+
+
+def _capture(fn, *, stdin=None):
+    """Run fn() capturing (return_value, stdout), optionally feeding stdin."""
+    out = io.StringIO()
+    old_stdin = sys.stdin
+    if stdin is not None:
+        sys.stdin = io.StringIO(stdin)
+    try:
+        with contextlib.redirect_stdout(out):
+            rv = fn()
+    finally:
+        sys.stdin = old_stdin
+    return rv, out.getvalue()
+
+
+class TestVersionHelpers(unittest.TestCase):
+    def test_parse_semver_across_banner_formats(self):
+        self.assertEqual(rb.parse_semver("2.1.177 (Claude Code)"), "2.1.177")
+        self.assertEqual(rb.parse_semver("codex-cli 0.135.0"), "0.135.0")
+        self.assertEqual(rb.parse_semver("0.46.0"), "0.46.0")
+        self.assertIsNone(rb.parse_semver("no version here"))
+        self.assertIsNone(rb.parse_semver(""))
+
+    def test_version_is_current(self):
+        self.assertIs(rb.version_is_current("2.1.191", "2.1.191"), True)
+        self.assertIs(rb.version_is_current("2.2.0", "2.1.191"), True)    # ahead
+        self.assertIs(rb.version_is_current("2.1.177", "2.1.191"), False)
+        self.assertIsNone(rb.version_is_current(None, "2.1.191"))         # unknown installed
+        self.assertIsNone(rb.version_is_current("2.1.177", None))         # unknown latest
+        self.assertIs(rb.version_is_current("0.46", "0.46.0"), True)      # padded, not string-len
+
+    def test_parse_brew_latest(self):
+        self.assertEqual(rb.parse_brew_latest('{"formulae":[{"versions":{"stable":"0.46.0"}}]}'), "0.46.0")
+        self.assertIsNone(rb.parse_brew_latest("not json"))
+        self.assertIsNone(rb.parse_brew_latest("{}"))
+
+
+class TestModelNotFoundDetector(unittest.TestCase):
+    def _r(self, out="", err=""):
+        return rb.SpawnResult(1, out, err, 0.0, False)
+
+    def test_detects_each_providers_grounded_signature(self):
+        self.assertTrue(rb.model_not_found(self._r(err="ModelNotFoundError: Requested entity was not found.")))
+        self.assertTrue(rb.model_not_found(self._r(out="It may not exist or you may not have access to it.")))
+        self.assertTrue(rb.model_not_found(self._r(err='"message":"The model is not supported when using Codex"')))
+
+    def test_clean_output_is_not_flagged(self):
+        self.assertFalse(rb.model_not_found(self._r(out="ready")))
+
+
+class TestToolchainCheck(EnvMixin):
+    def test_all_stale_by_default(self):
+        # mock npm/brew report "latest" 9.9.9, far ahead of the mock CLIs' versions.
+        code, out, _ = run_cli(["toolchain"])
+        self.assertEqual(code, rb.EXIT_OK)
+        for seat in ("claude", "codex", "gemini", "antigravity"):
+            self.assertIn(seat, out)
+        self.assertIn("STALE", out)
+        self.assertIn("behind latest", out)
+
+    def test_current_when_versions_match(self):
+        os.environ["MOCK_NPM_CLAUDE"] = "2.0.0"
+        os.environ["MOCK_NPM_CODEX"] = "0.30.0"
+        os.environ["MOCK_BREW_GEMINI"] = "0.46.0"
+        os.environ["MOCK_BREW_CASK"] = "1.0.0"   # matches the mock agy --version
+        os.environ["MOCK_BREW_OLLAMA"] = "0.5.0"  # matches the mock ollama --version
+        code, out, _ = run_cli(["toolchain"])
+        self.assertEqual(code, rb.EXIT_OK)
+        self.assertNotIn("STALE", out)
+        self.assertIn("current", out)
+
+    def test_board_subset_only_checks_those_seats(self):
+        code, out, _ = run_cli(["toolchain", "--board", "claude,gemini"])
+        self.assertEqual(code, rb.EXIT_OK)
+        self.assertIn("claude", out)
+        self.assertIn("gemini", out)
+        # codex row absent (only its name as a seat label would appear)
+        self.assertNotIn("@openai/codex", out)
+
+    def test_missing_manager_reads_unknown_not_stale(self):
+        import dataclasses
+        bad = dataclasses.replace(rb.REGISTRY["claude"],
+                                  latest_argv=lambda: ["definitely-no-such-tool-xyz", "view"])
+        st = rb.check_tool(bad)
+        self.assertIsNone(st.current)       # cannot judge -> not "stale"
+        self.assertIsNone(st.update_argv)   # and therefore never auto-updated
+        self.assertIn("unknown", st.note)
+
+    def test_flag_drift_note_when_cli_newer_than_grounding(self):
+        import dataclasses
+        a = dataclasses.replace(rb.REGISTRY["claude"], flags_verified_version="1.0.0")
+        st = rb.check_tool(a)   # mock claude --version is 2.0.0 > 1.0.0
+        self.assertIn("re-verify", st.note)
+
+
+class TestToolchainUpdate(EnvMixin):
+    def _stale_statuses(self):
+        return rb.check_toolchain([rb.REGISTRY[n] for n in ("claude", "codex", "gemini")])
+
+    def test_interactive_decline_does_not_update(self):
+        log = os.path.join(tempfile.mkdtemp(), "argv.log")
+        os.environ["MOCK_ARGV_LOG"] = log
+        statuses = self._stale_statuses()
+        rv, out = _capture(
+            lambda: rb.update_stale_tools(statuses, assume_yes=False, interactive=True),
+            stdin="n\n")
+        self.assertEqual(rv, 0)
+        self.assertIn("no update performed", out)
+        logged = ""
+        if os.path.exists(log):
+            with open(log) as fh:
+                logged = fh.read()
+        self.assertNotIn("\tupdate", logged)   # no `claude update` / `codex update` ran
+
+    def test_interactive_accept_updates_each_stale_seat(self):
+        log = os.path.join(tempfile.mkdtemp(), "argv.log")
+        os.environ["MOCK_ARGV_LOG"] = log
+        statuses = self._stale_statuses()
+        rv, out = _capture(
+            lambda: rb.update_stale_tools(statuses, assume_yes=False, interactive=True),
+            stdin="y\n")
+        self.assertEqual(rv, 0)
+        for seat in ("claude", "codex", "gemini"):
+            self.assertIn(f"{seat}: updated", out)
+        with open(log) as fh:
+            logged = fh.read()
+        self.assertIn("claude\tupdate", logged)
+        self.assertIn("codex\tupdate", logged)
+
+    def test_yes_flag_skips_prompt(self):
+        code, out, _ = run_cli(["toolchain", "--update", "--yes"])
+        self.assertEqual(code, rb.EXIT_OK)
+        self.assertIn("claude: updated", out)
+
+    def test_nontty_without_yes_is_a_noop(self):
+        code, out, _ = run_cli(["toolchain", "--update"], stdin="")
+        self.assertEqual(code, rb.EXIT_OK)
+        self.assertIn("re-run with --yes", out)
+
+    def test_update_failure_sets_nonzero_exit(self):
+        os.environ["MOCK_BREW_UPGRADE_FAIL"] = "1"
+        code, out, _ = run_cli(["toolchain", "--update", "--yes"])
+        self.assertEqual(code, rb.EXIT_USAGE)
+        self.assertIn("update failed", out)
+
+
+class TestModelProposal(EnvMixin):
+    def test_pinned_model_404_proposes_resolvable_fallback(self):
+        # gemini's pinned id (gemini-3.5-flash) 404s; a fallback resolves.
+        os.environ["MOCK_GEMINI_MODE"] = "model_proposal"
+        code, out, _ = run_cli(["preflight", "--source", SAMPLE])
+        # claude + codex still GO -> board can proceed (>= 2 voices)
+        self.assertEqual(code, rb.EXIT_OK)
+        self.assertIn("proposal (gemini)", out)
+        self.assertIn("gemini-3-flash-preview", out)
+
+    def test_propose_model_returns_first_resolvable(self):
+        os.environ["MOCK_GEMINI_MODE"] = "model_proposal"
+        seat = next(s for s in _config().board if s.name == "gemini")
+        proposal = rb.propose_model(seat, network_on=False, workdir=None)
+        self.assertEqual(proposal, "gemini-3-flash-preview")
+
+
+class TestRunUpdateToolsFlag(EnvMixin):
+    def test_run_update_tools_runs_toolchain_then_proceeds(self):
+        out = tempfile.mkdtemp(prefix="board-upd-")
+        code, text, _ = run_cli(["run", "--source", SAMPLE, "--out", out,
+                                 "--update-tools", "--yes"])
+        self.assertEqual(code, rb.EXIT_OK)
+        self.assertIn("=== toolchain ===", text)
+        self.assertIn("=== preflight ===", text)
+        self.assertIn("M3", text)   # still stops at the documented spawn boundary
+
+
+class TestAntigravitySeat(EnvMixin):
+    def test_default_board_excludes_antigravity(self):
+        names = [s.name for s in _config().board]
+        self.assertEqual(names, ["claude", "codex", "gemini"])
+        self.assertNotIn("antigravity", names)
+
+    def test_parse_brew_cask_latest(self):
+        good = '{"casks":[{"version":"1.0.12,6156052174077952"}]}'
+        self.assertEqual(rb.parse_brew_cask_latest(good), "1.0.12")  # comma-revision stripped
+        self.assertIsNone(rb.parse_brew_cask_latest("not json"))
+        self.assertIsNone(rb.parse_brew_cask_latest('{"formulae":[]}'))
+
+    def test_toolchain_check_includes_antigravity_via_cask(self):
+        code, out, _ = run_cli(["toolchain", "--board", "antigravity"])
+        self.assertEqual(code, rb.EXIT_OK)
+        self.assertIn("antigravity", out)
+        self.assertIn("--cask antigravity-cli", out)   # brew-cask manager label
+        self.assertIn("STALE", out)                    # mock agy 1.0.0 < cask latest 9.9.9
+
+    def test_board_with_antigravity_preflight_go(self):
+        code, out, _ = run_cli(["preflight", "--source", SAMPLE,
+                                "--board", "claude,codex,antigravity"])
+        self.assertEqual(code, rb.EXIT_OK)
+        self.assertIn("antigravity", out)
+        self.assertIn("3 of 3 seats GO", out)
+
+
+class TestOllamaSeat(EnvMixin):
+    """The local-model seat: the documented single-provider / sensitive-material
+    fallback, now actually runnable (`--board claude,ollama`)."""
+
+    def test_default_board_excludes_ollama(self):
+        names = [s.name for s in _config().board]
+        self.assertEqual(names, ["claude", "codex", "gemini"])
+        self.assertNotIn("ollama", names)   # opt-in via --board, never default
+
+    def test_ollama_flags_and_local_isolation(self):
+        a = rb.REGISTRY["ollama"]
+        argv = a.build_argv("llama3.3", "PROMPT", network=False)
+        self.assertEqual(argv, ["ollama", "run", "llama3.3"])  # prompt is on stdin, not argv
+        self.assertNotIn("PROMPT", argv)
+        self.assertTrue(a.prompt_on_stdin)      # `ollama run` reads the prompt on stdin
+        self.assertFalse(a.close_stdin)
+        self.assertEqual(a.provider, "local")   # NOT external egress
+        self.assertTrue(a.isolates_network)     # local model: no external network, intrinsic
+        self.assertEqual(a.default_model, "llama3.3")
+
+    def test_local_seat_is_not_external_egress(self):
+        # A claude+ollama board: only the claude prompt is external; ollama stays local.
+        c = _config(board="claude,ollama")
+        blobs = rb.build_packet(c)
+        by_seat = {b.seat: b for b in blobs}
+        self.assertEqual(by_seat["ollama"].provider, "local")
+        external = [b for b in blobs if b.provider != "local"]
+        self.assertEqual([b.seat for b in external], ["claude"])   # ollama excluded
+        # disclosure names only the external provider, never the local seat.
+        disclosure = rb.disclosure_line(c)
+        self.assertIn("Anthropic", disclosure)
+        self.assertNotIn("local", disclosure)
+
+    def test_egress_gate_treats_local_blob_as_no_egress(self):
+        # Even a single local seat with must-not-leave sensitivity is allowed: nothing
+        # leaves the machine, so the gate approves it (the privacy lever, end to end).
+        c = _config(board="ollama", sensitivity="local-only")
+        blobs = rb.build_packet(c)
+        with contextlib.redirect_stdout(io.StringIO()):
+            ap = rb.enforce_egress_gate(c, blobs, assume_yes=False, skip_gate=False,
+                                        interactive=False)
+        self.assertTrue(ap.approved)
+        self.assertEqual(ap.mode, "disclosure")
+        self.assertIn("no external egress", ap.detail)
+
+    def test_manifest_does_not_list_local_seat_as_leaving(self):
+        c = _config(board="claude,ollama")
+        blobs = rb.build_packet(c)
+        manifest = rb.render_egress_manifest(c, blobs, rb.packet_hash(blobs))
+        self.assertIn("Anthropic (claude)", manifest)         # claude prompt leaves
+        self.assertNotIn("local (ollama)", manifest)          # ollama is NOT in the leaving/providers list
+        self.assertIn("Stays on this machine", manifest)      # local seat is accounted for separately
+        self.assertIn("ollama-round-1.prompt", manifest)
+
+    def test_board_with_ollama_preflights(self):
+        code, out, _ = run_cli(["preflight", "--source", SAMPLE, "--board", "claude,ollama"])
+        self.assertEqual(code, rb.EXIT_OK)
+        self.assertIn("ollama", out)
+        self.assertIn("2 of 2 seats GO", out)
+
+    def test_toolchain_includes_ollama_via_formula(self):
+        code, out, _ = run_cli(["toolchain", "--board", "ollama"])
+        self.assertEqual(code, rb.EXIT_OK)
+        self.assertIn("ollama", out)
+        self.assertIn("brew ollama", out)   # formula manager label
+        self.assertIn("STALE", out)         # mock ollama 0.5.0 < formula latest 9.9.9
+
+
+class TestGracefulDegradation(EnvMixin):
+    def _absent(self, seat):
+        import dataclasses
+        return dataclasses.replace(rb.REGISTRY[seat],
+                                   version_argv=lambda: ["no-such-binary-xyz", "--version"])
+
+    def test_absent_cli_is_missing_not_unknown(self):
+        st = rb.check_tool(self._absent("antigravity"))
+        self.assertFalse(st.present)
+        self.assertEqual(rb._tool_status_label(st), "missing")     # distinct from "unknown"
+        self.assertEqual(st.install_argv, rb.antigravity_install_argv())
+        self.assertTrue(st.auth_hint)
+
+    def test_table_lists_install_command_and_auth_caveat(self):
+        missing = rb.check_tool(self._absent("codex"))
+        out = rb.render_toolchain_table([missing])
+        self.assertIn("not installed", out)
+        self.assertIn("npm install -g @openai/codex", out)
+        self.assertIn("does NOT grant an account", out)            # install ≠ auth caveat
+
+    def test_install_missing_decline_then_accept(self):
+        log = os.path.join(tempfile.mkdtemp(), "argv.log")
+        os.environ["MOCK_ARGV_LOG"] = log
+        statuses = [rb.check_tool(self._absent("codex"))]
+        # decline
+        rv, out = _capture(lambda: rb.install_missing_tools(statuses, assume_yes=False,
+                                                            interactive=True), stdin="n\n")
+        self.assertEqual(rv, 0)
+        self.assertIn("no install performed", out)
+        # accept (mock npm returns 0 for `npm install ...`)
+        rv, out = _capture(lambda: rb.install_missing_tools(statuses, assume_yes=False,
+                                                            interactive=True), stdin="y\n")
+        self.assertEqual(rv, 0)
+        self.assertIn("codex: installed", out)
+        self.assertIn("install ≠ account", out)
+
+    def test_toolchain_install_is_noop_when_all_present(self):
+        # all mock CLIs are present, so --install finds nothing to do
+        code, out, _ = run_cli(["toolchain", "--install", "--yes"])
+        self.assertEqual(code, rb.EXIT_OK)
+        self.assertNotIn("not installed", out)
+
+    def test_board_guidance_empty_when_board_can_form(self):
+        pf = [rb.SeatPreflight("claude", True, "ok", True, "ran", True, "ok"),
+              rb.SeatPreflight("codex", True, "ok", True, "ran", True, "ok")]
+        self.assertEqual(rb.render_board_guidance(pf, _config()), "")  # >=2 GO -> no guidance
+
+    def test_degraded_preflight_prints_actionable_guidance(self):
+        os.environ["MOCK_CODEX_MODE"] = "nogo_smoke"
+        os.environ["MOCK_GEMINI_MODE"] = "nogo_smoke"
+        code, out, _ = run_cli(["preflight", "--source", SAMPLE])
+        self.assertEqual(code, rb.EXIT_PREFLIGHT_NOGO)
+        self.assertIn("at least 2 independent voices", out)
+        self.assertIn("board-composition.md", out)
+        self.assertIn("Same-provider", out)                        # the single-provider fallback
+
+    def test_run_degraded_prints_guidance_before_stopping(self):
+        os.environ["MOCK_CODEX_MODE"] = "nogo_smoke"
+        os.environ["MOCK_GEMINI_MODE"] = "nogo_smoke"
+        out_dir = tempfile.mkdtemp(prefix="board-degraded-")
+        code, out, _ = run_cli(["run", "--source", SAMPLE, "--out", out_dir], stdin="")
+        self.assertEqual(code, rb.EXIT_PREFLIGHT_NOGO)
+        self.assertIn("board-composition.md", out)
+        # nothing materialized — degraded stop is before the egress gate
+        self.assertFalse(os.path.exists(os.path.join(out_dir, "prompts")))
 
 
 if __name__ == "__main__":

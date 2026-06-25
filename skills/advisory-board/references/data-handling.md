@@ -22,7 +22,7 @@ When redacting the source packet, strip or mask: credentials, tokens, API keys, 
 
 ## Local-only mode
 
-Swap each seat's CLI for a local model runner (e.g. Ollama). The protocol, lenses, rounds, and artifacts are unchanged — only the model endpoints differ. A local board trades some reasoning strength for keeping the material on the machine; say so in the handoff. Record the mode in `run-metadata.md`.
+Swap each seat's CLI for a local model runner. The `ollama` seat is registered for exactly this (`--board ...,ollama`, `--model ollama=<model>`): it carries `provider: local`, so the conductor never egresses its prompt and excludes it from the egress manifest and the disclosure — the material stays on the machine. The protocol, lenses, rounds, and artifacts are unchanged — only the model endpoints differ. A local board trades some reasoning strength for keeping the material on the machine; say so in the handoff. Record the mode in `run-metadata.md`.
 
 ## Always
 

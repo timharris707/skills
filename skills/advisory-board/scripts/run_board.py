@@ -24,10 +24,20 @@ happens in this milestone.
 
 Subcommands:
   init        resolve config and emit run-recipe.yaml + the run-card (no spawn)
+  toolchain   check each seat CLI vs its latest release; --update upgrades stale ones
   preflight   probe each seat (version / smoke ping) and print a GO/NO-GO table
   run         resolve -> preflight -> build packet -> egress gate -> (M3 boundary)
   render      delegate to render_handoff.py (final-consensus.html from data)
   validate    delegate to board_verdict.py (validate / gate verdict.json)
+
+Toolchain currency (the `toolchain` subcommand, also `run --update-tools`) keeps a
+stale CLI from 404-ing a freshly-renamed frontier model id: it reads installed-vs-
+latest per seat (reporting current / STALE / missing / unknown), updates stale CLIs
+and installs absent ones on consent (`--update` / `--install`). Model ids stay
+pinned; a still-unresolvable id yields a *proposed* fallback, never an auto swap.
+When fewer than two seats are usable, preflight/run print actionable guidance
+(install vs auth, plus same-provider / local-seat fallbacks) instead of dead-ending,
+so a single-provider user is never stuck. Installing a CLI never implies an account.
 
 Standard library only. Tested against mock CLIs on PATH (see ../tests/).
 """
@@ -37,6 +47,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -63,6 +74,7 @@ PROVIDERS = {
     "claude": "Anthropic",
     "codex": "OpenAI",
     "gemini": "Google",
+    "antigravity": "Google",
     "ollama": "local",
 }
 
@@ -107,6 +119,7 @@ FAILURE_TIMEOUT = "Timeout"
 FAILURE_AUTH = "AuthFailure"
 FAILURE_INVALID = "InvalidOutput"
 FAILURE_NOOUTPUT = "NoOutput"
+FAILURE_MODEL = "ModelNotFound"   # pinned model id did not resolve on the installed CLI
 
 
 def die(message: str, code: int = EXIT_USAGE) -> "NoReturn":  # type: ignore[name-defined]
@@ -157,6 +170,17 @@ class SeatAdapter:
     isolates_network: bool               # can gate mode actually REMOVE this seat's network via a flag?
     model_answered: Callable[[str, str], Optional[str]]  # (stdout, stderr) -> real model id | None
     timeout_s: int = 900                 # hard cap; §13 default is 15 min (overridden per call)
+    # --- toolchain currency + model self-heal (all optional; a seat without a
+    #     package manager simply reports "unknown" and is never auto-updated) ---
+    latest_argv: Optional[Callable[[], list]] = None     # () -> argv that prints the latest version
+    parse_latest: Optional[Callable[[str], Optional[str]]] = None  # stdout -> version str
+    update_argv: Optional[Callable[[], list]] = None     # () -> argv that updates this CLI
+    install_argv: Optional[Callable[[], list]] = None    # () -> argv that installs this CLI when absent
+    auth_hint: str = ""                  # how to authenticate after install (no secrets)
+    pkg_label: str = ""                  # human label for the manager, e.g. "brew gemini-cli"
+    flags_verified_version: str = ""     # CLI version build_argv's flags were last grounded against
+    fallback_models: tuple = ()          # ordered ids to PROBE + PROPOSE if default_model 404s
+                                         # (never auto-applied — model ids stay pinned per policy)
 
 
 def _model_answered_none(stdout: str, stderr: str) -> Optional[str]:
@@ -214,11 +238,182 @@ def gemini_argv(model, prompt, *, reasoning="HIGH", workdir=None, network=False)
     # isolates_network=False below). fs scoping is the subprocess cwd at spawn.
     # `network`/`workdir` are accepted for a uniform signature but not enforceable
     # here — do not pretend otherwise in the consent surface.
-    return ["gemini", "-p", prompt, "-m", model, "--approval-mode", "plan"]
+    #
+    # --skip-trust: gemini-cli >= 0.46 added "trusted folders" — headless runs in
+    # an untrusted dir get approval-mode forced to default and exit 55 with NO
+    # output (verified on 0.46.0). We run read-only (plan) in a scoped throwaway
+    # dir, so trusting that session is safe and required for the board to work.
+    return ["gemini", "-p", prompt, "-m", model, "--approval-mode", "plan", "--skip-trust"]
 
 
 def gemini_version():
     return ["gemini", "--version"]
+
+
+def antigravity_argv(model, prompt, *, reasoning="High", workdir=None, network=False):
+    # Antigravity CLI (`agy`) is Google's agent-first successor to gemini-cli
+    # (gemini-cli sunset for consumer tiers 2026-06-18). `-p` runs a single prompt
+    # non-interactively and prints the response. --sandbox enables terminal
+    # restrictions for a read-only-ish posture; fs scoping is the subprocess cwd.
+    #
+    # Two verified gotchas (grounded on agy 1.0.12, 2026-06-25):
+    #  * stdin is read to EOF — without close_stdin/DEVNULL the call HANGS (codex-style).
+    #  * an unknown --model is SILENTLY substituted (no error, no 404), so pin an exact
+    #    display name from `agy models` ("Gemini 3.5 Flash (High)") and never trust that
+    #    the requested model answered without a model_answered check (fallback probing is
+    #    pointless here — it never fails loudly).
+    # Effort is baked into the model display name ("... (High)"), so `reasoning` is not
+    # a separate flag. Like gemini, this is an agentic harness whose web/grounding is
+    # not removable, mirrored honestly as isolates_network=False.
+    return ["agy", "-p", prompt, "--model", model, "--sandbox"]
+
+
+def antigravity_version():
+    return ["agy", "--version"]
+
+
+def ollama_argv(model, prompt, *, reasoning="default", workdir=None, network=False):
+    # Ollama runs the model entirely on-machine, so there is NO external egress —
+    # which is exactly why a local seat is the privacy lever for sensitive material
+    # (references/data-handling.md), reflected as provider="local" + isolates_network=True.
+    # `ollama run <model>` reads the prompt on STDIN to EOF, prints the completion,
+    # and exits (the non-interactive form; a piped stdin suppresses the REPL). The
+    # prompt rides stdin (prompt_on_stdin=True), so it never lands in argv and never
+    # needs shell-escaping.
+    #
+    # `network`/`workdir`/`reasoning` are accepted for a uniform adapter signature but
+    # are NOT flags here: a local model has no web/grounding tools to remove (network
+    # isolation is intrinsic), no dir-scoping flag (fs scoping is the subprocess cwd at
+    # spawn), and no reasoning-effort knob.
+    #
+    # NOTE: grounded against Ollama's documented/stable CLI, NOT a live local install
+    # (ollama was absent on the dev box). The `ollama run <model>` stdin form has been
+    # stable across releases; flags_verified_version is left empty (no live grounding to
+    # claim) — re-verify `ollama run --help` before a large run.
+    return ["ollama", "run", model]
+
+
+def ollama_version():
+    return ["ollama", "--version"]
+
+
+# --------------------------------------------------------------------------- #
+# Toolchain currency (design §7a). Each seat CLI is installed by a different
+# package manager, so "what is the latest version" and "update it" live here,
+# per seat, next to that CLI's other quirks. The whole point is self-healing: a
+# stale CLI is the single most common reason a freshly-renamed frontier model id
+# (gemini-3-flash-preview -> gemini-3.5-flash) suddenly 404s. Grounded against
+# the installed managers on 2026-06-25: npm for claude/codex, Homebrew for gemini
+# (formula), antigravity (cask), and ollama (formula).
+# --------------------------------------------------------------------------- #
+
+def claude_latest_argv():  return ["npm", "view", "@anthropic-ai/claude-code", "version"]
+def claude_update_argv():  return ["claude", "update"]
+def claude_install_argv(): return ["npm", "install", "-g", "@anthropic-ai/claude-code"]
+
+def codex_latest_argv():   return ["npm", "view", "@openai/codex", "version"]
+def codex_update_argv():   return ["codex", "update"]
+def codex_install_argv():  return ["npm", "install", "-g", "@openai/codex"]
+
+def gemini_latest_argv():  return ["brew", "info", "--json=v2", "gemini-cli"]
+def gemini_update_argv():  return ["brew", "upgrade", "gemini-cli"]
+def gemini_install_argv(): return ["brew", "install", "gemini-cli"]
+
+def antigravity_latest_argv():  return ["brew", "info", "--json=v2", "--cask", "antigravity-cli"]
+def antigravity_update_argv():  return ["brew", "upgrade", "--cask", "antigravity-cli"]
+def antigravity_install_argv(): return ["brew", "install", "--cask", "antigravity-cli"]
+
+def ollama_latest_argv():  return ["brew", "info", "--json=v2", "ollama"]   # ships as a brew formula
+def ollama_update_argv():  return ["brew", "upgrade", "ollama"]
+def ollama_install_argv(): return ["brew", "install", "ollama"]
+
+
+_SEMVER_RE = re.compile(r"\d+(?:\.\d+)+")
+
+
+def parse_semver(text: str) -> Optional[str]:
+    """Pull the first dotted-numeric version out of mixed CLI banner text.
+
+    Robust across the formats the seats actually print: "2.1.177 (Claude Code)",
+    "codex-cli 0.135.0", a bare "0.38.2", or "0.46.0" from a manager.
+    """
+    if not text:
+        return None
+    m = _SEMVER_RE.search(text)
+    return m.group(0) if m else None
+
+
+def parse_npm_latest(stdout: str) -> Optional[str]:
+    # `npm view <pkg> version` prints the bare version on its own line.
+    return parse_semver(stdout)
+
+
+def parse_brew_latest(stdout: str) -> Optional[str]:
+    # `brew info --json=v2 <formula>` -> formulae[0].versions.stable. stdlib json,
+    # no jq. Any shape surprise degrades to "unknown" rather than crashing preflight.
+    try:
+        data = json.loads(stdout)
+        return data["formulae"][0]["versions"]["stable"]
+    except (ValueError, KeyError, IndexError, TypeError):
+        return None
+
+
+def parse_brew_cask_latest(stdout: str) -> Optional[str]:
+    # `brew info --json=v2 --cask <cask>` -> casks[0].version (e.g. "1.0.12,6156..."),
+    # so reduce to the dotted-numeric head. antigravity-cli ships as a cask.
+    try:
+        data = json.loads(stdout)
+        return parse_semver(data["casks"][0]["version"])
+    except (ValueError, KeyError, IndexError, TypeError):
+        return None
+
+
+def version_tuple(version: Optional[str]) -> tuple:
+    if not version:
+        return ()
+    try:
+        return tuple(int(p) for p in version.split("."))
+    except ValueError:
+        return ()
+
+
+def version_is_current(installed: Optional[str], latest: Optional[str]) -> Optional[bool]:
+    """True if installed >= latest, False if behind, None if either is unknown.
+
+    None ("can't judge") is deliberate: a missing package manager or an offline
+    box must NOT read as "stale" and trigger a spurious update prompt.
+    """
+    iv, lv = version_tuple(installed), version_tuple(latest)
+    if not iv or not lv:
+        return None
+    width = max(len(iv), len(lv))
+    iv += (0,) * (width - len(iv))
+    lv += (0,) * (width - len(lv))
+    return iv >= lv
+
+
+# Model-not-found signatures, grounded against live CLI output on 2026-06-25:
+#   claude (stdout): "...may not exist or you may not have access to it."
+#   codex  (stderr): {"type":"invalid_request_error","message":"The '...' model is not supported..."}
+#   gemini (stderr): "ModelNotFoundError: Requested entity was not found."
+# A pinned id that trips one of these on a smoke ping means the id is stale for
+# the installed CLI — the trigger to update the CLI and/or propose a fallback id.
+_MODEL_NOT_FOUND_SIGNALS = (
+    "modelnotfound",
+    "requested entity was not found",
+    "may not exist or you may not have access",
+    "issue with the selected model",
+    "model is not supported",
+    "is not supported when using codex",
+    "model not found",
+    "no such model",
+    "unknown model",
+)
+
+
+def model_not_found(result: "SpawnResult") -> bool:
+    blob = (result.stdout + "\n" + result.stderr).lower()
+    return any(sig in blob for sig in _MODEL_NOT_FOUND_SIGNALS)
 
 
 REGISTRY: dict = {
@@ -235,6 +430,14 @@ REGISTRY: dict = {
         supports_isolation=True,
         isolates_network=True,   # --disallowed-tools WebSearch WebFetch removes web reach
         model_answered=_model_answered_none,
+        latest_argv=claude_latest_argv,
+        parse_latest=parse_npm_latest,
+        update_argv=claude_update_argv,
+        install_argv=claude_install_argv,
+        auth_hint="run `claude` once and sign in (Claude subscription, or set ANTHROPIC_API_KEY)",
+        pkg_label="npm @anthropic-ai/claude-code",
+        flags_verified_version="2.1.177",
+        fallback_models=(),   # Anthropic ids are stable; pin the current one, no guesses
     ),
     "codex": SeatAdapter(
         name="codex",
@@ -249,10 +452,22 @@ REGISTRY: dict = {
         supports_isolation=True,
         isolates_network=True,   # --sandbox read-only has no network (verified: DNS fails inside)
         model_answered=_model_answered_none,
+        latest_argv=codex_latest_argv,
+        parse_latest=parse_npm_latest,
+        update_argv=codex_update_argv,
+        install_argv=codex_install_argv,
+        auth_hint="run `codex` once and sign in with your ChatGPT account (subscription preferred)",
+        pkg_label="npm @openai/codex",
+        flags_verified_version="0.135.0",
+        fallback_models=(),
     ),
     "gemini": SeatAdapter(
         name="gemini",
-        default_model="gemini-3.1-pro",
+        # GA id confirmed against Google's docs (2026-06-24): Gemini 3 Flash Preview
+        # was renamed gemini-3-flash-preview -> gemini-3.5-flash on GA. The GA id
+        # needs gemini-cli >= 0.46 to resolve; older CLIs 404 it, which is exactly
+        # what the toolchain preflight detects and fixes (update CLI, or fall back).
+        default_model="gemini-3.5-flash",
         provider="Google",
         default_reasoning="HIGH",
         build_argv=gemini_argv,
@@ -263,6 +478,68 @@ REGISTRY: dict = {
         supports_isolation=True,    # fs scoping via cwd; network is NOT removable (below)
         isolates_network=False,  # no known flag disables GoogleSearch grounding — surfaced loudly
         model_answered=_model_answered_none,
+        latest_argv=gemini_latest_argv,
+        parse_latest=parse_brew_latest,
+        update_argv=gemini_update_argv,
+        install_argv=gemini_install_argv,
+        auth_hint="run `gemini` once and authenticate (Google account; consumer tiers sunset 2026-06-18 — enterprise/API only)",
+        pkg_label="brew gemini-cli",
+        flags_verified_version="0.46.0",   # -m/-p/--approval-mode plan/--skip-trust verified on 0.46.0 (2026-06-25)
+        # Ordered fallbacks to PROBE + PROPOSE (not auto-apply) if gemini-3.5-flash
+        # 404s on a not-yet-updated CLI: the immediate predecessor first, then Pro.
+        fallback_models=("gemini-3-flash-preview", "gemini-3.1-pro", "gemini-3-pro-preview"),
+    ),
+    "antigravity": SeatAdapter(
+        name="antigravity",
+        # Exact display name from `agy models` — agy silently substitutes an unknown
+        # name, so this must match a listed model verbatim (verified on agy 1.0.12).
+        default_model="Gemini 3.5 Flash (High)",
+        provider="Google",
+        default_reasoning="High",   # effort is part of the model name, not a flag
+        build_argv=antigravity_argv,
+        version_argv=antigravity_version,
+        prompt_on_stdin=False,
+        close_stdin=True,        # agy reads stdin to EOF — verified to hang without DEVNULL
+        stderr_is_fatal=False,
+        supports_isolation=True,    # cwd scoping + --sandbox terminal restrictions
+        isolates_network=False,  # agent-first harness; web/grounding not removable — surfaced loudly
+        model_answered=_model_answered_none,
+        latest_argv=antigravity_latest_argv,
+        parse_latest=parse_brew_cask_latest,
+        update_argv=antigravity_update_argv,
+        install_argv=antigravity_install_argv,
+        auth_hint="run `agy` once and sign in (Google account; the gemini-cli successor)",
+        pkg_label="brew --cask antigravity-cli",
+        flags_verified_version="1.0.12",
+        fallback_models=(),      # agy never 404s a model (it silently substitutes) — no probe to do
+    ),
+    "ollama": SeatAdapter(
+        name="ollama",
+        # A local model is user-chosen — this is a sensible, broadly-pullable default
+        # to override with `--model ollama=<your pulled model>` (see `ollama list`).
+        # Pinned inline per the model-id policy; no fallback probing, because what
+        # resolves depends entirely on what the user has pulled locally, not on a
+        # renamable hosted id (fallback_models=()).
+        default_model="llama3.3",
+        provider="local",          # NOT external egress — the privacy lever (data-handling.md)
+        default_reasoning="default",   # local models have no reasoning-effort knob
+        build_argv=ollama_argv,
+        version_argv=ollama_version,
+        prompt_on_stdin=True,      # `ollama run <model>` reads the prompt on stdin (like claude)
+        close_stdin=False,
+        stderr_is_fatal=False,     # ollama prints model-load / pull progress to stderr — not fatal
+        supports_isolation=True,   # fs scoping via cwd; a local model has nothing external to scope
+        isolates_network=True,     # local model: no external network at all (intrinsic, not a flag)
+        model_answered=_model_answered_none,
+        latest_argv=ollama_latest_argv,
+        parse_latest=parse_brew_latest,
+        update_argv=ollama_update_argv,
+        install_argv=ollama_install_argv,
+        auth_hint="no account needed — local models stay on your machine; pull one with "
+                  "`ollama pull <model>` (see `ollama list`)",
+        pkg_label="brew ollama",
+        flags_verified_version="",  # ollama absent on the dev box — no live grounding to claim
+        fallback_models=(),
     ),
 }
 
@@ -933,6 +1210,207 @@ def classify(result: SpawnResult, adapter: SeatAdapter) -> tuple:
 
 
 # --------------------------------------------------------------------------- #
+# Toolchain currency (design §7a) — check each CLI vs latest, update on consent.
+# --------------------------------------------------------------------------- #
+
+
+@dataclass
+class ToolStatus:
+    seat: str
+    pkg_label: str
+    installed: Optional[str]
+    latest: Optional[str]
+    current: Optional[bool]        # True up-to-date, False stale, None can't judge
+    update_argv: Optional[list]    # set only when stale and an updater is known
+    note: str = ""                 # advisories (manager missing, flag-drift) — never fatal
+    present: bool = True           # is the CLI binary installed at all? (False => "missing")
+    install_argv: Optional[list] = None  # how to install it when absent
+    auth_hint: str = ""            # how to authenticate after install
+
+
+def check_tool(adapter: SeatAdapter) -> ToolStatus:
+    """Read installed vs latest version for one seat. Read-only, never updates."""
+    iv = spawn(adapter, adapter.version_argv(), timeout=15)
+    # exit 127 == binary not found (spawn maps FileNotFoundError -> 127). Distinguish
+    # "not installed" (offer to install) from "installed but version unreadable".
+    present = iv.exit_code != 127
+    install = adapter.install_argv() if adapter.install_argv else None
+    if not present:
+        # note stays empty — the "missing" status + the install section already say it.
+        return ToolStatus(adapter.name, adapter.pkg_label or adapter.provider,
+                          None, None, None, None, "",
+                          present=False, install_argv=install, auth_hint=adapter.auth_hint)
+    installed = parse_semver(iv.stdout + "\n" + iv.stderr) if iv.exit_code == 0 else None
+
+    latest, note = None, ""
+    if adapter.latest_argv and adapter.parse_latest:
+        res = spawn(adapter, adapter.latest_argv(), timeout=45)
+        if res.exit_code == 0:
+            latest = adapter.parse_latest(res.stdout)
+        if latest is None:
+            mgr = adapter.latest_argv()[0]
+            note = f"latest unknown ({mgr} unavailable or unparsable)"
+
+    current = version_is_current(installed, latest)
+
+    # Flag-drift advisory: build_argv's flags were grounded against a specific CLI
+    # version. If the installed CLI is newer, the flags may have moved — surface it
+    # (this is the "re-verify after an 8-version jump" reminder, made automatic).
+    if installed and adapter.flags_verified_version:
+        if version_is_current(adapter.flags_verified_version, installed) is False:
+            drift = f"flags grounded at {adapter.flags_verified_version}, now {installed} — re-verify --help"
+            note = f"{note}; {drift}" if note else drift
+
+    upd = adapter.update_argv() if (adapter.update_argv and current is False) else None
+    return ToolStatus(adapter.name, adapter.pkg_label or adapter.provider,
+                      installed, latest, current, upd, note,
+                      present=True, install_argv=None, auth_hint=adapter.auth_hint)
+
+
+def check_toolchain(adapters: list) -> list:
+    return [check_tool(a) for a in adapters]
+
+
+def _tool_status_label(s: ToolStatus) -> str:
+    if not s.present:
+        return "missing"
+    return "current" if s.current else ("STALE" if s.current is False else "unknown")
+
+
+def render_toolchain_table(statuses: list) -> str:
+    rows = ["| Seat        | Manager                       | Installed | Latest  | Status  |",
+            "| ----------- | ----------------------------- | --------- | ------- | ------- |"]
+    for s in statuses:
+        rows.append(f"| {s.seat:<11} | {s.pkg_label:<29} | {(s.installed or '—'):<9} "
+                    f"| {(s.latest or '?'):<7} | {_tool_status_label(s):<7} |")
+    stale = [s for s in statuses if s.current is False and s.present]
+    missing = [s for s in statuses if not s.present]
+    rows.append("")
+    if stale:
+        rows.append(f"{len(stale)} of {len(statuses)} CLIs behind latest: "
+                    + ", ".join(f"{s.seat} ({s.installed}→{s.latest})" for s in stale))
+        rows.append("update with:  run_board.py toolchain --update")
+    elif not missing:
+        rows.append(f"all {len(statuses)} CLIs current (or unknown).")
+    # Not-installed seats: print the exact install command (guidance by default).
+    if missing:
+        rows.append("")
+        rows.append(f"{len(missing)} seat CLI(s) not installed:")
+        for s in missing:
+            cmd = " ".join(s.install_argv) if s.install_argv else "(no installer known)"
+            rows.append(f"  {s.seat:<11} install: {cmd}")
+            if s.auth_hint:
+                rows.append(f"  {'':<11} then:    {s.auth_hint}")
+        rows.append("install with:  run_board.py toolchain --install   "
+                    "(note: installing a CLI does NOT grant an account — you still need provider auth)")
+    for s in statuses:
+        if s.note:
+            rows.append(f"  note ({s.seat}): {s.note}")
+    return "\n".join(rows)
+
+
+def update_tool(status: ToolStatus) -> tuple:
+    """Run one seat's updater, streaming its output. Returns (ok, detail)."""
+    if not status.update_argv:
+        return True, "nothing to update"
+    print(f"  updating {status.seat} ({status.pkg_label}) "
+          f"{status.installed} → {status.latest} ...")
+    try:
+        completed = subprocess.run(status.update_argv)
+    except FileNotFoundError:
+        return False, f"updater not found: {status.update_argv[0]}"
+    ok = completed.returncode == 0
+    return ok, ("updated" if ok else f"update failed (exit {completed.returncode})")
+
+
+def update_stale_tools(statuses: list, *, assume_yes: bool,
+                       interactive: Optional[bool] = None) -> int:
+    """Consent-gated update of every stale seat (design decision: detect+confirm).
+
+    Mirrors the egress gate's consent posture: --yes approves unattended; an
+    interactive TTY is prompted y/N; a non-TTY without --yes is a no-op (it tells
+    you to re-run with --yes) rather than a hard error. Returns the count of
+    updates that FAILED (0 == all good / nothing to do / declined).
+    """
+    stale = [s for s in statuses if s.current is False and s.update_argv]
+    if not stale:
+        return 0
+    if not assume_yes:
+        is_tty = interactive if interactive is not None else sys.stdin.isatty()
+        if not is_tty:
+            print("stale CLIs found; re-run with --yes (or interactively) to update them.")
+            return 0
+        reply = input(f"\nUpdate {len(stale)} stale CLI(s)? [y/N] ").strip().lower()
+        if reply not in ("y", "yes"):
+            print("no update performed.")
+            return 0
+    failed = 0
+    for s in stale:
+        ok, detail = update_tool(s)
+        print(f"  {s.seat}: {detail}")
+        failed += 0 if ok else 1
+    return failed
+
+
+def install_tool(status: ToolStatus) -> tuple:
+    """Install one absent seat CLI, streaming its output. Returns (ok, detail)."""
+    if not status.install_argv:
+        return True, "no installer known"
+    print(f"  installing {status.seat} ({status.pkg_label}): "
+          f"{' '.join(status.install_argv)} ...")
+    try:
+        completed = subprocess.run(status.install_argv)
+    except FileNotFoundError:
+        return False, f"installer not found: {status.install_argv[0]}"
+    ok = completed.returncode == 0
+    return ok, ("installed" if ok else f"install failed (exit {completed.returncode})")
+
+
+def install_missing_tools(statuses: list, *, assume_yes: bool,
+                          interactive: Optional[bool] = None) -> int:
+    """Consent-gated install of absent seat CLIs (same posture as update). Note: a
+    successful install still does not grant a provider account — auth is separate.
+    Returns the count of installs that FAILED (0 == all good / nothing to do / declined)."""
+    missing = [s for s in statuses if not s.present and s.install_argv]
+    if not missing:
+        return 0
+    if not assume_yes:
+        is_tty = interactive if interactive is not None else sys.stdin.isatty()
+        if not is_tty:
+            print("missing CLIs found; re-run with --yes (or interactively) to install them.")
+            return 0
+        reply = input(f"\nInstall {len(missing)} missing CLI(s)? [y/N] ").strip().lower()
+        if reply not in ("y", "yes"):
+            print("no install performed.")
+            return 0
+    failed = 0
+    for s in missing:
+        ok, detail = install_tool(s)
+        print(f"  {s.seat}: {detail}"
+              + ("  (now authenticate — install ≠ account)" if ok else ""))
+        failed += 0 if ok else 1
+    return failed
+
+
+def propose_model(seat: SeatConfig, *, network_on: bool, workdir: Optional[str],
+                  smoke_timeout: int = 45) -> Optional[str]:
+    """When a seat's pinned model 404s, probe its fallbacks and return the first
+    that resolves — a PROPOSAL for the user, never an automatic swap (model ids
+    stay pinned per the advisory-board-model-policy)."""
+    adapter = seat.adapter
+    for candidate in adapter.fallback_models:
+        if candidate == seat.model:
+            continue
+        argv = adapter.build_argv(candidate, SMOKE_PROMPT, reasoning=seat.reasoning,
+                                  workdir=workdir, network=network_on)
+        smoke = spawn(adapter, argv, prompt=SMOKE_PROMPT, timeout=smoke_timeout, cwd=workdir)
+        status, _ = classify(smoke, adapter)
+        if status in ("ran", "degraded") and not model_not_found(smoke):
+            return candidate
+    return None
+
+
+# --------------------------------------------------------------------------- #
 # Preflight (design §7) — executable GO/NO-GO
 # --------------------------------------------------------------------------- #
 
@@ -946,6 +1424,7 @@ class SeatPreflight:
     smoke_status: str    # ran | degraded | dropped
     go: bool
     detail: str
+    model_proposal: Optional[str] = None  # a resolvable fallback id when the pinned one 404s
 
 
 def preflight_seat(seat: SeatConfig, *, network_on: bool, workdir: Optional[str] = None,
@@ -963,6 +1442,20 @@ def preflight_seat(seat: SeatConfig, *, network_on: bool, workdir: Optional[str]
                               workdir=workdir, network=network_on)
     smoke = spawn(adapter, argv, prompt=prompt, timeout=smoke_timeout, cwd=workdir)
     status, failure = classify(smoke, adapter)
+
+    # A model-not-found signal must override classify(): claude prints the "model
+    # may not exist" notice to stdout with exit 1, which would otherwise look like
+    # "degraded-but-ran". This is a stale-CLI / renamed-id symptom, not auth — so
+    # probe the seat's fallbacks for a resolvable id to PROPOSE (never auto-apply).
+    proposal = None
+    if model_not_found(smoke):
+        proposal = propose_model(seat, network_on=network_on, workdir=workdir,
+                                  smoke_timeout=smoke_timeout)
+        detail = f"version ok; model '{seat.model}' did not resolve ({FAILURE_MODEL})"
+        if proposal:
+            detail += f"; fallback that resolves: {proposal}"
+        return SeatPreflight(seat.name, binary_ok, "unknown (model id did not resolve)",
+                             False, "dropped", False, detail, proposal)
 
     # The smoke ping proves model + transport end to end and that *some* auth is
     # live, but we do NOT run a separate session/whoami probe, so we report the
@@ -998,21 +1491,77 @@ def run_preflight(config: RunConfig) -> list:
 
 
 def render_preflight_table(results: list) -> str:
-    rows = ["| Seat   | CLI | Auth                                          | Model | Smoke    | Verdict |",
-            "| ------ | --- | --------------------------------------------- | ----- | -------- | ------- |"]
+    rows = ["| Seat        | CLI | Auth                                          | Model | Smoke    | Verdict |",
+            "| ----------- | --- | --------------------------------------------- | ----- | -------- | ------- |"]
     for r in results:
         cli = "yes" if r.binary_ok else "no"
         model = "yes" if r.model_ok else "no"
         verdict = "GO" if r.go else "NO-GO"
         rows.append(
-            f"| {r.seat:<6} | {cli:<3} | {r.auth:<45} | {model:<5} "
+            f"| {r.seat:<11} | {cli:<3} | {r.auth:<45} | {model:<5} "
             f"| {r.smoke_status:<8} | {verdict:<7} |"
         )
     go_count = sum(1 for r in results if r.go)
     rows.append("")
     rows.append(f"{go_count} of {len(results)} seats GO "
                 f"({'proceed' if go_count >= 2 else 'STOP — a board needs >= 2 voices'}).")
+    for r in results:
+        if r.model_proposal:
+            rows.append(f"  proposal ({r.seat}): pinned model did not resolve — "
+                        f"`{r.model_proposal}` works; update the CLI or pass "
+                        f"--model {r.seat}={r.model_proposal}")
     return "\n".join(rows)
+
+
+def render_board_guidance(preflight: list, config: RunConfig) -> str:
+    """When a board can't form (<2 usable seats), turn the dead-end into a path:
+    separate not-installed seats (offer the install command) from installed-but-
+    unusable ones (auth/model), then surface the documented fallbacks so a single-
+    provider user is never stuck. Returns "" when the board CAN form."""
+    go = [p for p in preflight if p.go]
+    if len(go) >= 2:
+        return ""
+
+    by_name = {s.name: s for s in config.board}
+    missing, unusable = [], []
+    for p in preflight:
+        if p.go:
+            continue
+        (missing if not p.binary_ok else unusable).append(p.seat)
+
+    lines = [f"Only {len(go)} of {len(preflight)} seats are usable — a board needs at "
+             "least 2 independent voices. Here's how to get there:"]
+
+    if missing:
+        lines.append("")
+        lines.append("CLIs not installed (install ≠ account — you still need provider auth):")
+        for name in missing:
+            seat = by_name.get(name)
+            adapter = seat.adapter if seat else None
+            cmd = " ".join(adapter.install_argv()) if (adapter and adapter.install_argv) else "(no installer known)"
+            line = f"  {name}: {cmd}"
+            if adapter and adapter.auth_hint:
+                line += f"  ·  then {adapter.auth_hint}"
+            lines.append(line)
+        lines.append("  (or let the skill do it: run_board.py toolchain --install)")
+
+    if unusable:
+        lines.append("")
+        lines.append("Installed but not usable right now (check auth/login or model availability): "
+                     + ", ".join(unusable))
+
+    lines.append("")
+    lines.append("Other ways to still run a board:")
+    if go:
+        lines.append(f"  • Same-provider, multi-lens board with what works ({', '.join(p.seat for p in go)}): "
+                     "two seats on the same model with different lenses. Less independent — flag it in "
+                     "provenance. See references/board-composition.md.")
+    lines.append("  • Add a local-model seat — runnable now, no account or egress: "
+                 "`brew install ollama`, pull a model (`ollama pull <model>`), then add it "
+                 "with `--board " + (",".join(p.seat for p in go) + "," if go else "") +
+                 "ollama --model ollama=<model>`. Or capture a human review as a seat. "
+                 "See references/board-composition.md.")
+    return "\n".join(lines)
 
 
 # --------------------------------------------------------------------------- #
@@ -1031,10 +1580,20 @@ class EgressApproval:
 
 def render_egress_manifest(config: RunConfig, blobs: list, content_hash: str) -> str:
     consent = consent_mode_for(config.sensitivity)
+    # Only external blobs actually leave the machine; a local seat (provider="local",
+    # e.g. ollama) is materialized on disk but never egresses, so it must NOT appear
+    # under "Files leaving this machine". Split them up front so even the intro line
+    # never overstates what egresses (a fully-local board sends nothing).
+    external = sorted((b for b in blobs if b.provider != "local"), key=lambda x: x.relpath)
+    local = sorted((b for b in blobs if b.provider == "local"), key=lambda x: x.relpath)
+    intro = ("This run will send the bytes below to external providers. Review before approving."
+             if external else
+             "This run sends NOTHING to external providers (local-only board); the prompts below "
+             "stay on this machine.")
     lines = [
         f"# Egress Manifest — {config.title}",
         "",
-        "This run will send the bytes below to external providers. Review before approving.",
+        intro,
         "",
         f"Packet content hash (sha256): {content_hash}",
         f"Sensitivity: {config.sensitivity}",
@@ -1051,11 +1610,21 @@ def render_egress_manifest(config: RunConfig, blobs: list, content_hash: str) ->
         "| File                          | Bytes | Lines | Goes to |",
         "| ----------------------------- | ----- | ----- | ------- |",
     ]
-    for b in sorted(blobs, key=lambda x: x.relpath):
-        lines.append(f"| {b.relpath:<29} | {b.nbytes:>5} | {b.nlines:>5} | {b.provider} ({b.seat}) |")
+    if external:
+        for b in external:
+            lines.append(f"| {b.relpath:<29} | {b.nbytes:>5} | {b.nlines:>5} | {b.provider} ({b.seat}) |")
+    else:
+        lines.append("| (none — local-only board)     |       |       |         |")
+    if local:
+        lines += ["", "## Stays on this machine (local seats — no egress)", ""]
+        for b in local:
+            lines.append(f"- {b.relpath} — {b.seat} (local model, on-machine; never sent)")
     lines += ["", "## Providers", ""]
-    for b in sorted(blobs, key=lambda x: x.relpath):
-        lines.append(f"- {b.provider} ({b.seat}) — receives {b.relpath}")
+    if external:
+        for b in external:
+            lines.append(f"- {b.provider} ({b.seat}) — receives {b.relpath}")
+    else:
+        lines.append("- (none — no external providers receive any bytes)")
     lines += ["", "Approval: <PENDING — bound to the content hash above>"]
     return "\n".join(lines) + "\n"
 
@@ -1294,6 +1863,13 @@ def render_run_metadata(config: RunConfig, preflight: list, approval: EgressAppr
             f"- ⚠ Network NOT isolated for: {', '.join(config.unenforced_network_seats)} "
             "(no CLI flag removes their web/grounding tools); treat as networked despite gate mode."
         )
+    for p in preflight:
+        if getattr(p, "model_proposal", None):
+            lines.append(
+                f"- ⚠ {p.seat}: pinned model did not resolve on the installed CLI; "
+                f"resolvable fallback proposed: {p.model_proposal} "
+                f"(update the CLI via `toolchain --update`, or pass --model {p.seat}={p.model_proposal})."
+            )
     return "\n".join(lines) + "\n"
 
 
@@ -1346,7 +1922,44 @@ def cmd_preflight(args) -> int:
     results = run_preflight(config)
     print(render_preflight_table(results))
     go = sum(1 for r in results if r.go)
-    return EXIT_OK if go >= 2 else EXIT_PREFLIGHT_NOGO
+    if go < 2:
+        guidance = render_board_guidance(results, config)
+        if guidance:
+            print("\n" + guidance)
+        return EXIT_PREFLIGHT_NOGO
+    return EXIT_OK
+
+
+def cmd_toolchain(args) -> int:
+    # No --board => check EVERY registered seat CLI (incl. ones outside the default
+    # board, like antigravity), since toolchain currency is about all installed CLIs.
+    board_arg = getattr(args, "board", None)
+    names = parse_board(board_arg) if board_arg else list(REGISTRY.keys())
+    unknown = [n for n in names if n not in REGISTRY]
+    if unknown:
+        die(f"unknown seat(s): {', '.join(unknown)}", EXIT_USAGE)
+    statuses = check_toolchain([REGISTRY[n] for n in names])
+    print(render_toolchain_table(statuses))
+    rc = EXIT_OK
+    assume_yes = getattr(args, "yes", False)
+    if getattr(args, "install", False):
+        if install_missing_tools(statuses, assume_yes=assume_yes) != 0:
+            rc = EXIT_USAGE
+    if getattr(args, "update", False):
+        if update_stale_tools(statuses, assume_yes=assume_yes) != 0:
+            rc = EXIT_USAGE
+    return rc
+
+
+def _maybe_update_tools(config, args) -> None:
+    """run --update-tools: check currency and (consent-gated) update before the board."""
+    if not getattr(args, "update_tools", False):
+        return
+    print("=== toolchain ===")
+    statuses = check_toolchain([seat.adapter for seat in config.board])
+    print(render_toolchain_table(statuses))
+    update_stale_tools(statuses, assume_yes=getattr(args, "yes", False))
+    print()
 
 
 def cmd_run(args) -> int:
@@ -1374,12 +1987,19 @@ def cmd_run(args) -> int:
               f"content hash = sha256:{content_hash}")
         return EXIT_OK
 
+    # 0. Toolchain currency (opt-in): update stale CLIs before probing, so a
+    #    freshly-renamed model id resolves instead of 404-ing the board.
+    _maybe_update_tools(config, args)
+
     # 1. Preflight — GO/NO-GO before anything else.
     print("=== preflight ===")
     preflight = run_preflight(config)
     print(render_preflight_table(preflight))
     go = sum(1 for r in preflight if r.go)
     if go < 2:
+        guidance = render_board_guidance(preflight, config)
+        if guidance:
+            print("\n" + guidance)
         die("fewer than two seats are GO — not running a one-voice board", EXIT_PREFLIGHT_NOGO)
 
     # 2. Egress gate — the pre-spawn hard stop. Nothing has left the machine yet;
@@ -1497,7 +2117,21 @@ def build_parser() -> argparse.ArgumentParser:
                        help="auto-approve egress (still bound to and stamped with the content hash)")
     p_run.add_argument("--skip-sensitivity-gate", dest="skip_sensitivity_gate", action="store_true",
                        help="OVERRIDE: bypass hash-bound approval for non-public material (logged loudly)")
+    p_run.add_argument("--update-tools", dest="update_tools", action="store_true",
+                       help="before preflight, check each CLI vs latest and update stale ones "
+                            "(consent-gated; --yes auto-approves)")
     p_run.set_defaults(func=cmd_run)
+
+    p_tool = sub.add_parser("toolchain",
+                            help="check each seat CLI vs its latest release; --update upgrades stale ones")
+    p_tool.add_argument("--board", help="comma-separated seats (default: all registered seats)")
+    p_tool.add_argument("--update", action="store_true",
+                        help="update stale CLIs (consent-gated: confirms first unless --yes)")
+    p_tool.add_argument("--install", action="store_true",
+                        help="install absent CLIs (consent-gated; an account/auth is still required)")
+    p_tool.add_argument("--yes", action="store_true",
+                        help="skip the confirmation prompt (for unattended runs)")
+    p_tool.set_defaults(func=cmd_toolchain)
 
     p_render = sub.add_parser("render", help="delegate to render_handoff.py")
     p_render.add_argument("passthrough", nargs=argparse.REMAINDER)

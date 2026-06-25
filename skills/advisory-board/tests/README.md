@@ -22,8 +22,9 @@ needed beyond a Python 3 interpreter.
 
 | Path | Purpose |
 | ---- | ------- |
-| `test_run_board.py` | the suite (registry, YAML codec, config, packet, preflight, egress gate, end-to-end run flow, `--from-recipe`, delegation) |
-| `mocks/{claude,codex,gemini}` | banner-accurate CLI stubs; behavior switched by `MOCK_<SEAT>_MODE` (`go`/`nogo_version`/`nogo_smoke`/`empty`/`degraded`/`timeout`) and argv captured to `MOCK_ARGV_LOG` |
+| `test_run_board.py` | the suite (registry, YAML codec, config, packet, preflight, egress gate, end-to-end run flow, `--from-recipe`, delegation, toolchain currency + model self-heal) |
+| `mocks/{claude,codex,gemini,agy,ollama}` | banner-accurate CLI stubs; behavior switched by `MOCK_<SEAT>_MODE` (`go`/`nogo_version`/`nogo_smoke`/`empty`/`degraded`/`timeout`/`model_not_found`; gemini also `model_proposal`) and argv captured to `MOCK_ARGV_LOG`. `claude`/`codex`/`agy` also mock `update` (force failure with `MOCK_<SEAT>_UPDATE_FAIL=1`); `agy` also mocks `models`. (`agy` is the Antigravity seat — `MOCK_AGY_VERSION` sets its reported version. `ollama` is the local seat — prompt on stdin, no `model_not_found`/`update` arms; `MOCK_OLLAMA_VERSION` sets its reported version, default `0.5.0`) |
+| `mocks/{npm,brew}` | package-manager stubs for the toolchain check/update: latest version is env-controlled (`MOCK_NPM_CLAUDE`/`MOCK_NPM_CODEX`, `MOCK_BREW_GEMINI`/`MOCK_BREW_OLLAMA` formulae, `MOCK_BREW_CASK` for the antigravity cask; default `9.9.9` → stale); `brew upgrade` fails with `MOCK_BREW_UPGRADE_FAIL=1` |
 | `fixtures/sample-plan.md` | a small, stable source for deterministic runs |
 
 ## The safety properties the suite locks
@@ -41,3 +42,13 @@ These are the M2 invariants — if any regresses, a test fails:
   blocks for hash-bound approval, local-only refuses external egress outright.
 - **The run-recipe round-trips** through the restricted YAML codec
   (`TestYamlCodec`).
+- **Toolchain updates are consent-gated and model ids stay pinned**
+  (`TestToolchainUpdate`, `TestModelProposal`) — a missing package manager reads
+  "unknown" not "stale" (never a spurious update), a non-TTY without `--yes` is a
+  no-op, and an unresolvable pinned id yields a *proposed* fallback, not a silent
+  swap.
+- **Graceful degradation for partial setups** (`TestGracefulDegradation`) — an
+  absent CLI reads `missing` (not `unknown`) and prints its install command;
+  `--install` is consent-gated and never implies an account; and when fewer than
+  two seats are usable, preflight/run emit actionable guidance (install vs auth,
+  same-provider / local-seat fallbacks) instead of dead-ending.
