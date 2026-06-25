@@ -36,8 +36,8 @@ def load(path: str) -> dict:
 
 def verdict_line(data: dict) -> str:
     stance = "unanimous" if data.get("unanimous") else "split board"
-    label = LABEL.get(data.get("verdict"), str(data.get("verdict")))
-    return f"{label} ({data.get('confidence', '?')} confidence, {stance})"
+    label = data.get("decision") or LABEL.get(data.get("verdict"), str(data.get("verdict")))
+    return f"{label.upper()} ({data.get('confidence', '?')} confidence, {stance})"
 
 
 def as_tldr(data: dict) -> str:

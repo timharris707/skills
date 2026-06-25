@@ -17,7 +17,7 @@ For each seat in the lineup (Claude, Codex, Gemini, or whatever you're running):
 4. **Smoke ping** — a trivial read-only prompt returns a non-empty answer.
    - Keep it to one word back. This proves auth + model + transport end to end in one shot.
 
-Verify every flag against `<cli> --help` first — CLI syntax drifts between versions, and the commands here are illustrative, not guaranteed current. Close stdin on Codex (`</dev/null`) so `codex exec` can't hang waiting for EOF.
+Verify every flag against `<cli> --help` first — CLI syntax drifts between versions, and the commands here are illustrative, not guaranteed current. Close stdin on Codex (`</dev/null`) so `codex exec` can't hang waiting for EOF, and pass `--skip-git-repo-check` when running outside a git repo. Some CLIs (e.g. Gemini) print internal errors to stderr yet still return a valid answer — judge a seat by whether usable content came back, not by stderr noise alone.
 
 ## Smoke-ping templates
 
@@ -28,7 +28,7 @@ Read-only, one-token answers. Adapt flags to the installed CLI.
 claude -p "Reply with the single word: ready" --model <model> --permission-mode plan
 
 # Codex
-codex exec --sandbox read-only --config model="<model>" "Reply with the single word: ready" </dev/null
+codex exec --sandbox read-only --skip-git-repo-check --config model="<model>" "Reply with the single word: ready" </dev/null
 
 # Gemini
 gemini -p "Reply with the single word: ready" -m "<model>"

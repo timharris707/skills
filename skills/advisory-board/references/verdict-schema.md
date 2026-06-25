@@ -35,7 +35,8 @@ Alongside the prose handoff, a run emits `verdict.json`: a small, machine-readab
 
 ### Fields
 
-- `verdict` — `ship` | `caution` | `block`. The board's final position.
+- `verdict` — `ship` | `caution` | `block`. The board's final position, and the canonical gate axis.
+- `decision` (optional) — the native call when the decision isn't software-shipping (e.g. `invest` / `hold` / `wind-down`, or `go` / `no-go`). Map it onto `verdict` (invest→ship, hold→caution, wind-down/no-go→block); tooling reads `verdict`, while humans and `scripts/format_output.py` show `decision`.
 - `confidence` — `low` | `medium` | `high`.
 - `unanimous` — did every seat land on `verdict` in the final round.
 - `board[]` — one entry per seat; `round_verdicts` is per-round, `dropped` flags a seat that didn't finish (see `references/run-metadata-template.md`).

@@ -118,6 +118,7 @@ You (the orchestrating agent) drive the board by shelling out to each provider's
 - Run every seat as its own CLI subprocess — including the Claude seat as a separate `claude` process — so each reviews the source independently rather than reusing the orchestrator's context. That independence is what makes Round 1 worth anything.
 - Keep the orchestrator and the chair neutral: assemble packets and synthesize, but don't also count yourself as a debating seat. If you must, say so in the handoff and use a minority report to check chair bias (`references/epistemics.md`).
 - When the source is a repo or local files, decide once how seats reach it and record it in `run-metadata.md`: either every CLI reads the same shared path, or you build one source packet and hand identical bytes to each seat. Use one method for all seats so they review the same thing.
+- Seats are agentic — they may web-search and read their working directory, which usually *helps* (live grounding). When you need a clean outside view or isolation, control the working directory and network and hand each seat one neutral source packet. (Running seats from a non-git folder also requires Codex's `--skip-git-repo-check`.)
 
 ## CLI Execution Notes
 
@@ -129,18 +130,18 @@ Claude seat:
 claude -p "<seat prompt>" --model claude-opus-4-8 --permission-mode plan
 ```
 
-`-p` runs non-interactively; `--permission-mode plan` keeps it read-only. Use the strongest reasoning/effort the build exposes (Claude Code defaults to `xhigh`).
+`-p` runs non-interactively; `--permission-mode plan` keeps it read-only. Use the strongest reasoning/effort the build exposes (Claude Code defaults to `xhigh`). On long analytic prompts, `--permission-mode plan` can make the seat return a plan-style *summary* (and even claim it wrote a file) instead of the full review — so tell the seat to output its complete review as its reply and not write any files.
 
 Codex seat:
 
 ```
-codex exec --sandbox read-only \
+codex exec --sandbox read-only --skip-git-repo-check \
   --config model="gpt-5.5" \
   --config model_reasoning_effort="xhigh" \
   "<seat prompt>" </dev/null
 ```
 
-`codex exec` is the non-interactive form; `--sandbox read-only` blocks edits. Close stdin with `</dev/null`: `codex exec` reads stdin until EOF, so without it the call hangs when orchestrated in the background or any non-interactive pipeline.
+`codex exec` is the non-interactive form; `--sandbox read-only` blocks edits. Close stdin with `</dev/null`: `codex exec` reads stdin until EOF, so without it the call hangs when orchestrated in the background or any non-interactive pipeline. Pass `--skip-git-repo-check` so the run doesn't abort with "Not inside a trusted directory" when a seat runs from a neutral, non-git source folder.
 
 Gemini seat:
 
@@ -148,7 +149,7 @@ Gemini seat:
 gemini -p "<seat prompt>" -m "<latest-frontier-gemini-model>"
 ```
 
-Run in a read-only / non-auto-approval mode so the seat can't make edits, and select the highest available thinking level.
+Run in a read-only / non-auto-approval mode so the seat can't make edits, and select the highest available thinking level. The Gemini CLI may print internal errors to stderr (e.g. model-router retries) yet still return a valid review — judge a seat by whether usable content came back, not by stderr noise or a non-zero exit; treat that as a degraded-but-ran seat, not a failure.
 
 ### Gemini thinking level
 

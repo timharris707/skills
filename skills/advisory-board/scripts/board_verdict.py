@@ -56,7 +56,9 @@ def summarize(data: dict) -> str:
     return "\n".join(
         [
             f"title      : {data.get('title', '(untitled)')}",
-            f"verdict    : {data['verdict']}  ({data['confidence']} confidence)",
+            f"verdict    : {data['verdict']}"
+            + (f" ({data['decision']})" if data.get("decision") else "")
+            + f"  ({data['confidence']} confidence)",
             f"unanimous  : {data.get('unanimous', 'n/a')}",
             f"rounds     : {data['rounds']}",
             f"seats      : {seats_line}",
