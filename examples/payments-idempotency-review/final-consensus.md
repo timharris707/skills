@@ -16,6 +16,11 @@ Round 1 was 2x "do not ship" + 1x "ship with changes" (Codex). In Round 2, after
 ## Hard dissent (preserved)
 - Codex: "all clients at once" is not *inherently* impossible given optional keys + backwards-compatible server behavior — but only with a kill switch, metrics, and staged enablement by route/client cohort. (The rollout *aggressiveness* is debatable; the correctness blockers above are not.)
 
+## What the board couldn't verify
+- Reviewed the written plan, not the code. If the implementation already does an atomic `SET NX` claim and request-fingerprint binding, blockers 1–2 may already be satisfied — re-check against the actual handler before treating them as gaps.
+- The downstream processor's own idempotency guarantees are unknown. If it already dedupes on a client reference, the double-charge blast radius is smaller than assumed; confirm before sizing the fix.
+- Retry behavior after the 24h TTL is unverified — whether a legitimate retry after expiry double-charges depends on real client retry/settlement windows no seat could see. Verify against actual client behavior; it could add or remove a blocker.
+
 ## Open questions
 - 24h TTL vs client retry/settlement windows — does a legitimate retry after expiry double-charge?
 - Alignment with the downstream payment processor's own idempotency guarantees.

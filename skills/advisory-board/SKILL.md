@@ -101,7 +101,7 @@ Write:
 - `round-1/<seat>.md` (and `round-2/`, `round-3/` as rounds run)
 - `board-packet-round-2.md` (and `board-packet-round-3.md` when needed)
 - `final-consensus.md` — the handoff in Markdown
-- `final-consensus.html` — a self-contained, human-readable view of the handoff, rendered from `references/handoff-template.html`
+- `final-consensus.html` — a self-contained, human-readable view of the handoff. Render it deterministically with `scripts/render_handoff.py` from a `handoff-data.json` (recommended — guarantees no leftover placeholders or template drift), or fill `references/handoff-template.html` by hand
 - `verdict.json` — the machine-readable verdict (`references/verdict-schema.md`); gate or reformat it with `scripts/`
 - `run-metadata.md` — provenance: commands, the model that actually answered per seat, auth mode (no secrets), per-seat status (ran / degraded / dropped), timings, and source paths. Use `references/run-metadata-template.md`.
 
@@ -119,6 +119,8 @@ You (the orchestrating agent) drive the board by shelling out to each provider's
 - Keep the orchestrator and the chair neutral: assemble packets and synthesize, but don't also count yourself as a debating seat. If you must, say so in the handoff and use a minority report to check chair bias (`references/epistemics.md`).
 - When the source is a repo or local files, decide once how seats reach it and record it in `run-metadata.md`: either every CLI reads the same shared path, or you build one source packet and hand identical bytes to each seat. Use one method for all seats so they review the same thing.
 - Seats are agentic — they may web-search and read their working directory, which usually *helps* (live grounding). When you need a clean outside view or isolation, control the working directory and network and hand each seat one neutral source packet. (Running seats from a non-git folder also requires Codex's `--skip-git-repo-check`.)
+
+For a concrete, copy-pasteable capture pattern — prompts written to files, stdout/stderr/exit-code/timeout capture, and `ran` / `degraded` / `dropped` classification folded into `run-metadata.md` — use `references/execution-harness.md`.
 
 ## CLI Execution Notes
 
@@ -178,7 +180,7 @@ Load `references/prompt-templates.md` when running a board. Use the templates as
 
 ## Scripts
 
-Optional helpers in `scripts/` (Python 3 stdlib, no install): `board_verdict.py` validates `verdict.json` and gates CI on the verdict (`--gate`); `format_output.py` renders it as a TL;DR, PR comment, Slack message, or JSON. The skill runs fine without them — they're for wiring a board into CI and other tooling. See `scripts/README.md`.
+Optional helpers in `scripts/` (Python 3 stdlib, no install): `board_verdict.py` validates `verdict.json` and gates CI on the verdict (`--gate`); `format_output.py` renders it as a TL;DR, PR comment, Slack message, or JSON; `render_handoff.py` renders `final-consensus.html` deterministically from a `handoff-data.json`. The skill runs fine without them — they're for wiring a board into CI and other tooling. See `scripts/README.md`.
 
 ## When To Stop
 

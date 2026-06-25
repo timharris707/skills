@@ -1,0 +1,161 @@
+{
+  "title": "Payments API idempotency keys",
+  "subtitle": "Adversarial plan review by a three-model board before implementation.",
+  "date": "2026-06-24",
+  "board": "Claude · Codex · Gemini",
+  "rounds": "2",
+  "verdict": "Do not ship yet — unanimous",
+  "verdict_class": "block",
+  "verdict_note": "Round&nbsp;1 was two &ldquo;do not ship&rdquo; plus one &ldquo;ship with changes&rdquo; (Codex). In Round&nbsp;2, after reading the others, <strong>Codex moved to &ldquo;do not ship yet.&rdquo;</strong> No seat dissents from the verdict.",
+  "plan": "<p>Add idempotency keys to the payments API. Clients may send an <code>Idempotency-Key</code> header on <code>POST /charges</code>. The server stores the key-to-response mapping in Redis with a 24h TTL; on a duplicate key it returns the cached response.</p>\n      <p>Keys are optional, and the team intends to enable the feature for all clients at once next sprint.</p>",
+  "dissent_flag": "Dissent on the record",
+  "metadata": "Rendered from <code>handoff-data.json</code> by <code>scripts/render_handoff.py</code> — a view of <code>final-consensus.md</code>.\n    <span class=\"prov\">Board: Claude (architecture, <code>claude-opus-4-8</code>) · Codex (implementation/testing, <code>gpt-5.5</code>) · Gemini (product/ops, frontier thinking HIGH).</span>\n    <span class=\"prov\">2 rounds · cross-read summaries · read-only · run dated 2026-06-24. Provenance: <code>round-1/{claude,codex,gemini}.out</code>, <code>round-2/{claude,codex,gemini}.out</code>, <code>verdict.json</code>.</span>",
+  "seats": [
+    {
+      "seat_name": "Claude",
+      "seat_lens": "Architecture lens",
+      "seat_model": "claude-opus-4-8",
+      "seat_status_class": "",
+      "seat_status": "",
+      "seat_highlight": "",
+      "rounds": [
+        {
+          "round_label": "Round 1 · independent",
+          "round_verdict_class": "block",
+          "round_verdict": "Do not ship yet",
+          "round_confidence": "",
+          "round_review": "<p>Close — fix two things first.</p>\n<p class=\"r-title\">Top risks</p>\n<ul>\n  <li><strong>Concurrent in-flight duplicates.</strong> Redis store-on-completion leaves a race: two requests with the same key arriving near-simultaneously both miss the cache and double-charge. You need an atomic reserve (<code>SET NX</code>) on receipt, with an in-progress sentinel, not store-after-response.</li>\n  <li><strong>Key collision / weak semantics.</strong> A cached response keyed on the header alone ignores the request body. A client reusing a key with a <em>different</em> payload silently gets the old charge — or worse, masks a real second charge. Must bind key&nbsp;&rarr;&nbsp;request-fingerprint and return 422 on mismatch.</li>\n  <li><strong>Big-bang rollout.</strong> &ldquo;All clients at once next sprint&rdquo; gives no blast-radius control. Redis is now in the critical payment path — define behavior when Redis is down (fail-open = lost idempotency; fail-closed = outage).</li>\n</ul>\n<p class=\"r-title\">The one change I&rsquo;d insist on</p>\n<p>Atomic <code>SET NX</code> reservation at request entry + persist the response under that key, so the dedup window covers in-flight requests, not just completed ones.</p>\n<p class=\"r-title\">Ask another seat to check</p>\n<p>24h TTL vs. client retry/settlement windows — does a legitimate retry after expiry double-charge? Verify against payment-processor reconciliation semantics.</p>"
+        },
+        {
+          "round_label": "Round 2 · rebuttal",
+          "round_verdict_class": "block",
+          "round_verdict": "Do not ship",
+          "round_confidence": "",
+          "round_review": "<ol>\n  <li><strong>Under-weighted:</strong> Codex&rsquo;s point that transient 5xx must not be cached as authoritative is sharper than my generic &ldquo;cache the response.&rdquo; A 502 stored as the canonical reply would permanently poison the key. And Gemini&rsquo;s insistence on cache-hit/latency <em>alerting</em> — I named Redis-down behavior but not the observability to detect it.</li>\n  <li><strong>Changed my view:</strong> I&rsquo;m dropping any tolerance for big-bang. Gemini + Codex converge on phased rollout, and on a core payments path the blast radius argument is decisive. Rollout sequencing is now a blocker, not a footnote.</li>\n  <li><strong>Still dispute:</strong> Codex&rsquo;s overall &ldquo;ship with changes.&rdquo; The atomic-claim race and fingerprint binding aren&rsquo;t tweaks — without them the feature double-charges under the exact concurrency it exists to prevent. That&rsquo;s not-ready, not ship-with-changes.</li>\n  <li><strong>Recommendation:</strong> Do not ship — block on atomic claim + sentinel, key&nbsp;&harr;&nbsp;fingerprint binding (422), defined Redis-down behavior, non-caching of transient 5xx, and a phased rollout with latency/hit alerting.</li>\n</ol>"
+        }
+      ]
+    },
+    {
+      "seat_name": "Codex",
+      "seat_lens": "Implementation / testing lens",
+      "seat_model": "gpt-5.5",
+      "seat_status_class": "",
+      "seat_status": "",
+      "seat_highlight": "<b>Verdict change:</b> Codex was the lone &ldquo;ship with changes&rdquo; in Round&nbsp;1. After reading Claude and Gemini, it moved to &ldquo;do not ship yet,&rdquo; making the board unanimous.",
+      "rounds": [
+        {
+          "round_label": "Round 1 · independent",
+          "round_verdict_class": "caution",
+          "round_verdict": "Ship with changes",
+          "round_confidence": "",
+          "round_review": "<p class=\"r-title\">Top risks</p>\n<ul>\n  <li>Caching &ldquo;response&rdquo; is underspecified. You must replay status code, body, headers, and error shape consistently, but avoid caching transient 5xx/timeouts as authoritative charge outcomes.</li>\n  <li>No request fingerprinting. Same <code>Idempotency-Key</code> with different amount/customer/card should return a conflict, not a cached unrelated charge.</li>\n  <li>Race handling is missing. Two concurrent POSTs with the same key can both create charges unless Redis uses an atomic claim / in-progress / completed state.</li>\n</ul>\n<p class=\"r-title\">Single change I&rsquo;d insist on</p>\n<p>Implement atomic idempotency state: <code>SET NX</code> claim with request hash, mark completed only after a durable charge result, replay only matching hashes, return conflict on hash mismatch, and define behavior for in-flight retries.</p>\n<p class=\"r-title\">Ask other seats to check</p>\n<p>Product / legal / ops should confirm whether 24h retention and optional keys match client retry behavior, dispute/audit needs, and payment provider idempotency guarantees.</p>"
+        },
+        {
+          "round_label": "Round 2 · rebuttal",
+          "round_verdict_class": "block moved",
+          "round_verdict": "Do not ship yet",
+          "round_confidence": "",
+          "round_review": "<ul>\n  <li><strong>Under-weighted:</strong> Claude/Gemini are right that Redis-down behavior and rollout mechanics are not secondary details. On a payments write path, &ldquo;idempotency available unless Redis has issues&rdquo; is a product/ops contract, not just an implementation edge case.</li>\n  <li><strong>Changed view:</strong> I&rsquo;d move from <em>ship with changes</em> to <em>do not ship yet</em>. The core algorithm changes are clear, but the plan lacks enough failure-mode and rollout specificity to safely schedule as-is.</li>\n  <li><strong>Still dispute:</strong> I don&rsquo;t think &ldquo;all clients at once next sprint&rdquo; is inherently impossible if keys are optional and server behavior is backwards compatible. But for payments, it still needs a kill switch, metrics, and staged enablement by route/client cohort before broad reliance.</li>\n  <li><strong>Final recommendation:</strong> Do not ship yet — require atomic reservation/in-progress handling, request fingerprint binding, explicit Redis failure policy, replay semantics, observability, and phased rollout before approval.</li>\n</ul>"
+        }
+      ]
+    },
+    {
+      "seat_name": "Gemini",
+      "seat_lens": "Product / ops lens",
+      "seat_model": "Gemini frontier (thinking: HIGH)",
+      "seat_status_class": "",
+      "seat_status": "",
+      "seat_highlight": "",
+      "rounds": [
+        {
+          "round_label": "Round 1 · independent",
+          "round_verdict_class": "block",
+          "round_verdict": "Do not ship yet",
+          "round_confidence": "",
+          "round_review": "<p class=\"r-title\">Strongest objections &amp; risks</p>\n<ul>\n  <li><strong>Operational blast radius:</strong> an &ldquo;all clients at once&rdquo; rollout is incredibly risky for a core payments path. A Redis latency spike or configuration error will instantly degrade all transactions.</li>\n  <li><strong>Concurrency / double-charge risk:</strong> the plan lacks a locking strategy. If a client sends two identical requests simultaneously, both may bypass the cache before the first response is saved, resulting in catastrophic double-charges for users.</li>\n  <li><strong>Undefined failure modes:</strong> there is no operational plan for Redis downtime. If Redis is unreachable, failing <em>closed</em> blocks all payments; failing <em>open</em> silently breaks the idempotency promise.</li>\n</ul>\n<p class=\"r-title\">Single most insisted change</p>\n<p>Mandate a phased, measurable rollout (e.g. internal testing &rarr; opt-in beta &rarr; progressive percentage) backed by strict alerting on Redis latency and cache-hit rates, replacing the proposed big-bang release.</p>\n<p class=\"r-title\">Question for other seats</p>\n<p>Ask the architecture/security seat to strictly review the exact Redis locking mechanism (e.g. <code>SETNX</code>) to guarantee that concurrent identical requests are mathematically prevented from creating race conditions.</p>"
+        },
+        {
+          "round_label": "Round 2 · rebuttal",
+          "round_verdict_class": "block",
+          "round_verdict": "Do not ship",
+          "round_confidence": "",
+          "round_review": "<ul>\n  <li><strong>Under-weighted:</strong> Codex&rsquo;s point about not caching 5xx errors. From an ops perspective, caching a transient 500 would permanently block a user&rsquo;s legitimate retry for 24 hours, causing a massive spike in unresolvable support tickets.</li>\n  <li><strong>Changed my view:</strong> Claude and Codex&rsquo;s alignment on request fingerprinting. I focused heavily on concurrency and rollout, but they correctly identified that a client reusing a key for a <em>different</em> payload without triggering a 422 mismatch is a catastrophic product flaw.</li>\n  <li><strong>Still dispute:</strong> Codex&rsquo;s &ldquo;ship with changes&rdquo; rating. This plan lacks fundamental architectural safety (atomic locks, fingerprinting) and operational safety (phased rollout). This isn&rsquo;t a minor tweak; it&rsquo;s a complete structural redesign of a core payments path. We cannot greenlight this conditionally.</li>\n  <li><strong>Recommendation:</strong> Do not ship — mandate atomic <code>SET NX</code> locks, payload fingerprinting, 5xx cache exclusion, and a dark-launched, phased rollout.</li>\n</ul>"
+        }
+      ]
+    }
+  ],
+  "blockers": [
+    {
+      "blocker_title": "Atomic dedup",
+      "blocker_body": "<code>SET NX</code> claim with an in-progress sentinel that completes only after a durable charge result. Without it, two concurrent same-key requests both miss the cache and double-charge — the exact failure the feature exists to prevent."
+    },
+    {
+      "blocker_title": "Request-fingerprint binding",
+      "blocker_body": "Bind key&nbsp;&rarr;&nbsp;hash(request); a reused key with a different payload returns 409/422 conflict, never a replayed or unrelated charge."
+    },
+    {
+      "blocker_title": "Redis failure policy + kill switch",
+      "blocker_body": "Redis is now in the critical payment path. Decide fail-open (lost idempotency) vs fail-closed (outage) explicitly, with a kill switch."
+    },
+    {
+      "blocker_title": "Never cache transient failures",
+      "blocker_body": "Do not store 5xx/timeouts as the authoritative response; a cached 500 poisons the key and blocks legitimate retries for 24h."
+    },
+    {
+      "blocker_title": "Replay fidelity",
+      "blocker_body": "Replay status code, body, and headers consistently."
+    },
+    {
+      "blocker_title": "Phased rollout + observability",
+      "blocker_body": "Dark-launch then cohort/percentage ramp; alert on Redis latency and cache-hit rate. Replace the big-bang enablement."
+    }
+  ],
+  "dissents": [
+    {
+      "dissent_who": "Codex",
+      "dissent_body": "&ldquo;All clients at once&rdquo; is not <em>inherently</em> impossible given optional keys + backwards-compatible server behavior — but only with a kill switch, metrics, and staged enablement by route/client cohort. The rollout <em>aggressiveness</em> is debatable; the correctness blockers above are not."
+    }
+  ],
+  "caveats": [
+    {
+      "caveat_claim": "Reviewed the written plan, not the code.",
+      "caveat_impact": "If the implementation already does an atomic <code>SET NX</code> claim and request-fingerprint binding, blockers 1–2 may already be satisfied — re-check against the actual handler before treating them as gaps."
+    },
+    {
+      "caveat_claim": "The downstream processor's own idempotency guarantees are unknown.",
+      "caveat_impact": "If it already dedupes on a client reference, the double-charge blast radius is smaller than assumed; confirm before sizing the fix."
+    },
+    {
+      "caveat_claim": "Retry behavior after the 24h TTL is unverified.",
+      "caveat_impact": "Whether a legitimate retry after expiry double-charges depends on real client retry/settlement windows no seat could see — verify against actual client behavior; it could add or remove a blocker."
+    }
+  ],
+  "questions": [
+    {
+      "question": "24h TTL vs client retry/settlement windows — does a legitimate retry after expiry double-charge?"
+    },
+    {
+      "question": "Alignment with the downstream payment processor&rsquo;s own idempotency guarantees."
+    },
+    {
+      "question": "Dispute/audit retention needs vs the 24h window."
+    }
+  ],
+  "actions": [
+    {
+      "action": "Spec the atomic state machine + fingerprint."
+    },
+    {
+      "action": "Decide Redis failure policy + kill switch."
+    },
+    {
+      "action": "Enumerate non-cacheable status codes."
+    },
+    {
+      "action": "Design the phased rollout + dashboards."
+    },
+    {
+      "action": "Then re-review."
+    }
+  ]
+}
