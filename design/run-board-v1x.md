@@ -4,7 +4,7 @@
 - **Updated:** 2026-06-25
 - **Source:** design/run-board-conductor.md §15 + the 2026-06-25 handoff (scope)
 - **Owner:** Tim
-- **Baseline:** advisory-board/v1.0.0 + plan view · **M1 shipped (v1.1.0)** · 313 tests green
+- **Baseline:** advisory-board/v1.0.0 + plan view · **M1 (v1.1.0) + M4 (v1.2.0) shipped** · 337 tests green
 
 ## Overview
 v1.0.0 shipped the full board: **preflight → egress gate → round-1 fan-out → round-2 cross-reading → canonical verdict chain**. The v1.x line sharpens four edges that the M6 proof-of-life run exposed: the board always runs a fixed number of rounds, the verdict is still an agent hand-off rather than one command, `command`-evidence is captured but never re-executed, and the cross-reading digest is coarse.
@@ -69,15 +69,15 @@ Testing: a fixture command that passes and one that fails; assert status transit
 Gate: `python3 -m unittest discover -s tests -t tests`
 
 ## Milestone: Smarter cross-reading digest
-status: todo
+status: done
 Round 2 hands each seat a round-2 packet of the others' round-1 reviews, assembled by `prompts.build_round2_packet`. Under `cross_reading=summaries` each review is head-truncated to a char budget by `prompts._digest`; under `full` the reviews are concatenated verbatim. A structured digest — grouped by claim, with agreements and conflicts surfaced — would replace this, giving round 2 (and the `auto` stop-rule) a sharper signal to debate against.
 
 ### Phase 1 — Structure the digest
-status: todo
-- [ ] Decide scope: does the structured digest replace the `summaries` path only, or `full` too
-- [ ] Extract per-seat claims and cluster the overlapping ones
-- [ ] Render agreements vs. conflicts, not a raw dump
-- [ ] Keep it within the token budget the seats already assume
+status: done
+- [x] Decide scope: the structured digest replaces the `summaries` path only; `full` stays verbatim, `none` stays solo
+- [x] Group by topic from each review's own section headers (markdown / numbered-bold; lettered sub-points kept in-section) — §11-safe (no semantic claim-clustering); surface agreement via M1's `VERDICT:` tokens + citations raised by ≥2 seats (`_conductor/digest.py`)
+- [x] Render agreements vs. conflicts (verdict agreement header + shared-evidence line), not a raw dump
+- [x] Keep it within the token budget — per-(seat,section) head excerpt; the example digest is ~25% of the verbatim `full` packet
 Testing: golden-file test of the digest for the committed example's round 1; assert conflicts are surfaced and the budget holds.
 Gate: `python3 -m unittest discover -s tests -t tests`
 

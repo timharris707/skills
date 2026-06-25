@@ -6,6 +6,7 @@ import hashlib
 from typing import Optional
 
 from _conductor.config import SeatConfig
+from _conductor.digest import build_structured_digest
 
 __all__ = [
     "ROUND1_TEMPLATE",
@@ -18,8 +19,6 @@ __all__ = [
     "ROUND2_PEERS_BLOCK",
     "ROUND2_SOLO_BLOCK",
     "ROUND2_TEMPLATE_VERSION",
-    "ROUND2_SUMMARY_BUDGET",
-    "_digest",
     "build_round2_packet",
     "build_round2_prompt",
 ]
@@ -153,41 +152,21 @@ independently; the other seats' reviews are not shared):
 """
 
 ROUND2_TEMPLATE_VERSION = "advisory-board/round2@2"
-ROUND2_SUMMARY_BUDGET = 900   # chars per seat in the `summaries` digest (head excerpt)
-
-
-def _digest(text: str, budget: int = ROUND2_SUMMARY_BUDGET) -> str:
-    """A deterministic structural digest (head excerpt by whole lines) — NOT an LLM
-    summary. Keeps the conductor as plumbing (principle #1): no reasoning here, just
-    a budget-bounded head of the review, which is where the verdict + top objections
-    sit. Honestly labeled as truncated when it is."""
-    body = text.strip()
-    if len(body) <= budget:
-        return body
-    kept, used = [], 0
-    for line in body.splitlines():
-        if used + len(line) + 1 > budget:
-            break
-        kept.append(line)
-        used += len(line) + 1
-    kept.append("… [truncated for the round-2 digest — see round-1/<seat>.md for the full review]")
-    return "\n".join(kept)
 
 
 def build_round2_packet(usable: list, cross_reading: str, round_no: int = 2) -> Optional[str]:
-    """The shared `board-packet-round-N.md`: each usable seat's previous-round
-    review, rendered full or as a structural digest. None when cross-reading is off.
-    `round_no` is the round the packet is being BUILT FOR (its reviews are from
-    round_no − 1); it defaults to 2 so existing callers are unchanged."""
+    """The shared `board-packet-round-N.md`. None when cross-reading is off; the M4
+    structured digest (grouped by topic + a verdict/citation agreement header) under
+    `summaries`; verbatim concatenation under `full`. `round_no` is the round the
+    packet is built FOR (its reviews are from round_no − 1); defaults to 2."""
     if cross_reading == "none":
         return None
+    if cross_reading == "summaries":
+        return build_structured_digest(usable, round_no=round_no)
     prev_round = round_no - 1
     parts = [f"# Board packet — round {round_no} (cross-reading: {cross_reading})", ""]
     for r in usable:
-        review = r.stdout.strip()
-        if cross_reading == "summaries":
-            review = _digest(review)
-        parts += [f"## {r.seat} ({r.provider}) — round-{prev_round} review", "", review, ""]
+        parts += [f"## {r.seat} ({r.provider}) — round-{prev_round} review", "", r.stdout.strip(), ""]
     return "\n".join(parts) + "\n"
 
 

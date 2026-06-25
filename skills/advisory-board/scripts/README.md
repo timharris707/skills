@@ -26,8 +26,9 @@ dependency DAG — each imports only from those above it:
 | `registry.py` | The seat-adapter registry (design §6): `SeatAdapter`, the per-seat `*_argv`/version/update/install builders, the model-answered + model-not-found parsers, semver helpers, and `REGISTRY`. |
 | `config.py` | `SourceSpec`/`SeatConfig`/`RunConfig` and everything that turns CLI args (or a recipe) into a `RunConfig`. |
 | `spawn.py` | The subprocess spawn helper (process-group-killed on timeout) and the §13 failure protocol — classification, the round-1 shape check, auth/retry signatures. |
-| `prompts.py` | The round-1/round-N prompt templates (each ends with the `VERDICT:` line) and the pure string builders (delimit-and-neutralize). |
 | `convergence.py` | The M1 stop-rule signal: `parse_verdict` + `citations` + `board_movement` — a pure function over each seat's `VERDICT:` token and citation set (never the prose) that drives `--rounds auto`. |
+| `digest.py` | The M4 structured cross-reading digest (the `summaries` packet): regroups each review by its own section headers + a verdict/citation agreement header. §11-safe — organizes by structure + M1 tokens, never clusters claims by meaning. Builds on `convergence.py`. |
+| `prompts.py` | The round-1/round-N prompt templates (each ends with the `VERDICT:` line) and the pure string builders (delimit-and-neutralize); routes the `summaries` packet through `digest.py`. |
 | `toolchain.py` | Toolchain currency (design §7a): check/update/install CLIs on consent and propose a fallback model id. |
 | `egress.py` | The egress packet + gate (design §8, §12): packet assembly (both rounds), the content hash, tiered consent, the manifest, and the pre-spawn hard stop. |
 | `preflight.py` | Executable preflight (design §7): per-seat probes, the GO/NO-GO table, and board guidance. |
