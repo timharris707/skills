@@ -17,6 +17,7 @@ The suite asserts the safety-critical properties M2 must guarantee:
 """
 import contextlib
 import io
+import json
 import os
 import sys
 import tempfile
@@ -31,6 +32,13 @@ REPO_ROOT = os.path.normpath(os.path.join(HERE, "..", "..", ".."))
 
 sys.path.insert(0, SCRIPTS)
 import run_board as rb  # noqa: E402
+import board_verdict as bv  # noqa: E402  (M5: schema @2 + abstain gate)
+import verify_evidence as ve  # noqa: E402  (M5: evidence resolution)
+import render_verdict as rv  # noqa: E402  (M5: consensus render)
+
+SRC_FIXTURE = os.path.join(FIXTURES, "src")
+PACKET_FIXTURE = os.path.join(FIXTURES, "packet.txt")
+VERDICT_M5 = os.path.join(FIXTURES, "verdict-m5.json")
 
 
 def run_cli(argv, *, stdin=None):
@@ -1656,6 +1664,446 @@ class TestRound2RunLevel(EnvMixin):
         self.assertFalse(os.path.exists(os.path.join(out, "round-2")))
         # a one-voice run still records what round 1 captured
         self.assertTrue(os.path.exists(os.path.join(out, "run-metadata.tsv")))
+
+
+# --------------------------------------------------------------------------- #
+# M5 — canonical verdict + resolved evidence
+# --------------------------------------------------------------------------- #
+
+
+def run_bv(argv):
+    """Invoke board_verdict.main(argv), capturing (exit_code, stdout, stderr)."""
+    out, err = io.StringIO(), io.StringIO()
+    with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+        try:
+            code = bv.main(argv)
+        except SystemExit as exc:
+            code = exc.code if isinstance(exc.code, int) else 1
+    return code, out.getvalue(), err.getvalue()
+
+
+def _seats(*finals):
+    return [{"seat": f"S{i}", "model": "m", "round_verdicts": ["caution", f]}
+            for i, f in enumerate(finals)]
+
+
+def _verdict(overall, *finals, **extra):
+    data = {"schema": "advisory-board/verdict@2", "verdict": overall,
+            "confidence": "high", "rounds": 2, "board": _seats(*finals)}
+    data.update(extra)
+    return data
+
+
+class TestSchemaV2Validation(unittest.TestCase):
+    EXAMPLE = os.path.join(REPO_ROOT, "examples", "payments-idempotency-review", "verdict.json")
+
+    def _assert_rejects(self, data, needle=None):
+        with self.assertRaises(SystemExit) as ctx:
+            bv.validate(data)
+        self.assertEqual(ctx.exception.code, bv.EXIT_SCHEMA)
+
+    def test_v1_example_still_valid(self):
+        if not os.path.exists(self.EXAMPLE):
+            self.skipTest("example verdict.json not present")
+        with open(self.EXAMPLE) as fh:
+            bv.validate(json.load(fh))  # @1 with no evidence must still pass
+
+    def test_v2_fixture_valid(self):
+        with open(VERDICT_M5) as fh:
+            bv.validate(json.load(fh))
+
+    def test_unknown_schema_rejected(self):
+        self._assert_rejects(_verdict("ship", "ship", "ship", schema="advisory-board/verdict@9"))
+
+    def test_evidence_free_blocker_allowed(self):
+        # A blocker with no evidence is structurally valid (degrading to a concern is
+        # a synthesis judgment, not a validator rejection).
+        bv.validate(_verdict("block", "block", "block",
+                             blockers=[{"title": "x", "body": "y"}]))
+
+    def test_bad_evidence_kind_rejected(self):
+        self._assert_rejects(_verdict("block", "block", "block",
+            blockers=[{"title": "x", "evidence": [{"kind": "telepathy"}]}]))
+
+    def test_code_evidence_needs_path(self):
+        self._assert_rejects(_verdict("block", "block", "block",
+            blockers=[{"title": "x", "evidence": [{"kind": "code", "line": 1}]}]))
+
+    def test_code_evidence_needs_line_or_symbol(self):
+        self._assert_rejects(_verdict("block", "block", "block",
+            blockers=[{"title": "x", "evidence": [{"kind": "code", "path": "a.py"}]}]))
+
+    def test_code_line_must_be_positive_int(self):
+        self._assert_rejects(_verdict("block", "block", "block",
+            blockers=[{"title": "x", "evidence": [{"kind": "code", "path": "a.py", "line": 0}]}]))
+        self._assert_rejects(_verdict("block", "block", "block",
+            blockers=[{"title": "x", "evidence": [{"kind": "code", "path": "a.py", "line": True}]}]))
+
+    def test_source_evidence_needs_quote(self):
+        self._assert_rejects(_verdict("block", "block", "block",
+            blockers=[{"title": "x", "evidence": [{"kind": "source", "url": "http://x"}]}]))
+
+    def test_bad_status_rejected(self):
+        self._assert_rejects(_verdict("block", "block", "block",
+            blockers=[{"title": "x", "evidence": [
+                {"kind": "code", "path": "a.py", "line": 1, "status": "probably"}]}]))
+
+    def test_judgment_needs_no_referent(self):
+        bv.validate(_verdict("block", "block", "block",
+            blockers=[{"title": "x", "evidence": [{"kind": "judgment", "detail": "experience"}]}]))
+
+    def test_top_level_evidence_validated(self):
+        self._assert_rejects(_verdict("block", "block", "block",
+            evidence=[{"kind": "code", "line": 1}]))  # missing path
+
+
+class TestGateAbstain(unittest.TestCase):
+    def test_unanimous_block_fails(self):
+        self.assertEqual(bv.gate_outcome(_verdict("block", "block", "block"), "block")[0], "fail")
+
+    def test_majority_block_fails(self):
+        self.assertEqual(bv.gate_outcome(_verdict("block", "block", "block", "ship"), "block")[0], "fail")
+
+    def test_torn_no_majority_abstains(self):
+        self.assertEqual(bv.gate_outcome(_verdict("block", "ship", "caution", "block"), "block")[0], "abstain")
+
+    def test_two_seat_split_abstains(self):
+        self.assertEqual(bv.gate_outcome(_verdict("block", "block", "caution"), "block")[0], "abstain")
+
+    def test_agreement_below_threshold_passes(self):
+        # ship + caution, fail_on=block: nobody trips the line -> not torn -> pass.
+        self.assertEqual(bv.gate_outcome(_verdict("ship", "ship", "caution"), "block")[0], "pass")
+
+    def test_fail_on_caution_majority_passes(self):
+        self.assertEqual(bv.gate_outcome(_verdict("ship", "ship", "ship", "caution"), "caution")[0], "pass")
+
+    def test_fail_on_caution_split_abstains(self):
+        self.assertEqual(bv.gate_outcome(_verdict("ship", "ship", "caution"), "caution")[0], "abstain")
+
+    def test_refuted_blocker_abstains(self):
+        data = _verdict("block", "block", "block", blockers=[
+            {"title": "real", "evidence": [{"kind": "code", "path": "a.py", "line": 1, "status": "verified"}]},
+            {"title": "fake", "evidence": [{"kind": "source", "url": "u", "quote": "q", "status": "refuted"}]}])
+        outcome, reason = bv.gate_outcome(data, "block")
+        self.assertEqual(outcome, "abstain")
+        self.assertIn("fake", reason)
+
+    def test_abstain_uses_agreement_not_confidence(self):
+        # low self-reported confidence but a unanimous, decisive board -> NOT abstain.
+        self.assertEqual(bv.gate_outcome(_verdict("block", "block", "block", confidence="low"), "block")[0], "fail")
+
+    def test_main_exit_codes(self):
+        with tempfile.TemporaryDirectory() as d:
+            torn = os.path.join(d, "torn.json")
+            with open(torn, "w") as fh:
+                json.dump(_verdict("block", "ship", "caution", "block"), fh)
+            self.assertEqual(run_bv([torn, "--gate"])[0], bv.EXIT_ABSTAIN)
+
+            clear = os.path.join(d, "clear.json")
+            with open(clear, "w") as fh:
+                json.dump(_verdict("ship", "ship", "ship"), fh)
+            self.assertEqual(run_bv([clear, "--gate"])[0], bv.EXIT_OK)
+
+            block = os.path.join(d, "block.json")
+            with open(block, "w") as fh:
+                json.dump(_verdict("block", "block", "block"), fh)
+            self.assertEqual(run_bv([block, "--gate"])[0], bv.EXIT_GATE_FAIL)
+
+
+class TestEvidenceResolution(unittest.TestCase):
+    def code(self, **kw):
+        return dict(kind="code", **kw)
+
+    def test_code_line_in_range_verified(self):
+        self.assertEqual(ve.resolve_code(self.code(path="charges.py", line=10), SRC_FIXTURE), "verified")
+
+    def test_code_line_out_of_range_refuted(self):
+        self.assertEqual(ve.resolve_code(self.code(path="charges.py", line=999), SRC_FIXTURE), "refuted")
+
+    def test_code_symbol_present_verified(self):
+        self.assertEqual(ve.resolve_code(self.code(path="charges.py", symbol="charge_idempotent"), SRC_FIXTURE), "verified")
+
+    def test_code_symbol_absent_refuted(self):
+        self.assertEqual(ve.resolve_code(self.code(path="charges.py", symbol="nonexistent_fn"), SRC_FIXTURE), "refuted")
+
+    def test_code_missing_file_unverified(self):
+        # An absent file is unverified, not refuted: --source may be incomplete.
+        self.assertEqual(ve.resolve_code(self.code(path="ghost.py", line=1), SRC_FIXTURE), "unverified")
+
+    def test_code_no_source_unverified(self):
+        self.assertEqual(ve.resolve_code(self.code(path="charges.py", line=10), None), "unverified")
+
+    def test_code_single_file_source(self):
+        single = os.path.join(SRC_FIXTURE, "charges.py")
+        self.assertEqual(ve.resolve_code(self.code(path="charges.py", line=10), single), "verified")
+
+    def test_source_quote_present_verified(self):
+        text = open(PACKET_FIXTURE).read()
+        self.assertEqual(ve.resolve_source({"quote": "atomic SET NX claim on receipt"}, text), "verified")
+
+    def test_source_quote_absent_refuted(self):
+        text = open(PACKET_FIXTURE).read()
+        self.assertEqual(ve.resolve_source({"quote": "never appeared anywhere"}, text), "refuted")
+
+    def test_source_no_packet_unverified(self):
+        # Structural guarantee of quarantine: with no captured packet there is nothing
+        # to check against, and we NEVER reach out to the URL -> unverified.
+        self.assertEqual(ve.resolve_source({"quote": "anything", "url": "http://x"}, None), "unverified")
+
+    def test_source_quote_whitespace_normalized(self):
+        self.assertEqual(ve.resolve_source({"quote": "atomic   SET\nNX   claim"},
+                                           "... an atomic SET NX claim here ..."), "verified")
+
+    def test_stamp_full_fixture(self):
+        with open(VERDICT_M5) as fh:
+            data = json.load(fh)
+        counts = ve.stamp(data, SRC_FIXTURE, open(PACKET_FIXTURE).read())
+        self.assertEqual((counts["verified"], counts["unverified"], counts["refuted"], counts["skipped"]),
+                         (3, 2, 2, 1))
+        # command stamped unverified (deferred); judgment left unstamped.
+        cmd = data["dissent"][0]["evidence"][0]
+        self.assertEqual(cmd["status"], "unverified")
+        judgment = data["concerns"][0]["evidence"][0]
+        self.assertNotIn("status", judgment)
+
+    def test_main_writes_in_place_and_check_does_not(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "v.json")
+            with open(VERDICT_M5) as fh:
+                src = fh.read()
+            with open(path, "w") as fh:
+                fh.write(src)
+            out, err = io.StringIO(), io.StringIO()
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                ve.main([path, "--source", SRC_FIXTURE, "--packet", PACKET_FIXTURE, "--check"])
+            self.assertEqual(open(path).read(), src)            # --check writes nothing
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                ve.main([path, "--source", SRC_FIXTURE, "--packet", PACKET_FIXTURE])
+            stamped = json.load(open(path))
+            self.assertEqual(stamped["blockers"][0]["evidence"][0]["status"], "verified")
+
+    def test_packet_from_run_dir_prompts(self):
+        with tempfile.TemporaryDirectory() as d:
+            prompts = os.path.join(d, "prompts")
+            os.makedirs(prompts)
+            with open(os.path.join(prompts, "claude-round-1.prompt"), "w") as fh:
+                fh.write("MATERIAL: take an atomic SET NX claim on receipt please")
+            text = ve.load_packet_text(None, d)
+            self.assertIn("atomic SET NX", text)
+
+
+class TestRenderVerdict(unittest.TestCase):
+    def setUp(self):
+        with open(VERDICT_M5) as fh:
+            self.data = json.load(fh)
+        ve.stamp(self.data, SRC_FIXTURE, open(PACKET_FIXTURE).read())
+
+    def test_markdown_has_decision_and_evidence(self):
+        md = rv.render_markdown(self.data)
+        self.assertIn("## Verdict: DO NOT SHIP YET", md)
+        self.assertIn("`charges.py:10` (code) — verified", md)
+        self.assertIn("REFUTED", md)
+        self.assertIn("## What the board couldn't verify", md)
+        self.assertIn("## Hard dissent", md)
+        self.assertIn("§9", md)  # the honesty footer
+
+    def test_markdown_no_evidence_omits_footer(self):
+        plain = _verdict("block", "block", "block", title="t",
+                         blockers=[{"title": "b", "body": "x"}])
+        md = rv.render_markdown(plain)
+        self.assertNotIn("§9", md)
+        self.assertNotIn("couldn't verify", md)
+
+    def test_handoff_data_round_trips_through_render_handoff(self):
+        sys.path.insert(0, SCRIPTS)
+        import render_handoff as rh
+        hd = rv.build_handoff_data(self.data)
+        template = open(rh.default_template()).read()
+        html_out = rh.render(hd, template)         # dies on any leftover token / stray comment
+        self.assertIn("DO NOT SHIP YET", html_out)
+        self.assertIn("Atomic dedup", html_out)
+
+    def test_run_dir_prose_pulled_into_round_review(self):
+        with tempfile.TemporaryDirectory() as d:
+            os.makedirs(os.path.join(d, "round-1"))
+            with open(os.path.join(d, "round-1", "claude.md"), "w") as fh:
+                fh.write("Independent take: needs an atomic `SET NX`.")
+            hd = rv.build_handoff_data(self.data, run_dir=d)
+            claude = next(s for s in hd["seats"] if s["seat_name"] == "Claude")
+            self.assertIn("atomic", claude["rounds"][0]["round_review"])
+            self.assertIn("<code>SET NX</code>", claude["rounds"][0]["round_review"])
+            # round 2 had no file -> a pointer, never invented prose
+            self.assertIn("round-2/claude.md", claude["rounds"][1]["round_review"])
+
+
+class TestM5ChainDelegation(EnvMixin):
+    def _stage(self):
+        d = tempfile.mkdtemp()
+        self.addCleanup(lambda: __import__("shutil").rmtree(d, ignore_errors=True))
+        path = os.path.join(d, "verdict.json")
+        with open(VERDICT_M5) as fh:
+            open(path, "w").write(fh.read())
+        return path
+
+    def test_verify_delegates_and_stamps(self):
+        path = self._stage()
+        code, out, _ = run_cli(["verify", path, "--source", SRC_FIXTURE, "--packet", PACKET_FIXTURE])
+        self.assertEqual(code, 0)
+        self.assertEqual(json.load(open(path))["blockers"][0]["evidence"][0]["status"], "verified")
+
+    def test_consensus_delegates(self):
+        # _delegate shells out, so the child's stdout bypasses the in-process redirect;
+        # assert on the written file (and the exit code) the way TestDelegation does.
+        path = self._stage()
+        md = os.path.join(os.path.dirname(path), "final-consensus.md")
+        code, _, _ = run_cli(["consensus", path, "-o", md])
+        self.assertEqual(code, 0)
+        self.assertIn("Final Consensus", open(md).read())
+
+    def test_validate_gate_abstains_on_refuted(self):
+        path = self._stage()
+        run_cli(["verify", path, "--source", SRC_FIXTURE, "--packet", PACKET_FIXTURE])
+        code, _, _ = run_cli(["validate", path, "--gate"])
+        self.assertEqual(code, bv.EXIT_ABSTAIN)
+
+    def test_run_prints_synthesis_chain_guidance(self):
+        out_dir = os.path.join(tempfile.mkdtemp(), "run")
+        self.addCleanup(lambda: __import__("shutil").rmtree(os.path.dirname(out_dir), ignore_errors=True))
+        code, text, _ = run_cli(["run", "--source", SAMPLE, "--out", out_dir, "--yes"])
+        self.assertEqual(code, rb.EXIT_OK)
+        self.assertIn("verdict.json", text)
+        self.assertIn("verify", text)
+        self.assertIn("consensus", text)
+        self.assertIn("validate", text)
+
+
+# --------------------------------------------------------------------------- #
+# M5 — adversarial-review regression tests (findings fixed before merge)
+# --------------------------------------------------------------------------- #
+
+
+class TestGateReconcileVerdictVsBoard(unittest.TestCase):
+    """The gate must not let a self-reported `verdict` that contradicts the observed
+    board clear it (the injected/fabricated 'ship' worst case), while still honoring a
+    synthesizer's legitimate ESCALATION to block."""
+
+    def test_unanimous_block_but_verdict_ship_abstains(self):
+        self.assertEqual(bv.gate_outcome(_verdict("ship", "block", "block", "block"), "block")[0], "abstain")
+
+    def test_majority_block_but_verdict_ship_abstains(self):
+        self.assertEqual(bv.gate_outcome(_verdict("ship", "block", "block", "ship"), "block")[0], "abstain")
+
+    def test_minority_block_verdict_block_escalation_fails(self):
+        # synthesizer escalates to block on a minority-but-correct concern -> respected.
+        self.assertEqual(bv.gate_outcome(_verdict("block", "block", "ship", "ship"), "block")[0], "fail")
+
+    def test_all_ship_verdict_ship_passes(self):
+        self.assertEqual(bv.gate_outcome(_verdict("ship", "ship", "ship"), "block")[0], "pass")
+
+    def test_all_ship_verdict_block_escalation_fails(self):
+        self.assertEqual(bv.gate_outcome(_verdict("block", "ship", "ship"), "block")[0], "fail")
+
+
+class TestGateRefutedAnywhere(unittest.TestCase):
+    """A refuted (fabricated) citation routes to a human regardless of which container
+    it sits in - not only blockers."""
+
+    def _abstains_with(self, **extra):
+        data = _verdict("block", "block", "block", **extra)
+        outcome, reason = bv.gate_outcome(data, "block")
+        self.assertEqual(outcome, "abstain")
+        return reason
+
+    def test_refuted_on_concern_abstains(self):
+        self._abstains_with(concerns=[{"title": "c", "evidence": [
+            {"kind": "code", "path": "a.py", "line": 1, "status": "refuted"}]}])
+
+    def test_refuted_on_dissent_abstains(self):
+        self._abstains_with(dissent=[{"who": "Codex", "evidence": [
+            {"kind": "source", "url": "u", "quote": "q", "status": "refuted"}]}])
+
+    def test_refuted_on_top_level_evidence_abstains(self):
+        self._abstains_with(evidence=[{"kind": "code", "path": "a.py", "line": 1, "status": "refuted"}])
+
+
+class TestContainerTypeRejected(unittest.TestCase):
+    """A non-list blockers/dissent/concerns once slipped past evidence validation and the
+    refuted-citation gate; it must now be a hard schema error."""
+
+    def _rejects(self, **extra):
+        with self.assertRaises(SystemExit) as ctx:
+            bv.validate(_verdict("block", "block", "block", **extra))
+        self.assertEqual(ctx.exception.code, bv.EXIT_SCHEMA)
+
+    def test_dict_blockers_rejected(self):
+        self._rejects(blockers={"title": "x", "evidence": [{"kind": "NONSENSE"}]})
+
+    def test_string_dissent_rejected(self):
+        self._rejects(dissent="Codex disagrees")
+
+
+class TestEvidencePathSafety(unittest.TestCase):
+    """verify_evidence must not read arbitrary files off disk or false-verify on a
+    basename collision, and must not crash on a malformed line locator."""
+
+    def code(self, **kw):
+        return dict(kind="code", **kw)
+
+    def test_absolute_path_not_resolved(self):
+        self.assertEqual(ve.resolve_code(self.code(path="/etc/passwd", line=1), SRC_FIXTURE), "unverified")
+
+    def test_parent_traversal_not_resolved(self):
+        self.assertEqual(ve.resolve_code(self.code(path="../../charges.py", line=1), SRC_FIXTURE), "unverified")
+
+    def test_non_int_line_does_not_crash(self):
+        for bad in ("1", 1.0, True, None):
+            self.assertEqual(ve.resolve_code(self.code(path="charges.py", line=bad), SRC_FIXTURE), "unverified")
+
+    def test_single_file_basename_collision_not_verified(self):
+        single = os.path.join(SRC_FIXTURE, "charges.py")
+        self.assertEqual(ve.resolve_code(self.code(path="elsewhere/charges.py", line=1), single), "unverified")
+        self.assertEqual(ve.resolve_code(self.code(path="charges.py", line=1), single), "verified")
+
+
+class TestRenderBraceSafe(unittest.TestCase):
+    """A literal {{TOKEN}} in user content must not survive into the derived handoff-data
+    and abort render_handoff's --html step (it dies on any leftover placeholder)."""
+
+    def setUp(self):
+        sys.path.insert(0, SCRIPTS)
+        import render_handoff as rh
+        self.rh = rh
+        self.template = open(rh.default_template()).read()
+
+    def _renders(self, data):
+        data.setdefault("verdict", "block")
+        hd = rv.build_handoff_data(data)
+        return self.rh.render(hd, self.template)  # raises SystemExit on a leftover {{TOKEN}}
+
+    def test_token_in_title(self):
+        self._renders({"title": "Quoting the {{CLAUDE_OUTPUT_OVERRIDE}} sentinel"})
+
+    def test_token_in_blocker_and_triple_braces(self):
+        self._renders({"title": "t", "blockers": [{"title": "b {{X}}", "body": "see {{{Y}}} and {{Z}}"}]})
+
+    def test_token_in_seat_fields(self):
+        self._renders({"title": "t", "board": [
+            {"seat": "S{{A}}", "model": "m{{B}}", "lens": "x{{C}}", "round_verdicts": ["block", "block"]}]})
+
+
+class TestEvidenceToolingHygiene(unittest.TestCase):
+    def test_verify_evidence_imports_no_network(self):
+        # The quarantine guarantee is structural: source quotes resolve against the
+        # captured packet, never a live fetch. Assert the module pulls in no network lib.
+        src = open(os.path.join(SCRIPTS, "verify_evidence.py")).read()
+        for banned in ("urllib", "socket", "http.client", "requests", "urlopen"):
+            self.assertNotIn(banned, src, f"verify_evidence.py must not reference {banned}")
+
+    def test_evidence_containers_agree_across_scripts(self):
+        # Three independent stdlib scripts each define EVIDENCE_CONTAINERS; a silent
+        # divergence would let one tool miss evidence the others stamp/validate.
+        self.assertEqual(tuple(bv.EVIDENCE_CONTAINERS), tuple(ve.EVIDENCE_CONTAINERS))
+        self.assertEqual(tuple(bv.EVIDENCE_CONTAINERS), tuple(rv.EVIDENCE_CONTAINERS))
 
 
 if __name__ == "__main__":

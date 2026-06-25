@@ -1,0 +1,44 @@
+{
+  "schema": "advisory-board/verdict@2",
+  "title": "Payments API idempotency keys",
+  "date": "2026-06-25",
+  "verdict": "block",
+  "confidence": "high",
+  "unanimous": true,
+  "rounds": 2,
+  "board": [
+    { "seat": "Claude", "model": "claude-opus-4-8", "lens": "architecture", "round_verdicts": ["block", "block"], "dropped": false },
+    { "seat": "Codex", "model": "gpt-5.5", "lens": "implementation/testing", "round_verdicts": ["caution", "block"], "dropped": false },
+    { "seat": "Gemini", "model": "gemini-3.5-flash", "lens": "product/ops", "round_verdicts": ["block", "block"], "dropped": false }
+  ],
+  "blockers": [
+    {
+      "title": "Atomic dedup",
+      "body": "Without an atomic SET NX claim two concurrent same-key requests both miss the cache and double-charge.",
+      "evidence": [
+        { "kind": "code", "path": "charges.py", "line": 10, "detail": "the SET NX claim" },
+        { "kind": "code", "path": "charges.py", "symbol": "charge_idempotent" },
+        { "kind": "source", "url": "https://internal/plan", "quote": "atomic SET NX claim on receipt" }
+      ]
+    },
+    {
+      "title": "Phantom blocker (fabricated)",
+      "body": "Cites a line that does not exist and a quote never in the packet.",
+      "evidence": [
+        { "kind": "code", "path": "charges.py", "line": 999 },
+        { "kind": "code", "path": "missing.py", "line": 3 },
+        { "kind": "source", "url": "https://internal/plan", "quote": "this sentence was never in the source material" }
+      ]
+    }
+  ],
+  "dissent": [
+    { "who": "Codex", "body": "Rollout aggressiveness is debatable; the correctness blockers are not.",
+      "evidence": [ { "kind": "command", "command": "pytest -q tests/test_idempotency.py" } ] }
+  ],
+  "concerns": [
+    { "title": "TTL vs retry window", "body": "A legitimate retry after expiry may double-charge.",
+      "evidence": [ { "kind": "judgment", "detail": "no client-behavior data was available to the board" } ] }
+  ],
+  "open_questions": ["24h TTL vs client retry/settlement windows."],
+  "next_actions": ["Spec the atomic state machine.", "Decide Redis failure policy."]
+}

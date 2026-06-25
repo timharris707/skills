@@ -1,0 +1,5 @@
+MATERIAL UNDER REVIEW (captured packet — what was egressed; quotes resolve against this).
+
+The plan stores the key-to-response mapping in Redis with a 24h TTL. It does not
+take an atomic SET NX claim on receipt, so two concurrent same-key requests both
+miss the cache and double-charge.

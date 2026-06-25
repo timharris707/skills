@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""run_board.py — the Advisory Board conductor (M1 + M2 + M3 + M4).
+"""run_board.py — the Advisory Board conductor (M1 + M2 + M3 + M4 + M5).
 
 The skill's controls used to be prose addressed to the very agent that wants to
 run the board. This conductor turns the load-bearing mechanics into code: a
@@ -29,18 +29,28 @@ This file implements milestones M1, M2 and M3 of design/run-board-conductor.md:
       its own packet hash but reuses the run's approval (the run-card disclosed the
       multi-round plan). Round 3 / `auto` stay v1.x.
 
-What is deliberately NOT here yet (later milestones): the canonical verdict +
-resolved evidence (M5). `run` stops at the last round's boundary and hands the
-clean per-seat reviews to the synthesizer (§11) rather than flattening them in
-code.
+  M5  Canonical verdict + resolved evidence. `run` still stops at the last round's
+      boundary and hands the clean per-seat reviews to the synthesizer (§11) — the
+      conductor does NOT generate the verdict in code. Once verdict.json exists
+      (schema advisory-board/verdict@2, with typed evidence[] on blockers), the
+      deterministic chain runs as subcommands: `verify` resolves and stamps each
+      citation (verify_evidence.py — code path:line/symbol against the source,
+      source quotes against the captured packet, never a live fetch), `consensus`
+      renders final-consensus.md FROM the verdict (render_verdict.py), and
+      `validate --gate` decides ship/block/ABSTAIN (board_verdict.py). `abstain`
+      ("human required", exit 3) fires when the board is torn across the gate line
+      with no majority, or a blocker rests on a refuted citation — driven by
+      OBSERVED cross-seat agreement, never self-reported confidence.
 
 Subcommands:
   init        resolve config and emit run-recipe.yaml + the run-card (no spawn)
   toolchain   check each seat CLI vs its latest release; --update upgrades stale ones
   preflight   probe each seat (version / smoke ping) and print a GO/NO-GO table
   run         resolve -> preflight -> egress gate -> round-1 -> round-2 -> artifacts
-  render      delegate to render_handoff.py (final-consensus.html from data)
-  validate    delegate to board_verdict.py (validate / gate verdict.json)
+  verify      delegate to verify_evidence.py (resolve + stamp a verdict's evidence)
+  consensus   delegate to render_verdict.py (final-consensus.md from verdict.json)
+  render      delegate to render_handoff.py (final-consensus.html from handoff-data.json)
+  validate    delegate to board_verdict.py (validate / gate verdict.json; abstain = exit 3)
 
 Toolchain currency (the `toolchain` subcommand, also `run --update-tools`) keeps a
 stale CLI from 404-ing a freshly-renamed frontier model id: it reads installed-vs-
