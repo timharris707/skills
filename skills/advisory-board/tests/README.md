@@ -1,10 +1,11 @@
 # Conductor tests
 
-Tests for `scripts/run_board.py` (the M1–M4 conductor; implemented as the
-`scripts/_conductor/` package behind a thin `run_board` façade). Python 3
-standard library only; they run the whole pipeline — including the real round-1
-and round-2 fan-outs — against **mock CLIs** on `PATH`, so no provider tokens are
-spent and nothing leaves the machine.
+Tests for `scripts/run_board.py` (the M1–M5 conductor; implemented as the
+`scripts/_conductor/` package behind a thin `run_board` façade) and the sibling
+scripts it calls (`board_verdict.py`, `verify_evidence.py`, `render_verdict.py`).
+Python 3 standard library only; they run the whole pipeline — including the real
+round-1 and round-2 fan-outs — against **mock CLIs** on `PATH`, so no provider
+tokens are spent and nothing leaves the machine.
 
 ## Run
 
@@ -28,6 +29,12 @@ needed beyond a Python 3 interpreter.
 | `mocks/{claude,codex,gemini,agy,ollama}` | banner-accurate CLI stubs; behavior switched by `MOCK_<SEAT>_MODE` (`go`/`nogo_version`/`nogo_smoke`/`empty`/`degraded`/`timeout`/`model_not_found`/`stub`; gemini also `model_proposal`) and argv captured to `MOCK_ARGV_LOG`. The smoke ping returns `ready`; a round-1 prompt returns a full multi-section review (with a `model:` banner on stderr) so a single test exercises preflight **and** the fan-out — `stub` returns a short plan-style reply (the §13 shape-check failure). `claude`/`codex`/`agy` also mock `update` (force failure with `MOCK_<SEAT>_UPDATE_FAIL=1`); `agy` also mocks `models`. (`agy` is the Antigravity seat — `MOCK_AGY_VERSION` sets its reported version. `ollama` is the local seat — prompt on stdin, no `model_not_found`/`update` arms; `MOCK_OLLAMA_VERSION` sets its reported version, default `0.5.0`) |
 | `mocks/{npm,brew}` | package-manager stubs for the toolchain check/update: latest version is env-controlled (`MOCK_NPM_CLAUDE`/`MOCK_NPM_CODEX`, `MOCK_BREW_GEMINI`/`MOCK_BREW_OLLAMA` formulae, `MOCK_BREW_CASK` for the antigravity cask; default `9.9.9` → stale); `brew upgrade` fails with `MOCK_BREW_UPGRADE_FAIL=1` |
 | `fixtures/sample-plan.md` | a small, stable source for deterministic runs |
+| `fixtures/{verdict-m5.json, src/charges.py, packet.txt}` | M5 evidence-resolution fixtures — a `@2` verdict exercising every kind/status, a 15-line source file (`charge_idempotent`), and a captured packet a `source` quote resolves against |
+
+The M5 canonical-verdict layer (`TestSchemaV2Validation`, `TestGateAbstain`,
+`TestEvidenceResolution`, `TestRenderVerdict`, `TestM5ChainDelegation`) tests the
+schema `@2` validation, the abstain gate, evidence resolution/stamping, and the
+`verify` → `consensus` → `validate` chain (see "the M5 invariants" below).
 
 ## The safety properties the suite locks
 
@@ -86,3 +93,31 @@ The M4 round-2 layer adds:
 - **`--rounds`/`--cross-reading` honored** — `--rounds 1` skips round 2; `none`
   skips the board packet; `--rounds 3`/`auto` caps at round 2 with a v1.x note;
   `<2` usable round-1 reviews skips round 2 but still records what was captured.
+
+The M5 canonical-verdict layer adds:
+
+- **The schema `@2` validates strictly** (`TestSchemaV2Validation`) — `@1` files
+  still pass; a bad evidence kind/status, a `code` citation missing `path` or
+  `line`/`symbol`, or a `source` citation missing its `quote` is rejected with the
+  schema exit code; a `judgment` citation needs no referent.
+- **Evidence resolution respects quarantine** (`TestEvidenceResolution`) — `code`
+  `path:line`/`symbol` resolves against the source (in-range → verified, out-of-range
+  / absent-symbol → refuted, missing-file / no-source → unverified); `source` quotes
+  resolve against the **captured packet only** (present → verified, absent → refuted,
+  no-packet → unverified — it never reaches the URL); `command` is unverified
+  (deferred), `judgment` is left unstamped.
+- **The gate abstains in the torn regime** (`TestGateAbstain`, `TestGateReconcileVerdictVsBoard`,
+  `TestGateRefutedAnywhere`) — `--gate` returns exit `3` ("human required") when the seats that
+  ran straddle the `--fail-on` line with no strict majority, when the declared `verdict` clears
+  the gate while a majority of seats trip it (a verdict that contradicts its board — the
+  injected-"ship" case), or when any citation is refuted. Synthesis *escalation* (a declared
+  verdict that trips the gate) still fails decisively; the decision reads observed
+  `round_verdicts`, never the gameable `confidence`.
+- **md + HTML render FROM the verdict** (`TestRenderVerdict`) — `final-consensus.md`
+  carries the decision, the evidence trail with stamps, and the couldn't-verify
+  bucket; the derived `handoff-data.json` round-trips cleanly through
+  `render_handoff.py`; per-round prose is pulled from `round-N/<seat>.md` when a run
+  dir is given, never invented.
+- **The chain wires through the conductor** (`TestM5ChainDelegation`) — `verify` /
+  `consensus` / `validate` delegate to the sibling scripts, the abstain exit
+  propagates, and `run` prints the synthesis-then-chain guidance.

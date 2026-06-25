@@ -67,6 +67,8 @@ __all__ = [
     "_maybe_update_tools",
     "cmd_run",
     "cmd_render",
+    "cmd_consensus",
+    "cmd_verify",
     "cmd_validate",
     "_delegate",
     "add_run_options",
@@ -262,17 +264,33 @@ def cmd_run(args) -> int:
 
     last = rounds_done[-1]
     usable_last = [r for r in last if r.usable]
-    # M4 boundary: rounds are captured. The canonical verdict + resolved evidence
-    # (M5) is the next milestone — v1 hands the clean per-round artifacts to the
-    # synthesizer rather than flattening them in code (§11).
+    # Rounds are captured. Synthesis stays a REASONING task (§11): the conductor
+    # produces clean packets and hands the latest round's reviews to the orchestrating
+    # agent (or one neutral seat) to fill verdict.json — it does NOT generate the
+    # verdict in code. Once verdict.json exists, the deterministic M5 chain runs:
+    last_dir = f"{config.out_dir}/round-{last[0].round_no}"
     print(f"\nRounds complete ({len(rounds_done)} round(s)): {len(usable_last)} usable reviews in "
-          f"{config.out_dir}/round-{last[0].round_no}/. Next (M5, not yet automated): synthesize "
-          "the latest round into verdict.json, then `validate` it.")
+          f"{last_dir}/.")
+    print("\nNext — synthesize, then run the deterministic M5 chain:")
+    print(f"  1. Read {last_dir}/*.md and write {config.out_dir}/verdict.json "
+          "(advisory-board/verdict@2; cite typed evidence on each blocker).")
+    print(f"  2. run_board.py verify {config.out_dir}/verdict.json --source <src> --run {config.out_dir}")
+    print(f"  3. run_board.py consensus {config.out_dir}/verdict.json --run {config.out_dir} "
+          f"-o {config.out_dir}/final-consensus.md")
+    print(f"  4. run_board.py validate {config.out_dir}/verdict.json --gate")
     return EXIT_OK
 
 
 def cmd_render(args) -> int:
     return _delegate("render_handoff.py", args.passthrough)
+
+
+def cmd_consensus(args) -> int:
+    return _delegate("render_verdict.py", args.passthrough)
+
+
+def cmd_verify(args) -> int:
+    return _delegate("verify_evidence.py", args.passthrough)
 
 
 def cmd_validate(args) -> int:
@@ -317,9 +335,10 @@ def add_run_options(parser: argparse.ArgumentParser) -> None:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="run_board.py",
-        description="The Advisory Board conductor (M1-M4: registry, dry-run, preflight, "
+        description="The Advisory Board conductor: registry, dry-run, preflight, "
                     "egress/quarantine gate, round-1 + round-2 fan-out with failure "
-                    "protocol and cross-reading packets).",
+                    "protocol and cross-reading packets, and the canonical-verdict chain "
+                    "(verify evidence -> consensus -> validate/gate).",
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -359,11 +378,19 @@ def build_parser() -> argparse.ArgumentParser:
                         help="skip the confirmation prompt (for unattended runs)")
     p_tool.set_defaults(func=cmd_toolchain)
 
-    p_render = sub.add_parser("render", help="delegate to render_handoff.py")
+    p_render = sub.add_parser("render", help="delegate to render_handoff.py (HTML from handoff-data.json)")
     p_render.add_argument("passthrough", nargs=argparse.REMAINDER)
     p_render.set_defaults(func=cmd_render)
 
-    p_validate = sub.add_parser("validate", help="delegate to board_verdict.py")
+    p_verify = sub.add_parser("verify", help="delegate to verify_evidence.py (resolve + stamp evidence)")
+    p_verify.add_argument("passthrough", nargs=argparse.REMAINDER)
+    p_verify.set_defaults(func=cmd_verify)
+
+    p_consensus = sub.add_parser("consensus", help="delegate to render_verdict.py (final-consensus.md from verdict.json)")
+    p_consensus.add_argument("passthrough", nargs=argparse.REMAINDER)
+    p_consensus.set_defaults(func=cmd_consensus)
+
+    p_validate = sub.add_parser("validate", help="delegate to board_verdict.py (schema check + --gate)")
     p_validate.add_argument("passthrough", nargs=argparse.REMAINDER)
     p_validate.set_defaults(func=cmd_validate)
 
