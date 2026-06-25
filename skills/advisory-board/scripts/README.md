@@ -10,6 +10,7 @@
 | `render_verdict.py` | Render `final-consensus.md` **from** the canonical `verdict.json` (evidence trail + couldn't-verify bucket); `--handoff-data`/`--html` derive the HTML via `render_handoff.py`. | `references/verdict-schema.md` |
 | `format_output.py` | Render `verdict.json` as a TL;DR, PR comment, Slack message, or normalized JSON. | `references/output-formats.md` |
 | `render_handoff.py` | Render `final-consensus.html` from a `handoff-data.json` — deterministic, fails on any leftover placeholder. | `references/handoff-template.html` |
+| `render_plan.py` | Render a **planning-document HTML view** deterministically **from** its markdown (`design/<plan>.md`) — milestones / phases / checklists / per-phase testing + validation gate, a computed progress ring and milestone status rail, decisions/risks, and an inlined SVG diagram. The markdown is the source of truth; never hand-edit the HTML — regenerate it. Self-contained (Claude brand fonts embedded). Fails on any leftover placeholder. | `references/plan-template.html` (+ `plan-fonts.css`) |
 
 ## Package layout
 
@@ -70,6 +71,10 @@ python3 scripts/format_output.py path/to/verdict.json --format pr
 
 # render the HTML handoff deterministically from structured data
 python3 scripts/render_handoff.py path/to/handoff-data.json -o final-consensus.html
+
+# render a PLAN view from its markdown (regenerate whenever the markdown changes)
+python3 scripts/render_plan.py ../../design/run-board-v1x.md     # -> run-board-v1x.html
+python3 scripts/render_plan.py ../../design/run-board-v1x.md --check   # verify only
 ```
 
 > Paths above are relative to the **skill directory** — `skills/advisory-board/` in this repo, or the installed skill root (e.g. `~/.codex/skills/advisory-board/`) — the same convention as every `references/…` path in the skill. Run the scripts from there, or prefix them with that directory; `scripts/board_verdict.py` won't resolve from the repo root.
