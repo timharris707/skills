@@ -1,0 +1,267 @@
+"""The egress packet + gate (design §8, §12): packet assembly (round 1 and
+round 2), the content hash, tiered consent, the manifest, and the hash-bound
+pre-spawn hard stop."""
+from __future__ import annotations
+
+import hashlib
+import sys
+from dataclasses import dataclass
+from typing import Optional
+
+from _conductor.constants import now_stamp
+from _conductor.config import RunConfig
+from _conductor.prompts import (
+    build_round1_prompt,
+    build_round2_packet,
+    build_round2_prompt,
+)
+
+__all__ = [
+    "build_round2",
+    "PacketBlob",
+    "build_packet",
+    "packet_hash",
+    "EgressApproval",
+    "render_egress_manifest",
+    "CONSENT_TOKENS",
+    "CONSENT_PROSE",
+    "consent_token",
+    "consent_mode_for",
+    "disclosure_line",
+    "unenforced_network_note",
+    "enforce_egress_gate",
+]
+
+
+def build_round2(config: RunConfig, round1_results: list) -> tuple:
+    """Build the round-2 egress blobs (one per USABLE round-1 seat) + the shared
+    board packet. A dropped round-1 seat has no review to build on, so it does not
+    continue to round 2 (recorded as such)."""
+    usable = [r for r in round1_results if r.usable]
+    board_packet = build_round2_packet(usable, config.cross_reading)
+    by_name = {s.name: s for s in config.board}
+    own = {r.seat: r.stdout for r in usable}
+    blobs: list = []
+    for r in usable:
+        seat = by_name[r.seat]
+        prompt = build_round2_prompt(seat, config.source.text,
+                                     board_packet=board_packet,
+                                     own_review=own[r.seat],
+                                     cross_reading=config.cross_reading)
+        blobs.append(PacketBlob(
+            seat=seat.name,
+            provider=seat.provider,
+            relpath=f"prompts/{seat.name}-round-2.prompt",
+            text=prompt,
+        ))
+    return blobs, board_packet
+
+
+# Egress packet (design §8, §12)
+
+
+@dataclass
+class PacketBlob:
+    seat: str
+    provider: str
+    relpath: str
+    text: str
+
+    @property
+    def data(self) -> bytes:
+        return self.text.encode("utf-8")
+
+    @property
+    def sha256(self) -> str:
+        return hashlib.sha256(self.data).hexdigest()
+
+    @property
+    def nbytes(self) -> int:
+        return len(self.data)
+
+    @property
+    def nlines(self) -> int:
+        return self.text.count("\n") + (1 if self.text and not self.text.endswith("\n") else 0)
+
+
+def build_packet(config: RunConfig) -> list:
+    """Materialize the exact per-seat round-1 prompts that would leave the machine."""
+    blobs: list = []
+    for seat in config.board:
+        prompt = build_round1_prompt(seat, config.source.text)
+        blobs.append(PacketBlob(
+            seat=seat.name,
+            provider=seat.provider,
+            relpath=f"prompts/{seat.name}-round-1.prompt",
+            text=prompt,
+        ))
+    return blobs
+
+
+def packet_hash(blobs: list) -> str:
+    """A single content hash binding consent to the exact outbound bytes.
+
+    Order-independent: hash each blob's relpath + content hash, sorted, so the
+    manifest hash is stable regardless of seat ordering.
+    """
+    digest = hashlib.sha256()
+    for line in sorted(f"{b.relpath}\n{b.sha256}\n" for b in blobs):
+        digest.update(line.encode("utf-8"))
+    return digest.hexdigest()
+
+
+# Egress gate (design §8) — consent bound to a content hash; pre-spawn hard stop
+
+
+@dataclass
+class EgressApproval:
+    approved: bool
+    mode: str            # disclosure | hash-bound | refused | override | skipped
+    content_hash: str
+    timestamp: str
+    detail: str
+
+
+def render_egress_manifest(config: RunConfig, blobs: list, content_hash: str) -> str:
+    consent = consent_mode_for(config.sensitivity)
+    # Only external blobs actually leave the machine; a local seat (provider="local",
+    # e.g. ollama) is materialized on disk but never egresses, so it must NOT appear
+    # under "Files leaving this machine". Split them up front so even the intro line
+    # never overstates what egresses (a fully-local board sends nothing).
+    external = sorted((b for b in blobs if b.provider != "local"), key=lambda x: x.relpath)
+    local = sorted((b for b in blobs if b.provider == "local"), key=lambda x: x.relpath)
+    intro = ("This run will send the bytes below to external providers. Review before approving."
+             if external else
+             "This run sends NOTHING to external providers (local-only board); the prompts below "
+             "stay on this machine.")
+    lines = [
+        f"# Egress Manifest — {config.title}",
+        "",
+        intro,
+        "",
+        f"Packet content hash (sha256): {content_hash}",
+        f"Sensitivity: {config.sensitivity}",
+        f"Mode: {config.mode}",
+        f"Consent: {consent}",
+    ]
+    note = unenforced_network_note(config)
+    if note:
+        lines += ["", note]
+    lines += [
+        "",
+        "## Files leaving this machine",
+        "",
+        "| File                          | Bytes | Lines | Goes to |",
+        "| ----------------------------- | ----- | ----- | ------- |",
+    ]
+    if external:
+        for b in external:
+            lines.append(f"| {b.relpath:<29} | {b.nbytes:>5} | {b.nlines:>5} | {b.provider} ({b.seat}) |")
+    else:
+        lines.append("| (none — local-only board)     |       |       |         |")
+    if local:
+        lines += ["", "## Stays on this machine (local seats — no egress)", ""]
+        for b in local:
+            lines.append(f"- {b.relpath} — {b.seat} (local model, on-machine; never sent)")
+    lines += ["", "## Providers", ""]
+    if external:
+        for b in external:
+            lines.append(f"- {b.provider} ({b.seat}) — receives {b.relpath}")
+    else:
+        lines.append("- (none — no external providers receive any bytes)")
+    lines += ["", "Approval: <PENDING — bound to the content hash above>"]
+    return "\n".join(lines) + "\n"
+
+
+# Stable machine tokens for the tiered consent model (decision #2). The token is
+# the source of truth for sensitivity.json; the prose is derived from it, never
+# the other way around (a reword must not silently change the machine field).
+CONSENT_TOKENS = {"public": "disclosure", "redacted": "hash-bound", "local-only": "refused"}
+CONSENT_PROSE = {
+    "disclosure": "disclosure (clearly-public material proceeds after disclosure is shown)",
+    "hash-bound": "hash-bound approval required (non-public material blocks until approved)",
+    "refused": "refused (must-not-leave material cannot go to external providers)",
+}
+
+
+def consent_token(sensitivity: str) -> str:
+    return CONSENT_TOKENS.get(sensitivity, "hash-bound")
+
+
+def consent_mode_for(sensitivity: str) -> str:
+    return CONSENT_PROSE[consent_token(sensitivity)]
+
+
+def disclosure_line(config: RunConfig) -> str:
+    providers = sorted({seat.provider for seat in config.board if seat.provider != "local"})
+    if not providers:
+        return "This run sends nothing to external providers (local-only board)."
+    pretty = ", ".join(providers)
+    return f"This review sends your source material to {pretty}. Proceed?"
+
+
+def unenforced_network_note(config: RunConfig) -> Optional[str]:
+    """The warning to show wherever a human consents to egress. None when every
+    seat is network-isolated (or in advisory mode, where grounding is intended)."""
+    seats = config.unenforced_network_seats
+    if not seats:
+        return None
+    return ("⚠ NETWORK NOT ISOLATED for: " + ", ".join(seats) + " — gate mode cannot remove "
+            "these seats' network (no CLI flag disables their web/grounding tools), so a prompt "
+            "injection in the source could still drive them to fetch or exfiltrate. Treat them "
+            "as networked.")
+
+
+def enforce_egress_gate(config: RunConfig, blobs: list, *, assume_yes: bool,
+                        skip_gate: bool, interactive: Optional[bool] = None) -> EgressApproval:
+    """The pre-spawn hard stop. Returns an approval, or a refusal that callers
+    MUST treat as "do not spawn". No board subprocess may run before this passes.
+    """
+    content_hash = packet_hash(blobs)
+    stamp = now_stamp()
+
+    external = [b for b in blobs if b.provider != "local"]
+
+    # local-only / must-not-leave: external egress is forbidden outright.
+    if config.sensitivity == "local-only" and external:
+        return EgressApproval(False, "refused", content_hash, stamp,
+                              "sensitivity is local-only but the board has external seats; "
+                              "use a local-only board or change sensitivity")
+
+    if not external:
+        return EgressApproval(True, "disclosure", content_hash, stamp,
+                              "no external egress (local-only board)")
+
+    # Every path below egresses to external providers — surface the unenforced-
+    # network warning here, once, so it reaches every consent surface (public,
+    # --yes, --skip, interactive, and the non-TTY refusal) without duplicating.
+    note = unenforced_network_note(config)
+    if note:
+        print(note)
+
+    # Public: disclosure is shown, the run proceeds (tiered consent, decision #2).
+    if config.sensitivity == "public":
+        return EgressApproval(True, "disclosure", content_hash, stamp,
+                              "clearly-public material; proceeded after disclosure")
+
+    # Non-public (redacted): hash-bound approval required, unless overridden.
+    if skip_gate:
+        return EgressApproval(True, "override", content_hash, stamp,
+                              "OVERRIDE: --skip-sensitivity-gate bypassed hash-bound approval")
+    if assume_yes:
+        return EgressApproval(True, "hash-bound", content_hash, stamp,
+                              "approved via --yes (bound to the content hash)")
+
+    is_tty = interactive if interactive is not None else sys.stdin.isatty()
+    if not is_tty:
+        return EgressApproval(False, "refused", content_hash, stamp,
+                              "non-public material requires approval; re-run with --yes "
+                              "or interactively, or mark the source --sensitivity public")
+
+    print(disclosure_line(config))
+    print(f"Packet content hash (sha256): {content_hash}")
+    answer = input("Approve egress of this exact packet? [y/N] ").strip().lower()
+    if answer in ("y", "yes"):
+        return EgressApproval(True, "hash-bound", content_hash, stamp,
+                              "approved interactively (bound to the content hash)")
+    return EgressApproval(False, "refused", content_hash, stamp, "approval declined")
