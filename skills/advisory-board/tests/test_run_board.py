@@ -1564,13 +1564,6 @@ def _round_results(seats, *, round_no=1, status="ran"):
 
 
 class TestRound2Builders(unittest.TestCase):
-    def test_digest_truncates_long_keeps_short(self):
-        self.assertEqual(rb._digest("short", budget=100), "short")
-        long = "line\n" * 500
-        d = rb._digest(long, budget=120)
-        self.assertLess(len(d), len(long))
-        self.assertIn("truncated for the round-2 digest", d)
-
     def test_packet_summaries_vs_full(self):
         r1 = _round_results(["claude", "codex"])
         full = rb.build_round2_packet(r1, "full")
@@ -1578,7 +1571,9 @@ class TestRound2Builders(unittest.TestCase):
         self.assertIn("claude", full)
         self.assertIn("round-1 review", full)
         self.assertIn("cross-reading: full", full)
-        self.assertIn("cross-reading: summaries", summ)
+        self.assertIn("cross-reading: summaries", summ)   # M4 structured digest
+        self.assertIn("Where the board stands", summ)
+        self.assertIn("By topic", summ)
 
     def test_packet_none_is_none(self):
         self.assertIsNone(rb.build_round2_packet(_round_results(["claude"]), "none"))
@@ -1772,6 +1767,21 @@ class TestVerdictTokenParse(unittest.TestCase):
     def test_token_as_substring_does_not_match(self):
         self.assertEqual(rb.parse_verdict("we ship the shipment on the blockchain\nVERDICT: caution"),
                          "caution")
+
+    def test_token_buried_in_prose_label_is_not_read(self):
+        # A prose label is not the bare-token contract: "DO NOT SHIP" must not read ship.
+        self.assertIsNone(rb.parse_verdict("**Verdict:** REJECT / DO NOT SHIP in its current form"))
+        self.assertIsNone(rb.parse_verdict("Verdict: we should not ship this yet"))
+
+    def test_value_side_decoration_is_skipped(self):
+        # Non-word leading decoration on the value (markdown, bullet, arrow, emoji) is
+        # skipped; the token is still the first WORD. Decoration-only churn => same token.
+        self.assertEqual(rb.parse_verdict("VERDICT: **ship**"), "ship")
+        self.assertEqual(rb.parse_verdict("VERDICT: `block`"), "block")
+        self.assertEqual(rb.parse_verdict("VERDICT: - caution"), "caution")
+        self.assertEqual(rb.parse_verdict("VERDICT: → ship"), "ship")
+        self.assertEqual(rb.parse_verdict("VERDICT: ✅ ship"),
+                         rb.parse_verdict("VERDICT: ship"))   # decoration drift = no movement
 
     def test_absent_is_none(self):
         self.assertIsNone(rb.parse_verdict("a review with no verdict line"))
@@ -2012,6 +2022,162 @@ class TestAutoRounds(EnvMixin):
                                 "--rounds", "auto", "--max-rounds", "0"])
         self.assertEqual(code, rb.EXIT_USAGE)
         self.assertIn("--max-rounds must be >= 1", err)
+
+
+# --------------------------------------------------------------------------- #
+# M4 (v1.x) — structured cross-reading digest (the `summaries` packet)
+# --------------------------------------------------------------------------- #
+
+
+class TestStructuredDigest(unittest.TestCase):
+    EXAMPLE_DIR = os.path.join(REPO_ROOT, "examples", "payments-idempotency-review", "round-1")
+    GOLDEN = os.path.join(FIXTURES, "example-structured-digest.md")
+
+    def _example_usable(self):
+        out = []
+        for s in ("claude", "codex", "gemini"):
+            with open(os.path.join(self.EXAMPLE_DIR, f"{s}.md")) as fh:
+                out.append(_sr(s, 1, fh.read()))
+        return out
+
+    # ---- parse_sections (deterministic, by the review's own structure) ----
+    def test_parses_markdown_and_numbered_bold_headers(self):
+        for review in ("## 1. Verdict\nship it\n## 2. Strongest objections\nthe retry race\n",
+                       "**1. Verdict**\nship it\n**2. Strongest Objections**\nthe retry race\n"):
+            secs = rb.parse_sections(review)
+            self.assertIn("Verdict", secs)
+            self.assertIn("Strongest objections", secs)
+
+    def test_unnumbered_markdown_headers_parse(self):
+        secs = rb.parse_sections("## Verdict\ngo\n## Risks\nstale\n")
+        self.assertEqual(set(secs), {"Verdict", "Risks, stale assumptions & missing evidence"})
+
+    def test_lettered_subheaders_stay_in_their_section(self):
+        # "### A. … (Risk …)" is a sub-point of Objections, NOT a new Risks section.
+        review = ("## 2. Strongest objections\n"
+                  "### A. Tenant scoping (High Risk of leak)\nthe issue\n"
+                  "### B. Payload validation\nanother\n"
+                  "## 3. Recommended execution sequence\ndo it\n")
+        secs = rb.parse_sections(review)
+        self.assertIn("Tenant scoping", secs["Strongest objections"])
+        self.assertIn("Payload validation", secs["Strongest objections"])
+        self.assertNotIn("Risks, stale assumptions & missing evidence", secs)
+
+    def test_bold_statement_without_number_is_body_not_header(self):
+        secs = rb.parse_sections("## 1. Verdict\n**REVISE — do not ship.**\nbecause reasons\n")
+        self.assertIn("REVISE", secs["Verdict"])
+
+    def test_no_headers_returns_empty(self):
+        self.assertEqual(rb.parse_sections("just a blob of prose, no headers at all"), {})
+
+    def test_bold_numbered_list_items_stay_in_section(self):
+        # whole-line bold-numbered list items inside a section are body, not new sections.
+        review = ("## 3. Recommended execution sequence\n**1. Specify the contract**\ndo this\n"
+                  "**2. Add the constraint**\nthen backfill\n## 4. Invariants and guardrails\nonce\n")
+        secs = rb.parse_sections(review)
+        self.assertIn("do this", secs["Recommended execution sequence"])
+        self.assertIn("then backfill", secs["Recommended execution sequence"])
+
+    def test_roman_numeral_subpoints_stay_in_section(self):
+        review = ("## 2. Strongest objections\n### II. Tenant scoping (Risk of leak)\nthe issue\n"
+                  "### III. Payload validation\nmore\n## 3. Recommended execution sequence\ngo\n")
+        secs = rb.parse_sections(review)
+        self.assertIn("Tenant scoping", secs["Strongest objections"])
+        self.assertNotIn("Risks, stale assumptions & missing evidence", secs)   # not scattered
+
+    def test_header_inside_code_fence_is_not_a_boundary(self):
+        review = ("## 3. Recommended execution sequence\n```\n# a diagram label, not a header\nbox\n```\n"
+                  "real step\n## 4. Invariants and guardrails\nonce\n")
+        secs = rb.parse_sections(review)
+        self.assertIn("real step", secs["Recommended execution sequence"])
+
+    def test_round_three_digest_names_round_three(self):
+        usable = [_sr("a", 2, "## 1. Verdict\nhold\nVERDICT: block"),
+                  _sr("b", 2, "## 1. Verdict\ngo\nVERDICT: ship")]
+        d = rb.build_structured_digest(usable, round_no=3)
+        self.assertIn("round 3 (cross-reading: summaries", d)
+        self.assertIn("Where the board stands after round 2", d)
+
+    # ---- agreement header (pure over M1's token + citation primitives) ----
+    def test_unanimous_vs_split_agreement(self):
+        unanimous = [_sr("a", 1, "x\nVERDICT: caution"), _sr("b", 1, "y\nVERDICT: caution")]
+        self.assertIn("unanimous: caution", rb.verdict_agreement(unanimous)[1])
+        split = [_sr("a", 1, "x\nVERDICT: ship"), _sr("b", 1, "y\nVERDICT: block")]
+        self.assertIn("split", rb.verdict_agreement(split)[1])
+
+    def test_agreement_no_tokens_and_incomplete_cast(self):
+        none = [_sr("a", 1, "no token here"), _sr("b", 1, "none either")]
+        self.assertIn("not measurable", rb.verdict_agreement(none)[1])
+        # all who cast a token agree, but one seat is silent -> NOT called a "split"
+        cast = [_sr("a", 1, "x\nVERDICT: ship"), _sr("b", 1, "y\nVERDICT: ship"),
+                _sr("c", 1, "no token")]
+        summary = rb.verdict_agreement(cast)[1]
+        self.assertIn("all who cast a token agree: ship", summary)
+        self.assertNotIn("split", summary)
+
+    def test_shared_citations_need_two_seats(self):
+        usable = [_sr("a", 1, "see `auth.py:42` and `x.py:1`"),
+                  _sr("b", 1, "see `auth.py:42` only"),
+                  _sr("c", 1, "see `z.py:9`")]
+        self.assertEqual(rb.shared_citations(usable), ["auth.py:42"])
+
+    def test_agreement_and_conflict_surfaced_in_digest(self):
+        def review(tok, cite):
+            return f"## 1. Verdict\nx\n## 6. Concrete evidence\nsee {cite}\nVERDICT: {tok}"
+        usable = [_sr("claude", 1, review("ship", "`auth.py:42`")),
+                  _sr("codex", 1, review("block", "`auth.py:42`")),
+                  _sr("gemini", 1, review("block", "`db.py:7`"))]
+        d = rb.build_structured_digest(usable)
+        self.assertIn("Verdicts: claude=ship · codex=block · gemini=block", d)
+        self.assertIn("split", d)
+        shared_line = [ln for ln in d.splitlines() if ln.startswith("Shared evidence")][0]
+        self.assertIn("`auth.py:42`", shared_line)     # raised by claude+codex
+        self.assertNotIn("`db.py:7`", shared_line)      # only gemini -> not shared
+
+    def test_unparsed_review_falls_back_to_excerpt(self):
+        usable = [_sr("a", 1, "## 1. Verdict\nship\nVERDICT: ship"),
+                  _sr("b", 1, "a wall of prose with no headers whatsoever " * 8)]
+        d = rb.build_structured_digest(usable)
+        self.assertIn("no section headers found", d)    # seat b degraded gracefully
+        self.assertIn("**a:**", d)                       # seat a still structured
+
+    # ---- golden file on the committed real example (drift guard) ----
+    def test_golden_digest_of_example(self):
+        with open(self.GOLDEN) as fh:
+            golden = fh.read()
+        self.assertEqual(rb.build_structured_digest(self._example_usable(), round_no=2), golden)
+
+    def test_example_covers_all_seats_and_topics_within_budget(self):
+        usable = self._example_usable()
+        d = rb.build_structured_digest(usable, round_no=2)
+        for seat in ("claude", "codex", "gemini"):
+            self.assertIn(f"**{seat}:**", d)
+        # every round-1 topic appears (the "Changed mind" bucket is round-2-only).
+        for label, _ in rb.CANONICAL_SECTIONS:
+            if label == "Changed mind & remaining dissent":
+                continue
+            self.assertIn(f"### {label}", d)
+        self.assertNotIn("no section headers found", d)        # all three parsed structurally
+        self.assertLess(len(d), len(rb.build_round2_packet(usable, "full")) // 3)   # budget holds
+
+
+class TestStructuredDigestE2E(EnvMixin):
+    def test_summaries_run_writes_structured_packet(self):
+        out = tempfile.mkdtemp(prefix="board-m4-")
+        code, _, _ = run_cli(["run", "--source", SAMPLE, "--out", out, "--yes",
+                              "--cross-reading", "summaries"])
+        self.assertEqual(code, rb.EXIT_OK)
+        with open(os.path.join(out, "board-packet-round-2.md")) as fh:
+            packet = fh.read()
+        self.assertIn("structured digest", packet)
+        self.assertIn("Where the board stands", packet)
+        self.assertIn("By topic", packet)
+        # the agreement header is REAL (mocks emit tokens), not the no-tokens fallback —
+        # so a total parser failure (everything in the fallback) would not pass here.
+        self.assertIn("Verdicts: claude=caution", packet)
+        self.assertIn("split", packet)
+        self.assertIn("### Verdict", packet)
+        self.assertNotIn("no section headers found", packet)
 
 
 # --------------------------------------------------------------------------- #

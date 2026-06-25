@@ -57,20 +57,28 @@ DEFAULT_CONVERGE_THRESHOLD = 1
 # superseded by the seat's own closing token rather than overriding it.
 _VERDICT_LINE = re.compile(r"\bVERDICT\b\s*[*_]*\s*:\s*(.+?)\s*$", re.IGNORECASE)
 _WORD = {t: re.compile(rf"\b{t}\b", re.IGNORECASE) for t in VERDICT_TOKENS}
+_FIRST_WORD = re.compile(r"[A-Za-z]+")
 
 
 def parse_verdict(text: Optional[str]) -> Optional[str]:
-    """The seat's overall verdict token (ship|caution|block), or None if it emitted
-    no clean VERDICT line. A line naming zero or more than one token (the echoed
-    instruction, hedged prose) is ignored; the last clean line wins, matching the
-    templates' 'verdict on the last line' contract."""
+    """The seat's overall verdict token (ship|caution|block), or None if it emitted no
+    clean VERDICT line. The token must be the FIRST alphabetic word of the value (the
+    bare-token contract `VERDICT: <token>`), so a prose label like `Verdict: REJECT / DO
+    NOT SHIP` is NOT read as `ship`, while leading decoration that isn't a word — markdown
+    (`**ship**`), a bullet (`- caution`), an arrow/emoji — is skipped. A line naming zero
+    or more than one token (the echoed instruction, hedged prose) is ignored. The last
+    clean line wins, matching the templates' 'verdict on the last line' contract."""
     found = None
     for line in (text or "").splitlines():
         m = _VERDICT_LINE.search(line)
         if not m:
             continue
-        hits = [t for t in VERDICT_TOKENS if _WORD[t].search(m.group(1))]
-        if len(hits) == 1:
+        rest = m.group(1)
+        hits = [t for t in VERDICT_TOKENS if _WORD[t].search(rest)]
+        if len(hits) != 1:
+            continue   # zero tokens, or the 3-token echo / a hedge naming two
+        first = _FIRST_WORD.search(rest)
+        if first and first.group(0).lower() == hits[0]:   # the token leads the value
             found = hits[0]
     return found
 

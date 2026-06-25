@@ -21,13 +21,16 @@ This file implements milestones M1, M2 and M3 of design/run-board-conductor.md:
       on Timeout|InvalidOutput), and per-seat artifacts — round-1/<seat>.md, the
       .raw black-box recorder (input/source/packet hashes + answered model), and
       logs/<seat>-round-1.stderr.
-  M4  Round 2: a cross-reading board-packet-round-2.md (full | structural digest |
-      none) built from round-1, a debate fan-out (only usable round-1 seats
-      continue; source + peers re-supplied since each spawn is stateless), and the
-      diffable run-metadata.tsv (one row per seat per round). Round 2 egresses only
-      derivatives of already-approved source to the same providers, so it records
-      its own packet hash but reuses the run's approval (the run-card disclosed the
-      multi-round plan).
+  M4  Round 2: a cross-reading board-packet-round-2.md built from round-1, a debate
+      fan-out (only usable round-1 seats continue; source + peers re-supplied since
+      each spawn is stateless), and the diffable run-metadata.tsv (one row per seat
+      per round). Round 2 egresses only derivatives of already-approved source to the
+      same providers, so it records its own packet hash but reuses the run's approval
+      (the run-card disclosed the multi-round plan). The `summaries` packet is the M4
+      structured digest (_conductor/digest.py): a verdict/citation agreement header
+      over the board + every seat's take on each topic side by side, regrouped from
+      each review's own section headers (never claim-clustered — principle #1). `full`
+      is verbatim; `none` keeps each seat solo.
 
   M1' Round 3 / `auto` stop-rule (v1.x): each seat ends its review with a machine-
       readable `VERDICT: ship|caution|block` line; _conductor/convergence.py measures
@@ -81,12 +84,14 @@ from _conductor.constants import *  # noqa: F401,F403
 from _conductor.registry import *  # noqa: F401,F403
 from _conductor.config import *  # noqa: F401,F403
 from _conductor.spawn import *  # noqa: F401,F403
+from _conductor.convergence import *  # noqa: F401,F403
+from _conductor.digest import *  # noqa: F401,F403
 from _conductor.prompts import *  # noqa: F401,F403
+# (convergence re-exported above; digest builds on it and feeds the summaries packet)
 from _conductor.toolchain import *  # noqa: F401,F403
 from _conductor.egress import *  # noqa: F401,F403
 from _conductor.preflight import *  # noqa: F401,F403
 from _conductor.recipe import *  # noqa: F401,F403
-from _conductor.convergence import *  # noqa: F401,F403
 from _conductor.artifacts import *  # noqa: F401,F403
 from _conductor.rounds import *  # noqa: F401,F403
 from _conductor.cli import *  # noqa: F401,F403

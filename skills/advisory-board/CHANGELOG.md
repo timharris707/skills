@@ -8,6 +8,38 @@ Pre-1.0 the minor tracks the conductor milestone (M5 → `v0.5.0`, M6 → `v0.6.
 reserved for an explicit production-ready call. The verdict-JSON schema is versioned separately
 (`advisory-board/verdict@N`) and is not the same axis as the release version.
 
+## [v1.2.0] - 2026-06-25 — M4: smarter cross-reading digest
+
+Round 2's `summaries` packet is no longer each round-1 review head-truncated to a char
+budget (which silently dropped every section past the first). It is now a **structured
+digest**: a verdict/citation **agreement header** over the board, then **every seat's take
+on each topic side by side** — a sharper signal for round 2 (and the `auto` stop-rule) to
+debate against.
+
+### Added
+- **Structured cross-reading digest (M4)** — a new pure module `scripts/_conductor/digest.py`
+  replaces the head-excerpt `summaries` packet. It is §11-safe (principle #1: the conductor
+  plumbs, the models reason) — it does NOT cluster claims semantically. It regroups each review
+  **by the review's own section headers** (matching section *labels*, not claim content, to a
+  fixed canonical taxonomy: Verdict / Objections / Sequence / Invariants / Risks / Evidence /
+  Challenges) and surfaces agreement/conflict **only through M1's machine signals**: the parsed
+  `VERDICT:` tokens (`unanimous` vs `split — 2×caution, 1×block`) and citations raised by ≥2 seats.
+  Handles markdown headings (`## 1. Verdict`), numbered-bold headers (`**1. Verdict**`), lettered
+  and roman sub-points (`### A. …`, `### II. …` stay inside their parent section), and code fences
+  (a `#` line inside a ``` block is not a header); reviews with no parseable headers degrade
+  gracefully to a head excerpt. `full` and `none` are unchanged. Golden-file test over the committed
+  example's three real reviews + an end-to-end `--cross-reading summaries` run. Hardened by an
+  adversarial review (16 findings — two parser content-loss bugs, code-fence awareness, the
+  `parse_verdict` decoration handling, and a round-N debate-section bucket — all fixed). 343 tests.
+
+### Changed
+- **`parse_verdict` precision (M1 primitive, shared with M4)** — the verdict token must now be the
+  FIRST word of the value (the bare-token contract `VERDICT: <token>`), so a prose label like
+  `Verdict: REJECT / DO NOT SHIP` is no longer misread as `ship`. Compliant M1 reviews (a clean
+  trailing `VERDICT:` line) are unaffected.
+- **Retired the old head-excerpt `_digest`** (and `ROUND2_SUMMARY_BUDGET`) — superseded by the
+  structured digest; `summaries` now routes through `build_structured_digest`.
+
 ## [v1.1.0] - 2026-06-25 — M1: Round 3 / `auto` stop-rule
 
 The board no longer always runs a fixed two rounds. `--rounds auto` keeps debating

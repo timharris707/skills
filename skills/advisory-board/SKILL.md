@@ -87,7 +87,7 @@ A board sends the same source material to every seat's provider. Before the firs
 
 **Round 2 — rebuttal (default).**
 
-- Build a board packet from Round 1: summaries with links/paths to the full artifacts (`summaries`), or full prior responses when the token budget allows (`full`).
+- Build a board packet from Round 1: a structured digest (`summaries`, the default) that puts every seat's take on each topic side by side under a verdict/citation agreement header — where the board agrees and where it splits — or the full prior responses when the token budget allows (`full`). `run_board.py` builds this deterministically from each review's own section structure plus the `VERDICT:` tokens; it never clusters claims by meaning (principle #1).
 - Ask each seat: what another seat caught that you missed, what changed your view (and whether the change is driven by evidence or mere deference — see `references/epistemics.md`), what you still dispute, what should become consensus, and what stays unresolved.
 
 **Round 3 — convergence (optional).**
