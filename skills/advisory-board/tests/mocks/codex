@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# Mock `codex` CLI. Handles `codex --version` and `codex exec ... <prompt>`.
+# MOCK_CODEX_MODE: go | nogo_version | nogo_smoke | empty | degraded | timeout
+set -u
+
+if [ -n "${MOCK_ARGV_LOG:-}" ]; then
+  printf 'codex\t%s\n' "$*" >>"$MOCK_ARGV_LOG"
+fi
+
+mode="${MOCK_CODEX_MODE:-go}"
+
+if [ "${1:-}" = "--version" ]; then
+  if [ "$mode" = "nogo_version" ]; then exit 1; fi
+  echo "codex-cli 0.30.0 (mock)"
+  exit 0
+fi
+
+# Otherwise this is `codex exec ...`. Real `codex exec` reads stdin to EOF, so the
+# conductor must close it (close_stdin -> stdin=DEVNULL) or the call hangs. Drain
+# stdin here to FAITHFULLY model that: with stdin=DEVNULL this returns instantly;
+# if a regression left stdin open, this blocks and the conductor's timeout fires —
+# which is exactly the failure a test should catch, not hide.
+cat >/dev/null 2>&1
+
+case "$mode" in
+  nogo_smoke) exit 1 ;;
+  empty)      exit 0 ;;
+  timeout)    exec sleep 30 ;;   # exec so no orphaned sleep survives the kill
+  degraded)   echo "warning: sandbox note" >&2; echo "ready"; exit 1 ;;
+  *)          echo "ready"; exit 0 ;;
+esac
