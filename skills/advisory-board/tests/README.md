@@ -1,9 +1,10 @@
 # Conductor tests
 
-Tests for `scripts/run_board.py` (the M1–M4 conductor). Python 3 standard library
-only; they run the whole pipeline — including the real round-1 and round-2
-fan-outs — against **mock CLIs** on `PATH`, so no provider tokens are spent and
-nothing leaves the machine.
+Tests for `scripts/run_board.py` (the M1–M4 conductor; implemented as the
+`scripts/_conductor/` package behind a thin `run_board` façade). Python 3
+standard library only; they run the whole pipeline — including the real round-1
+and round-2 fan-outs — against **mock CLIs** on `PATH`, so no provider tokens are
+spent and nothing leaves the machine.
 
 ## Run
 
