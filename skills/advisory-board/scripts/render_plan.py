@@ -63,10 +63,19 @@ import os
 import re
 import sys
 
-# --- template engine -----------------------------------------------------------
-# This block/{{TOKEN}} engine is a deliberate sibling of render_handoff.py (the
-# canonical copy). Keep them in step; extracting a shared _render_engine.py is a
-# tracked follow-up (it would also touch the released render_handoff/render_verdict).
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _render_engine import (  # noqa: E402  shared block / {{TOKEN}} engine
+    assert_fully_resolved,
+    die,
+    render_item,
+    restore_stash,
+    strip_comments,
+)
+
+# --- template data model -------------------------------------------------------
+# BLOCK_KEYS / RAW_TOKENS parameterize the shared engine for this renderer's
+# template. The plan view inlines a verbatim SVG diagram, so render() drives the
+# engine with a stash (the SENTINEL mechanism lives in _render_engine).
 BLOCK_KEYS = {
     "SUBTITLE": "subtitle", "META": "meta", "RAIL": "rail", "OVERVIEW": "overview",
     "MILESTONE": "milestones", "DESC": "desc", "PHASE": "phases", "TASK": "tasks",
@@ -80,12 +89,6 @@ RAW_TOKENS = {
     "PH_TESTING", "DEC_TITLE", "DEC_BODY", "RISK_TITLE", "RISK_BODY", "DIAGRAM",
     "METADATA",
 }
-TOKEN_RE = re.compile(r"\{\{([A-Z0-9_]+)\}\}")
-BEGIN_RE = re.compile(r"<!--\s*BEGIN ([A-Z][A-Z ]*?)\s*(?:\([^)]*\))?\s*-->")
-MARKER_RE = re.compile(r"<!--\s*(BEGIN|END) ([A-Z][A-Z ]*?)\s*(?:\([^)]*\))?\s*-->")
-COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
-DIVIDER_RE = re.compile(r"^<!--\s*=+.*=+\s*-->$")
-SENTINEL_RE = re.compile("\x00S(\\d+)\x00")
 
 RING_R = 52.0
 RING_CIRC = 2 * math.pi * RING_R
@@ -100,11 +103,6 @@ STATUS_WORD = {
     "f": "blocked",
 }
 CHECK_STATE = {" ": "todo", "": "todo", "x": "done", "X": "done", "wip": "wip", "f": "blocked", "~": "blocked"}
-
-
-def die(message: str) -> None:
-    print(f"error: {message}", file=sys.stderr)
-    raise SystemExit(2)
 
 
 # --------------------------------------------------------------------------- #
@@ -505,64 +503,10 @@ def _build_model(title, subtitle, meta, overview, milestones, decisions, risks, 
 # --------------------------------------------------------------------------- #
 #  Template fill (BEGIN/END blocks + {{TOKEN}} substitution)                    #
 # --------------------------------------------------------------------------- #
-def find_first_block(tpl: str):
-    begin = BEGIN_RE.search(tpl)
-    if not begin:
-        return None
-    name = begin.group(1).strip()
-    inner_start = begin.end()
-    depth = 0
-    for marker in MARKER_RE.finditer(tpl, begin.start()):
-        depth += 1 if marker.group(1) == "BEGIN" else -1
-        if depth == 0:
-            return begin.start(), marker.end(), name, tpl[inner_start:marker.start()]
-    die(f"unterminated BEGIN {name}")
-
-
-def substitute(tpl: str, ctx: dict, stash: list) -> str:
-    def repl(match: re.Match) -> str:
-        token = match.group(1)
-        key = token.lower()
-        if key not in ctx or isinstance(ctx[key], list):
-            return match.group(0)              # a genuine unfilled template slot
-        value = "" if ctx[key] is None else str(ctx[key])
-        value = value if token in RAW_TOKENS else html.escape(value, quote=True)
-        stash.append(value)                    # hide filled content behind a sentinel so
-        return f"\x00S{len(stash) - 1}\x00"    # later scans see the template, not the data
-
-    return TOKEN_RE.sub(repl, tpl)
-
-
-def render_item(tpl: str, ctx: dict, stash: list) -> str:
-    while True:
-        block = find_first_block(tpl)
-        if block is None:
-            break
-        start, end, name, inner = block
-        key = BLOCK_KEYS.get(name)
-        if key is None:
-            die(f"unknown template block: {name!r}")
-        items = ctx.get(key) or []
-        if not isinstance(items, list):
-            die(f"{key!r} must be a list; got {type(items).__name__}")
-        rendered = "".join(render_item(inner, it, stash) for it in items)
-        tpl = tpl[:start] + rendered + tpl[end:]
-    return substitute(tpl, ctx, stash)
-
-
-def strip_comments(out: str) -> str:
-    def decide(match: re.Match) -> str:
-        comment = match.group(0)
-        if "\n" not in comment and DIVIDER_RE.match(comment.strip()):
-            return comment
-        return ""
-    return COMMENT_RE.sub(decide, out)
-
-
 def render(data: dict, template: str, fonts: str) -> str:
     data = dict(data, fonts=fonts)
     stash: list = []
-    out = render_item(template, data, stash)
+    out = render_item(template, data, BLOCK_KEYS, RAW_TOKENS, stash)
 
     # Filled data/author content now sits behind \x00S..\x00 sentinels, so these passes
     # police ONLY the template: strip its authoring comments, then a surviving {{TOKEN}}
@@ -571,13 +515,8 @@ def render(data: dict, template: str, fonts: str) -> str:
     # so it is neither scanned nor mutated.
     out = strip_comments(out)
     out = re.sub(r"\n{3,}", "\n\n", out)
-    leftover = sorted(set(TOKEN_RE.findall(out)))
-    if leftover:
-        die("unresolved placeholder(s): " + ", ".join("{{%s}}" % t for t in leftover))
-    if "<!--" in out and not all(DIVIDER_RE.match(c.strip()) for c in COMMENT_RE.findall(out)):
-        die("authoring comment survived rendering")
-
-    return SENTINEL_RE.sub(lambda m: stash[int(m.group(1))], out)   # restore verbatim, last
+    assert_fully_resolved(out)
+    return restore_stash(out, stash)   # restore verbatim, last
 
 
 def here(*parts: str) -> str:

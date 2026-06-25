@@ -35,14 +35,12 @@ import os
 import re
 import sys
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _render_engine import die  # noqa: E402  shared with the other renderers
+
 LABEL = {"ship": "SHIP", "caution": "SHIP WITH CHANGES", "block": "DO NOT SHIP YET"}
 STATUS_WORD = {"verified": "verified", "unverified": "unverified", "refuted": "REFUTED"}
 EVIDENCE_CONTAINERS = ("blockers", "dissent", "concerns")
-
-
-def die(message: str) -> None:
-    print(f"error: {message}", file=sys.stderr)
-    raise SystemExit(2)
 
 
 def load(path: str) -> dict:
