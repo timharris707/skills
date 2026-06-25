@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# Mock `agy` (Antigravity CLI). Handles `agy --version`, `agy models`, `agy update`,
+# and `agy -p <prompt>` smoke. MOCK_AGY_MODE: go | nogo_version | nogo_smoke |
+# empty | degraded | timeout. MOCK_AGY_VERSION sets the reported version (default
+# 1.0.0). `agy update` fails with MOCK_AGY_UPDATE_FAIL=1. Real agy reads stdin to
+# EOF, so the conductor must close it (close_stdin -> DEVNULL) or the call hangs.
+set -u
+
+if [ -n "${MOCK_ARGV_LOG:-}" ]; then
+  printf 'agy\t%s\n' "$*" >>"$MOCK_ARGV_LOG"
+fi
+
+mode="${MOCK_AGY_MODE:-go}"
+
+if [ "${1:-}" = "--version" ]; then
+  if [ "$mode" = "nogo_version" ]; then exit 1; fi
+  echo "${MOCK_AGY_VERSION:-1.0.0}"
+  exit 0
+fi
+
+if [ "${1:-}" = "models" ]; then
+  printf 'Gemini 3.5 Flash (High)\nGemini 3.1 Pro (High)\nClaude Opus 4.6 (Thinking)\n'
+  exit 0
+fi
+
+if [ "${1:-}" = "update" ]; then
+  if [ "${MOCK_AGY_UPDATE_FAIL:-}" = "1" ]; then echo "update failed" >&2; exit 1; fi
+  echo "agy updated"
+  exit 0
+fi
+
+# Otherwise `agy -p ...`. Real agy reads stdin to EOF; drain it so a regression that
+# leaves stdin open hangs and the conductor's timeout fires (the bug a test should catch).
+cat >/dev/null 2>&1
+
+case "$mode" in
+  nogo_smoke) echo "auth error" >&2; exit 1 ;;
+  empty)      exit 0 ;;
+  timeout)    exec sleep 30 ;;   # exec so no orphaned sleep survives the kill
+  degraded)   echo "harness note" >&2; echo "ready"; exit 1 ;;
+  *)          echo "ready"; exit 0 ;;
+esac

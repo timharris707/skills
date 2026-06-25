@@ -71,6 +71,7 @@ PROVIDERS = {
     "claude": "Anthropic",
     "codex": "OpenAI",
     "gemini": "Google",
+    "antigravity": "Google",
     "ollama": "local",
 }
 
@@ -244,6 +245,28 @@ def gemini_version():
     return ["gemini", "--version"]
 
 
+def antigravity_argv(model, prompt, *, reasoning="High", workdir=None, network=False):
+    # Antigravity CLI (`agy`) is Google's agent-first successor to gemini-cli
+    # (gemini-cli sunset for consumer tiers 2026-06-18). `-p` runs a single prompt
+    # non-interactively and prints the response. --sandbox enables terminal
+    # restrictions for a read-only-ish posture; fs scoping is the subprocess cwd.
+    #
+    # Two verified gotchas (grounded on agy 1.0.12, 2026-06-25):
+    #  * stdin is read to EOF — without close_stdin/DEVNULL the call HANGS (codex-style).
+    #  * an unknown --model is SILENTLY substituted (no error, no 404), so pin an exact
+    #    display name from `agy models` ("Gemini 3.5 Flash (High)") and never trust that
+    #    the requested model answered without a model_answered check (fallback probing is
+    #    pointless here — it never fails loudly).
+    # Effort is baked into the model display name ("... (High)"), so `reasoning` is not
+    # a separate flag. Like gemini, this is an agentic harness whose web/grounding is
+    # not removable, mirrored honestly as isolates_network=False.
+    return ["agy", "-p", prompt, "--model", model, "--sandbox"]
+
+
+def antigravity_version():
+    return ["agy", "--version"]
+
+
 # --------------------------------------------------------------------------- #
 # Toolchain currency (design §7a). Each seat CLI is installed by a different
 # package manager, so "what is the latest version" and "update it" live here,
@@ -261,6 +284,9 @@ def codex_update_argv():   return ["codex", "update"]
 
 def gemini_latest_argv():  return ["brew", "info", "--json=v2", "gemini-cli"]
 def gemini_update_argv():  return ["brew", "upgrade", "gemini-cli"]
+
+def antigravity_latest_argv():  return ["brew", "info", "--json=v2", "--cask", "antigravity-cli"]
+def antigravity_update_argv():  return ["brew", "upgrade", "--cask", "antigravity-cli"]
 
 
 _SEMVER_RE = re.compile(r"\d+(?:\.\d+)+")
@@ -289,6 +315,16 @@ def parse_brew_latest(stdout: str) -> Optional[str]:
     try:
         data = json.loads(stdout)
         return data["formulae"][0]["versions"]["stable"]
+    except (ValueError, KeyError, IndexError, TypeError):
+        return None
+
+
+def parse_brew_cask_latest(stdout: str) -> Optional[str]:
+    # `brew info --json=v2 --cask <cask>` -> casks[0].version (e.g. "1.0.12,6156..."),
+    # so reduce to the dotted-numeric head. antigravity-cli ships as a cask.
+    try:
+        data = json.loads(stdout)
+        return parse_semver(data["casks"][0]["version"])
     except (ValueError, KeyError, IndexError, TypeError):
         return None
 
@@ -407,6 +443,28 @@ REGISTRY: dict = {
         # Ordered fallbacks to PROBE + PROPOSE (not auto-apply) if gemini-3.5-flash
         # 404s on a not-yet-updated CLI: the immediate predecessor first, then Pro.
         fallback_models=("gemini-3-flash-preview", "gemini-3.1-pro", "gemini-3-pro-preview"),
+    ),
+    "antigravity": SeatAdapter(
+        name="antigravity",
+        # Exact display name from `agy models` — agy silently substitutes an unknown
+        # name, so this must match a listed model verbatim (verified on agy 1.0.12).
+        default_model="Gemini 3.5 Flash (High)",
+        provider="Google",
+        default_reasoning="High",   # effort is part of the model name, not a flag
+        build_argv=antigravity_argv,
+        version_argv=antigravity_version,
+        prompt_on_stdin=False,
+        close_stdin=True,        # agy reads stdin to EOF — verified to hang without DEVNULL
+        stderr_is_fatal=False,
+        supports_isolation=True,    # cwd scoping + --sandbox terminal restrictions
+        isolates_network=False,  # agent-first harness; web/grounding not removable — surfaced loudly
+        model_answered=_model_answered_none,
+        latest_argv=antigravity_latest_argv,
+        parse_latest=parse_brew_cask_latest,
+        update_argv=antigravity_update_argv,
+        pkg_label="brew --cask antigravity-cli",
+        flags_verified_version="1.0.12",
+        fallback_models=(),      # agy never 404s a model (it silently substitutes) — no probe to do
     ),
 }
 
@@ -1126,11 +1184,11 @@ def check_toolchain(adapters: list) -> list:
 
 
 def render_toolchain_table(statuses: list) -> str:
-    rows = ["| Seat   | Manager                       | Installed | Latest  | Status  |",
-            "| ------ | ----------------------------- | --------- | ------- | ------- |"]
+    rows = ["| Seat        | Manager                       | Installed | Latest  | Status  |",
+            "| ----------- | ----------------------------- | --------- | ------- | ------- |"]
     for s in statuses:
         status = "current" if s.current else ("STALE" if s.current is False else "unknown")
-        rows.append(f"| {s.seat:<6} | {s.pkg_label:<29} | {(s.installed or '—'):<9} "
+        rows.append(f"| {s.seat:<11} | {s.pkg_label:<29} | {(s.installed or '—'):<9} "
                     f"| {(s.latest or '?'):<7} | {status:<7} |")
     stale = [s for s in statuses if s.current is False]
     rows.append("")
@@ -1288,14 +1346,14 @@ def run_preflight(config: RunConfig) -> list:
 
 
 def render_preflight_table(results: list) -> str:
-    rows = ["| Seat   | CLI | Auth                                          | Model | Smoke    | Verdict |",
-            "| ------ | --- | --------------------------------------------- | ----- | -------- | ------- |"]
+    rows = ["| Seat        | CLI | Auth                                          | Model | Smoke    | Verdict |",
+            "| ----------- | --- | --------------------------------------------- | ----- | -------- | ------- |"]
     for r in results:
         cli = "yes" if r.binary_ok else "no"
         model = "yes" if r.model_ok else "no"
         verdict = "GO" if r.go else "NO-GO"
         rows.append(
-            f"| {r.seat:<6} | {cli:<3} | {r.auth:<45} | {model:<5} "
+            f"| {r.seat:<11} | {cli:<3} | {r.auth:<45} | {model:<5} "
             f"| {r.smoke_status:<8} | {verdict:<7} |"
         )
     go_count = sum(1 for r in results if r.go)
@@ -1652,7 +1710,10 @@ def cmd_preflight(args) -> int:
 
 
 def cmd_toolchain(args) -> int:
-    names = parse_board(getattr(args, "board", None)) or list(REGISTRY.keys())
+    # No --board => check EVERY registered seat CLI (incl. ones outside the default
+    # board, like antigravity), since toolchain currency is about all installed CLIs.
+    board_arg = getattr(args, "board", None)
+    names = parse_board(board_arg) if board_arg else list(REGISTRY.keys())
     unknown = [n for n in names if n not in REGISTRY]
     if unknown:
         die(f"unknown seat(s): {', '.join(unknown)}", EXIT_USAGE)

@@ -57,7 +57,7 @@ class EnvMixin(unittest.TestCase):
         os.environ["PATH"] = MOCKS + os.pathsep + os.environ.get("PATH", "")
         os.environ["ADVISORY_BOARD_NOW"] = "2026-06-25"
         os.environ["ADVISORY_BOARD_NOW_TS"] = "2026-06-25T12:00:00"
-        for seat in ("CLAUDE", "CODEX", "GEMINI"):
+        for seat in ("CLAUDE", "CODEX", "GEMINI", "AGY"):
             os.environ[f"MOCK_{seat}_MODE"] = "go"
         os.environ.pop("MOCK_ARGV_LOG", None)
 
@@ -72,8 +72,20 @@ class EnvMixin(unittest.TestCase):
 
 
 class TestRegistry(unittest.TestCase):
-    def test_three_seats_registered(self):
-        self.assertEqual(set(rb.REGISTRY), {"claude", "codex", "gemini"})
+    def test_seats_registered(self):
+        self.assertEqual(set(rb.REGISTRY), {"claude", "codex", "gemini", "antigravity"})
+
+    def test_antigravity_flags(self):
+        a = rb.REGISTRY["antigravity"]
+        argv = a.build_argv("Gemini 3.5 Flash (High)", "PROMPT", network=False)
+        self.assertEqual(argv[:2], ["agy", "-p"])
+        self.assertIn("PROMPT", argv)
+        self.assertIn("--model", argv)
+        self.assertIn("Gemini 3.5 Flash (High)", argv)
+        self.assertIn("--sandbox", argv)
+        self.assertTrue(a.close_stdin)        # agy reads stdin to EOF — must be closed
+        self.assertFalse(a.isolates_network)  # agentic harness; network not removable
+        self.assertEqual(a.default_model, "Gemini 3.5 Flash (High)")
 
     def test_claude_gate_isolation_flags(self):
         a = rb.REGISTRY["claude"]
@@ -945,7 +957,7 @@ class TestToolchainCheck(EnvMixin):
         # mock npm/brew report "latest" 9.9.9, far ahead of the mock CLIs' versions.
         code, out, _ = run_cli(["toolchain"])
         self.assertEqual(code, rb.EXIT_OK)
-        for seat in ("claude", "codex", "gemini"):
+        for seat in ("claude", "codex", "gemini", "antigravity"):
             self.assertIn(seat, out)
         self.assertIn("STALE", out)
         self.assertIn("behind latest", out)
@@ -954,6 +966,7 @@ class TestToolchainCheck(EnvMixin):
         os.environ["MOCK_NPM_CLAUDE"] = "2.0.0"
         os.environ["MOCK_NPM_CODEX"] = "0.30.0"
         os.environ["MOCK_BREW_GEMINI"] = "0.46.0"
+        os.environ["MOCK_BREW_CASK"] = "1.0.0"   # matches the mock agy --version
         code, out, _ = run_cli(["toolchain"])
         self.assertEqual(code, rb.EXIT_OK)
         self.assertNotIn("STALE", out)
@@ -1060,6 +1073,33 @@ class TestRunUpdateToolsFlag(EnvMixin):
         self.assertIn("=== toolchain ===", text)
         self.assertIn("=== preflight ===", text)
         self.assertIn("M3", text)   # still stops at the documented spawn boundary
+
+
+class TestAntigravitySeat(EnvMixin):
+    def test_default_board_excludes_antigravity(self):
+        names = [s.name for s in _config().board]
+        self.assertEqual(names, ["claude", "codex", "gemini"])
+        self.assertNotIn("antigravity", names)
+
+    def test_parse_brew_cask_latest(self):
+        good = '{"casks":[{"version":"1.0.12,6156052174077952"}]}'
+        self.assertEqual(rb.parse_brew_cask_latest(good), "1.0.12")  # comma-revision stripped
+        self.assertIsNone(rb.parse_brew_cask_latest("not json"))
+        self.assertIsNone(rb.parse_brew_cask_latest('{"formulae":[]}'))
+
+    def test_toolchain_check_includes_antigravity_via_cask(self):
+        code, out, _ = run_cli(["toolchain", "--board", "antigravity"])
+        self.assertEqual(code, rb.EXIT_OK)
+        self.assertIn("antigravity", out)
+        self.assertIn("--cask antigravity-cli", out)   # brew-cask manager label
+        self.assertIn("STALE", out)                    # mock agy 1.0.0 < cask latest 9.9.9
+
+    def test_board_with_antigravity_preflight_go(self):
+        code, out, _ = run_cli(["preflight", "--source", SAMPLE,
+                                "--board", "claude,codex,antigravity"])
+        self.assertEqual(code, rb.EXIT_OK)
+        self.assertIn("antigravity", out)
+        self.assertIn("3 of 3 seats GO", out)
 
 
 if __name__ == "__main__":

@@ -14,6 +14,7 @@ The default board is three seats — Claude, Codex, Gemini. That's a default, no
 - **Same provider twice is allowed** — e.g. two Claude seats with different lenses (architecture vs. security). Note it in provenance; two seats on the same model are less independent than two different models.
 - **A human seat** is valid: capture the person's review as that seat's `round-*/` artifact and let the board read it like any other.
 - **A local/offline seat** (e.g. an Ollama model) is valid and is the lever for sensitive material — see `references/data-handling.md`.
+- **An Antigravity seat** (`--board claude,codex,antigravity`) is registered as Google's agent-first successor to gemini-cli, which was sunset for consumer tiers on 2026-06-18. The `antigravity` seat drives the `agy` CLI headless (`agy -p --model "<display name>" --sandbox`). Two cautions, both reflected in the adapter: pin an **exact** model display name from `agy models` (an unknown name is *silently substituted*, never rejected), and treat it as networked like gemini (an agentic harness whose web/grounding isn't removable). Keep gemini available while your gemini auth still works (enterprise / paid API key); prefer antigravity going forward.
 
 ## Works with what you have
 

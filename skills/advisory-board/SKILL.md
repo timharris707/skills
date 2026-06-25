@@ -70,7 +70,7 @@ For non-software subjects (strategy, research, writing, business, policy), assig
 
 Every seat still answers the full brief; the lens reduces blind spots, it doesn't narrow responsibility.
 
-The board defaults to three seats but isn't fixed at three — for sizing (2–5), the same provider in two seats, a human or local-model seat, and minimal "works with what you have" lineups, see `references/board-composition.md`.
+The board defaults to three seats but isn't fixed at three — for sizing (2–5), the same provider in two seats, a human or local-model seat, an **Antigravity** seat (Google's `agy` CLI, the successor to the sunset gemini-cli), and minimal "works with what you have" lineups, see `references/board-composition.md`.
 
 ## Data Handling
 
