@@ -1494,5 +1494,169 @@ class TestSpawnProcessGroupKill(EnvMixin):
                 self.fail("grandchild sleep survived the timeout — process group not killed")
 
 
+# --------------------------------------------------------------------------- #
+# M4 — Round 2: cross-reading packets + run-metadata.tsv
+# --------------------------------------------------------------------------- #
+
+
+def _round_results(seats, *, round_no=1, status="ran"):
+    """Build SeatRoundResult fixtures without spawning."""
+    out = []
+    for name in seats:
+        out.append(rb.SeatRoundResult(
+            seat=name, provider=rb.PROVIDERS.get(name, "x"), round_no=round_no,
+            model_requested="m", model_answered="m" if status != "dropped" else None,
+            status=status, failure_class=None if status != "dropped" else rb.FAILURE_INVALID,
+            attempts=1, elapsed_s=0.1, exit_code=0, timed_out=False,
+            stdout=(_REAL_REVIEW if status != "dropped" else ""), stderr="",
+            prompt_hash="p" + name, source_hash="src", round_packet_hash="pk" + str(round_no),
+            argv_preview="x"))
+    return out
+
+
+class TestRound2Builders(unittest.TestCase):
+    def test_digest_truncates_long_keeps_short(self):
+        self.assertEqual(rb._digest("short", budget=100), "short")
+        long = "line\n" * 500
+        d = rb._digest(long, budget=120)
+        self.assertLess(len(d), len(long))
+        self.assertIn("truncated for the round-2 digest", d)
+
+    def test_packet_summaries_vs_full(self):
+        r1 = _round_results(["claude", "codex"])
+        full = rb.build_round2_packet(r1, "full")
+        summ = rb.build_round2_packet(r1, "summaries")
+        self.assertIn("claude", full)
+        self.assertIn("round-1 review", full)
+        self.assertIn("cross-reading: full", full)
+        self.assertIn("cross-reading: summaries", summ)
+
+    def test_packet_none_is_none(self):
+        self.assertIsNone(rb.build_round2_packet(_round_results(["claude"]), "none"))
+
+    def test_build_round2_excludes_dropped(self):
+        r1 = _round_results(["claude", "codex"]) + _round_results(["gemini"], status="dropped")
+        config = _config()
+        blobs, packet = rb.build_round2(config, r1)
+        names = sorted(b.seat for b in blobs)
+        self.assertEqual(names, ["claude", "codex"])   # dropped gemini does not continue
+        self.assertTrue(all(b.relpath.endswith("-round-2.prompt") for b in blobs))
+
+    def test_round2_prompt_peers_vs_solo(self):
+        config = _config()
+        seat = config.board[1]   # codex
+        r1 = _round_results(["claude", "codex"])
+        packet = rb.build_round2_packet(r1, "full")
+        peers = rb.build_round2_prompt(seat, "SRC", board_packet=packet, own_review="X",
+                                       cross_reading="full")
+        solo = rb.build_round2_prompt(seat, "SRC", board_packet=None, own_review="MY R1",
+                                      cross_reading="none")
+        self.assertIn("BOARD ROUND-1 REVIEWS", peers)
+        self.assertIn("MATERIAL UNDER REVIEW", peers)        # source re-supplied (stateless spawn)
+        self.assertIn("cross-reading is OFF", solo)
+        self.assertIn("MY R1", solo)
+        self.assertNotIn("BOARD ROUND-1 REVIEWS", solo)
+
+
+class TestRound2FanOut(EnvMixin):
+    def _setup(self, **kw):
+        config = _config(**kw)
+        blobs = rb.build_packet(config)
+        approval = rb.EgressApproval(True, "hash-bound", rb.packet_hash(blobs),
+                                     "2026-06-25T12:00:00", "test")
+        return config, blobs, approval
+
+    def test_round2_runs_and_tags_round_number(self):
+        config, blobs, approval = self._setup()
+        r1 = rb.run_round(config, blobs, approval, round_no=1)
+        r2_blobs, _ = rb.build_round2(config, r1)
+        r2 = rb.run_round(config, r2_blobs, approval, round_no=2)
+        self.assertTrue(all(r.round_no == 2 for r in r2))
+        self.assertTrue(all(r.usable for r in r2))
+        # round-2 packet hash is the round-2 packet's, not the round-1 approval hash
+        self.assertNotEqual(r2[0].round_packet_hash, approval.content_hash)
+        self.assertEqual(r2[0].round_packet_hash, rb.packet_hash(r2_blobs))
+
+    def test_round2_drops_failed_round1_seat(self):
+        os.environ["MOCK_GEMINI_MODE"] = "nogo_smoke"   # gemini drops in round 1
+        config, blobs, approval = self._setup()
+        r1 = rb.run_round(config, blobs, approval, round_no=1)
+        r2_blobs, _ = rb.build_round2(config, r1)
+        r2 = rb.run_round(config, r2_blobs, approval, round_no=2)
+        self.assertEqual(sorted(r.seat for r in r2), ["claude", "codex"])
+
+
+class TestRound2RunLevel(EnvMixin):
+    def _out(self):
+        return tempfile.mkdtemp(prefix="board-m4-")
+
+    def test_default_run_does_two_rounds(self):
+        out = self._out()
+        code, text, _ = run_cli(["run", "--source", SAMPLE, "--out", out, "--yes"])
+        self.assertEqual(code, rb.EXIT_OK)
+        for rel in ["board-packet-round-2.md", "run-metadata.tsv",
+                    "round-2/claude.md", "round-2/claude.raw",
+                    "logs/claude-round-2.stderr", "prompts/claude-round-2.prompt"]:
+            self.assertTrue(os.path.exists(os.path.join(out, rel)), rel)
+        self.assertIn("round 2 (cross-reading + debate)", text)
+        with open(os.path.join(out, "run-metadata.md")) as fh:
+            meta = fh.read()
+        self.assertIn("## Round 1", meta)
+        self.assertIn("## Round 2", meta)
+        # round-2 .raw notes it reuses the approval, not a fresh hash-bound consent
+        with open(os.path.join(out, "round-2", "claude.raw")) as fh:
+            self.assertIn("reuses the run's egress approval", fh.read())
+
+    def test_tsv_has_row_per_seat_per_round(self):
+        out = self._out()
+        run_cli(["run", "--source", SAMPLE, "--out", out, "--yes"])
+        with open(os.path.join(out, "run-metadata.tsv")) as fh:
+            lines = [ln for ln in fh.read().splitlines() if ln.strip()]
+        self.assertEqual(lines[0].split("\t")[0], "round")     # header
+        self.assertEqual(len(lines), 1 + 3 * 2)                # header + 3 seats x 2 rounds
+        r1_hashes = {ln.split("\t")[-1] for ln in lines[1:4]}
+        r2_hashes = {ln.split("\t")[-1] for ln in lines[4:7]}
+        self.assertEqual(len(r1_hashes), 1)                    # all round-1 share the packet hash
+        self.assertEqual(len(r2_hashes), 1)
+        self.assertNotEqual(r1_hashes, r2_hashes)              # rounds have distinct packets
+
+    def test_rounds_one_skips_round_two(self):
+        out = self._out()
+        code, text, _ = run_cli(["run", "--source", SAMPLE, "--out", out, "--yes", "--rounds", "1"])
+        self.assertEqual(code, rb.EXIT_OK)
+        self.assertFalse(os.path.exists(os.path.join(out, "round-2")))
+        self.assertFalse(os.path.exists(os.path.join(out, "board-packet-round-2.md")))
+        with open(os.path.join(out, "run-metadata.tsv")) as fh:
+            lines = [ln for ln in fh.read().splitlines() if ln.strip()]
+        self.assertEqual(len(lines), 1 + 3)                    # header + 3 seats x 1 round
+
+    def test_cross_reading_none_skips_board_packet(self):
+        out = self._out()
+        run_cli(["run", "--source", SAMPLE, "--out", out, "--yes", "--cross-reading", "none"])
+        self.assertTrue(os.path.exists(os.path.join(out, "round-2", "claude.md")))
+        self.assertFalse(os.path.exists(os.path.join(out, "board-packet-round-2.md")))
+
+    def test_rounds_three_caps_at_two_with_note(self):
+        out = self._out()
+        code, text, _ = run_cli(["run", "--source", SAMPLE, "--out", out, "--yes", "--rounds", "3"])
+        self.assertEqual(code, rb.EXIT_OK)
+        self.assertTrue(os.path.exists(os.path.join(out, "round-2")))
+        self.assertFalse(os.path.exists(os.path.join(out, "round-3")))
+        self.assertIn("Round 3 / `auto` is a v1.x", text)
+
+    def test_under_two_usable_round1_skips_round_two(self):
+        # `stub` passes the preflight smoke but fails the round-1 shape check, so two
+        # seats reach the fan-out yet drop there -> only one usable -> no round 2.
+        os.environ["MOCK_CODEX_MODE"] = "stub"
+        os.environ["MOCK_GEMINI_MODE"] = "stub"
+        out = self._out()
+        code, text, _ = run_cli(["run", "--source", SAMPLE, "--out", out, "--yes", "--timeout", "5"])
+        self.assertEqual(code, rb.EXIT_PREFLIGHT_NOGO)
+        self.assertIn("that is not a board", text)
+        self.assertFalse(os.path.exists(os.path.join(out, "round-2")))
+        # a one-voice run still records what round 1 captured
+        self.assertTrue(os.path.exists(os.path.join(out, "run-metadata.tsv")))
+
+
 if __name__ == "__main__":
     unittest.main()
