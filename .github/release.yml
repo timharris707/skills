@@ -1,0 +1,12 @@
+# Categorizes GitHub's auto-generated release notes (the fallback path in
+# .github/workflows/release.yml, used when a version has no CHANGELOG section).
+changelog:
+  categories:
+    - title: Added
+      labels: [feature, enhancement, added]
+    - title: Fixed
+      labels: [bug, fix, fixed]
+    - title: Changed
+      labels: [changed, refactor, docs]
+    - title: Other
+      labels: ["*"]
