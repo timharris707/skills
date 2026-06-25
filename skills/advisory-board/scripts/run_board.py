@@ -32,9 +32,12 @@ Subcommands:
 
 Toolchain currency (the `toolchain` subcommand, also `run --update-tools`) keeps a
 stale CLI from 404-ing a freshly-renamed frontier model id: it reads installed-vs-
-latest per seat and updates stale CLIs on consent (detect -> confirm -> update).
-Model ids stay pinned; a still-unresolvable id yields a *proposed* fallback, never
-an automatic swap.
+latest per seat (reporting current / STALE / missing / unknown), updates stale CLIs
+and installs absent ones on consent (`--update` / `--install`). Model ids stay
+pinned; a still-unresolvable id yields a *proposed* fallback, never an auto swap.
+When fewer than two seats are usable, preflight/run print actionable guidance
+(install vs auth, plus same-provider / local-seat fallbacks) instead of dead-ending,
+so a single-provider user is never stuck. Installing a CLI never implies an account.
 
 Standard library only. Tested against mock CLIs on PATH (see ../tests/).
 """
@@ -172,6 +175,8 @@ class SeatAdapter:
     latest_argv: Optional[Callable[[], list]] = None     # () -> argv that prints the latest version
     parse_latest: Optional[Callable[[str], Optional[str]]] = None  # stdout -> version str
     update_argv: Optional[Callable[[], list]] = None     # () -> argv that updates this CLI
+    install_argv: Optional[Callable[[], list]] = None    # () -> argv that installs this CLI when absent
+    auth_hint: str = ""                  # how to authenticate after install (no secrets)
     pkg_label: str = ""                  # human label for the manager, e.g. "brew gemini-cli"
     flags_verified_version: str = ""     # CLI version build_argv's flags were last grounded against
     fallback_models: tuple = ()          # ordered ids to PROBE + PROPOSE if default_model 404s
@@ -278,15 +283,19 @@ def antigravity_version():
 
 def claude_latest_argv():  return ["npm", "view", "@anthropic-ai/claude-code", "version"]
 def claude_update_argv():  return ["claude", "update"]
+def claude_install_argv(): return ["npm", "install", "-g", "@anthropic-ai/claude-code"]
 
 def codex_latest_argv():   return ["npm", "view", "@openai/codex", "version"]
 def codex_update_argv():   return ["codex", "update"]
+def codex_install_argv():  return ["npm", "install", "-g", "@openai/codex"]
 
 def gemini_latest_argv():  return ["brew", "info", "--json=v2", "gemini-cli"]
 def gemini_update_argv():  return ["brew", "upgrade", "gemini-cli"]
+def gemini_install_argv(): return ["brew", "install", "gemini-cli"]
 
 def antigravity_latest_argv():  return ["brew", "info", "--json=v2", "--cask", "antigravity-cli"]
 def antigravity_update_argv():  return ["brew", "upgrade", "--cask", "antigravity-cli"]
+def antigravity_install_argv(): return ["brew", "install", "--cask", "antigravity-cli"]
 
 
 _SEMVER_RE = re.compile(r"\d+(?:\.\d+)+")
@@ -394,6 +403,8 @@ REGISTRY: dict = {
         latest_argv=claude_latest_argv,
         parse_latest=parse_npm_latest,
         update_argv=claude_update_argv,
+        install_argv=claude_install_argv,
+        auth_hint="run `claude` once and sign in (Claude subscription, or set ANTHROPIC_API_KEY)",
         pkg_label="npm @anthropic-ai/claude-code",
         flags_verified_version="2.1.177",
         fallback_models=(),   # Anthropic ids are stable; pin the current one, no guesses
@@ -414,6 +425,8 @@ REGISTRY: dict = {
         latest_argv=codex_latest_argv,
         parse_latest=parse_npm_latest,
         update_argv=codex_update_argv,
+        install_argv=codex_install_argv,
+        auth_hint="run `codex` once and sign in with your ChatGPT account (subscription preferred)",
         pkg_label="npm @openai/codex",
         flags_verified_version="0.135.0",
         fallback_models=(),
@@ -438,6 +451,8 @@ REGISTRY: dict = {
         latest_argv=gemini_latest_argv,
         parse_latest=parse_brew_latest,
         update_argv=gemini_update_argv,
+        install_argv=gemini_install_argv,
+        auth_hint="run `gemini` once and authenticate (Google account; consumer tiers sunset 2026-06-18 — enterprise/API only)",
         pkg_label="brew gemini-cli",
         flags_verified_version="0.46.0",   # -m/-p/--approval-mode plan/--skip-trust verified on 0.46.0 (2026-06-25)
         # Ordered fallbacks to PROBE + PROPOSE (not auto-apply) if gemini-3.5-flash
@@ -462,6 +477,8 @@ REGISTRY: dict = {
         latest_argv=antigravity_latest_argv,
         parse_latest=parse_brew_cask_latest,
         update_argv=antigravity_update_argv,
+        install_argv=antigravity_install_argv,
+        auth_hint="run `agy` once and sign in (Google account; the gemini-cli successor)",
         pkg_label="brew --cask antigravity-cli",
         flags_verified_version="1.0.12",
         fallback_models=(),      # agy never 404s a model (it silently substitutes) — no probe to do
@@ -1148,11 +1165,23 @@ class ToolStatus:
     current: Optional[bool]        # True up-to-date, False stale, None can't judge
     update_argv: Optional[list]    # set only when stale and an updater is known
     note: str = ""                 # advisories (manager missing, flag-drift) — never fatal
+    present: bool = True           # is the CLI binary installed at all? (False => "missing")
+    install_argv: Optional[list] = None  # how to install it when absent
+    auth_hint: str = ""            # how to authenticate after install
 
 
 def check_tool(adapter: SeatAdapter) -> ToolStatus:
     """Read installed vs latest version for one seat. Read-only, never updates."""
     iv = spawn(adapter, adapter.version_argv(), timeout=15)
+    # exit 127 == binary not found (spawn maps FileNotFoundError -> 127). Distinguish
+    # "not installed" (offer to install) from "installed but version unreadable".
+    present = iv.exit_code != 127
+    install = adapter.install_argv() if adapter.install_argv else None
+    if not present:
+        # note stays empty — the "missing" status + the install section already say it.
+        return ToolStatus(adapter.name, adapter.pkg_label or adapter.provider,
+                          None, None, None, None, "",
+                          present=False, install_argv=install, auth_hint=adapter.auth_hint)
     installed = parse_semver(iv.stdout + "\n" + iv.stderr) if iv.exit_code == 0 else None
 
     latest, note = None, ""
@@ -1176,28 +1205,46 @@ def check_tool(adapter: SeatAdapter) -> ToolStatus:
 
     upd = adapter.update_argv() if (adapter.update_argv and current is False) else None
     return ToolStatus(adapter.name, adapter.pkg_label or adapter.provider,
-                      installed, latest, current, upd, note)
+                      installed, latest, current, upd, note,
+                      present=True, install_argv=None, auth_hint=adapter.auth_hint)
 
 
 def check_toolchain(adapters: list) -> list:
     return [check_tool(a) for a in adapters]
 
 
+def _tool_status_label(s: ToolStatus) -> str:
+    if not s.present:
+        return "missing"
+    return "current" if s.current else ("STALE" if s.current is False else "unknown")
+
+
 def render_toolchain_table(statuses: list) -> str:
     rows = ["| Seat        | Manager                       | Installed | Latest  | Status  |",
             "| ----------- | ----------------------------- | --------- | ------- | ------- |"]
     for s in statuses:
-        status = "current" if s.current else ("STALE" if s.current is False else "unknown")
         rows.append(f"| {s.seat:<11} | {s.pkg_label:<29} | {(s.installed or '—'):<9} "
-                    f"| {(s.latest or '?'):<7} | {status:<7} |")
-    stale = [s for s in statuses if s.current is False]
+                    f"| {(s.latest or '?'):<7} | {_tool_status_label(s):<7} |")
+    stale = [s for s in statuses if s.current is False and s.present]
+    missing = [s for s in statuses if not s.present]
     rows.append("")
     if stale:
         rows.append(f"{len(stale)} of {len(statuses)} CLIs behind latest: "
                     + ", ".join(f"{s.seat} ({s.installed}→{s.latest})" for s in stale))
         rows.append("update with:  run_board.py toolchain --update")
-    else:
+    elif not missing:
         rows.append(f"all {len(statuses)} CLIs current (or unknown).")
+    # Not-installed seats: print the exact install command (guidance by default).
+    if missing:
+        rows.append("")
+        rows.append(f"{len(missing)} seat CLI(s) not installed:")
+        for s in missing:
+            cmd = " ".join(s.install_argv) if s.install_argv else "(no installer known)"
+            rows.append(f"  {s.seat:<11} install: {cmd}")
+            if s.auth_hint:
+                rows.append(f"  {'':<11} then:    {s.auth_hint}")
+        rows.append("install with:  run_board.py toolchain --install   "
+                    "(note: installing a CLI does NOT grant an account — you still need provider auth)")
     for s in statuses:
         if s.note:
             rows.append(f"  note ({s.seat}): {s.note}")
@@ -1243,6 +1290,46 @@ def update_stale_tools(statuses: list, *, assume_yes: bool,
     for s in stale:
         ok, detail = update_tool(s)
         print(f"  {s.seat}: {detail}")
+        failed += 0 if ok else 1
+    return failed
+
+
+def install_tool(status: ToolStatus) -> tuple:
+    """Install one absent seat CLI, streaming its output. Returns (ok, detail)."""
+    if not status.install_argv:
+        return True, "no installer known"
+    print(f"  installing {status.seat} ({status.pkg_label}): "
+          f"{' '.join(status.install_argv)} ...")
+    try:
+        completed = subprocess.run(status.install_argv)
+    except FileNotFoundError:
+        return False, f"installer not found: {status.install_argv[0]}"
+    ok = completed.returncode == 0
+    return ok, ("installed" if ok else f"install failed (exit {completed.returncode})")
+
+
+def install_missing_tools(statuses: list, *, assume_yes: bool,
+                          interactive: Optional[bool] = None) -> int:
+    """Consent-gated install of absent seat CLIs (same posture as update). Note: a
+    successful install still does not grant a provider account — auth is separate.
+    Returns the count of installs that FAILED (0 == all good / nothing to do / declined)."""
+    missing = [s for s in statuses if not s.present and s.install_argv]
+    if not missing:
+        return 0
+    if not assume_yes:
+        is_tty = interactive if interactive is not None else sys.stdin.isatty()
+        if not is_tty:
+            print("missing CLIs found; re-run with --yes (or interactively) to install them.")
+            return 0
+        reply = input(f"\nInstall {len(missing)} missing CLI(s)? [y/N] ").strip().lower()
+        if reply not in ("y", "yes"):
+            print("no install performed.")
+            return 0
+    failed = 0
+    for s in missing:
+        ok, detail = install_tool(s)
+        print(f"  {s.seat}: {detail}"
+              + ("  (now authenticate — install ≠ account)" if ok else ""))
         failed += 0 if ok else 1
     return failed
 
@@ -1366,6 +1453,54 @@ def render_preflight_table(results: list) -> str:
                         f"`{r.model_proposal}` works; update the CLI or pass "
                         f"--model {r.seat}={r.model_proposal}")
     return "\n".join(rows)
+
+
+def render_board_guidance(preflight: list, config: RunConfig) -> str:
+    """When a board can't form (<2 usable seats), turn the dead-end into a path:
+    separate not-installed seats (offer the install command) from installed-but-
+    unusable ones (auth/model), then surface the documented fallbacks so a single-
+    provider user is never stuck. Returns "" when the board CAN form."""
+    go = [p for p in preflight if p.go]
+    if len(go) >= 2:
+        return ""
+
+    by_name = {s.name: s for s in config.board}
+    missing, unusable = [], []
+    for p in preflight:
+        if p.go:
+            continue
+        (missing if not p.binary_ok else unusable).append(p.seat)
+
+    lines = [f"Only {len(go)} of {len(preflight)} seats are usable — a board needs at "
+             "least 2 independent voices. Here's how to get there:"]
+
+    if missing:
+        lines.append("")
+        lines.append("CLIs not installed (install ≠ account — you still need provider auth):")
+        for name in missing:
+            seat = by_name.get(name)
+            adapter = seat.adapter if seat else None
+            cmd = " ".join(adapter.install_argv()) if (adapter and adapter.install_argv) else "(no installer known)"
+            line = f"  {name}: {cmd}"
+            if adapter and adapter.auth_hint:
+                line += f"  ·  then {adapter.auth_hint}"
+            lines.append(line)
+        lines.append("  (or let the skill do it: run_board.py toolchain --install)")
+
+    if unusable:
+        lines.append("")
+        lines.append("Installed but not usable right now (check auth/login or model availability): "
+                     + ", ".join(unusable))
+
+    lines.append("")
+    lines.append("Other ways to still run a board:")
+    if go:
+        lines.append(f"  • Same-provider, multi-lens board with what works ({', '.join(p.seat for p in go)}): "
+                     "two seats on the same model with different lenses. Less independent — flag it in "
+                     "provenance. See references/board-composition.md.")
+    lines.append("  • Add a human or local-model seat (no extra account needed). "
+                 "See references/board-composition.md.")
+    return "\n".join(lines)
 
 
 # --------------------------------------------------------------------------- #
@@ -1706,7 +1841,12 @@ def cmd_preflight(args) -> int:
     results = run_preflight(config)
     print(render_preflight_table(results))
     go = sum(1 for r in results if r.go)
-    return EXIT_OK if go >= 2 else EXIT_PREFLIGHT_NOGO
+    if go < 2:
+        guidance = render_board_guidance(results, config)
+        if guidance:
+            print("\n" + guidance)
+        return EXIT_PREFLIGHT_NOGO
+    return EXIT_OK
 
 
 def cmd_toolchain(args) -> int:
@@ -1719,10 +1859,15 @@ def cmd_toolchain(args) -> int:
         die(f"unknown seat(s): {', '.join(unknown)}", EXIT_USAGE)
     statuses = check_toolchain([REGISTRY[n] for n in names])
     print(render_toolchain_table(statuses))
-    if not getattr(args, "update", False):
-        return EXIT_OK
-    failed = update_stale_tools(statuses, assume_yes=getattr(args, "yes", False))
-    return EXIT_OK if failed == 0 else EXIT_USAGE
+    rc = EXIT_OK
+    assume_yes = getattr(args, "yes", False)
+    if getattr(args, "install", False):
+        if install_missing_tools(statuses, assume_yes=assume_yes) != 0:
+            rc = EXIT_USAGE
+    if getattr(args, "update", False):
+        if update_stale_tools(statuses, assume_yes=assume_yes) != 0:
+            rc = EXIT_USAGE
+    return rc
 
 
 def _maybe_update_tools(config, args) -> None:
@@ -1771,6 +1916,9 @@ def cmd_run(args) -> int:
     print(render_preflight_table(preflight))
     go = sum(1 for r in preflight if r.go)
     if go < 2:
+        guidance = render_board_guidance(preflight, config)
+        if guidance:
+            print("\n" + guidance)
         die("fewer than two seats are GO — not running a one-voice board", EXIT_PREFLIGHT_NOGO)
 
     # 2. Egress gate — the pre-spawn hard stop. Nothing has left the machine yet;
@@ -1898,6 +2046,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_tool.add_argument("--board", help="comma-separated seats (default: all registered seats)")
     p_tool.add_argument("--update", action="store_true",
                         help="update stale CLIs (consent-gated: confirms first unless --yes)")
+    p_tool.add_argument("--install", action="store_true",
+                        help="install absent CLIs (consent-gated; an account/auth is still required)")
     p_tool.add_argument("--yes", action="store_true",
                         help="skip the confirmation prompt (for unattended runs)")
     p_tool.set_defaults(func=cmd_toolchain)

@@ -11,11 +11,23 @@ A stale seat CLI is the single most common reason a board half-fails: a frontier
 ```
 run_board.py toolchain            # read-only: installed vs latest, per seat
 run_board.py toolchain --update   # update stale CLIs (confirms first; --yes to skip the prompt)
+run_board.py toolchain --install  # install absent CLIs (consent-gated; auth still required)
 ```
 
-- **Check** is read-only — it never mutates anything. It reads the installed version (`<cli> --version`) and the latest published version (npm for claude/codex, Homebrew for gemini), and flags anything behind, plus a *flag-drift* advisory when the installed CLI is newer than the version its argv flags were last grounded against (re-verify `--help`).
+- **Check** is read-only — it never mutates anything. It reads the installed version (`<cli> --version`) and the latest published version (npm for claude/codex, Homebrew for gemini/antigravity), and reports each seat as **current / STALE / missing / unknown**, plus a *flag-drift* advisory when the installed CLI is newer than the version its argv flags were last grounded against (re-verify `--help`).
 - **Update is consent-gated** (`detect → confirm → update`): it lists what's stale and updates only what you approve. `--yes` approves unattended; a non-interactive shell without `--yes` is a no-op, not an error.
+- **Missing CLIs**: an absent binary is reported as `missing` (distinct from `unknown`), and the exact install command is printed. `--install` runs it on consent. **Installing a CLI does not grant an account** — you still need provider auth, so it's only worth installing a CLI you can log into.
 - `run --update-tools` folds Step 0 into a run: check + (gated) update, then preflight, then the board.
+
+## When the board can't form (fewer than 2 usable seats)
+
+A board needs at least two independent voices. Rather than dead-ending, preflight (and `run`) print actionable guidance: which seats are *not installed* (with the install command) vs *installed but unusable* (auth/login or model), and the realistic ways to still run a board:
+
+- **Install + authenticate another provider** (the commands are printed).
+- **A same-provider, multi-lens board** — two seats on the same model with different lenses. Lower independence than two providers, so flag it in provenance. See `references/board-composition.md`.
+- **A human or local-model seat** — no extra account needed. See `references/board-composition.md`.
+
+So a user who only has one provider (say, only Anthropic) is never stuck: they can run a same-provider multi-lens board or add a local/human seat, and the skill says so instead of just refusing.
 
 **Model ids stay pinned, never auto-swapped.** If a pinned model id still doesn't resolve after the CLI is current, preflight probes that seat's known fallbacks and **proposes** a resolvable id (surfaced in the preflight table and `run-metadata.md`) — it does not silently switch models. Apply it yourself with `--model <seat>=<id>` or by updating the registry.
 

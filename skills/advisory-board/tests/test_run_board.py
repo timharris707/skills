@@ -1102,5 +1102,72 @@ class TestAntigravitySeat(EnvMixin):
         self.assertIn("3 of 3 seats GO", out)
 
 
+class TestGracefulDegradation(EnvMixin):
+    def _absent(self, seat):
+        import dataclasses
+        return dataclasses.replace(rb.REGISTRY[seat],
+                                   version_argv=lambda: ["no-such-binary-xyz", "--version"])
+
+    def test_absent_cli_is_missing_not_unknown(self):
+        st = rb.check_tool(self._absent("antigravity"))
+        self.assertFalse(st.present)
+        self.assertEqual(rb._tool_status_label(st), "missing")     # distinct from "unknown"
+        self.assertEqual(st.install_argv, rb.antigravity_install_argv())
+        self.assertTrue(st.auth_hint)
+
+    def test_table_lists_install_command_and_auth_caveat(self):
+        missing = rb.check_tool(self._absent("codex"))
+        out = rb.render_toolchain_table([missing])
+        self.assertIn("not installed", out)
+        self.assertIn("npm install -g @openai/codex", out)
+        self.assertIn("does NOT grant an account", out)            # install ≠ auth caveat
+
+    def test_install_missing_decline_then_accept(self):
+        log = os.path.join(tempfile.mkdtemp(), "argv.log")
+        os.environ["MOCK_ARGV_LOG"] = log
+        statuses = [rb.check_tool(self._absent("codex"))]
+        # decline
+        rv, out = _capture(lambda: rb.install_missing_tools(statuses, assume_yes=False,
+                                                            interactive=True), stdin="n\n")
+        self.assertEqual(rv, 0)
+        self.assertIn("no install performed", out)
+        # accept (mock npm returns 0 for `npm install ...`)
+        rv, out = _capture(lambda: rb.install_missing_tools(statuses, assume_yes=False,
+                                                            interactive=True), stdin="y\n")
+        self.assertEqual(rv, 0)
+        self.assertIn("codex: installed", out)
+        self.assertIn("install ≠ account", out)
+
+    def test_toolchain_install_is_noop_when_all_present(self):
+        # all mock CLIs are present, so --install finds nothing to do
+        code, out, _ = run_cli(["toolchain", "--install", "--yes"])
+        self.assertEqual(code, rb.EXIT_OK)
+        self.assertNotIn("not installed", out)
+
+    def test_board_guidance_empty_when_board_can_form(self):
+        pf = [rb.SeatPreflight("claude", True, "ok", True, "ran", True, "ok"),
+              rb.SeatPreflight("codex", True, "ok", True, "ran", True, "ok")]
+        self.assertEqual(rb.render_board_guidance(pf, _config()), "")  # >=2 GO -> no guidance
+
+    def test_degraded_preflight_prints_actionable_guidance(self):
+        os.environ["MOCK_CODEX_MODE"] = "nogo_smoke"
+        os.environ["MOCK_GEMINI_MODE"] = "nogo_smoke"
+        code, out, _ = run_cli(["preflight", "--source", SAMPLE])
+        self.assertEqual(code, rb.EXIT_PREFLIGHT_NOGO)
+        self.assertIn("at least 2 independent voices", out)
+        self.assertIn("board-composition.md", out)
+        self.assertIn("Same-provider", out)                        # the single-provider fallback
+
+    def test_run_degraded_prints_guidance_before_stopping(self):
+        os.environ["MOCK_CODEX_MODE"] = "nogo_smoke"
+        os.environ["MOCK_GEMINI_MODE"] = "nogo_smoke"
+        out_dir = tempfile.mkdtemp(prefix="board-degraded-")
+        code, out, _ = run_cli(["run", "--source", SAMPLE, "--out", out_dir], stdin="")
+        self.assertEqual(code, rb.EXIT_PREFLIGHT_NOGO)
+        self.assertIn("board-composition.md", out)
+        # nothing materialized — degraded stop is before the egress gate
+        self.assertFalse(os.path.exists(os.path.join(out_dir, "prompts")))
+
+
 if __name__ == "__main__":
     unittest.main()

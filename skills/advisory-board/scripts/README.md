@@ -12,11 +12,12 @@
 ## Quick start
 
 ```
-# check each seat CLI vs its latest release (read-only)
+# check each seat CLI vs its latest release (read-only): current / STALE / missing / unknown
 python3 scripts/run_board.py toolchain
 
-# update stale CLIs first (consent-gated; --yes approves unattended), then run as usual
+# update stale CLIs and/or install absent ones (consent-gated; --yes approves unattended)
 python3 scripts/run_board.py toolchain --update
+python3 scripts/run_board.py toolchain --install   # installs absent CLIs (account/auth still required)
 
 # preview a run — config, run-card, preflight plan, egress manifest, artifact tree (no spawn)
 python3 scripts/run_board.py run --source plan.md --dry-run

@@ -47,3 +47,8 @@ These are the M2 invariants — if any regresses, a test fails:
   "unknown" not "stale" (never a spurious update), a non-TTY without `--yes` is a
   no-op, and an unresolvable pinned id yields a *proposed* fallback, not a silent
   swap.
+- **Graceful degradation for partial setups** (`TestGracefulDegradation`) — an
+  absent CLI reads `missing` (not `unknown`) and prints its install command;
+  `--install` is consent-gated and never implies an account; and when fewer than
+  two seats are usable, preflight/run emit actionable guidance (install vs auth,
+  same-provider / local-seat fallbacks) instead of dead-ending.
