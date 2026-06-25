@@ -25,6 +25,15 @@ reserved for an explicit production-ready call. The verdict-JSON schema is versi
 - `design/run-board-v1x.md` (+ rendered `design/run-board-v1x.html`) — the v1.x conductor feature
   plan, authored in the new dialect as the first real plan view (a reviewable starting draft).
 
+### Changed
+- **Shared template engine** — the block / `{{TOKEN}}` machinery that `render_handoff.py`,
+  `render_verdict.py`, and `render_plan.py` each carried (separately, and re-copied by
+  `render_plan`) is extracted into `scripts/_render_engine.py`, parameterized by each caller's
+  `BLOCK_KEYS`/`RAW_TOKENS`. `render_plan`'s SENTINEL stash (which holds verbatim author content —
+  an inlined SVG, a quoted `{{…}}` snippet — out of the comment-strip and leftover-placeholder
+  guards) now lives in the shared engine as an opt-in. Pure refactor: every renderer's output is
+  byte-identical to before (verified against the committed example and plan view). +20 engine tests.
+
 ## [v1.0.0] - 2026-06-25 — v1: production-ready
 
 The conductor's v1 scope (milestones M1–M6) is complete and has been exercised end-to-end

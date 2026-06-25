@@ -40,11 +40,18 @@ through as HTML, so the data author must escape them and wrap inline code in
 from __future__ import annotations
 
 import argparse
-import html
 import json
 import os
 import re
 import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _render_engine import (  # noqa: E402  shared block / {{TOKEN}} engine
+    assert_fully_resolved,
+    die,
+    render_item,
+    strip_comments,
+)
 
 # Block-comment name -> the data key holding its list of items.
 BLOCK_KEYS = {
@@ -64,66 +71,6 @@ RAW_TOKENS = {
     "CAVEAT_IMPACT", "QUESTION", "ACTION",
 }
 
-TOKEN_RE = re.compile(r"\{\{([A-Z0-9_]+)\}\}")
-BEGIN_RE = re.compile(r"<!--\s*BEGIN ([A-Z][A-Z ]*?)\s*(?:\([^)]*\))?\s*-->")
-MARKER_RE = re.compile(r"<!--\s*(BEGIN|END) ([A-Z][A-Z ]*?)\s*(?:\([^)]*\))?\s*-->")
-COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
-DIVIDER_RE = re.compile(r"^<!--\s*=+.*=+\s*-->$")
-
-
-def die(message: str) -> None:
-    print(f"error: {message}", file=sys.stderr)
-    raise SystemExit(2)
-
-
-def find_first_block(tpl: str):
-    """Return (start, end, name, inner) for the first BEGIN..matching END block.
-
-    Matching is depth-aware so a nested block (ROUND inside SEAT CARD) doesn't
-    end the outer block early. Returns None when no block remains.
-    """
-    begin = BEGIN_RE.search(tpl)
-    if not begin:
-        return None
-    name = begin.group(1).strip()
-    inner_start = begin.end()
-    depth = 0
-    for marker in MARKER_RE.finditer(tpl, begin.start()):
-        depth += 1 if marker.group(1) == "BEGIN" else -1
-        if depth == 0:
-            return begin.start(), marker.end(), name, tpl[inner_start:marker.start()]
-    die(f"unterminated BEGIN {name}")
-
-
-def substitute(tpl: str, ctx: dict) -> str:
-    def repl(match: re.Match) -> str:
-        token = match.group(1)
-        key = token.lower()
-        if key not in ctx or isinstance(ctx[key], list):
-            return match.group(0)  # leave for the final unresolved-token check
-        value = "" if ctx[key] is None else str(ctx[key])
-        return value if token in RAW_TOKENS else html.escape(value, quote=True)
-
-    return TOKEN_RE.sub(repl, tpl)
-
-
-def render_item(tpl: str, ctx: dict) -> str:
-    """Expand every repeatable block against ctx, then fill ctx's scalar tokens."""
-    while True:
-        block = find_first_block(tpl)
-        if block is None:
-            break
-        start, end, name, inner = block
-        key = BLOCK_KEYS.get(name)
-        if key is None:
-            die(f"unknown template block: {name!r}")
-        items = ctx.get(key) or []
-        if not isinstance(items, list):
-            die(f"{key!r} must be a list; got {type(items).__name__}")
-        rendered = "".join(render_item(inner, item) for item in items)
-        tpl = tpl[:start] + rendered + tpl[end:]
-    return substitute(tpl, ctx)
-
 
 def drop_empty_optionals(out: str) -> str:
     """Remove the three optional elements when their token rendered empty."""
@@ -133,30 +80,12 @@ def drop_empty_optionals(out: str) -> str:
     return out
 
 
-def strip_comments(out: str) -> str:
-    """Drop authoring comments; keep single-line ===== section dividers."""
-    def decide(match: re.Match) -> str:
-        comment = match.group(0)
-        if "\n" not in comment and DIVIDER_RE.match(comment.strip()):
-            return comment
-        return ""
-
-    return COMMENT_RE.sub(decide, out)
-
-
 def render(data: dict, template: str) -> str:
-    out = render_item(template, data)
+    out = render_item(template, data, BLOCK_KEYS, RAW_TOKENS)
     out = drop_empty_optionals(out)
     out = strip_comments(out)
     out = re.sub(r"\n{3,}", "\n\n", out)
-
-    leftover = sorted(set(TOKEN_RE.findall(out)))
-    if leftover:
-        die("unresolved placeholder(s): " + ", ".join("{{%s}}" % t for t in leftover))
-    if "<!--" in out and not all(
-        DIVIDER_RE.match(c.strip()) for c in COMMENT_RE.findall(out)
-    ):
-        die("authoring comment survived rendering")
+    assert_fully_resolved(out)
     return out
 
 

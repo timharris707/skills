@@ -11,6 +11,7 @@
 | `format_output.py` | Render `verdict.json` as a TL;DR, PR comment, Slack message, or normalized JSON. | `references/output-formats.md` |
 | `render_handoff.py` | Render `final-consensus.html` from a `handoff-data.json` — deterministic, fails on any leftover placeholder. | `references/handoff-template.html` |
 | `render_plan.py` | Render a **planning-document HTML view** deterministically **from** its markdown (`design/<plan>.md`) — milestones / phases / checklists / per-phase testing + validation gate, a computed progress ring and milestone status rail, decisions/risks, and an inlined SVG diagram. The markdown is the source of truth; never hand-edit the HTML — regenerate it. Self-contained (Claude brand fonts embedded). Fails on any leftover placeholder. | `references/plan-template.html` (+ `plan-fonts.css`) |
+| `_render_engine.py` | The shared block / `{{TOKEN}}` template engine the renderers reuse (depth-aware block expansion, substitution, comment stripping, the leftover guards, and the opt-in SENTINEL stash for verbatim author content). Imported by `render_handoff.py`/`render_verdict.py`/`render_plan.py`; parameterized by each caller's `BLOCK_KEYS`/`RAW_TOKENS`. | — |
 
 ## Package layout
 
