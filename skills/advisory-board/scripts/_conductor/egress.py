@@ -30,6 +30,7 @@ __all__ = [
     "consent_mode_for",
     "disclosure_line",
     "unenforced_network_note",
+    "_d4_refusal_detail",
     "enforce_egress_gate",
 ]
 
@@ -242,6 +243,16 @@ def unenforced_network_note(config: RunConfig) -> Optional[str]:
             "as networked.")
 
 
+def _d4_refusal_detail(seats: list) -> str:
+    """The D4 hard-stop guidance: gate + --repo needs network-isolated seats, and
+    these one(s) cannot be isolated. Names the offending seat(s) so the refusal is a
+    labeled NO-GO (never a silent drop), and points at the three real fixes."""
+    names = ", ".join(seats)
+    return ("gate + --repo needs network-isolated seats; "
+            f"{names} can't be isolated — drop them (e.g. --board claude,codex), "
+            "add a local seat, or use --mode advisory.")
+
+
 def enforce_egress_gate(config: RunConfig, blobs: list, *, assume_yes: bool,
                         skip_gate: bool, interactive: Optional[bool] = None) -> EgressApproval:
     """The pre-spawn hard stop. Returns an approval, or a refusal that callers
@@ -258,6 +269,22 @@ def enforce_egress_gate(config: RunConfig, blobs: list, *, assume_yes: bool,
         return EgressApproval(approved, mode, content_hash, stamp, detail, scope_hash=scope_hash)
 
     external = [b for b in blobs if b.provider != "local"]
+
+    # D4 (the crux) — read XOR network. A gate-bearing run with --repo REQUIRES every
+    # seat to be network-isolatable: a seat that can read the repo AND reach the network
+    # is the read-then-exfiltrate channel the quarantine exists to break (R2). If gate
+    # mode cannot remove a seat's network (gemini/antigravity — no flag disables their
+    # web/grounding), refuse the WHOLE run UNCONDITIONALLY, before any consent prompt.
+    # This is a HARD-STOP, never a y/N consent question and never an auto-drop: the plan
+    # rejects warning-only/proceed and auto-drop-and-proceed alike (it "launders consent
+    # into false safety"). The message names the offending seat(s) so the seat is a
+    # labeled NO-GO, never silently dropped. Advisory + --repo is intentionally NOT
+    # blocked here (you own your repo's risk; the unenforced_network_note warns) —
+    # unenforced_network_seats is empty in advisory mode, so this never fires there.
+    if config.gate_mode and config.grounding is not None:
+        offending = config.unenforced_network_seats
+        if offending:
+            return decide(False, "refused", _d4_refusal_detail(offending))
 
     # local-only + --repo + an external seat: forbid explicitly. A grounded seat can
     # quote any in-scope file into its reply, which would egress to the external

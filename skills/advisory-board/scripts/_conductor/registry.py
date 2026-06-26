@@ -75,7 +75,7 @@ class SeatAdapter:
     default_model: str
     provider: str
     default_reasoning: str
-    build_argv: Callable[..., list]      # (model, prompt, *, reasoning, workdir, network) -> argv
+    build_argv: Callable[..., list]      # (model, prompt, *, reasoning, workdir, network, grounded) -> argv
     version_argv: Callable[[], list]     # () -> argv for the binary-present check
     prompt_on_stdin: bool                # True: feed prompt via stdin; False: it is in argv
     close_stdin: bool                    # True: stdin=DEVNULL when not feeding a prompt (codex hang fix)
@@ -148,9 +148,12 @@ def parse_model_answered(stdout: str, stderr: str) -> Optional[str]:
 # until M3+, and a silently-ignored flag is a worse footgun than its absence.
 
 
-def claude_argv(model, prompt, *, reasoning="xhigh", workdir=None, network=False):
+def claude_argv(model, prompt, *, reasoning="xhigh", workdir=None, network=False, grounded=False):
     # claude -p reads the prompt from stdin; plan mode is read-only. fs scoping is
     # the subprocess cwd (applied at spawn), since claude has no dir-scoping flag.
+    # `grounded` is accepted for a uniform signature: claude reads the repo via its
+    # cwd (the snapshot, set at spawn) with no flag to change, so its argv is the
+    # same grounded or not.
     argv = ["claude", "-p", "--model", model, "--permission-mode", "plan"]
     if not network:
         # Cut the seat's network reach in gate mode. Note: NOT --bare, which would
@@ -163,7 +166,14 @@ def claude_version():
     return ["claude", "--version"]
 
 
-def codex_argv(model, prompt, *, reasoning="xhigh", workdir=None, network=False):
+def codex_argv(model, prompt, *, reasoning="xhigh", workdir=None, network=False, grounded=False):
+    # --skip-git-repo-check is UNCONDITIONAL: codex exec refuses a non-git working dir
+    # otherwise, and both gate mode's throwaway tempdir AND a --repo snapshot (which
+    # excludes .git, P1) are non-git. So the flag is required either way — keeping it
+    # here unconditionally also means an ungrounded codex argv is byte-identical to
+    # before. `grounded` is threaded for a uniform adapter signature and to make the
+    # snapshot-as-cwd dependency explicit at the call site; codex reads the snapshot
+    # via -C <workdir> (set to the snapshot when grounded), needing no extra flag.
     argv = ["codex", "exec", "--sandbox", "read-only", "--skip-git-repo-check",
             "--config", f"model={model}",
             "--config", f"model_reasoning_effort={reasoning}"]
@@ -181,7 +191,7 @@ def codex_version():
     return ["codex", "--version"]
 
 
-def gemini_argv(model, prompt, *, reasoning="HIGH", workdir=None, network=False):
+def gemini_argv(model, prompt, *, reasoning="HIGH", workdir=None, network=False, grounded=False):
     # approval-mode plan is read-only (no edit/exec tools). HONEST LIMITATION:
     # the installed gemini CLI exposes no flag that reliably disables the built-in
     # GoogleSearch grounding, so gate mode CANNOT remove this seat's network (see
@@ -200,7 +210,7 @@ def gemini_version():
     return ["gemini", "--version"]
 
 
-def antigravity_argv(model, prompt, *, reasoning="High", workdir=None, network=False):
+def antigravity_argv(model, prompt, *, reasoning="High", workdir=None, network=False, grounded=False):
     # Antigravity CLI (`agy`) is Google's agent-first successor to gemini-cli
     # (gemini-cli sunset for consumer tiers 2026-06-18). `-p` runs a single prompt
     # non-interactively and prints the response. --sandbox enables terminal
@@ -222,7 +232,7 @@ def antigravity_version():
     return ["agy", "--version"]
 
 
-def ollama_argv(model, prompt, *, reasoning="default", workdir=None, network=False):
+def ollama_argv(model, prompt, *, reasoning="default", workdir=None, network=False, grounded=False):
     # Ollama runs the model entirely on-machine, so there is NO external egress —
     # which is exactly why a local seat is the privacy lever for sensitive material
     # (references/data-handling.md), reflected as provider="local" + isolates_network=True.

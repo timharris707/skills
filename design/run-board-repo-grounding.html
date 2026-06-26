@@ -429,15 +429,15 @@ footer.colophon code { background: var(--surface-2); }
         </div>
       </div>
       <div class="gauge">
-        <svg class="ring" viewBox="0 0 120 120" width="118" height="118" role="img" aria-label="Overall progress 38%">
+        <svg class="ring" viewBox="0 0 120 120" width="118" height="118" role="img" aria-label="Overall progress 59%">
           <circle class="ring-track" cx="60" cy="60" r="52" fill="none" stroke-width="11"/>
           <circle class="ring-arc" cx="60" cy="60" r="52" fill="none" stroke-width="11"
                   stroke-linecap="round" transform="rotate(-90 60 60)"
-                  stroke-dasharray="326.7" stroke-dashoffset="202.6"/>
-          <text class="ring-pct" x="60" y="57" text-anchor="middle" dominant-baseline="middle">38%</text>
+                  stroke-dasharray="326.7" stroke-dashoffset="134.0"/>
+          <text class="ring-pct" x="60" y="57" text-anchor="middle" dominant-baseline="middle">59%</text>
           <text class="ring-sub" x="60" y="76" text-anchor="middle" dominant-baseline="middle">complete</text>
         </svg>
-        <div class="gauge-count"><b>12</b> / 32 tasks done</div>
+        <div class="gauge-count"><b>19</b> / 32 tasks done</div>
       </div>
     </div>
 
@@ -476,8 +476,8 @@ footer.colophon code { background: var(--surface-2); }
           <div class="ms-meta">
             <span class="badge todo"><span class="dot"></span>To do</span>
             <span class="ms-progress">
-              <span class="ms-bar"><span style="width:38%"></span></span>
-              12/32
+              <span class="ms-bar"><span style="width:59%"></span></span>
+              19/32
             </span>
           </div>
         </div>
@@ -560,27 +560,27 @@ footer.colophon code { background: var(--surface-2); }
         
       </div>
       
-      <div class="phase todo">
+      <div class="phase done">
         <div class="phase-head">
           <span class="phase-dot"></span>
           <h4 class="phase-title">Phase 3 — Seat grounding + network-isolation safety policy</h4>
-          <span class="phase-state">To do</span>
+          <span class="phase-state">Done</span>
         </div>
         <ul class="checklist">
           
-          <li class="todo"><span class="tick"></span><span class="task-text">Replace the empty-tempdir workdir (<code>rounds.py:152</code>) with the <strong>read-only snapshot</strong> when <code>--repo</code> is set — all seats share it (same-material independence preserved); claude/gemini via subprocess <code>cwd</code>, codex via <code>-C</code> + <code>--skip-git-repo-check</code>. Adapters are already read-only (claude <code>plan</code>, codex <code>--sandbox read-only</code>, gemini <code>--approval-mode plan</code>).</span></li>
+          <li class="done"><span class="tick">✓</span><span class="task-text">Replace the empty-tempdir workdir (<code>rounds.py:152</code>) with the <strong>read-only snapshot</strong> when <code>--repo</code> is set — all seats share it (same-material independence preserved); claude/gemini via subprocess <code>cwd</code>, codex via <code>-C</code> + <code>--skip-git-repo-check</code>. Adapters are already read-only (claude <code>plan</code>, codex <code>--sandbox read-only</code>, gemini <code>--approval-mode plan</code>).</span></li>
           
-          <li class="todo"><span class="tick"></span><span class="task-text">DECISION (the crux): <strong>gate + <code>--repo</code> requires every seat to be network-isolatable</strong> (<code>isolates_network=True</code>). If <code>config.unenforced_network_seats</code> is non-empty (today: <strong>gemini, antigravity</strong>), HARD-STOP with guidance: &quot;gate + <code>--repo</code> needs network-isolated seats; gemini can&#x27;t be isolated — drop it (<code>--board claude,codex</code>), add a local seat, or use <code>--mode advisory</code>.&quot; Reuse the egress pre-spawn refusal path.</span></li>
+          <li class="done"><span class="tick">✓</span><span class="task-text">DECISION (the crux): <strong>gate + <code>--repo</code> requires every seat to be network-isolatable</strong> (<code>isolates_network=True</code>). If <code>config.unenforced_network_seats</code> is non-empty (today: <strong>gemini, antigravity</strong>), HARD-STOP with guidance: &quot;gate + <code>--repo</code> needs network-isolated seats; gemini can&#x27;t be isolated — drop it (<code>--board claude,codex</code>), add a local seat, or use <code>--mode advisory</code>.&quot; Reuse the egress pre-spawn refusal path.</span></li>
           
-          <li class="todo"><span class="tick"></span><span class="task-text">DECISION: <strong>advisory + <code>--repo</code></strong> is allowed (your own non-sensitive repo; network on; you own the risk) with a loud, labeled disclosure. A <strong>gate-bearing</strong> run never silently falls back to advisory.</span></li>
+          <li class="done"><span class="tick">✓</span><span class="task-text">DECISION: <strong>advisory + <code>--repo</code></strong> is allowed (your own non-sensitive repo; network on; you own the risk) with a loud, labeled disclosure. A <strong>gate-bearing</strong> run never silently falls back to advisory.</span></li>
           
-          <li class="todo"><span class="tick"></span><span class="task-text">DECISION (rejected, recorded): gate+repo+un-isolatable-seat <strong>with only a warning</strong> — that &quot;launders consent into false safety&quot; (§8) and is exactly the read-then-exfiltrate channel the quarantine prevents.</span></li>
+          <li class="done"><span class="tick">✓</span><span class="task-text">DECISION (rejected, recorded): gate+repo+un-isolatable-seat <strong>with only a warning</strong> — that &quot;launders consent into false safety&quot; (§8) and is exactly the read-then-exfiltrate channel the quarantine prevents.</span></li>
           
-          <li class="todo"><span class="tick"></span><span class="task-text">Drop an un-isolatable seat under gate+repo to a <strong>labeled NO-GO</strong> (consistent with &quot;degraded/dropped seats are labeled, never silently dropped&quot;), or refuse the run if it drops the board below two seats.</span></li>
+          <li class="done"><span class="tick">✓</span><span class="task-text">An un-isolatable seat under gate+repo makes the run <strong>refuse</strong> — the refusal <em>names</em> the seat as a <strong>labeled NO-GO</strong> (consistent with &quot;degraded/dropped seats are labeled, never silently dropped&quot;). Chose refuse-the-run over auto-drop-and-proceed per the crux decision above (the guidance tells the user to fix the board).</span></li>
           
-          <li class="todo"><span class="tick"></span><span class="task-text">Verify the snapshot dir cannot be written by a seat (read-only perms + read-only adapters) and a seat cannot escape it (snapshot has no out-of-root symlinks after Phase 1).</span></li>
+          <li class="done"><span class="tick">✓</span><span class="task-text">Verify the snapshot dir cannot be written by a seat (read-only perms + read-only adapters) and a seat cannot escape it (snapshot has no out-of-root symlinks after Phase 1).</span></li>
           
-          <li class="todo"><span class="tick"></span><span class="task-text">DECISION/INVESTIGATE: codex&#x27;s <code>--sandbox read-only</code> permits <strong>reads OUTSIDE its cwd</strong> — observed in the 3/3 proof-of-life run, codex shell-read <code>~/.codex/.../SKILL.md</code> from its throwaway workdir. So the snapshot-as-cwd bounds what is <strong>hashed/disclosed/verified-against</strong>, NOT what a seat can physically read. Decide: use per-adapter sandbox path controls if they exist, else accept broad read (codex is network-isolated → no direct exfil) and lean on the secret denylist + an output secret-scan; document it honestly rather than claim a confinement we don&#x27;t have.</span></li>
+          <li class="done"><span class="tick">✓</span><span class="task-text">DECISION (resolved): codex&#x27;s <code>--sandbox read-only</code> permits <strong>reads OUTSIDE its cwd</strong> — observed in the 3/3 proof-of-life run, codex shell-read <code>~/.codex/.../SKILL.md</code> from its throwaway workdir. So the snapshot-as-cwd bounds what is <strong>hashed/disclosed/verified-against</strong>, NOT what a seat can physically read. <strong>Resolved:</strong> no per-adapter sandbox path-confinement flag exists, so we accept codex&#x27;s broad read (codex is network-isolated → D4 blocks exfil) and lean on the secret denylist; <code>codex_argv</code> already passes <code>--skip-git-repo-check</code> unconditionally, so the <code>.git</code>-excluded snapshot needs no new flag. Documented honestly (R9) rather than claiming a confinement we don&#x27;t have.</span></li>
           
         </ul>
         
@@ -718,7 +718,7 @@ footer.colophon code { background: var(--surface-2); }
       
       <li>
         <div class="entry-head"><span class="entry-tag">D4</span><span class="entry-title"><strong>Gate + <code>--repo</code> requires every seat network-isolatable</strong></span></div>
-        <div class="entry-body">gemini/antigravity (un-removable network) are dropped to a labeled NO-GO or the run refuses. Read XOR network for any gate-bearing run.</div>
+        <div class="entry-body">if any seat has un-removable network (gemini/antigravity), the run <strong>refuses</strong> (the refusal names the seat as a labeled NO-GO; never silently dropped-and-proceeded). Read XOR network for any gate-bearing run.</div>
       </li>
       
       <li>
@@ -854,7 +854,7 @@ footer.colophon code { background: var(--surface-2); }
 
   <!-- ===================== COLOPHON ===================== -->
   <footer class="colophon">
-    Rendered from <code>run-board-repo-grounding.md</code> &middot; 1 milestones &middot; 12/32 tasks complete. The markdown plan is the source of truth &mdash; regenerate with <code>render_plan.py</code>; never hand-edit this file.
+    Rendered from <code>run-board-repo-grounding.md</code> &middot; 1 milestones &middot; 19/32 tasks complete. The markdown plan is the source of truth &mdash; regenerate with <code>render_plan.py</code>; never hand-edit this file.
   </footer>
 
 </div>

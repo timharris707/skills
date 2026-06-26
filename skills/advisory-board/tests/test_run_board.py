@@ -4193,5 +4193,246 @@ class TestRepoGroundingE2E(EnvMixin):
         self.assertEqual(d["approval"]["scope_hash"], d["repo_scope"]["scope_hash"])
 
 
+class TestRepoGroundingD4(EnvMixin):
+    """P3 / D4 — read XOR network. A gate-bearing run with --repo must REFUSE any
+    seat whose network gate mode cannot remove (gemini/antigravity), unconditionally
+    and before any consent prompt; advisory + --repo + gemini is allowed (warned).
+    Also: seats are pointed at the read-only snapshot as their cwd, and that snapshot
+    cannot be written or escaped."""
+
+    def _gate(self, cfg, blobs, *, assume_yes=False, skip_gate=False):
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            ap = rb.enforce_egress_gate(cfg, blobs, assume_yes=assume_yes,
+                                        skip_gate=skip_gate, interactive=False)
+        return ap, buf.getvalue()
+
+    # ----- D4 hard-stop -------------------------------------------------------
+
+    def test_gate_repo_gemini_hard_stops(self):
+        cfg = _grounded_config(self, {"a.py": "x=1\n"}, board="claude,codex,gemini",
+                               mode="gate", sensitivity="public")
+        ap, _ = self._gate(cfg, rb.build_packet(cfg))
+        self.assertFalse(ap.approved)
+        self.assertEqual(ap.mode, "refused")
+        low = ap.detail.lower()
+        self.assertIn("gemini", low, "the offending seat must be named (labeled NO-GO)")
+        self.assertTrue("network" in low or "isolat" in low,
+                        "the refusal must cite the network-isolation reason")
+        self.assertIn("--mode advisory", ap.detail, "the guidance offers the advisory escape hatch")
+
+    def test_gate_repo_antigravity_hard_stops_and_names_it(self):
+        cfg = _grounded_config(self, {"a.py": "x=1\n"}, board="claude,antigravity",
+                               mode="gate", sensitivity="public")
+        ap, _ = self._gate(cfg, rb.build_packet(cfg))
+        self.assertFalse(ap.approved)
+        self.assertIn("antigravity", ap.detail)
+
+    def test_gate_repo_hard_stop_is_unconditional(self):
+        # The refusal must fire even with --yes AND --skip-sensitivity-gate set: it is
+        # a hard-stop, never a consent question the user can wave through.
+        cfg = _grounded_config(self, {"a.py": "x=1\n"}, board="claude,codex,gemini",
+                               mode="gate", sensitivity="public")
+        ap, _ = self._gate(cfg, rb.build_packet(cfg), assume_yes=True, skip_gate=True)
+        self.assertFalse(ap.approved, "neither --yes nor --skip-sensitivity-gate may bypass D4")
+        self.assertEqual(ap.mode, "refused")
+
+    def test_gate_repo_claude_codex_proceeds(self):
+        cfg = _grounded_config(self, {"a.py": "x=1\n"}, board="claude,codex",
+                               mode="gate", sensitivity="redacted")
+        ap, _ = self._gate(cfg, rb.build_packet(cfg), assume_yes=True)
+        self.assertTrue(ap.approved, "an all-isolatable gate+repo board must proceed")
+        self.assertEqual(ap.scope_hash, cfg.grounding.scope_hash)
+
+    def test_advisory_repo_gemini_proceeds_with_warning(self):
+        cfg = _grounded_config(self, {"a.py": "x=1\n"}, board="claude,codex,gemini",
+                               mode="advisory", sensitivity="public")
+        ap, out = self._gate(cfg, rb.build_packet(cfg))
+        self.assertTrue(ap.approved, "advisory + --repo + gemini is allowed (you own the risk)")
+        # advisory carries no unenforced-network warning (network is intentional there),
+        # so unenforced_network_seats is empty and D4 never fires.
+        self.assertEqual(cfg.unenforced_network_seats, [])
+
+    def test_advisory_repo_gemini_is_not_blocked_by_d4(self):
+        # Belt-and-suspenders: the D4 helper input (unenforced seats) is empty in
+        # advisory mode, so the same board that hard-stops under gate proceeds here.
+        cfg = _grounded_config(self, {"a.py": "x=1\n"}, board="claude,codex,gemini",
+                               mode="advisory", sensitivity="redacted")
+        ap, _ = self._gate(cfg, rb.build_packet(cfg), assume_yes=True)
+        self.assertTrue(ap.approved)
+
+    def test_ungrounded_gate_gemini_still_proceeds(self):
+        # INVARIANT: D4 only bites a GROUNDED run. An ungrounded gate board with gemini
+        # is unchanged — it proceeds (with the existing unenforced-network warning).
+        cfg = _config(mode="gate", sensitivity="public")  # default board incl. gemini, no repo
+        self.assertIsNone(cfg.grounding)
+        ap, _ = self._gate(cfg, rb.build_packet(cfg))
+        self.assertTrue(ap.approved, "an ungrounded gate run is not subject to D4")
+
+    def test_d4_refusal_detail_matches_plan_wording(self):
+        detail = rb._d4_refusal_detail(["gemini"])
+        self.assertEqual(
+            detail,
+            "gate + --repo needs network-isolated seats; gemini can't be isolated — "
+            "drop them (e.g. --board claude,codex), add a local seat, or use --mode advisory.")
+
+    # ----- snapshot-as-workdir (seats receive the snapshot as cwd) ------------
+
+    def _capture_spawn(self):
+        """Patch the spawn used by run_round to record (name, argv, cwd) per seat and
+        return a benign 'ran' result, so a single run_round exercises the workdir wiring
+        without launching real subprocesses."""
+        from _conductor import rounds as rounds_mod
+        calls = []
+        real_spawn = rounds_mod.spawn
+
+        def fake_spawn(adapter, argv, *, prompt=None, timeout=None, cwd=None):
+            calls.append({"name": adapter.name, "argv": list(argv), "cwd": cwd})
+            # A shape-valid round-1 review so classify_round1 returns "ran".
+            stdout = ("## Verdict\nConditional go.\n## Strongest objections\nrisk.\n"
+                      "## Concrete evidence\nevidence here.\n## Invariants and guardrails\n"
+                      "invariant.\nVERDICT: caution\n")
+            return rb.SpawnResult(0, stdout, "", 0.01, False)
+
+        self.addCleanup(setattr, rounds_mod, "spawn", real_spawn)
+        rounds_mod.spawn = fake_spawn
+        return calls
+
+    def _approval(self, cfg, blobs):
+        return rb.EgressApproval(True, "hash-bound", rb.packet_hash(blobs),
+                                 "2026-06-25T12:00:00", "ok",
+                                 scope_hash=cfg.grounding.scope_hash)
+
+    def test_seats_get_snapshot_as_cwd_advisory(self):
+        cfg = _grounded_config(self, {"a.py": "x=1\n"}, board="claude,codex",
+                               mode="advisory", sensitivity="public")
+        snap = cfg.grounding.snapshot_dir
+        self.assertTrue(snap and os.path.isdir(snap))
+        calls = self._capture_spawn()
+        blobs = rb.build_packet(cfg)
+        rb.run_round(cfg, blobs, self._approval(cfg, blobs), round_no=1, parallel=False)
+        by = {c["name"]: c for c in calls}
+        # claude reads the repo via cwd (no dir flag), so it is SPAWNED with cwd=snapshot.
+        self.assertEqual(by["claude"]["cwd"], snap)
+        # codex reads via -C <snapshot> in argv AND needs --skip-git-repo-check (the
+        # snapshot has no .git). Its spawn cwd is the snapshot too.
+        self.assertEqual(by["codex"]["cwd"], snap)
+        self.assertIn("-C", by["codex"]["argv"])
+        self.assertEqual(by["codex"]["argv"][by["codex"]["argv"].index("-C") + 1], snap)
+        self.assertIn("--skip-git-repo-check", by["codex"]["argv"])
+
+    def test_seats_get_snapshot_as_cwd_gate(self):
+        # gate + repo with an all-isolatable board: the snapshot is the cwd in gate mode
+        # too (NOT a fresh empty tempdir), so gate seats verify against the real tree.
+        cfg = _grounded_config(self, {"a.py": "x=1\n"}, board="claude,codex",
+                               mode="gate", sensitivity="public")
+        snap = cfg.grounding.snapshot_dir
+        calls = self._capture_spawn()
+        blobs = rb.build_packet(cfg)
+        rb.run_round(cfg, blobs, self._approval(cfg, blobs), round_no=1, parallel=False)
+        by = {c["name"]: c for c in calls}
+        self.assertEqual(by["claude"]["cwd"], snap, "gate+repo claude cwd must be the snapshot")
+        self.assertEqual(by["codex"]["cwd"], snap, "gate+repo codex cwd must be the snapshot")
+        self.assertIn("--skip-git-repo-check", by["codex"]["argv"])
+
+    def test_ungrounded_gate_uses_fresh_tempdir_not_snapshot(self):
+        # INVARIANT: an ungrounded gate run keeps its fresh empty per-round tempdir
+        # (byte-identical behavior) — the cwd is a NEW dir, not any snapshot.
+        cfg = _config(mode="gate", board="claude,codex", sensitivity="public")
+        self.assertIsNone(cfg.grounding)
+        calls = self._capture_spawn()
+        blobs = rb.build_packet(cfg)
+        rb.run_round(cfg, blobs, self._approval_ungrounded(blobs), round_no=1, parallel=False)
+        cwds = {c["cwd"] for c in calls}
+        self.assertEqual(len(cwds), 1, "all seats share the one per-round tempdir")
+        wd = cwds.pop()
+        self.assertIsNotNone(wd)
+        self.assertIn("advisory-board-round1-", wd, "gate cwd is the fresh round tempdir")
+        # the round tempdir is cleaned up afterward (we don't own it past the round)
+        self.assertFalse(os.path.exists(wd), "the per-round tempdir must be torn down")
+
+    def test_ungrounded_advisory_has_no_cwd(self):
+        # INVARIANT: an ungrounded advisory run spawns in the caller's cwd (None).
+        cfg = _config(mode="advisory", board="claude,codex", sensitivity="public")
+        calls = self._capture_spawn()
+        blobs = rb.build_packet(cfg)
+        rb.run_round(cfg, blobs, self._approval_ungrounded(blobs), round_no=1, parallel=False)
+        self.assertTrue(all(c["cwd"] is None for c in calls))
+
+    def _approval_ungrounded(self, blobs):
+        return rb.EgressApproval(True, "hash-bound", rb.packet_hash(blobs),
+                                 "2026-06-25T12:00:00", "ok", scope_hash=None)
+
+    # ----- snapshot is read-only and inescapable ------------------------------
+
+    def test_snapshot_files_are_read_only(self):
+        cfg = _grounded_config(self, {"a.py": "x=1\n", "pkg/b.py": "y=2\n"},
+                               board="claude,codex", mode="advisory", sensitivity="public")
+        snap = cfg.grounding.snapshot_dir
+        for rel in ("a.py", "pkg/b.py"):
+            mode = _stat.S_IMODE(os.stat(os.path.join(snap, rel)).st_mode)
+            self.assertEqual(mode, 0o444, f"{rel} must be read-only in the snapshot")
+
+    def test_write_into_snapshot_fails(self):
+        # A seat cannot write the snapshot: the files are 0o444. Opening one for write
+        # raises (the read-only adapters are the primary block; perms are the backstop).
+        cfg = _grounded_config(self, {"a.py": "x=1\n"}, board="claude,codex",
+                               mode="advisory", sensitivity="public")
+        target = os.path.join(cfg.grounding.snapshot_dir, "a.py")
+        with self.assertRaises((PermissionError, OSError)):
+            with open(target, "w") as fh:
+                fh.write("tampered\n")
+        # the original bytes are intact
+        with open(target) as fh:
+            self.assertEqual(fh.read(), "x=1\n")
+
+    def test_run_cli_gate_repo_gemini_blocks_and_cleans_up(self):
+        # End-to-end: `run --mode gate --repo <r> --board claude,codex,gemini` must exit
+        # EGRESS_BLOCKED (D4), write the manifest/refusal record, and leave no snapshot
+        # tempdir behind (cmd_run's finally cleans it up even on the refusal path).
+        import glob as _glob
+        root = _git_repo({"app.py": "x=1\n"})
+        srcdir = tempfile.mkdtemp(prefix="grd-src-")
+        src = os.path.join(srcdir, "q.md")
+        with open(src, "w") as fh:
+            fh.write("ready?\n")
+        out = tempfile.mkdtemp(prefix="board-d4-")
+        before = set(_glob.glob(os.path.join(tempfile.gettempdir(), "advisory-board-repo-*")))
+        code, sout, _ = run_cli(["run", "--source", src, "--repo", root,
+                                 "--board", "claude,codex,gemini", "--mode", "gate",
+                                 "--sensitivity", "public", "--yes", "--out", out])
+        self.assertEqual(code, rb.EXIT_EGRESS_BLOCKED)
+        self.assertTrue(os.path.exists(os.path.join(out, "egress-manifest.md")))
+        self.assertIn("REFUSED", sout)
+        self.assertIn("gemini", sout)
+        after = set(_glob.glob(os.path.join(tempfile.gettempdir(), "advisory-board-repo-*")))
+        self.assertEqual(before, after, "the D4 refusal must not leak a snapshot tempdir")
+
+    def test_snapshot_has_no_out_of_root_symlink(self):
+        # Phase-1 confinement: a symlink resolving outside the repo root is never in
+        # the snapshot, so a seat reading the snapshot cannot escape it via a symlink.
+        root = _git_repo({"keep.py": "x=1\n"})
+        outside = tempfile.mkdtemp(prefix="grd-d4-out-")
+        with open(os.path.join(outside, "secret.txt"), "w") as fh:
+            fh.write("LEAK\n")
+        os.symlink(os.path.join(outside, "secret.txt"), os.path.join(root, "escape.txt"))
+        scope = grd.resolve_scope(root)
+        snap = grd.snapshot_scope(root, scope)
+        try:
+            # no symlink survives into the snapshot, and nothing resolves outside root
+            for dirpath, _dirnames, filenames in os.walk(snap):
+                for name in filenames:
+                    full = os.path.join(dirpath, name)
+                    self.assertFalse(os.path.islink(full),
+                                     "the snapshot must contain no symlinks")
+                    real = os.path.realpath(full)
+                    self.assertTrue(real.startswith(os.path.realpath(snap) + os.sep),
+                                    "every snapshot file must resolve inside the snapshot")
+            self.assertFalse(os.path.exists(os.path.join(snap, "escape.txt")),
+                             "the out-of-root symlink must not be in the snapshot")
+        finally:
+            grd.cleanup_snapshot(snap)
+
+
 if __name__ == "__main__":
     unittest.main()

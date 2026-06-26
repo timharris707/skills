@@ -96,7 +96,8 @@ def _run_seat_round(seat: SeatConfig, blob: "PacketBlob", config: RunConfig, *,
     for attempt in (1, 2):
         attempts = attempt
         last_argv = adapter.build_argv(seat.model, prompt, reasoning=seat.reasoning,
-                                       workdir=workdir, network=config.network_on)
+                                       workdir=workdir, network=config.network_on,
+                                       grounded=config.grounded)
         result = spawn(adapter, last_argv, prompt=prompt, timeout=seat_timeout, cwd=workdir)
         status, failure = classify_round1(result, adapter)
         if status in ("ran", "degraded"):
@@ -155,9 +156,28 @@ def run_round(config: RunConfig, blobs: list, approval: EgressApproval, *,
     by_seat = {b.seat: b for b in blobs}
     seats = [s for s in config.board if s.name in by_seat]   # round 2 drops failed seats
 
-    # Gate mode confines each seat to a scoped, empty cwd (same posture preflight
-    # used); advisory mode runs in the caller's cwd (your own material, by design).
-    workdir = tempfile.mkdtemp(prefix=f"advisory-board-round{round_no}-") if config.fs_scoped else None
+    # Workdir policy (P3, read XOR network). When --repo is on, EVERY seat is pointed
+    # at the read-only snapshot (config.grounding.snapshot_dir) as its cwd — in BOTH
+    # gate+repo and advisory+repo — so seats verify claims against the exact frozen
+    # bytes consent bound to, and `verify` later resolves those citations. Snapshot
+    # files are 0o444 (P1) and the adapters are read-only, so this dir cannot be
+    # written. We do NOT own this dir (cmd_run created + cleans it up), so the
+    # try/finally below must NOT rmtree it — only an ephemeral tempdir we made here.
+    # Ungrounded behavior is byte-identical to before: a fresh empty tempdir in gate,
+    # None in advisory.
+    grounded_snapshot = (config.grounding.snapshot_dir
+                         if config.grounded and config.grounding is not None
+                         else None)
+    own_workdir = None
+    if grounded_snapshot:
+        workdir = grounded_snapshot
+    elif config.fs_scoped:
+        # Gate mode confines each seat to a scoped, empty cwd (same posture preflight
+        # used); advisory mode runs in the caller's cwd (your own material, by design).
+        own_workdir = tempfile.mkdtemp(prefix=f"advisory-board-round{round_no}-")
+        workdir = own_workdir
+    else:
+        workdir = None
     try:
         def _one(seat: SeatConfig) -> SeatRoundResult:
             return _run_seat_round(seat, by_seat[seat.name], config, round_no=round_no,
@@ -176,8 +196,12 @@ def run_round(config: RunConfig, blobs: list, approval: EgressApproval, *,
                 results[seat.name] = _one(seat)
         return [results[s.name] for s in seats]
     finally:
-        if workdir:
-            shutil.rmtree(workdir, ignore_errors=True)
+        # Only tear down the ephemeral per-round tempdir WE created. The grounded
+        # snapshot is owned by cmd_run (one snapshot shared across rounds) and is
+        # cleaned up there — rmtree'ing it here would pull the read surface out from
+        # under a later round (and double-free it on cleanup).
+        if own_workdir:
+            shutil.rmtree(own_workdir, ignore_errors=True)
 
 
 def run_round1(config: RunConfig, blobs: list, approval: EgressApproval, *,
