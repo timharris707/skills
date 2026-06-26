@@ -6,7 +6,10 @@ import hashlib
 import os
 import sys
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from _conductor.grounding import GroundingContext
 
 from _conductor.constants import (
     DEFAULT_LENS,
@@ -77,6 +80,18 @@ class RunConfig:
     fs_scoped: bool      # isolation: filesystem scoped
     synthesize: bool = False         # M2: spawn the neutral synthesizer after rounds
     synthesizer_seat: Optional[str] = None   # which board seat's adapter runs it
+    repo: Optional[str] = None       # repo-grounding: a local repo seats may read (read-only)
+    repo_include: Optional[list] = None   # optional fnmatch globs narrowing the grounding scope
+    repo_exclude: Optional[list] = None   # optional fnmatch globs removed from the grounding scope
+    # Runtime-populated (NOT by resolve_config): the resolved+snapshotted+hashed read
+    # surface, computed once at pre-spawn (cli.cmd_run) so every consent surface reads
+    # one source of truth. None until then, and always None for an ungrounded run.
+    grounding: "Optional[GroundingContext]" = None
+
+    @property
+    def grounded(self) -> bool:
+        """True when repo-grounding is on — seats read a read-only snapshot of `repo`."""
+        return bool(self.repo)
 
     @property
     def gate_mode(self) -> bool:
@@ -240,6 +255,17 @@ def resolve_config(args) -> RunConfig:
                 f"({', '.join(sorted(board_names))}); the synthesizer egresses to that seat's "
                 "provider, which the run's disclosure only covers for board seats")
 
+    # Repo-grounding (design/run-board-repo-grounding.md): a local repo seats may
+    # read read-only. Resolved + validated as a directory here; the scope/snapshot
+    # and the consent/network safety policy are applied at run time (P2/P3).
+    repo = getattr(args, "repo", None) or (base or {}).get("repo")
+    if repo is not None:
+        repo = os.path.abspath(os.path.expanduser(repo))
+        if not os.path.isdir(repo):
+            die(f"--repo is not a directory: {repo}")
+    repo_include = getattr(args, "repo_include", None) or (base or {}).get("repo_include") or None
+    repo_exclude = getattr(args, "repo_exclude", None) or (base or {}).get("repo_exclude") or None
+
     return RunConfig(
         title=title,
         date=now_date(),
@@ -257,6 +283,9 @@ def resolve_config(args) -> RunConfig:
         fs_scoped=fs_scoped,
         synthesize=synthesize,
         synthesizer_seat=synthesizer_seat,
+        repo=repo,
+        repo_include=repo_include,
+        repo_exclude=repo_exclude,
     )
 
 

@@ -19,6 +19,7 @@ from _conductor.egress import (
     render_egress_manifest,
     unenforced_network_note,
 )
+from _conductor.grounding import quoted_repo_paths, render_repo_scope_lines
 from _conductor.recipe import (
     RECIPE_COMMENTS,
     config_to_recipe,
@@ -77,6 +78,13 @@ def render_run_card(config: RunConfig) -> str:
         f"  EGRESS        : {disclosure_line(config)}",
         f"                  consent = {consent_mode_for(config.sensitivity)}",
     ]
+    if config.grounding is not None:
+        g = config.grounding
+        lines += [
+            f"  repo grounding: {g.n_files} file(s), {g.n_bytes} bytes readable under {g.repo_root}",
+            f"                  scope sha256:{g.scope_hash[:12]}…"
+            + (f"  ·  ⚠ {len(g.secret_hits)} secret-scan hit(s)" if g.secret_hits else ""),
+        ]
     note = unenforced_network_note(config)
     if note:
         lines += ["", "  " + note]
@@ -97,6 +105,17 @@ def render_sensitivity_json(config: RunConfig, approval: Optional[EgressApproval
         "network_isolation": {s.name: seat_network_status(s, config) for s in config.board},
         "network_unenforced": config.unenforced_network_seats,
     }
+    if config.grounding is not None:
+        g = config.grounding
+        payload["repo_scope"] = {
+            "root": g.repo_root,
+            "n_files": g.n_files,
+            "n_bytes": g.n_bytes,
+            "scope_hash": g.scope_hash,
+            "include": g.include or [],
+            "exclude": g.exclude or [],
+            "secret_scan_hits": [{"path": rel, "kind": kind} for rel, kind in g.secret_hits],
+        }
     if approval is not None:
         payload["approval"] = {
             "approved": approval.approved,
@@ -104,6 +123,9 @@ def render_sensitivity_json(config: RunConfig, approval: Optional[EgressApproval
             "content_hash": approval.content_hash,
             "timestamp": approval.timestamp,
         }
+        # Only present on a grounded run, so an ungrounded sensitivity.json is unchanged.
+        if approval.scope_hash is not None:
+            payload["approval"]["scope_hash"] = approval.scope_hash
     return json.dumps(payload, indent=2) + "\n"
 
 
@@ -119,9 +141,12 @@ def render_artifact_tree(config: RunConfig) -> str:
     seat_prompts = "\n".join(
         f"  prompts/{s.name}-round-1.prompt" for s in config.board
     )
+    top = "  run-recipe.yaml   egress-manifest.md   sensitivity.json"
+    if config.grounding is not None:
+        top += "   repo-scope-manifest.json"
     parts = [
         f"{config.out_dir}/",
-        "  run-recipe.yaml   egress-manifest.md   sensitivity.json",
+        top,
         seat_prompts,
         *rounds,
     ]
@@ -249,10 +274,18 @@ def render_run_metadata(config: RunConfig, preflight: list, approval: EgressAppr
         "",
         f"- Decision     : {'APPROVED' if approval.approved else 'REFUSED'} ({approval.mode})",
         f"- Content hash : sha256:{approval.content_hash}",
+    ]
+    if approval.scope_hash is not None:
+        lines.append(f"- Scope hash   : sha256:{approval.scope_hash}   (repo grounding; consent "
+                     "bound to this too)")
+    lines += [
         f"- Timestamp    : {approval.timestamp}",
         f"- Providers    : {', '.join(sorted({s.provider for s in config.board if s.provider != 'local'})) or '(none)'}",
         f"- Detail       : {approval.detail}",
     ]
+    if config.grounding is not None:
+        lines += ["", "## Readable repository scope", ""]
+        lines += render_repo_scope_lines(config.grounding)
     for round_results in (rounds or []):
         if not round_results:
             continue
@@ -273,6 +306,24 @@ def render_run_metadata(config: RunConfig, preflight: list, approval: EgressAppr
                 f"| {r.seat:<6} | {r.status:<8} | {answered} | {r.attempts} "
                 f"| {r.elapsed_s:.1f}s | {r.failure_class or '-'} |"
             )
+        # Post-hoc egress accounting (R4): the pre-spawn scope hash bounds what a seat
+        # COULD read; this records which in-scope paths each usable reply actually
+        # referenced. Best-effort substring match — over-, not under-counts.
+        if config.grounding is not None:
+            scope_paths = config.grounding.scope_paths
+            lines += ["", f"Repo paths referenced in round {n} (best-effort, not a proof of read):"]
+            any_ref = False
+            for r in round_results:
+                if not r.usable:
+                    continue
+                cited = quoted_repo_paths(r.stdout, scope_paths)
+                if cited:
+                    any_ref = True
+                    shown = ", ".join(f"`{p}`" for p in cited[:15])
+                    more = len(cited) - 15
+                    lines.append(f"- {r.seat}: {shown}" + (f" (+{more} more)" if more > 0 else ""))
+            if not any_ref:
+                lines.append("- (no in-scope repo path referenced in any usable reply this round)")
         # Provider-correlation disclosure (§12): "three voices" can be fewer
         # providers; the answered models above expose it, and antigravity's model
         # is structurally unknowable (it silently substitutes — never trusted).
@@ -290,9 +341,17 @@ def render_run_metadata(config: RunConfig, preflight: list, approval: EgressAppr
     else:
         lines.append("- 'Model answered' is what the CLI *reported*; 'unknown' means it reported "
                      "nothing parseable (never assume the requested model answered).")
-        lines.append("- Round 2+ egresses round-1 reviews (derivatives of already-approved source) "
-                     "to the same providers under the disclosed multi-round plan; each round's "
-                     "packet hash is recorded in round-N/<seat>.raw and run-metadata.tsv.")
+        if config.grounding is not None:
+            lines.append("- Round 2+ egresses round-1 reviews to the same providers under the "
+                         "disclosed multi-round plan. With --repo, a round-1 reply CAN carry fresh "
+                         "repo-derived quotes (within the approved scope hash); D8 elides verbatim "
+                         "repo bodies from the cross-reading packet (matched against in-scope file "
+                         "content), keeping path:line citations, to limit one seat's read becoming a "
+                         "cross-provider broadcast.")
+        else:
+            lines.append("- Round 2+ egresses round-1 reviews (derivatives of already-approved "
+                         "source) to the same providers under the disclosed multi-round plan; each "
+                         "round's packet hash is recorded in round-N/<seat>.raw and run-metadata.tsv.")
     lines.append("- Never record secrets, tokens, cookies, or private environment values.")
     if config.unenforced_network_seats:
         lines.append(
@@ -352,6 +411,11 @@ def write_pre_spawn_artifacts(config: RunConfig, blobs: list, approval: EgressAp
     _write(os.path.join(out, "sensitivity.json"), render_sensitivity_json(config, approval))
     _write(os.path.join(out, "egress-manifest.md"),
            render_egress_manifest(config, blobs, content_hash))
+    if config.grounding is not None:
+        # Persist the exact read surface consent bound to, so `verify` and a later
+        # audit can resolve citations against the same file list + scope hash.
+        _write(os.path.join(out, "repo-scope-manifest.json"),
+               json.dumps(config.grounding.manifest, indent=2) + "\n")
     for b in blobs:
         _write(os.path.join(out, b.relpath), b.text)
 

@@ -26,6 +26,10 @@ from _conductor.config import (
     parse_board,
     resolve_config,
 )
+from _conductor.grounding import (
+    cleanup_snapshot,
+    prepare_grounding,
+)
 from _conductor.toolchain import (
     check_toolchain,
     install_missing_tools,
@@ -154,6 +158,20 @@ def _maybe_update_tools(config, args) -> None:
 
 def cmd_run(args) -> int:
     config = resolve_config(args)   # validates --max-rounds (>= 1) too
+    # Repo-grounding: resolve + snapshot + hash the read surface ONCE, before the
+    # egress gate, so consent binds to the scope (P2). A real run snapshots (the
+    # frozen bytes seats read + verify resolves against); --dry-run only previews the
+    # live tree. The snapshot is a temp dir — always cleaned up, even on a NO-GO/error.
+    if config.grounded:
+        config.grounding = prepare_grounding(config, snapshot=not getattr(args, "dry_run", False))
+    try:
+        return _execute_run(config, args)
+    finally:
+        if config.grounding is not None and config.grounding.snapshot_dir:
+            cleanup_snapshot(config.grounding.snapshot_dir)
+
+
+def _execute_run(config, args) -> int:
     blobs = build_packet(config)
     content_hash = packet_hash(blobs)
 
@@ -272,9 +290,14 @@ def cmd_run(args) -> int:
         rN_hash = packet_hash(rN_blobs)
         print(f"\n=== round {round_no} (cross-reading + debate) ===")
         print(f"cross-reading: {config.cross_reading}  ·  round-{round_no} packet hash: sha256:{rN_hash}")
-        print(f"(round {round_no} sends each seat's round-{round_no - 1} review to the others at the "
-              "same providers — no new source egresses; covered by the run-card's disclosed "
-              "multi-round plan.)")
+        if config.grounding is not None:
+            print(f"(round {round_no} sends each seat's round-{round_no - 1} review to the others at "
+                  "the same providers; with --repo a review CAN carry repo-derived quotes within the "
+                  "approved scope — D8 elides verbatim repo bodies from the cross-reading packet.)")
+        else:
+            print(f"(round {round_no} sends each seat's round-{round_no - 1} review to the others at "
+                  "the same providers — no new source egresses; covered by the run-card's disclosed "
+                  "multi-round plan.)")
         rN = run_round(config, rN_blobs, approval, round_no=round_no, timeout=timeout)
         write_round_artifacts(config, rN, round_no)
         rounds_done.append(rN)
@@ -531,6 +554,20 @@ def add_run_options(parser: argparse.ArgumentParser) -> None:
                              "in the board, else the first board seat). Must be one of the run's "
                              "board seats — the synthesizer egresses to that provider, covered by "
                              "the run's existing disclosure (a fresh provider would need its own).")
+    parser.add_argument("--repo", metavar="PATH",
+                        help="REPO-GROUNDING: a local repository the board may READ (read-only) "
+                             "while reviewing, so findings cite real path:line. Augments --source "
+                             "(source frames the question; the repo is the evidence base). The scope "
+                             "is .gitignore-respecting, secret-denylisted, and symlink-confined; its "
+                             "contents become part of the egress disclosure. In gate mode this "
+                             "requires every seat to be network-isolatable (gemini/antigravity are "
+                             "refused — read+network is an exfil channel); advisory mode allows it.")
+    parser.add_argument("--repo-include", dest="repo_include", action="append", metavar="GLOB",
+                        help="narrow the --repo grounding scope to files matching this fnmatch glob "
+                             "(repeatable).")
+    parser.add_argument("--repo-exclude", dest="repo_exclude", action="append", metavar="GLOB",
+                        help="remove files matching this fnmatch glob from the --repo grounding "
+                             "scope (repeatable).")
 
 
 def build_parser() -> argparse.ArgumentParser:

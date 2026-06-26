@@ -4,7 +4,7 @@
 
 | Script | Does | Reference |
 | ------ | ---- | --------- |
-| `run_board.py` | The **conductor** (M1–M5): deterministic seat-adapter registry, `--dry-run`, toolchain currency (`toolchain` — check/update stale CLIs, propose fallback model ids), executable preflight (GO/NO-GO), a hash-bound egress/quarantine gate before any provider call, the **round-1 fan-out** (real spawn, §13 failure protocol, per-seat `round-1/` artifacts), **rounds 2…N** (cross-reading `board-packet-round-N.md`, debate fan-out, the `--rounds auto` convergence stop-rule, `run-metadata.tsv`), and the **canonical-verdict chain** (`verify` → `consensus` → `validate`). Calls the scripts below; never reimplements them. Implemented as the [`_conductor/`](#package-layout) package — `run_board.py` is a thin façade (re-exports the API + the CLI entry). | `design/run-board-conductor.md` |
+| `run_board.py` | The **conductor** (M1–M5): deterministic seat-adapter registry, `--dry-run`, toolchain currency (`toolchain` — check/update stale CLIs, propose fallback model ids), executable preflight (GO/NO-GO), a hash-bound egress/quarantine gate before any provider call, the **round-1 fan-out** (real spawn, §13 failure protocol, per-seat `round-1/` artifacts), **rounds 2…N** (cross-reading `board-packet-round-N.md`, debate fan-out, the `--rounds auto` convergence stop-rule, `run-metadata.tsv`), and the **canonical-verdict chain** (`verify` → `consensus` → `validate`). Optionally **repo-grounds** the board: `--repo PATH` (with `--repo-include`/`--repo-exclude` globs) hands every seat a read-only, `.gitignore`-respecting, secret-denylisted **snapshot** of the repository so findings cite real `path:line`; consent binds to the scope hash and `repo-scope-manifest.json` records the scope, and in gate mode it enforces read-XOR-network (refuses an un-isolatable seat — see `references/data-handling.md`). Calls the scripts below; never reimplements them. Implemented as the [`_conductor/`](#package-layout) package — `run_board.py` is a thin façade (re-exports the API + the CLI entry). | `design/run-board-conductor.md` |
 | `board_verdict.py` | Validate `verdict.json` (`@1`/`@2`); gate CI on the verdict (`--gate`) — pass `0` / fail `1` / schema `2` / **abstain `3`** when the board is torn, the declared verdict contradicts the observed board, or a citation is refuted. | `references/verdict-schema.md` |
 | `verify_evidence.py` | Resolve a verdict's typed `evidence[]` and stamp each `verified`/`unverified`/`refuted` — `code` `path:line`/`symbol` against the source, `source` quotes against the **captured packet** (never a live fetch), and (M3, opt-in via `--allow-program NAME`) `command` citations by **program-pinned, no-shell re-execution** in an isolated cwd with a structural exit/`expect` match. | `references/verdict-schema.md` |
 | `render_verdict.py` | Render `final-consensus.md` **from** the canonical `verdict.json` (evidence trail + couldn't-verify bucket); `--handoff-data`/`--html` derive the HTML via `render_handoff.py`. | `references/verdict-schema.md` |
@@ -60,6 +60,16 @@ python3 scripts/run_board.py preflight --source plan.md
 # -> round-{1,2}/<seat>.md + .raw, board-packet-round-2.md, run-metadata.tsv
 # (stops at the last round's boundary; synthesis -> verdict.json is the agent's job, §11)
 python3 scripts/run_board.py run --source plan.md --sensitivity public --rounds 2 --cross-reading summaries
+
+# repo-grounded run: seats read a read-only snapshot of ./myrepo and cite real path:line.
+# gate mode enforces read-XOR-network — drop any un-isolatable seat (gemini/antigravity).
+# -> repo-scope-manifest.json (the scope consent bound to) + grounded round artifacts
+python3 scripts/run_board.py run --source plan.md --repo ./myrepo --board claude,codex --mode gate --out <out> --yes
+# then verify the grounded run so real path:line citations resolve (a fabricated
+# citation stamps `refuted` -> the gate abstains). The snapshot is a temp dir cleaned
+# up at run end, so re-verification points --source at the LIVE repo (recorded in
+# run-metadata.md): a citation real at approval can refute later if the tree drifted.
+python3 scripts/run_board.py verify <out>/verdict.json --source ./myrepo --run <out>
 
 # --- the canonical-verdict chain (after the agent fills verdict.json,
 #     or `run --synthesize` drafts it via the neutral synthesizer seat — M2) ---

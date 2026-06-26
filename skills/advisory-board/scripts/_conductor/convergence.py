@@ -60,6 +60,31 @@ _WORD = {t: re.compile(rf"\b{t}\b", re.IGNORECASE) for t in VERDICT_TOKENS}
 _FIRST_WORD = re.compile(r"[A-Za-z]+")
 
 
+def _is_quoted_verdict_line(line: str, match: "re.Match") -> bool:
+    """True if this VERDICT line is markdown-QUOTED rather than the seat's own flush-left
+    token, so it must NOT count as the seat's verdict (R: a trailing blockquoted/indented/
+    code-spanned 'VERDICT: ship' echoed from a poisoned repo file could otherwise override
+    the seat's real verdict via 'last line wins'). A line is rejected when it is:
+      * a markdown blockquote — leading whitespace then '>';
+      * indented — a leading TAB or >= 4 leading spaces (a fenced/quoted code block);
+      * code-span-wrapped — a backtick appears BEFORE the VERDICT label (e.g. '`VERDICT:
+        ship`'). A backtick only on the VALUE side ('VERDICT: `ship`') is NOT rejected —
+        that is the seat's own flush-left token with a decorated value.
+    Plain list/emphasis decoration ('- VERDICT', '**VERDICT**', 'Final VERDICT') is the
+    seat's own token and is intentionally NOT rejected."""
+    leading = line[:len(line) - len(line.lstrip())]
+    if "\t" in leading or len(leading) >= 4:
+        return True
+    stripped = line.lstrip()
+    if stripped.startswith(">"):
+        return True
+    # A backtick anywhere before the matched VERDICT label means the label sits inside a
+    # code span (`VERDICT: ship`); a backtick after the label is just a decorated value.
+    if "`" in line[:match.start()]:
+        return True
+    return False
+
+
 def parse_verdict(text: Optional[str]) -> Optional[str]:
     """The seat's overall verdict token (ship|caution|block), or None if it emitted no
     clean VERDICT line. The token must be the FIRST alphabetic word of the value (the
@@ -73,6 +98,8 @@ def parse_verdict(text: Optional[str]) -> Optional[str]:
         m = _VERDICT_LINE.search(line)
         if not m:
             continue
+        if _is_quoted_verdict_line(line, m):
+            continue   # a blockquoted/indented/code-spanned VERDICT is not the seat's own
         rest = m.group(1)
         hits = [t for t in VERDICT_TOKENS if _WORD[t].search(rest)]
         if len(hits) != 1:

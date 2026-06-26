@@ -24,6 +24,21 @@ When redacting the source packet, strip or mask: credentials, tokens, API keys, 
 
 Swap each seat's CLI for a local model runner. The `ollama` seat is registered for exactly this (`--board ...,ollama`, `--model ollama=<model>`): it carries `provider: local`, so the conductor never egresses its prompt and excludes it from the egress manifest and the disclosure — the material stays on the machine. The protocol, lenses, rounds, and artifacts are unchanged — only the model endpoints differ. A local board trades some reasoning strength for keeping the material on the machine; say so in the handoff. Record the mode in `run-metadata.md`.
 
+## Repo-grounded review (`--repo`)
+
+`--repo PATH` lets every seat read a **read-only snapshot** of the repository so findings cite real `path:line` instead of only critiquing the handed-in packet. That widens egress: a grounded seat can quote **any in-scope file** into its reply, that reply is persisted, and in round 2+ it fans out to the *other* providers. So consent can't just "let seats read" — it binds to the repo **scope**, and the disclosure says repo contents can be transmitted.
+
+How the scope is bounded and disclosed:
+
+- **Scope resolution** — the snapshot respects `.gitignore` (via `git ls-files`, with an `os.walk` fallback), always excludes `.git/`, applies a **secret/denylist** per path segment (`.env*`, `*.pem`, the SSH key basenames `id_rsa`/`id_dsa`/`id_ecdsa`/`id_ed25519` — not a bare `id_*` glob, which would eat source files — `*.key`, and `secrets`/`creds`/`token` names), and `realpath`-confines to the root so symlinks pointing outside are dropped. `--repo-include`/`--repo-exclude` globs narrow it further.
+- **Hash-bound consent** — the egress consent hash binds to **source-packet-hash + repo-scope-hash** (the manifest of files a seat *could* read). The disclosure surfaces the repo root, file/byte totals, the scope hash, and what was excluded; the y/N prompt names the totals. `repo-scope-manifest.json` records what was in scope at approval. Tiered: `local-only` **forbids** `--repo` with any external seat; `redacted` (default) hash-binds the scope; `public` discloses.
+- **Secret-scan before approval** — an advisory secret-scan runs over the in-scope tree and **surfaces its findings before you approve** (it never echoes the full secret). The denylist + `.gitignore` are **not foolproof** (R1): a key the `.gitignore` missed can still land in scope, so review the manifest and the scan output, and treat the residual as a known limit, not zero risk.
+
+The exfil control in gate mode is **network isolation, not read-confinement**:
+
+- **Gate mode requires read XOR network (D4).** A grounded seat that is also networked is exactly the read-then-exfiltrate channel the quarantine exists to break. Gate + `--repo` therefore *requires* every seat to be network-isolatable; a seat that can't be de-networked (today **gemini**, **antigravity**) makes the run **refuse** (named as a labeled NO-GO), rather than running with only a warning. Advisory + `--repo` is allowed for your own repo with a loud disclosure — you own that risk.
+- **The snapshot bounds consent/verify, not physical reads (R9).** Be honest about this: codex's `--sandbox read-only` does **not** confine reads to its working directory — it can read files *outside* the snapshot (observed in a real run reading a file from its host home dir). So the snapshot bounds what is **hashed, disclosed, and verified against**, not what a seat can physically read off the machine. Exfil is still blocked because codex is network-isolated under gate+`--repo` (D4); the residual is a seat quoting an out-of-scope file into an artifact, countered by the secret denylist and the output secret-scan. Don't claim a read-confinement the system doesn't have.
+
 ## Always
 
 Never write secrets into any artifact. Redact keys, tokens, cookies, and private environment values from prompts, packets, metadata, and the handoff.
