@@ -3818,5 +3818,380 @@ class TestRepoGroundingHardening(unittest.TestCase):
         self.assertNotIn("repo", rcp.config_to_recipe(cfg2))
 
 
+def _grounded_config(tc, files, *, board="claude,codex", mode="advisory",
+                     sensitivity="redacted", include=None, exclude=None,
+                     snapshot=True, gitignore=None):
+    """A grounded RunConfig with its GroundingContext attached (snapshot registered
+    for cleanup). The source lives OUTSIDE the repo so it never pollutes the scope."""
+    root = _git_repo(files, gitignore=gitignore)
+    srcdir = tempfile.mkdtemp(prefix="grd-src-")
+    src = os.path.join(srcdir, "q.md")
+    with open(src, "w") as fh:
+        fh.write("review this\n")
+    cfg = resolve_config(_run_args(source=src, repo=root, board=board, mode=mode,
+                                   sensitivity=sensitivity, repo_include=include,
+                                   repo_exclude=exclude))
+    cfg.grounding = grd.prepare_grounding(cfg, snapshot=snapshot)
+    if cfg.grounding.snapshot_dir:
+        tc.addCleanup(grd.cleanup_snapshot, cfg.grounding.snapshot_dir)
+    return cfg
+
+
+class _FakeResult:
+    """A minimal stand-in for SeatRoundResult for the `full` cross-reading packet."""
+    def __init__(self, seat, provider, stdout):
+        self.seat, self.provider, self.stdout = seat, provider, stdout
+        self.usable = True
+
+
+class TestRepoGroundingConsent(unittest.TestCase):
+    """P2 — consent & disclosure: the egress surface binds to the repo scope."""
+
+    def test_prepare_grounding_snapshot_and_manifest(self):
+        cfg = _grounded_config(self, {"a.py": "x=1\n", "b.py": "y=2\n"})
+        g = cfg.grounding
+        self.assertTrue(os.path.isdir(g.snapshot_dir))
+        self.assertEqual(g.manifest["root"], cfg.repo, "disclose the repo path, not the tempdir")
+        self.assertNotEqual(g.snapshot_dir, cfg.repo, "seats read a copy, never the live tree")
+        self.assertEqual(set(g.scope_paths), {"a.py", "b.py"})
+        self.assertEqual(g.n_files, 2)
+
+    def test_preview_grounding_makes_no_snapshot(self):
+        cfg = _grounded_config(self, {"a.py": "x=1\n"}, snapshot=False)
+        self.assertIsNone(cfg.grounding.snapshot_dir)
+        self.assertEqual(cfg.grounding.n_files, 1)
+
+    def test_preview_and_snapshot_hash_agree(self):
+        # the dry-run preview (live tree) and the real run (snapshot) must bind to the
+        # SAME scope hash, or the consent shown in --dry-run wouldn't match the run.
+        root = _git_repo({"a.py": "x=1\n", "sub/b.py": "y=2\n"})
+        src = os.path.join(tempfile.mkdtemp(prefix="grd-src-"), "q.md")
+        with open(src, "w") as fh:
+            fh.write("review\n")
+        cfg = resolve_config(_run_args(source=src, repo=root))
+        preview = grd.prepare_grounding(cfg, snapshot=False)
+        real = grd.prepare_grounding(cfg, snapshot=True)
+        self.addCleanup(grd.cleanup_snapshot, real.snapshot_dir)
+        self.assertEqual(preview.scope_hash, real.scope_hash,
+                         "the snapshot must be a faithful copy of the previewed live tree")
+
+    def test_preview_drops_in_root_symlink_to_match_snapshot(self):
+        # an in-root symlink-to-file is KEPT by resolve_scope but DROPPED by the
+        # snapshot; the preview must apply the snapshot's policy so the previewed scope
+        # hash equals the hash the real run consents to (review finding #1).
+        root = _git_repo({"real.py": "x = 1\n"})
+        os.symlink("real.py", os.path.join(root, "alias.py"))
+        _subprocess.run(["git", "-C", root, "add", "-A"], capture_output=True)
+        _subprocess.run(["git", "-C", root, "-c", "user.email=t@t", "-c", "user.name=t",
+                         "commit", "-qm", "alias"], capture_output=True)
+        src = os.path.join(tempfile.mkdtemp(prefix="grd-src-"), "q.md")
+        with open(src, "w") as fh:
+            fh.write("review\n")
+        cfg = resolve_config(_run_args(source=src, repo=root))
+        preview = grd.prepare_grounding(cfg, snapshot=False)
+        real = grd.prepare_grounding(cfg, snapshot=True)
+        self.addCleanup(grd.cleanup_snapshot, real.snapshot_dir)
+        self.assertEqual(preview.scope_hash, real.scope_hash,
+                         "preview must apply the snapshot's drop-symlink policy")
+        self.assertNotIn("alias.py", preview.scope_paths, "an in-root symlink is not snapshotted")
+        self.assertNotIn("alias.py", real.scope_paths)
+        self.assertIn("real.py", real.scope_paths)
+
+    def test_prepare_grounding_cleans_up_snapshot_on_failure(self):
+        # if anything after snapshot_scope raises, the temp dir must NOT leak — the
+        # caller's finally can't see it yet (config.grounding is still None) (finding #4).
+        import glob as _glob
+        root = _git_repo({"a.py": "x=1\n"})
+        src = os.path.join(tempfile.mkdtemp(prefix="grd-src-"), "q.md")
+        with open(src, "w") as fh:
+            fh.write("review\n")
+        cfg = resolve_config(_run_args(source=src, repo=root))
+        pattern = os.path.join(tempfile.gettempdir(), "advisory-board-repo-*")
+        before = set(_glob.glob(pattern))
+        orig = grd.build_scope_manifest
+
+        def _boom(*a, **k):
+            raise RuntimeError("boom mid-prepare")
+        grd.build_scope_manifest = _boom
+        try:
+            with self.assertRaises(RuntimeError):
+                grd.prepare_grounding(cfg, snapshot=True)
+        finally:
+            grd.build_scope_manifest = orig
+        self.assertEqual(before, set(_glob.glob(pattern)),
+                         "a failed prepare_grounding must leave no snapshot behind")
+
+    def test_manifest_footer_names_scope_binding_when_grounded(self):
+        cfg = _grounded_config(self, {"a.py": "x=1\n"})
+        m = rb.render_egress_manifest(cfg, rb.build_packet(cfg), "x")
+        self.assertIn("bound to the content+scope hash above", m)
+        ung = _config(sensitivity="public")
+        m2 = rb.render_egress_manifest(ung, rb.build_packet(ung), "x")
+        self.assertIn("bound to the content hash above", m2)
+        self.assertNotIn("content+scope", m2, "ungrounded footer is unchanged")
+
+    def test_manifest_renders_scope_section_and_hash(self):
+        cfg = _grounded_config(self, {"a.py": "x=1\n", "b.py": "y=2\n"})
+        m = rb.render_egress_manifest(cfg, rb.build_packet(cfg), "deadbeef")
+        self.assertIn("## Readable repository scope", m)
+        self.assertIn("2 file(s)", m)
+        self.assertIn(f"sha256:{cfg.grounding.scope_hash}", m)
+        self.assertIn("Repository root : " + cfg.repo, m)
+
+    def test_manifest_surfaces_secret_without_echoing(self):
+        cfg = _grounded_config(self, {"cfg.py": "AWS='AKIAABCDEFGHIJKLMNOP'\n", "ok.py": "x=1\n"})
+        m = rb.render_egress_manifest(cfg, rb.build_packet(cfg), "x")
+        self.assertIn("Secret-scan", m)
+        self.assertIn("cfg.py", m)
+        self.assertNotIn("AKIAABCDEFGHIJKLMNOP", m, "the full secret must never appear in the manifest")
+
+    def test_disclosure_line_names_repo_scope(self):
+        cfg = _grounded_config(self, {"a.py": "x=1\n", "b.py": "y=2\n"})
+        line = rb.disclosure_line(cfg)
+        self.assertIn("2 files", line)
+        self.assertIn(cfg.repo, line)
+        self.assertIn("round 2+", line)
+
+    def test_sensitivity_json_records_scope(self):
+        cfg = _grounded_config(self, {"a.py": "x=1\n"})
+        d = json.loads(rb.render_sensitivity_json(cfg))
+        self.assertIn("repo_scope", d)
+        self.assertEqual(d["repo_scope"]["scope_hash"], cfg.grounding.scope_hash)
+        self.assertEqual(d["repo_scope"]["n_files"], 1)
+
+    def test_ungrounded_sensitivity_json_has_no_repo_scope(self):
+        # the ungrounded artifact must stay byte-identical (no scope keys leak in)
+        d = json.loads(rb.render_sensitivity_json(_config(sensitivity="public")))
+        self.assertNotIn("repo_scope", d)
+
+    def test_run_card_shows_grounding(self):
+        cfg = _grounded_config(self, {"a.py": "x=1\n"})
+        card = rb.render_run_card(cfg)
+        self.assertIn("repo grounding:", card)
+        self.assertIn(cfg.repo, card)
+
+    def test_local_only_plus_repo_plus_external_refuses(self):
+        cfg = _grounded_config(self, {"a.py": "x=1\n"}, sensitivity="local-only")
+        with contextlib.redirect_stdout(io.StringIO()):
+            ap = rb.enforce_egress_gate(cfg, rb.build_packet(cfg),
+                                        assume_yes=True, skip_gate=False, interactive=False)
+        self.assertFalse(ap.approved)
+        self.assertEqual(ap.mode, "refused")
+        self.assertIn("--repo", ap.detail)
+
+    def test_local_only_plus_repo_local_board_allowed(self):
+        # no external seat -> nothing egresses, so local-only + repo is fine
+        cfg = _grounded_config(self, {"a.py": "x=1\n"}, board="ollama", sensitivity="local-only")
+        with contextlib.redirect_stdout(io.StringIO()):
+            ap = rb.enforce_egress_gate(cfg, rb.build_packet(cfg),
+                                        assume_yes=True, skip_gate=False, interactive=False)
+        self.assertTrue(ap.approved)
+
+    def test_grounded_approval_binds_scope_hash(self):
+        cfg = _grounded_config(self, {"a.py": "x=1\n"}, sensitivity="public")
+        with contextlib.redirect_stdout(io.StringIO()):
+            ap = rb.enforce_egress_gate(cfg, rb.build_packet(cfg),
+                                        assume_yes=False, skip_gate=False, interactive=False)
+        self.assertTrue(ap.approved)
+        self.assertEqual(ap.scope_hash, cfg.grounding.scope_hash)
+
+    def test_secret_scan_printed_at_gate_without_echoing(self):
+        cfg = _grounded_config(self, {"cfg.py": "AWS='AKIAABCDEFGHIJKLMNOP'\n"}, sensitivity="public")
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            rb.enforce_egress_gate(cfg, rb.build_packet(cfg),
+                                   assume_yes=False, skip_gate=False, interactive=False)
+        out = buf.getvalue()
+        self.assertIn("secret-scan flagged", out)
+        self.assertNotIn("AKIAABCDEFGHIJKLMNOP", out)
+
+
+class TestRepoGroundingD8(unittest.TestCase):
+    """P2 / D8 — verbatim repo bodies are elided from the cross-reading packet by
+    matching in-scope file CONTENT (fence-agnostic), keeping prose + path:line."""
+
+    def _repo_lines(self, *files_text):
+        rl = set()
+        for txt in files_text:
+            for line in txt.splitlines():
+                fp = grd._fingerprint(line)
+                if fp:
+                    rl.add(fp)
+        return frozenset(rl)
+
+    def test_elides_unfenced_verbatim_body(self):
+        body = "\n".join(f"the_secret_value_{i} = compute_thing_{i}()" for i in range(15))
+        repo_lines = self._repo_lines(body)
+        packet = f"My analysis of the bug:\n{body}\nThat is the whole problem.\n"
+        out = grd.strip_repo_quote_bodies(packet, repo_lines)
+        self.assertIn("repo quote elided", out)
+        self.assertNotIn("the_secret_value_9", out, "an UNFENCED verbatim body must be elided")
+        self.assertIn("My analysis of the bug:", out, "prose around the quote survives")
+        self.assertIn("That is the whole problem.", out)
+
+    def test_elides_line_number_prefixed_quote(self):
+        body = "\n".join(f"config_option_{i} = default_value_{i}" for i in range(12))
+        repo_lines = self._repo_lines(body)
+        prefixed = "\n".join(f"  {40 + i}: config_option_{i} = default_value_{i}" for i in range(12))
+        out = grd.strip_repo_quote_bodies(f"see app.py for this:\n{prefixed}\n", repo_lines)
+        self.assertIn("repo quote elided", out)
+        self.assertNotIn("config_option_7", out, "a line-number-prefixed quote must still match content")
+
+    def test_inner_fence_does_not_desync(self):
+        # a quoted file body that ITSELF contains a ``` line must still be elided whole
+        body = "\n".join(["```python"]
+                         + [f"api_key_constant_{i} = 'secret-value-{i}'" for i in range(12)]
+                         + ["```"])
+        repo_lines = self._repo_lines(body)
+        out = grd.strip_repo_quote_bodies(body + "\n", repo_lines)
+        self.assertIn("repo quote elided", out)
+        self.assertNotIn("api_key_constant_9", out, "an inner fence must not desync the elision")
+
+    def test_does_not_elide_short_match_or_prose(self):
+        body = "\n".join(f"line_content_value_{i} = thing_{i}()" for i in range(15))
+        repo_lines = self._repo_lines(body)
+        short = "\n".join(f"line_content_value_{i} = thing_{i}()" for i in range(3))
+        out = grd.strip_repo_quote_bodies(
+            f"This is prose line one.\nThis is prose line two.\n{short}\nMore prose here too.\n",
+            repo_lines)
+        self.assertNotIn("elided", out, "a 3-line quote is below min_lines — kept")
+        self.assertIn("line_content_value_1", out)
+        self.assertIn("This is prose line one.", out)
+
+    def test_empty_repo_lines_is_identity(self):
+        text = "anything at all here\nmore content lines\n"
+        self.assertEqual(grd.strip_repo_quote_bodies(text, frozenset()), text)
+
+    def test_strip_is_idempotent(self):
+        body = "\n".join(f"persistent_line_{i} = value_{i}()" for i in range(15))
+        repo_lines = self._repo_lines(body)
+        once = grd.strip_repo_quote_bodies(body + "\n", repo_lines)
+        self.assertEqual(once, grd.strip_repo_quote_bodies(once, repo_lines))
+
+    def test_round2_packet_grounded_strips_full_body_ungrounded_keeps(self):
+        body = "\n".join(f"verbatim_repo_line_{i} = secret_{i}()" for i in range(15))
+        repo_lines = self._repo_lines(body)
+        usable = [_FakeResult("claude", "Anthropic",
+                              "## Concrete evidence\n" + body + "\nVERDICT: caution\n")]
+        grounded = rb.build_round2_packet(usable, "full", round_no=2, repo_lines=repo_lines)
+        self.assertIn("repo quote elided", grounded)
+        self.assertNotIn("verbatim_repo_line_9", grounded)
+        plain = rb.build_round2_packet(usable, "full", round_no=2, repo_lines=None)
+        self.assertIn("verbatim_repo_line_9", plain, "ungrounded full packet keeps the body byte-for-byte")
+
+    def test_elides_run_of_exactly_min_lines(self):
+        # FIX (off-by-one): a run of EXACTLY _REPO_QUOTE_MIN_LINES verbatim in-scope
+        # lines already leaks; the threshold is ≥ min_lines, not > min_lines.
+        n = grd._REPO_QUOTE_MIN_LINES
+        body = "\n".join(f"exact_threshold_line_{i} = compute_{i}()" for i in range(n))
+        repo_lines = self._repo_lines(body)
+        out = grd.strip_repo_quote_bodies(f"intro prose here\n{body}\noutro prose here\n", repo_lines)
+        self.assertIn("repo quote elided", out, "a run of exactly min_lines must be elided")
+        self.assertNotIn("exact_threshold_line_4", out)
+        # one fewer line is still below threshold and kept
+        short = "\n".join(f"sub_threshold_line_{i} = compute_{i}()" for i in range(n - 1))
+        short_rl = self._repo_lines(short)
+        kept = grd.strip_repo_quote_bodies(f"intro\n{short}\noutro\n", short_rl)
+        self.assertNotIn("repo quote elided", kept, "a run of min_lines-1 stays below threshold")
+
+    def test_elides_blockquote_and_diff_prefixed_quote(self):
+        # FIX (quote-prefix evasion): a per-line `> `/`- `/`+ `/`| ` decoration must not
+        # defeat fingerprint matching of an otherwise-verbatim in-scope body.
+        body = "\n".join(f"decorated_quote_line_{i} = lookup_value_{i}()" for i in range(12))
+        repo_lines = self._repo_lines(body)
+        for marker in ("> ", "- ", "+ ", "| "):
+            decorated = "\n".join(marker + line for line in body.splitlines())
+            out = grd.strip_repo_quote_bodies(f"see app.py:\n{decorated}\nend.\n", repo_lines)
+            self.assertIn("repo quote elided", out, f"a {marker!r}-prefixed body must be elided")
+            self.assertNotIn("decorated_quote_line_9", out, f"{marker!r}-decorated quote leaked")
+        # combined blockquote + line-number prefix (`> 42: ...`) is also caught
+        combined = "\n".join(f"> {40 + i}: " + line for i, line in enumerate(body.splitlines()))
+        out = grd.strip_repo_quote_bodies(f"see app.py:\n{combined}\n", repo_lines)
+        self.assertIn("repo quote elided", out)
+        # the decoration strip is symmetric: an UNDECORATED verbatim quote still matches,
+        # and a real code token (`+=`, a signed number) is NOT eaten by the strip.
+        plain = grd.strip_repo_quote_bodies(f"plain:\n{body}\nend.\n", repo_lines)
+        self.assertIn("repo quote elided", plain, "undecorated quote must still match")
+        self.assertEqual(grd._fingerprint("+= accumulator_total_value"), "+= accumulator_total_value")
+        self.assertEqual(grd._fingerprint("-42 + signed_offset_value"), "-42 + signed_offset_value")
+
+    def test_single_prose_interjection_does_not_chop_run(self):
+        # FIX (single-prose-line run-break): one short prose line interleaved every few
+        # content lines must not chop a verbatim body into sub-threshold runs.
+        chunks = []
+        for blk in range(3):
+            chunks += [f"interleaved_body_{blk}_{i} = secret_{blk}_{i}()" for i in range(8)]
+            chunks.append(f"Note: continuing block {blk}...")   # one prose interjection per chunk
+        full = "\n".join(chunks)
+        body_only = "\n".join(l for l in full.splitlines() if not l.startswith("Note:"))
+        repo_lines = self._repo_lines(body_only)
+        out = grd.strip_repo_quote_bodies(full + "\n", repo_lines)
+        self.assertIn("repo quote elided", out, "an interjection-chopped body must still be elided")
+        self.assertNotIn("interleaved_body_2_5", out, "interjected verbatim body leaked")
+        # a trailing terse verdict after the quote is preserved, not swallowed into the span
+        body = "\n".join(f"trailing_verdict_line_{i} = thing_{i}()" for i in range(9))
+        rl = self._repo_lines(body)
+        verdict_out = grd.strip_repo_quote_bodies(body + "\nREVISE.\n", rl)
+        self.assertIn("repo quote elided", verdict_out)
+        self.assertIn("REVISE.", verdict_out, "a terse trailing verdict must survive elision")
+
+    def test_quoted_repo_paths_overcounts_not_undercounts(self):
+        reply = "I read src/app.py:12 and README.md but not lib/other.py\n"
+        cited = grd.quoted_repo_paths(reply, ["src/app.py", "README.md", "lib/util.py"])
+        self.assertEqual(cited, ["README.md", "src/app.py"])
+
+
+class TestRepoGroundingDriftGuard(EnvMixin):
+    """P2 / R7 — the round-1 hash-drift guard extends to the repo snapshot."""
+
+    def _approval(self, cfg, blobs):
+        return rb.EgressApproval(True, "hash-bound", rb.packet_hash(blobs),
+                                 "2026-06-25T12:00:00", "ok",
+                                 scope_hash=cfg.grounding.scope_hash)
+
+    def test_round1_refuses_on_snapshot_mutation(self):
+        cfg = _grounded_config(self, {"a.py": "x=1\n"}, sensitivity="public")
+        blobs = rb.build_packet(cfg)
+        approval = self._approval(cfg, blobs)
+        snap_file = os.path.join(cfg.grounding.snapshot_dir, "a.py")
+        os.chmod(snap_file, 0o644)
+        with open(snap_file, "w") as fh:
+            fh.write("x=999  # tampered after approval\n")
+        with self.assertRaises(SystemExit) as ctx:
+            rb.run_round(cfg, blobs, approval, round_no=1)
+        self.assertEqual(ctx.exception.code, rb.EXIT_EGRESS_BLOCKED)
+
+    def test_round1_proceeds_on_intact_snapshot(self):
+        cfg = _grounded_config(self, {"a.py": "x=1\n"}, sensitivity="public")
+        blobs = rb.build_packet(cfg)
+        approval = self._approval(cfg, blobs)
+        results = rb.run_round(cfg, blobs, approval, round_no=1)
+        self.assertEqual(len(results), 2, "both mock seats ran on the intact snapshot")
+
+
+class TestRepoGroundingE2E(EnvMixin):
+    """P2 — a full grounded run writes the scope artifacts and cleans up the snapshot."""
+
+    def test_grounded_run_writes_scope_artifacts(self):
+        root = _git_repo({"app.py": "x=1\n"})
+        srcdir = tempfile.mkdtemp(prefix="grd-src-")
+        src = os.path.join(srcdir, "q.md")
+        with open(src, "w") as fh:
+            fh.write("ready to ship?\n")
+        out = tempfile.mkdtemp(prefix="board-grd-")
+        code, _, _ = run_cli(["run", "--source", src, "--repo", root,
+                              "--board", "claude,codex", "--mode", "advisory",
+                              "--sensitivity", "public", "--out", out])
+        self.assertEqual(code, rb.EXIT_OK)
+        self.assertTrue(os.path.exists(os.path.join(out, "repo-scope-manifest.json")))
+        with open(os.path.join(out, "run-metadata.md")) as fh:
+            meta = fh.read()
+        self.assertIn("Readable repository scope", meta)
+        self.assertIn("Repo paths referenced", meta)
+        d = json.load(open(os.path.join(out, "sensitivity.json")))
+        self.assertEqual(d["repo_scope"]["n_files"], 1)
+        self.assertEqual(d["approval"]["scope_hash"], d["repo_scope"]["scope_hash"])
+
+
 if __name__ == "__main__":
     unittest.main()

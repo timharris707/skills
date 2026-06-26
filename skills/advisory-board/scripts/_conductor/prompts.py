@@ -8,6 +8,7 @@ from typing import Optional
 
 from _conductor.config import SeatConfig
 from _conductor.digest import build_structured_digest
+from _conductor.grounding import strip_repo_quote_bodies
 
 __all__ = [
     "ROUND1_TEMPLATE",
@@ -178,7 +179,8 @@ independently; the other seats' reviews are not shared):
 ROUND2_TEMPLATE_VERSION = "advisory-board/round2@2"
 
 
-def build_round2_packet(usable: list, cross_reading: str, round_no: int = 2) -> Optional[str]:
+def build_round2_packet(usable: list, cross_reading: str, round_no: int = 2,
+                        repo_lines=None) -> Optional[str]:
     """The shared `board-packet-round-N.md`. None when cross-reading is off; the M4
     structured digest (grouped by topic + a verdict/citation agreement header) under
     `summaries`; verbatim concatenation under `full`. `round_no` is the round the
@@ -186,17 +188,29 @@ def build_round2_packet(usable: list, cross_reading: str, round_no: int = 2) -> 
 
     Either path scrubs any literal copy of the round-2 data-fence marker out of the
     seat content before splicing — defense-in-depth against a poisoned source that
-    drove a seat to echo the END marker back into its review."""
+    drove a seat to echo the END marker back into its review.
+
+    D8 (repo-grounding): when `repo_lines` (the grounded run's in-scope content
+    fingerprints) is given, a final pass elides verbatim repo bodies so one seat's
+    file quote does not broadcast to the other providers in round 2+ (the `summaries`
+    digest already head-excerpts, so this bites mainly on `full`). `repo_lines=None`
+    keeps the ungrounded packet byte-identical."""
     if cross_reading == "none":
         return None
     if cross_reading == "summaries":
-        return neutralize_round_markers(build_structured_digest(usable, round_no=round_no))
+        return _ground_pack(
+            neutralize_round_markers(build_structured_digest(usable, round_no=round_no)), repo_lines)
     prev_round = round_no - 1
     parts = [f"# Board packet — round {round_no} (cross-reading: {cross_reading})", ""]
     for r in usable:
         parts += [f"## {r.seat} ({r.provider}) — round-{prev_round} review", "",
                   neutralize_round_markers(r.stdout.strip()), ""]
-    return "\n".join(parts) + "\n"
+    return _ground_pack("\n".join(parts) + "\n", repo_lines)
+
+
+def _ground_pack(packet: str, repo_lines) -> str:
+    """Apply the D8 verbatim-body strip iff the run is grounded (else identity)."""
+    return strip_repo_quote_bodies(packet, repo_lines) if repo_lines else packet
 
 
 def build_round2_prompt(seat: SeatConfig, source_material: str, *,

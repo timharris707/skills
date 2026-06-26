@@ -37,15 +37,15 @@ Testing: unit tests for `.gitignore` honoring, `.git`/denylist exclusion, symlin
 Gate: `python3 -m unittest discover -s tests -t tests`
 
 ### Phase 2 — Consent & disclosure (close the egress gap)
-status: todo
+status: done
 Repo-grounding makes the seat's *reply* a new egress channel: a seat can quote any in-scope file, that reply is persisted and (round 2+) fans out to the other providers. Consent must therefore bind to the **scope**, not just the source file, and the disclosure must say so. This is the load-bearing change — the manifest must never understate egress (§8).
-- [ ] DECISION: the egress consent hash binds to **source-packet-hash + repo-scope-hash** (the manifest of files a seat *could* read), since which files a seat *actually* quotes is unknowable pre-spawn.
-- [ ] DECISION: round-2 fan-out — **strip verbatim file bodies** from the cross-reading packet, keeping `path:line` citations (limits one seat's read becoming a cross-provider broadcast), OR keep bodies verbatim (richer debate, wider fan-out). *(Recommend strip; revisit if debate quality suffers.)*
-- [ ] Extend `render_egress_manifest` with a **"Readable repository scope"** section: repo root, N files / M bytes, the scope hash, what was excluded (`.git`, gitignored, denylisted), and the symlink policy.
-- [ ] Update `disclosure_line` / the run-card EGRESS block: "…and seats may read & quote any of N files under `REPO`, which can be transmitted to `<providers>` and fan out to the others in round 2+."
-- [ ] Tiered consent: `local-only` **forbids** `--repo` with any external seat; `redacted` (default) **hash-binds** the scope (the y/N prompt names the file/byte totals); `public` discloses. Record the scope + hash in `sensitivity.json`.
-- [ ] Correct the round-2+ "no new source egresses" note (`cli.py`/`artifacts.py`) — with grounding, a round-1 reply *can* carry fresh repo-derived bytes.
-- [ ] **Post-hoc accounting:** record in `run-metadata.md` / the `.raw` recorders what each seat actually quoted (best-effort scan of replies) — the pre-spawn hash bounds the *possible*; this states the *actual*.
+- [x] DECISION: the egress consent hash binds to **source-packet-hash + repo-scope-hash** (the manifest of files a seat *could* read), since which files a seat *actually* quotes is unknowable pre-spawn.
+- [x] DECISION: round-2 fan-out — **strip verbatim file bodies** from the cross-reading packet, keeping `path:line` citations (limits one seat's read becoming a cross-provider broadcast). *Chose strip.* Implemented **content-aware, best-effort** (D8): bodies are matched against in-scope file **content** (per-line fingerprints), so it elides runs of ≥8 verbatim in-scope lines — fence-agnostically, tolerating blank lines and a single 1-line prose gap — but does **not** catch paraphrase/reflow; **D4 remains the load-bearing exfil control.**
+- [x] Extend `render_egress_manifest` with a **"Readable repository scope"** section: repo root, N files / M bytes, the scope hash, what was excluded (`.git`, gitignored, denylisted), and the symlink policy.
+- [x] Update `disclosure_line` / the run-card EGRESS block: "…and seats may read & quote any of N files under `REPO`, which can be transmitted to `<providers>` and fan out to the others in round 2+."
+- [x] Tiered consent: `local-only` **forbids** `--repo` with any external seat; `redacted` (default) **hash-binds** the scope (the y/N prompt names the file/byte totals); `public` discloses. Record the scope + hash in `sensitivity.json`.
+- [x] Correct the round-2+ "no new source egresses" note (`cli.py`/`artifacts.py`) — with grounding, a round-1 reply *can* carry fresh repo-derived bytes.
+- [x] **Post-hoc accounting:** record in `run-metadata.md` / the `.raw` recorders what each seat actually quoted (best-effort scan of replies) — the pre-spawn hash bounds the *possible*; this states the *actual*.
 Testing: manifest renders the scope section + totals + hash; consent refuses `local-only`+`--repo`+external; the hash-drift guard (`rounds.py:144`) extends to the snapshot (mutating a snapshot file after approval refuses the spawn); golden manifest for a small fixture repo.
 Gate: `python3 -m unittest discover -s tests -t tests`
 
@@ -100,7 +100,7 @@ Gate: `python3 -m unittest discover -s tests -t tests` + a clean second-round re
 - **D5** **Advisory + `--repo`** is the home for casual self-review (you own your repo's risk), with a loud disclosure; a gate-bearing run never silently falls to advisory.
 - **D6** The grounding prompt clause is **conditional** (`{repo_grounding}`), bumping templates to `@3`; **gate-mode (no-repo) bytes stay byte-identical** so existing recipes/hashes don't churn.
 - **D7** **`verify`/`board_verdict` are unchanged** — repo-grounding composes by pointing `--source` at the snapshot; the work is upstream.
-- **D8** Round-2 cross-reading **strips verbatim repo file bodies**, keeping `path:line` citations, to limit one seat's read becoming a cross-provider broadcast.
+- **D8** Round-2 cross-reading **strips verbatim repo file bodies**, keeping `path:line` citations, to limit one seat's read becoming a cross-provider broadcast. **Content-aware, best-effort:** bodies are matched against in-scope file **content** (per-line fingerprints), eliding runs of ≥8 verbatim in-scope lines — fence-agnostically, tolerating blank lines and a single 1-line prose gap. It does **not** catch paraphrase/reflow; **D4 is the load-bearing exfil control**, not D8.
 
 ## Risks
 - **R1** Secret leakage — a key the `.gitignore` missed gets quoted to providers. Mitigated by the secret denylist + advisory secret-scan-before-approval; residual risk surfaced in the manifest.
@@ -108,7 +108,7 @@ Gate: `python3 -m unittest discover -s tests -t tests` + a clean second-round re
 - **R3** Symlink / path-traversal escape from the snapshot to the real filesystem. Mitigated by `realpath`-confinement at snapshot time + read-only perms; a copy (not the live tree) closes the live-symlink edge.
 - **R4** Consent under-claim — the hash covers the scope a seat *could* read, not what it *did*. Mitigated by binding to the scope manifest + post-hoc accounting of actual quotes; disclosed as a known limit.
 - **R5** Poisoned-repo "verified-but-wrong" — an attacker-controlled repo makes a false claim cite a real line that stamps `verified`. Unchanged §9 caveat (verified = receipt resolves, not inference sound); the gate still catches fabrication, not grounded-but-wrong reasoning. Documented loudly.
-- **R6** Round-2 fan-out amplification — one seat's quote broadcasts to other providers. Mitigated by D8 (strip bodies) + disclosure.
+- **R6** Round-2 fan-out amplification — one seat's quote broadcasts to other providers. Mitigated by D8 (content-aware, best-effort body elision — matched against in-scope file content, elides runs of ≥8 verbatim in-scope lines, tolerating blank lines and a 1-line prose gap; does not catch paraphrase/reflow) + disclosure. D4 is the load-bearing exfil control, not D8.
 - **R7** Hash drift — repo files change between approval and spawn. Mitigated by snapshotting at approval time and extending the existing round-1 hash-drift guard to the snapshot.
 - **R8** Scope sprawl / huge repos — egressing/snapshotting a giant tree. Mitigated by include/exclude globs, the byte/file totals in the consent prompt, and a flagged-large-scope warning.
 - **R9** Snapshot ≠ read-confinement (codex). codex's `--sandbox read-only` reads outside its cwd (observed in the 3/3 proof-of-life run: it read `~/.codex/.../SKILL.md` from its throwaway workdir), so the snapshot bounds **consent/verify**, not a seat's **physical reads**. Exfil is still blocked by D4 (codex is network-isolated); the residual is a seat quoting an out-of-scope file into an artifact — countered by the secret denylist + an output secret-scan. Note this also means gate mode's "scoped dir" tooth is already softer than it looks for codex *today*, independent of `--repo`. Investigate codex sandbox path controls in Phase 3.

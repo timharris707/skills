@@ -429,15 +429,15 @@ footer.colophon code { background: var(--surface-2); }
         </div>
       </div>
       <div class="gauge">
-        <svg class="ring" viewBox="0 0 120 120" width="118" height="118" role="img" aria-label="Overall progress 0%">
+        <svg class="ring" viewBox="0 0 120 120" width="118" height="118" role="img" aria-label="Overall progress 38%">
           <circle class="ring-track" cx="60" cy="60" r="52" fill="none" stroke-width="11"/>
           <circle class="ring-arc" cx="60" cy="60" r="52" fill="none" stroke-width="11"
                   stroke-linecap="round" transform="rotate(-90 60 60)"
-                  stroke-dasharray="326.7" stroke-dashoffset="326.7"/>
-          <text class="ring-pct" x="60" y="57" text-anchor="middle" dominant-baseline="middle">0%</text>
+                  stroke-dasharray="326.7" stroke-dashoffset="202.6"/>
+          <text class="ring-pct" x="60" y="57" text-anchor="middle" dominant-baseline="middle">38%</text>
           <text class="ring-sub" x="60" y="76" text-anchor="middle" dominant-baseline="middle">complete</text>
         </svg>
-        <div class="gauge-count"><b>0</b> / 32 tasks done</div>
+        <div class="gauge-count"><b>12</b> / 32 tasks done</div>
       </div>
     </div>
 
@@ -476,8 +476,8 @@ footer.colophon code { background: var(--surface-2); }
           <div class="ms-meta">
             <span class="badge todo"><span class="dot"></span>To do</span>
             <span class="ms-progress">
-              <span class="ms-bar"><span style="width:0%"></span></span>
-              0/32
+              <span class="ms-bar"><span style="width:38%"></span></span>
+              12/32
             </span>
           </div>
         </div>
@@ -496,17 +496,17 @@ footer.colophon code { background: var(--surface-2); }
         </div>
         <ul class="checklist">
           
-          <li class="todo"><span class="tick"></span><span class="task-text">DECISION: <code>--repo PATH</code> <strong>augments</strong> <code>--source</code> (repo = evidence base; source = the question). Both may be present; <code>--repo</code> alone uses a minimal &quot;review this repo for X&quot; source. <em>(Alt rejected: overload <code>--source</code> to accept a dir — conflates the question with the evidence and muddies the egress story.)</em></span></li>
+          <li class="done"><span class="tick">✓</span><span class="task-text">DECISION: <code>--repo PATH</code> <strong>augments</strong> <code>--source</code> (repo = evidence base; source = the question). Both may be present; <code>--repo</code> alone uses a minimal &quot;review this repo for X&quot; source. <em>(Alt rejected: overload <code>--source</code> to accept a dir — conflates the question with the evidence and muddies the egress story.)</em> — <code>--repo</code>/<code>--repo-include</code>/<code>--repo-exclude</code> flags + <code>RunConfig.repo*</code> + <code>grounded</code> property.</span></li>
           
-          <li class="todo"><span class="tick"></span><span class="task-text">DECISION: ground seats on a <strong>read-only snapshot copy</strong> in a temp dir, not the live tree — gives a stable hash, lets <code>realpath</code>-confinement close symlink escape, and means <code>verify</code> resolves the exact bytes the seats saw.</span></li>
+          <li class="done"><span class="tick">✓</span><span class="task-text">DECISION: ground seats on a <strong>read-only snapshot copy</strong> in a temp dir, not the live tree — gives a stable hash, lets <code>realpath</code>-confinement close symlink escape, and means <code>verify</code> resolves the exact bytes the seats saw. — <code>grounding.snapshot_scope</code> (0o444 files) + <code>cleanup_snapshot</code>.</span></li>
           
-          <li class="todo"><span class="tick"></span><span class="task-text">Scope resolver: walk <code>PATH</code>, <strong>respect <code>.gitignore</code></strong>, always exclude <code>.git/</code>, apply a <strong>secret/denylist</strong> (<code>.env*</code>, <code>*.pem</code>, <code>id_*</code>, <code>*.key</code>, <code>**/secrets/**</code>, common token files), and <code>realpath</code>-confine to the root (skip/refuse symlinks pointing outside). Support <code>--repo-include</code>/<code>--repo-exclude</code> globs to narrow it.</span></li>
+          <li class="done"><span class="tick">✓</span><span class="task-text">Scope resolver: walk <code>PATH</code>, <strong>respect <code>.gitignore</code></strong> (<code>git ls-files</code>, os.walk fallback), always exclude <code>.git/</code>, apply a <strong>secret/denylist</strong> (<code>.env*</code>, <code>*.pem</code>, <code>id_*</code>, <code>*.key</code>, secrets/creds/tokens) per path segment, and <code>realpath</code>-confine to the root (drop symlinks pointing outside). <code>--repo-include</code>/<code>--repo-exclude</code> globs narrow it. — <code>grounding.resolve_scope</code>.</span></li>
           
-          <li class="todo"><span class="tick"></span><span class="task-text">Run the existing advisory secret-scan over the in-scope tree and <strong>surface findings before approval</strong> (don&#x27;t silently ship a key a <code>.gitignore</code> missed).</span></li>
+          <li class="wip"><span class="tick">●</span><span class="task-text">Run the advisory secret-scan over the in-scope tree and <strong>surface findings before approval</strong> — <code>grounding.scan_secrets</code> built + tested (never echoes the full secret); surfacing it in the consent flow lands in P2.</span></li>
           
-          <li class="todo"><span class="tick"></span><span class="task-text">Build the <strong>scope manifest</strong>: sorted list of <code>path + size + sha256</code> for every in-scope file, plus totals (N files, M bytes) and a single <strong>scope hash</strong>; persist it to the run dir.</span></li>
+          <li class="done"><span class="tick">✓</span><span class="task-text">Build the <strong>scope manifest</strong>: sorted <code>path + size + sha256</code> per in-scope file + totals (N files, M bytes) + a single <strong>scope hash</strong> — <code>grounding.build_scope_manifest</code>/<code>scope_hash</code> (stable + content-sensitive). (Persisting to the run dir lands with the consent wiring in P2.)</span></li>
           
-          <li class="todo"><span class="tick"></span><span class="task-text">Snapshot the in-scope files into a read-only temp dir (mode <code>0444</code>/dir <code>0555</code>); this becomes the shared seat workdir in Phase 3.</span></li>
+          <li class="done"><span class="tick">✓</span><span class="task-text">Snapshot the in-scope files into a read-only temp dir (<code>0o444</code> files); becomes the shared seat workdir in Phase 3 — <code>grounding.snapshot_scope</code>.</span></li>
           
         </ul>
         
@@ -523,27 +523,27 @@ footer.colophon code { background: var(--surface-2); }
         
       </div>
       
-      <div class="phase todo">
+      <div class="phase done">
         <div class="phase-head">
           <span class="phase-dot"></span>
           <h4 class="phase-title">Phase 2 — Consent &amp; disclosure (close the egress gap)</h4>
-          <span class="phase-state">To do</span>
+          <span class="phase-state">Done</span>
         </div>
         <ul class="checklist">
           
-          <li class="todo"><span class="tick"></span><span class="task-text">DECISION: the egress consent hash binds to <strong>source-packet-hash + repo-scope-hash</strong> (the manifest of files a seat <em>could</em> read), since which files a seat <em>actually</em> quotes is unknowable pre-spawn.</span></li>
+          <li class="done"><span class="tick">✓</span><span class="task-text">DECISION: the egress consent hash binds to <strong>source-packet-hash + repo-scope-hash</strong> (the manifest of files a seat <em>could</em> read), since which files a seat <em>actually</em> quotes is unknowable pre-spawn.</span></li>
           
-          <li class="todo"><span class="tick"></span><span class="task-text">DECISION: round-2 fan-out — <strong>strip verbatim file bodies</strong> from the cross-reading packet, keeping <code>path:line</code> citations (limits one seat&#x27;s read becoming a cross-provider broadcast), OR keep bodies verbatim (richer debate, wider fan-out). <em>(Recommend strip; revisit if debate quality suffers.)</em></span></li>
+          <li class="done"><span class="tick">✓</span><span class="task-text">DECISION: round-2 fan-out — <strong>strip verbatim file bodies</strong> from the cross-reading packet, keeping <code>path:line</code> citations (limits one seat&#x27;s read becoming a cross-provider broadcast). <em>Chose strip.</em> Implemented <strong>content-aware, best-effort</strong> (D8): bodies are matched against in-scope file <strong>content</strong> (per-line fingerprints), so it elides runs of ≥8 verbatim in-scope lines — fence-agnostically, tolerating blank lines and a single 1-line prose gap — but does <strong>not</strong> catch paraphrase/reflow; <strong>D4 remains the load-bearing exfil control.</strong></span></li>
           
-          <li class="todo"><span class="tick"></span><span class="task-text">Extend <code>render_egress_manifest</code> with a <strong>&quot;Readable repository scope&quot;</strong> section: repo root, N files / M bytes, the scope hash, what was excluded (<code>.git</code>, gitignored, denylisted), and the symlink policy.</span></li>
+          <li class="done"><span class="tick">✓</span><span class="task-text">Extend <code>render_egress_manifest</code> with a <strong>&quot;Readable repository scope&quot;</strong> section: repo root, N files / M bytes, the scope hash, what was excluded (<code>.git</code>, gitignored, denylisted), and the symlink policy.</span></li>
           
-          <li class="todo"><span class="tick"></span><span class="task-text">Update <code>disclosure_line</code> / the run-card EGRESS block: &quot;…and seats may read &amp; quote any of N files under <code>REPO</code>, which can be transmitted to <code>&lt;providers&gt;</code> and fan out to the others in round 2+.&quot;</span></li>
+          <li class="done"><span class="tick">✓</span><span class="task-text">Update <code>disclosure_line</code> / the run-card EGRESS block: &quot;…and seats may read &amp; quote any of N files under <code>REPO</code>, which can be transmitted to <code>&lt;providers&gt;</code> and fan out to the others in round 2+.&quot;</span></li>
           
-          <li class="todo"><span class="tick"></span><span class="task-text">Tiered consent: <code>local-only</code> <strong>forbids</strong> <code>--repo</code> with any external seat; <code>redacted</code> (default) <strong>hash-binds</strong> the scope (the y/N prompt names the file/byte totals); <code>public</code> discloses. Record the scope + hash in <code>sensitivity.json</code>.</span></li>
+          <li class="done"><span class="tick">✓</span><span class="task-text">Tiered consent: <code>local-only</code> <strong>forbids</strong> <code>--repo</code> with any external seat; <code>redacted</code> (default) <strong>hash-binds</strong> the scope (the y/N prompt names the file/byte totals); <code>public</code> discloses. Record the scope + hash in <code>sensitivity.json</code>.</span></li>
           
-          <li class="todo"><span class="tick"></span><span class="task-text">Correct the round-2+ &quot;no new source egresses&quot; note (<code>cli.py</code>/<code>artifacts.py</code>) — with grounding, a round-1 reply <em>can</em> carry fresh repo-derived bytes.</span></li>
+          <li class="done"><span class="tick">✓</span><span class="task-text">Correct the round-2+ &quot;no new source egresses&quot; note (<code>cli.py</code>/<code>artifacts.py</code>) — with grounding, a round-1 reply <em>can</em> carry fresh repo-derived bytes.</span></li>
           
-          <li class="todo"><span class="tick"></span><span class="task-text"><strong>Post-hoc accounting:</strong> record in <code>run-metadata.md</code> / the <code>.raw</code> recorders what each seat actually quoted (best-effort scan of replies) — the pre-spawn hash bounds the <em>possible</em>; this states the <em>actual</em>.</span></li>
+          <li class="done"><span class="tick">✓</span><span class="task-text"><strong>Post-hoc accounting:</strong> record in <code>run-metadata.md</code> / the <code>.raw</code> recorders what each seat actually quoted (best-effort scan of replies) — the pre-spawn hash bounds the <em>possible</em>; this states the <em>actual</em>.</span></li>
           
         </ul>
         
@@ -737,8 +737,8 @@ footer.colophon code { background: var(--surface-2); }
       </li>
       
       <li>
-        <div class="entry-head"><span class="entry-tag">D8</span><span class="entry-title">Round-2 cross-reading <strong>strips verbatim repo file bodies</strong>, keeping <code>path:line</code> citations, to limit one seat&#x27;s read becoming a cross-provider broadcast.</span></div>
-        <div class="entry-body"></div>
+        <div class="entry-head"><span class="entry-tag">D8</span><span class="entry-title">Round-2 cross-reading <strong>strips verbatim repo file bodies</strong>, keeping <code>path:line</code> citations, to limit one seat&#x27;s read becoming a cross-provider broadcast. <strong>Content-aware, best-effort:</strong> bodies are matched against in-scope file <strong>content</strong> (per-line fingerprints), eliding runs of ≥8 verbatim in-scope lines</span></div>
+        <div class="entry-body">fence-agnostically, tolerating blank lines and a single 1-line prose gap. It does <strong>not</strong> catch paraphrase/reflow; <strong>D4 is the load-bearing exfil control</strong>, not D8.</div>
       </li>
       
     </ol>
@@ -778,7 +778,7 @@ footer.colophon code { background: var(--surface-2); }
       
       <li>
         <div class="entry-head"><span class="entry-tag">R6</span><span class="entry-title">Round-2 fan-out amplification</span></div>
-        <div class="entry-body">one seat&#x27;s quote broadcasts to other providers. Mitigated by D8 (strip bodies) + disclosure.</div>
+        <div class="entry-body">one seat&#x27;s quote broadcasts to other providers. Mitigated by D8 (content-aware, best-effort body elision — matched against in-scope file content, elides runs of ≥8 verbatim in-scope lines, tolerating blank lines and a 1-line prose gap; does not catch paraphrase/reflow) + disclosure. D4 is the load-bearing exfil control, not D8.</div>
       </li>
       
       <li>
@@ -854,7 +854,7 @@ footer.colophon code { background: var(--surface-2); }
 
   <!-- ===================== COLOPHON ===================== -->
   <footer class="colophon">
-    Rendered from <code>run-board-repo-grounding.md</code> &middot; 1 milestones &middot; 0/32 tasks complete. The markdown plan is the source of truth &mdash; regenerate with <code>render_plan.py</code>; never hand-edit this file.
+    Rendered from <code>run-board-repo-grounding.md</code> &middot; 1 milestones &middot; 12/32 tasks complete. The markdown plan is the source of truth &mdash; regenerate with <code>render_plan.py</code>; never hand-edit this file.
   </footer>
 
 </div>

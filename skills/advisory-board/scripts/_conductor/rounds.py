@@ -144,6 +144,14 @@ def run_round(config: RunConfig, blobs: list, approval: EgressApproval, *,
     if round_no == 1 and round_packet_hash != approval.content_hash:
         die("egress hash drift: the packet no longer matches the approved content "
             "hash — refusing to spawn the board", EXIT_EGRESS_BLOCKED)
+    # The same hard stop for the repo scope (R7): on a grounded round-1, re-hash the
+    # snapshot and refuse if a file was added/removed/mutated between approval and
+    # spawn — the seats must read exactly the bytes consent was bound to.
+    if round_no == 1 and config.grounding is not None and config.grounding.snapshot_dir:
+        from _conductor.grounding import rehash_snapshot
+        if rehash_snapshot(config.grounding.snapshot_dir) != approval.scope_hash:
+            die("repo scope hash drift: the snapshot no longer matches the approved scope "
+                "hash — refusing to spawn the board", EXIT_EGRESS_BLOCKED)
     by_seat = {b.seat: b for b in blobs}
     seats = [s for s in config.board if s.name in by_seat]   # round 2 drops failed seats
 

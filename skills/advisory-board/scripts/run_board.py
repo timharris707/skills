@@ -83,6 +83,7 @@ from __future__ import annotations
 from _conductor.constants import *  # noqa: F401,F403
 from _conductor.registry import *  # noqa: F401,F403
 from _conductor.config import *  # noqa: F401,F403
+from _conductor.grounding import *  # noqa: F401,F403  (repo-grounding: scope/snapshot/consent)
 from _conductor.spawn import *  # noqa: F401,F403
 from _conductor.convergence import *  # noqa: F401,F403
 from _conductor.digest import *  # noqa: F401,F403

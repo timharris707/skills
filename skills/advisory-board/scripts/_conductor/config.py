@@ -6,7 +6,10 @@ import hashlib
 import os
 import sys
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from _conductor.grounding import GroundingContext
 
 from _conductor.constants import (
     DEFAULT_LENS,
@@ -80,6 +83,10 @@ class RunConfig:
     repo: Optional[str] = None       # repo-grounding: a local repo seats may read (read-only)
     repo_include: Optional[list] = None   # optional fnmatch globs narrowing the grounding scope
     repo_exclude: Optional[list] = None   # optional fnmatch globs removed from the grounding scope
+    # Runtime-populated (NOT by resolve_config): the resolved+snapshotted+hashed read
+    # surface, computed once at pre-spawn (cli.cmd_run) so every consent surface reads
+    # one source of truth. None until then, and always None for an ungrounded run.
+    grounding: "Optional[GroundingContext]" = None
 
     @property
     def grounded(self) -> bool:
