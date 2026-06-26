@@ -429,15 +429,15 @@ footer.colophon code { background: var(--surface-2); }
         </div>
       </div>
       <div class="gauge">
-        <svg class="ring" viewBox="0 0 120 120" width="118" height="118" role="img" aria-label="Overall progress 76%">
+        <svg class="ring" viewBox="0 0 120 120" width="118" height="118" role="img" aria-label="Overall progress 88%">
           <circle class="ring-track" cx="60" cy="60" r="52" fill="none" stroke-width="11"/>
           <circle class="ring-arc" cx="60" cy="60" r="52" fill="none" stroke-width="11"
                   stroke-linecap="round" transform="rotate(-90 60 60)"
-                  stroke-dasharray="326.7" stroke-dashoffset="78.4"/>
-          <text class="ring-pct" x="60" y="57" text-anchor="middle" dominant-baseline="middle">76%</text>
+                  stroke-dasharray="326.7" stroke-dashoffset="39.2"/>
+          <text class="ring-pct" x="60" y="57" text-anchor="middle" dominant-baseline="middle">88%</text>
           <text class="ring-sub" x="60" y="76" text-anchor="middle" dominant-baseline="middle">complete</text>
         </svg>
-        <div class="gauge-count"><b>25</b> / 33 tasks done</div>
+        <div class="gauge-count"><b>29</b> / 33 tasks done</div>
       </div>
     </div>
 
@@ -476,8 +476,8 @@ footer.colophon code { background: var(--surface-2); }
           <div class="ms-meta">
             <span class="badge todo"><span class="dot"></span>To do</span>
             <span class="ms-progress">
-              <span class="ms-bar"><span style="width:76%"></span></span>
-              25/33
+              <span class="ms-bar"><span style="width:88%"></span></span>
+              29/33
             </span>
           </div>
         </div>
@@ -632,21 +632,21 @@ footer.colophon code { background: var(--surface-2); }
         
       </div>
       
-      <div class="phase todo">
+      <div class="phase done">
         <div class="phase-head">
           <span class="phase-dot"></span>
           <h4 class="phase-title">Phase 5 — Verify composition + provenance + docs + e2e</h4>
-          <span class="phase-state">To do</span>
+          <span class="phase-state">Done</span>
         </div>
         <ul class="checklist">
           
-          <li class="todo"><span class="tick"></span><span class="task-text">Point the verdict chain at the snapshot: <code>verify --source &lt;snapshot&gt; --run &lt;out&gt;</code> so the now-real <code>path:line</code> citations resolve (fabricated → <code>refuted</code> → gate abstains). <strong>No change to <code>verify_evidence.py</code>/<code>board_verdict.py</code></strong> — confirm composition with tests, not code.</span></li>
+          <li class="done"><span class="tick">✓</span><span class="task-text">Point the verdict chain at the repo: <code>verify --source &lt;repo&gt; --run &lt;out&gt;</code> so the now-real <code>path:line</code> citations resolve (fabricated → <code>refuted</code> → gate abstains). The snapshot is cleaned up after the run, so verify resolves against the <strong>live repo</strong> — the byte-faithful tree seats saw (preview==snapshot hash is asserted); drift is possible and documented (§9). <strong>No change to <code>verify_evidence.py</code>/<code>board_verdict.py</code></strong> — composition confirmed with tests, not code.</span></li>
           
-          <li class="todo"><span class="tick"></span><span class="task-text">Persist <code>--repo</code> + scope + scope-hash (+ include/exclude) in <code>run-recipe.yaml</code> so <code>--from-recipe</code> reproduces; record grounding-on + the scope in <code>run-metadata.md</code>.</span></li>
+          <li class="done"><span class="tick">✓</span><span class="task-text">Persist <code>--repo</code> + scope + scope-hash (+ include/exclude) in <code>run-recipe.yaml</code> so <code>--from-recipe</code> reproduces; record grounding-on + the scope in <code>run-metadata.md</code>. (Already round-tripped from P1/P2; P5 adds the reproduction test — <code>scope_hash</code> matches across runs on stable files.)</span></li>
           
-          <li class="todo"><span class="tick"></span><span class="task-text">Document the §9 caveat, sharpened: &quot;verified against the repo&quot; means <em>the receipt resolves</em>, not that the inference is sound — and a <strong>poisoned repo</strong> can make a wrong claim cite a real line. Update <code>SKILL.md</code> (the repo-grounding path), <code>references/data-handling.md</code> (repo-scope egress + secret denylist), <code>scripts/README.md</code>.</span></li>
+          <li class="done"><span class="tick">✓</span><span class="task-text">Document the §9 caveat, sharpened: &quot;verified against the repo&quot; means <em>the receipt resolves</em>, not that the inference is sound — and a <strong>poisoned repo</strong> can make a wrong claim cite a real line. Update <code>SKILL.md</code> (the repo-grounding path), <code>references/data-handling.md</code> (repo-scope egress + secret denylist), <code>scripts/README.md</code>.</span></li>
           
-          <li class="todo"><span class="tick"></span><span class="task-text">e2e on a small real repo: seats cite real <code>path:line</code>, <code>verify</code> stamps them, a deliberately fabricated citation stamps <code>refuted</code> and the gate abstains.</span></li>
+          <li class="done"><span class="tick">✓</span><span class="task-text">e2e on a small real repo: seats cite real <code>path:line</code>, <code>verify</code> stamps them, a deliberately fabricated citation stamps <code>refuted</code> and the gate abstains. (Plus a control proving the abstain is caused by the refuted receipt, not the board shape.)</span></li>
           
         </ul>
         
@@ -856,7 +856,7 @@ footer.colophon code { background: var(--surface-2); }
 
   <!-- ===================== COLOPHON ===================== -->
   <footer class="colophon">
-    Rendered from <code>run-board-repo-grounding.md</code> &middot; 1 milestones &middot; 25/33 tasks complete. The markdown plan is the source of truth &mdash; regenerate with <code>render_plan.py</code>; never hand-edit this file.
+    Rendered from <code>run-board-repo-grounding.md</code> &middot; 1 milestones &middot; 29/33 tasks complete. The markdown plan is the source of truth &mdash; regenerate with <code>render_plan.py</code>; never hand-edit this file.
   </footer>
 
 </div>

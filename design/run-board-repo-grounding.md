@@ -75,12 +75,12 @@ Testing: golden prompt with grounding on shows the clause; with grounding off th
 Gate: `python3 -m unittest discover -s tests -t tests`
 
 ### Phase 5 — Verify composition + provenance + docs + e2e
-status: todo
+status: done
 Wire the free win, make the run reproducible, and prove it on a real repo.
-- [ ] Point the verdict chain at the snapshot: `verify --source <snapshot> --run <out>` so the now-real `path:line` citations resolve (fabricated → `refuted` → gate abstains). **No change to `verify_evidence.py`/`board_verdict.py`** — confirm composition with tests, not code.
-- [ ] Persist `--repo` + scope + scope-hash (+ include/exclude) in `run-recipe.yaml` so `--from-recipe` reproduces; record grounding-on + the scope in `run-metadata.md`.
-- [ ] Document the §9 caveat, sharpened: "verified against the repo" means *the receipt resolves*, not that the inference is sound — and a **poisoned repo** can make a wrong claim cite a real line. Update `SKILL.md` (the repo-grounding path), `references/data-handling.md` (repo-scope egress + secret denylist), `scripts/README.md`.
-- [ ] e2e on a small real repo: seats cite real `path:line`, `verify` stamps them, a deliberately fabricated citation stamps `refuted` and the gate abstains.
+- [x] Point the verdict chain at the repo: `verify --source <repo> --run <out>` so the now-real `path:line` citations resolve (fabricated → `refuted` → gate abstains). The snapshot is cleaned up after the run, so verify resolves against the **live repo** — the byte-faithful tree seats saw (preview==snapshot hash is asserted); drift is possible and documented (§9). **No change to `verify_evidence.py`/`board_verdict.py`** — composition confirmed with tests, not code.
+- [x] Persist `--repo` + scope + scope-hash (+ include/exclude) in `run-recipe.yaml` so `--from-recipe` reproduces; record grounding-on + the scope in `run-metadata.md`. (Already round-tripped from P1/P2; P5 adds the reproduction test — `scope_hash` matches across runs on stable files.)
+- [x] Document the §9 caveat, sharpened: "verified against the repo" means *the receipt resolves*, not that the inference is sound — and a **poisoned repo** can make a wrong claim cite a real line. Update `SKILL.md` (the repo-grounding path), `references/data-handling.md` (repo-scope egress + secret denylist), `scripts/README.md`.
+- [x] e2e on a small real repo: seats cite real `path:line`, `verify` stamps them, a deliberately fabricated citation stamps `refuted` and the gate abstains. (Plus a control proving the abstain is caused by the refuted receipt, not the board shape.)
 Testing: e2e mock run with `--repo`; a fabricated-citation fixture trips abstain; `--from-recipe` reproduces a grounded run; docs link-check.
 Gate: `python3 -m unittest discover -s tests -t tests`
 

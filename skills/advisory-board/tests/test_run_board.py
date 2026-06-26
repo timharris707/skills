@@ -4787,5 +4787,204 @@ class TestRepoGroundingD4(EnvMixin):
             grd.cleanup_snapshot(snap)
 
 
+class TestRepoGroundingP5Reproduce(EnvMixin):
+    """P5 — `--from-recipe` reproduces a grounded run (plan line 81/84).
+
+    A grounded run persists `repo` (+ include/exclude) in run-recipe.yaml; re-running
+    from that recipe with NO `--repo` on the CLI re-grounds against the same tree and
+    binds to the SAME scope hash (stable test files → no drift). That is reproducibility:
+    the recipe alone carries the read surface, and the surface is content-addressed.
+    """
+
+    def _grounded_run(self, files, out, *, include=None, exclude=None):
+        """Run a grounded mock board over a git fixture `files`, return (code, recipe_path, root)."""
+        root = _git_repo(files)
+        srcdir = tempfile.mkdtemp(prefix="grd-src-")
+        src = os.path.join(srcdir, "q.md")
+        with open(src, "w") as fh:
+            fh.write("ready to ship?\n")
+        argv = ["run", "--source", src, "--repo", root,
+                "--board", "claude,codex", "--mode", "advisory",
+                "--sensitivity", "public", "--out", out]
+        if include:
+            for g in include:
+                argv += ["--repo-include", g]
+        if exclude:
+            for g in exclude:
+                argv += ["--repo-exclude", g]
+        code, _, _ = run_cli(argv)
+        return code, os.path.join(out, "run-recipe.yaml"), root
+
+    def test_from_recipe_reproduces_grounded_run_and_scope_hash(self):
+        # 1. A grounded run writes a recipe that PERSISTS the repo + include/exclude.
+        out1 = tempfile.mkdtemp(prefix="board-p5a-1-")
+        code1, recipe_path, root = self._grounded_run(
+            {"src/main.py": "def foo():\n    return 42\n", "README.md": "# hi\n"},
+            out1, include=["*.py"], exclude=["test_*"])
+        self.assertEqual(code1, rb.EXIT_OK)
+        self.assertTrue(os.path.exists(recipe_path))
+
+        # The recipe persists the read surface (so the recipe alone can reproduce it).
+        from _conductor.recipe import load_recipe
+        with open(recipe_path) as fh:
+            recipe = load_recipe(fh.read())
+        self.assertEqual(recipe["repo"], root, "the recipe must persist the repo root")
+        self.assertEqual(recipe["repo_include"], ["*.py"])
+        self.assertEqual(recipe["repo_exclude"], ["test_*"])
+
+        manifest1 = json.load(open(os.path.join(out1, "repo-scope-manifest.json")))
+        scope_hash1 = manifest1["scope_hash"]
+
+        # 2. Re-run FROM the recipe with NO --repo on the CLI — the recipe carries it.
+        out2 = tempfile.mkdtemp(prefix="board-p5a-2-")
+        code2, _, _ = run_cli(["run", "--from-recipe", recipe_path,
+                               "--mode", "advisory", "--sensitivity", "public", "--out", out2])
+        self.assertEqual(code2, rb.EXIT_OK)
+
+        # The reproduced run is GROUNDED: it re-snapshots and writes the scope artifacts.
+        self.assertTrue(os.path.exists(os.path.join(out2, "repo-scope-manifest.json")),
+                        "the reproduced run must be grounded (writes the scope manifest)")
+        with open(os.path.join(out2, "run-metadata.md")) as fh:
+            meta2 = fh.read()
+        self.assertIn("Readable repository scope", meta2,
+                      "the reproduced run-metadata names the grounded read surface")
+
+        # 3. The scope hash MATCHES — stable test files → no drift → faithful reproduction.
+        manifest2 = json.load(open(os.path.join(out2, "repo-scope-manifest.json")))
+        self.assertEqual(manifest2["scope_hash"], scope_hash1,
+                         "the same tree must reproduce the same content-addressed scope hash")
+        # and the recipe's narrowed scope round-tripped (README.md was excluded by *.py).
+        self.assertEqual({f["path"] for f in manifest2["files"]}, {"src/main.py"},
+                         "the include/exclude scope must reproduce identically from the recipe")
+
+    def test_ungrounded_from_recipe_is_not_grounded(self):
+        # INVARIANT guard: an ungrounded recipe reproduces an ungrounded run (no repo key
+        # leaks in), so the grounded-reproduction signal above is meaningful.
+        srcdir = tempfile.mkdtemp(prefix="grd-src-")
+        src = os.path.join(srcdir, "q.md")
+        with open(src, "w") as fh:
+            fh.write("ready?\n")
+        out1 = tempfile.mkdtemp(prefix="board-p5a-3-")
+        code1, _, _ = run_cli(["run", "--source", src, "--board", "claude,codex",
+                               "--mode", "advisory", "--sensitivity", "public", "--out", out1])
+        self.assertEqual(code1, rb.EXIT_OK)
+        self.assertFalse(os.path.exists(os.path.join(out1, "repo-scope-manifest.json")))
+        from _conductor.recipe import load_recipe
+        recipe = load_recipe(open(os.path.join(out1, "run-recipe.yaml")).read())
+        self.assertNotIn("repo", recipe, "an ungrounded recipe must not carry a repo key")
+        out2 = tempfile.mkdtemp(prefix="board-p5a-4-")
+        code2, _, _ = run_cli(["run", "--from-recipe", os.path.join(out1, "run-recipe.yaml"),
+                               "--out", out2])
+        self.assertEqual(code2, rb.EXIT_OK)
+        self.assertFalse(os.path.exists(os.path.join(out2, "repo-scope-manifest.json")),
+                         "the reproduced ungrounded run must stay ungrounded")
+
+
+class TestRepoGroundingP5Verify(EnvMixin):
+    """P5 — the load-bearing demo (plan line 82, D7): repo-grounding composes with the
+    EXISTING verify + gate, with NO change to verify_evidence.py / board_verdict.py.
+
+    A grounded run's REAL `path:line` citation resolves (`verified`); a FABRICATED one
+    is `refuted`; and the gate, seeing a refuted receipt in the decision basis, ABSTAINS
+    (exit EXIT_ABSTAIN). verify's `--source` points at the LIVE repo fixture because the
+    read-only snapshot is torn down when the run ends (cmd_run's finally) — the live tree
+    is the durable copy of the exact bytes the seats saw, and the manifest `root` names it.
+    """
+
+    def _live_repo_after_grounded_run(self, files):
+        """Drive a real grounded mock run over `files`, assert the snapshot is cleaned up,
+        and return the LIVE repo root that `verify --source` resolves against."""
+        import glob as _glob
+        root = _git_repo(files)
+        srcdir = tempfile.mkdtemp(prefix="grd-src-")
+        src = os.path.join(srcdir, "q.md")
+        with open(src, "w") as fh:
+            fh.write("is this ready to ship?\n")
+        out = tempfile.mkdtemp(prefix="board-p5b-")
+        before = set(_glob.glob(os.path.join(tempfile.gettempdir(), "advisory-board-repo-*")))
+        code, _, _ = run_cli(["run", "--source", src, "--repo", root,
+                              "--board", "claude,codex", "--mode", "advisory",
+                              "--sensitivity", "public", "--out", out])
+        self.assertEqual(code, rb.EXIT_OK)
+        # the manifest names the LIVE repo as the read surface (verify resolves against it)
+        manifest = json.load(open(os.path.join(out, "repo-scope-manifest.json")))
+        self.assertEqual(manifest["root"], root)
+        # the snapshot tempdir is gone — so we MUST verify against the live tree, not it.
+        after = set(_glob.glob(os.path.join(tempfile.gettempdir(), "advisory-board-repo-*")))
+        self.assertEqual(before, after, "the run tears down its snapshot; verify uses the live repo")
+        self.assertTrue(os.path.isfile(os.path.join(root, "src", "main.py")),
+                        "the live repo fixture persists past the run")
+        return root, out
+
+    def _verdict_with_real_and_fabricated(self):
+        """A unanimously-blocking verdict carrying one REAL code citation (src/main.py
+        line 1, resolves) and one FABRICATED one (line 999, does not). Reuses the M5
+        `_verdict`/`_seats` board shape so the gate reaches its verdict logic."""
+        data = _verdict("block", "block", "block", "block", blockers=[
+            {"title": "real-finding",
+             "evidence": [{"kind": "code", "path": "src/main.py", "line": 1}]},
+            {"title": "fabricated-finding",
+             "evidence": [{"kind": "code", "path": "src/main.py", "line": 999}]},
+        ])
+        bv.validate(data)  # the input must be schema-valid before we verify/gate it
+        return data
+
+    def test_real_citation_verifies_fabricated_refuted_gate_abstains(self):
+        root, _ = self._live_repo_after_grounded_run(
+            {"src/main.py": "def foo():\n    return 42\n"})
+
+        # --- verify each citation directly against the LIVE repo --------------------
+        self.assertEqual(
+            ve.resolve_code({"kind": "code", "path": "src/main.py", "line": 1}, root),
+            "verified", "a real path:line in the grounded repo resolves")
+        self.assertEqual(
+            ve.resolve_code({"kind": "code", "path": "src/main.py", "line": 999}, root),
+            "refuted", "a line past EOF in a real file is a fabricated receipt → refuted")
+
+        # --- drive the verify CLI to STAMP the verdict in place (the run path) ------
+        vpath = os.path.join(tempfile.mkdtemp(prefix="p5b-verdict-"), "verdict.json")
+        with open(vpath, "w") as fh:
+            json.dump(self._verdict_with_real_and_fabricated(), fh)
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            rc = ve.main([vpath, "--source", root])
+        self.assertEqual(rc, 0)
+        stamped = json.load(open(vpath))
+        self.assertEqual(stamped["blockers"][0]["evidence"][0]["status"], "verified")
+        self.assertEqual(stamped["blockers"][1]["evidence"][0]["status"], "refuted")
+
+        # --- the GATE on the refuted receipt ABSTAINS (human required) -------------
+        outcome, reason = bv.gate_outcome(stamped, "block")
+        self.assertEqual(outcome, "abstain",
+                         "a refuted (fabricated) receipt in the basis forces the gate to abstain")
+        self.assertIn("fabricated-finding", reason, "the abstain reason names the refuted blocker")
+
+        # --- and the gate CLI exits with the abstain status -------------------------
+        gcode, _, _ = run_bv([vpath, "--gate"])
+        self.assertEqual(gcode, bv.EXIT_ABSTAIN,
+                         "verify+gate compose end-to-end: a fabricated citation trips abstain")
+
+    def test_all_real_citations_pass_the_gate(self):
+        # Control: with NO fabricated citation, the same blocking board does NOT abstain —
+        # the abstain above is caused by the refuted receipt, not by the board shape.
+        root, _ = self._live_repo_after_grounded_run(
+            {"src/main.py": "def foo():\n    return 42\n"})
+        data = _verdict("block", "block", "block", blockers=[
+            {"title": "real-finding",
+             "evidence": [{"kind": "code", "path": "src/main.py", "line": 1}]}])
+        bv.validate(data)
+        vpath = os.path.join(tempfile.mkdtemp(prefix="p5b-ok-"), "verdict.json")
+        with open(vpath, "w") as fh:
+            json.dump(data, fh)
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            ve.main([vpath, "--source", root])
+        stamped = json.load(open(vpath))
+        self.assertEqual(stamped["blockers"][0]["evidence"][0]["status"], "verified")
+        outcome, _ = bv.gate_outcome(stamped, "block")
+        self.assertEqual(outcome, "fail",
+                         "an all-verified unanimous block fails the gate (not abstain) — "
+                         "abstain is specifically the refuted-receipt path")
+        self.assertEqual(run_bv([vpath, "--gate"])[0], bv.EXIT_GATE_FAIL)
+
+
 if __name__ == "__main__":
     unittest.main()
