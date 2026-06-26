@@ -1,0 +1,28 @@
+{
+  "schema": "advisory-board/sensitivity@1",
+  "sensitivity": "public",
+  "egress_allowed": true,
+  "providers": [
+    "Anthropic",
+    "Google",
+    "OpenAI"
+  ],
+  "consent": {
+    "required": false,
+    "mode": "disclosure"
+  },
+  "network_isolation": {
+    "claude": "off",
+    "codex": "off",
+    "gemini": "NOT ENFORCED"
+  },
+  "network_unenforced": [
+    "gemini"
+  ],
+  "approval": {
+    "approved": true,
+    "mode": "disclosure",
+    "content_hash": "2ca8c659997d8d3344f6fdd6800706cc76d706492123b210d76cfc1f783f3525",
+    "timestamp": "2026-06-25T20:12:51"
+  }
+}

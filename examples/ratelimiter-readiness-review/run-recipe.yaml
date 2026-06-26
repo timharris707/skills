@@ -1,0 +1,61 @@
+schema: advisory-board/run-recipe@1
+title: review packet
+date: 2026-06-25
+
+# run shape
+mode: gate
+sensitivity: public
+rounds: auto
+max_rounds: 3
+cross_reading: summaries
+lens: software-architecture
+output: full-handoff
+out_dir: examples/ratelimiter-readiness-review
+
+# prompt template (bump/hash changes when the egressed prompt shape changes)
+prompt_template: advisory-board/round1@2
+prompt_template_sha256: 27f5d18e3de3d13bfbce812ba2e9d9ee2d9239d9b3bc03c08dd2f3323538c57d
+
+# synthesizer (M2): spawn a no-lens seat after rounds to draft verdict.json
+synthesize: true
+synthesizer_seat: null
+synthesizer_template: advisory-board/synthesizer@1
+synthesizer_template_sha256: 96a8427ffa40c9068ff97853bd2e34144ac41abf04bd064286984cc2f6b4a6a5
+
+# source
+source_kind: path
+source_ref: examples/ratelimiter-readiness-review/source/review-packet.md
+source_bytes: 3933
+source_lines: 118
+source_sha256: 06457237f46bec318a3b6cb24bd63d00a04fcd6d2451ebb8bbb000661252fc57
+
+# board (seat -> provider, model, lens, reasoning)
+board:
+  - seat: claude
+    provider: Anthropic
+    model: claude-opus-4-8
+    lens: Architecture & systems — design soundness, invariants, failure modes, adversarial review
+    reasoning: xhigh
+  - seat: codex
+    provider: OpenAI
+    model: gpt-5.5
+    lens: Implementation & testing — repo-grounded execution, migration, test strategy, edge cases
+    reasoning: xhigh
+  - seat: gemini
+    provider: Google
+    model: gemini-3.5-flash
+    lens: Product & operations — rollout, latency, observability, evaluation, user-workflow risk
+    reasoning: HIGH
+
+# egress (consent is bound to the content hash in egress-manifest.md)
+egress_consent: tiered
+egress_providers:
+  - claude seat -> Anthropic
+  - codex seat -> OpenAI
+  - gemini seat -> Google
+
+# isolation posture (follows mode); 'partial' = some seats not network-isolated
+isolation_network: partial
+isolation_network_unenforced:
+  - gemini
+isolation_filesystem: scoped
