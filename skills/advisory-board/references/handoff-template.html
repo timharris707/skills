@@ -41,6 +41,9 @@
   {{VERDICT}}        Final verdict text, e.g. "Do not ship yet — unanimous".
   {{VERDICT_CLASS}}  One of: ship | caution | block  (colors the banner).
   {{VERDICT_NOTE}}   One-line explanation under the verdict headline.
+  {{DISCLAIMER}}     OPTIONAL lens-aware professional-advice caveat (subtle footer
+                     line). Empty for a software-lens board — leave blank and the
+                     line is dropped.
   {{PLAN}}           The plan that was reviewed (HTML allowed; use <p>).
   {{METADATA}}       Footer provenance (models, flags, paths, timestamps).
   ============================================================================
@@ -251,6 +254,10 @@
   }
   footer.meta code { background: #efeee8; }
   footer.meta .prov { display: block; margin-top: 6px; }
+  /* subtle, lens-aware professional-advice caveat; dropped when empty */
+  footer.meta .disclaimer {
+    display: block; margin: 0 0 12px; font-style: italic; color: var(--ink-faint);
+  }
 
   /* ---- responsive ---- */
   @media (max-width: 560px) {
@@ -411,7 +418,10 @@
   </section>
 
   <!-- ===================== FOOTER / PROVENANCE ===================== -->
+  <!-- {{DISCLAIMER}}: OPTIONAL lens-aware professional-advice caveat. Empty for a
+       software-lens board — the line is dropped when blank. -->
   <footer class="meta">
+    <span class="disclaimer">{{DISCLAIMER}}</span>
     {{METADATA}}
   </footer>
 

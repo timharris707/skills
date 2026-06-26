@@ -37,7 +37,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _render_engine import die  # noqa: E402  shared with the other renderers
-from _verdict_labels import human_label  # noqa: E402  lens-aware label, shared with format_output
+from _verdict_labels import human_label, lens_disclaimer  # noqa: E402  lens-aware label + disclaimer
 
 STATUS_WORD = {"verified": "verified", "unverified": "unverified", "refuted": "REFUTED"}
 EVIDENCE_CONTAINERS = ("blockers", "dissent", "concerns")
@@ -179,6 +179,15 @@ def render_markdown(data: dict) -> str:
                    "inference drawn from it is sound (design §9)._")
         out.append("")
 
+    # A subtle, lens-aware professional-advice caveat in the footer. None for a
+    # software lens (and the absent-preset default), so existing software runs are
+    # unchanged. Separated by its own rule so it reads as a footnote, not the verdict.
+    disclaimer = lens_disclaimer(data.get("lens_preset"))
+    if disclaimer:
+        out.append("---")
+        out.append(f"_{disclaimer}_")
+        out.append("")
+
     return "\n".join(out).rstrip() + "\n"
 
 
@@ -273,6 +282,10 @@ def build_handoff_data(data: dict, run_dir=None) -> dict:
     # An explicit verdict_note (authored) wins; else the plain lens note. The banner
     # color (verdict_class) stays keyed on the raw token, never the lens label.
     verdict_note = data.get("verdict_note") or note
+    # The subtle, lens-aware professional-advice caveat (None for a software lens and
+    # the absent-preset default). Empty string when absent so the template slot resolves
+    # to nothing and the footer line is dropped.
+    disclaimer = lens_disclaimer(lens_preset)
     hd = {
         # non-RAW slots (the renderer escapes them) -> _plain; RAW slots -> _raw.
         "title": _plain(data.get("title", "Advisory Board review")),
@@ -283,6 +296,7 @@ def build_handoff_data(data: dict, run_dir=None) -> dict:
         "verdict": _plain(f"{label} — {_stance(data)}"),
         "verdict_class": _VERDICT_CLASS.get(verdict, ""),
         "verdict_note": _raw(verdict_note) if verdict_note else "",
+        "disclaimer": _raw(disclaimer) if disclaimer else "",
         "plan": _raw(data.get("title", "")),
         "metadata": "Rendered from <code>verdict.json</code> by <code>scripts/render_verdict.py</code>.",
         "dissent_flag": "Dissent on the record" if data.get("dissent") else "",

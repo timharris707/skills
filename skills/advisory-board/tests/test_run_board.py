@@ -3269,6 +3269,28 @@ class TestVerdictLabels(unittest.TestCase):
         self.assertEqual(vl.human_label("ship", "software-architecture", decision="invest"),
                          ("invest", None))
 
+    # --- the lens-aware professional-advice disclaimer (renderer-only) ------ #
+
+    def test_disclaimer_legal_lens(self):
+        self.assertEqual(vl.lens_disclaimer("legal-contract"), vl.LEGAL_DISCLAIMER)
+        self.assertIn("not legal advice", vl.lens_disclaimer("legal-contract"))
+
+    def test_disclaimer_software_lens_is_none(self):
+        # The software lens carries no disclaimer, preserving existing software runs.
+        self.assertIsNone(vl.lens_disclaimer("software-architecture"))
+
+    def test_disclaimer_absent_preset_is_none(self):
+        # Absent preset maps to software (backward compat) -> no disclaimer.
+        self.assertIsNone(vl.lens_disclaimer(None))
+
+    def test_disclaimer_other_non_software_lenses_are_universal(self):
+        for lens in ("business-decision", "product-strategy", "research-paper",
+                     "writing-editing"):
+            self.assertEqual(vl.lens_disclaimer(lens), vl.UNIVERSAL_DISCLAIMER)
+
+    def test_disclaimer_unknown_preset_is_universal(self):
+        self.assertEqual(vl.lens_disclaimer("totally-made-up"), vl.UNIVERSAL_DISCLAIMER)
+
     # --- render_verdict.py: Markdown + HTML handoff ------------------------ #
 
     def _plain_verdict(self):
@@ -3320,6 +3342,55 @@ class TestVerdictLabels(unittest.TestCase):
         self.assertIn("Authored override note.", md)
         self.assertNotIn(vl.PLAIN_NOTES["block"], md)
 
+    # --- render: the lens-aware disclaimer in Markdown + HTML handoff ------- #
+
+    def _html(self, data):
+        import render_handoff as rh
+        return rh.render(rv.build_handoff_data(data), open(rh.default_template()).read())
+
+    def test_legal_lens_renders_disclaimer_in_md_and_html(self):
+        data = _verdict("block", "block", "block", title="Vendor MSA",
+                        lens_preset="legal-contract")
+        md = rv.render_markdown(data)
+        self.assertIn(vl.LEGAL_DISCLAIMER, md)
+        self.assertIn("not legal advice", md)
+        # As a subtle italic footer line, separated from the verdict.
+        self.assertIn(f"_{vl.LEGAL_DISCLAIMER}_", md)
+        # HTML handoff carries it too (escaped only for &/</>; this string has none).
+        html_out = self._html(data)
+        self.assertIn(vl.LEGAL_DISCLAIMER, html_out)
+        self.assertIn('class="disclaimer"', html_out)
+
+    def test_business_lens_renders_universal_footer_in_md_and_html(self):
+        data = _verdict("block", "block", "block", title="Q3 expansion",
+                        lens_preset="business-decision")
+        md = rv.render_markdown(data)
+        self.assertIn(vl.UNIVERSAL_DISCLAIMER, md)
+        # The apostrophe is HTML-escaped in the handoff slot.
+        html_out = self._html(data)
+        self.assertIn("replace professional advice", html_out)
+        self.assertIn('class="disclaimer"', html_out)
+
+    def test_software_lens_renders_no_disclaimer(self):
+        data = _verdict("block", "block", "block", title="Cache layer",
+                        lens_preset="software-architecture")
+        md = rv.render_markdown(data)
+        self.assertNotIn("legal advice", md)
+        self.assertNotIn("professional advice", md)
+        html_out = self._html(data)
+        self.assertNotIn("professional advice", html_out)
+        # The empty footer slot is dropped, not left as a blank span.
+        self.assertNotIn('<span class="disclaimer">', html_out)
+        self.assertEqual(rv.build_handoff_data(data)["disclaimer"], "")
+
+    def test_absent_lens_renders_no_disclaimer(self):
+        data = _verdict("block", "block", "block", title="Legacy run")  # no lens_preset
+        md = rv.render_markdown(data)
+        self.assertNotIn("professional advice", md)
+        html_out = self._html(data)
+        self.assertNotIn("professional advice", html_out)
+        self.assertNotIn('<span class="disclaimer">', html_out)
+
     # --- format_output.py: verdict_line ------------------------------------ #
 
     def test_format_output_software_uppercases(self):
@@ -3336,6 +3407,30 @@ class TestVerdictLabels(unittest.TestCase):
         data = _verdict("block", "block", "block", lens_preset="business-decision",
                         decision="wind-down")
         self.assertIn("WIND-DOWN", fo.verdict_line(data))  # a decision still upper-cases
+
+    # --- format_output.py: the lens-aware disclaimer in short formats ------- #
+
+    def test_format_output_legal_appends_disclaimer(self):
+        data = _verdict("block", "block", "block", title="MSA", lens_preset="legal-contract")
+        for text in (fo.as_tldr(data), fo.as_pr(data), fo.as_slack(data)):
+            self.assertIn("not legal advice", text)
+
+    def test_format_output_business_appends_universal_disclaimer(self):
+        data = _verdict("block", "block", "block", title="Q3", lens_preset="business-decision")
+        for text in (fo.as_tldr(data), fo.as_pr(data), fo.as_slack(data)):
+            self.assertIn("replace professional advice", text)
+
+    def test_format_output_software_appends_no_disclaimer(self):
+        data = _verdict("block", "block", "block", title="Cache",
+                        lens_preset="software-architecture")
+        for text in (fo.as_tldr(data), fo.as_pr(data), fo.as_slack(data)):
+            self.assertNotIn("professional advice", text)
+            self.assertNotIn("legal advice", text)
+
+    def test_format_output_absent_lens_appends_no_disclaimer(self):
+        data = _verdict("block", "block", "block", title="Legacy")  # no lens_preset
+        for text in (fo.as_tldr(data), fo.as_pr(data), fo.as_slack(data)):
+            self.assertNotIn("professional advice", text)
 
     # --- the machine contract is untouched --------------------------------- #
 
