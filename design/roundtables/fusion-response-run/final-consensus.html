@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>how should advisory board respond to openrouter fusion</title>
+<style>
+  :root {
+    --maxw: 820px;
+    --ink: #1c1d22;
+    --ink-soft: #4a4d57;
+    --ink-faint: #74777f;
+    --line: #e4e3dd;
+    --line-strong: #d2d1c9;
+    --surface: #ffffff;
+    --page: #f6f5f1;
+    --surface-soft: #faf9f5;
+    --accent: #4f46b8;
+    /* verdict palettes */
+    --ship-bg: #e9f5ec;     --ship-edge: #2f7d46;   --ship-ink: #1d5e31;
+    --caution-bg: #fdf2dd;  --caution-edge: #b9791b; --caution-ink: #7a4d09;
+    --block-bg: #fbe9e9;    --block-edge: #b23535;  --block-ink: #7e1f1f;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--page);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                 Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji", sans-serif;
+    font-size: 17px;
+    line-height: 1.65;
+  }
+  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 32px 20px 72px; }
+
+  /* ---- header ---- */
+  header.masthead { margin-bottom: 24px; }
+  .eyebrow {
+    font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--ink-faint); font-weight: 600; margin: 0 0 8px;
+  }
+  h1 { font-size: 30px; line-height: 1.2; font-weight: 700; margin: 0 0 8px; letter-spacing: -0.01em; }
+  .subtitle { font-size: 17px; color: var(--ink-soft); margin: 0 0 18px; }
+  .meta-row { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--surface); border: 1px solid var(--line-strong);
+    border-radius: 999px; padding: 5px 13px; font-size: 13.5px; color: var(--ink-soft);
+  }
+  .chip b { font-weight: 600; color: var(--ink); }
+
+  /* ---- verdict banner ---- */
+  .verdict {
+    border-radius: 14px; padding: 22px 24px; margin: 8px 0 32px;
+    border: 1px solid transparent; border-left-width: 6px;
+  }
+  .verdict .label {
+    font-size: 12px; letter-spacing: 0.09em; text-transform: uppercase;
+    font-weight: 700; margin: 0 0 6px; opacity: 0.85;
+  }
+  .verdict .headline { font-size: 23px; font-weight: 700; margin: 0; line-height: 1.25; }
+  .verdict .note { margin: 10px 0 0; font-size: 15.5px; line-height: 1.55; }
+  .verdict.ship    { background: var(--ship-bg);    border-color: var(--ship-edge);    color: var(--ship-ink); }
+  .verdict.caution { background: var(--caution-bg); border-color: var(--caution-edge); color: var(--caution-ink); }
+  .verdict.block   { background: var(--block-bg);   border-color: var(--block-edge);   color: var(--block-ink); }
+
+  /* ---- sections ---- */
+  section { margin: 0 0 34px; }
+  h2 {
+    font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase;
+    font-weight: 700; color: var(--ink-faint); margin: 0 0 14px;
+    padding-bottom: 8px; border-bottom: 1px solid var(--line);
+  }
+
+  /* ---- plan callout ---- */
+  .plan {
+    background: var(--surface-soft); border: 1px solid var(--line);
+    border-left: 4px solid var(--accent); border-radius: 0 10px 10px 0;
+    padding: 16px 20px;
+  }
+  .plan p { margin: 0 0 10px; } .plan p:last-child { margin: 0; }
+
+  /* ---- seat cards ---- */
+  .seat {
+    background: var(--surface); border: 1px solid var(--line-strong);
+    border-radius: 14px; padding: 20px 22px; margin: 0 0 18px;
+  }
+  .seat-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 12px; margin-bottom: 4px; }
+  .seat-name { font-size: 19px; font-weight: 700; margin: 0; }
+  .seat-lens {
+    font-size: 12.5px; font-weight: 600; color: var(--accent);
+    background: #efeefb; border-radius: 999px; padding: 3px 11px;
+  }
+  .seat-model { font-size: 13px; color: var(--ink-faint); }
+  .seat-status {
+    font-size: 11.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+    border-radius: 999px; padding: 3px 10px;
+  }
+  .seat-status.ran      { background: #efeee8;           color: var(--ink-faint); }
+  .seat-status.degraded { background: var(--caution-bg); color: var(--caution-ink); }
+  .seat-status.dropped  { background: var(--block-bg);   color: var(--block-ink); }
+  .round { margin-top: 16px; padding-top: 16px; border-top: 1px dashed var(--line); }
+  .round:first-of-type { margin-top: 12px; }
+  .round-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .round-tag { font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-faint); }
+  /* per-round verdict pill */
+  .vpill { font-size: 12px; font-weight: 700; border-radius: 999px; padding: 3px 11px; line-height: 1.4; }
+  .vpill.ship    { background: var(--ship-bg);    color: var(--ship-ink); }
+  .vpill.caution { background: var(--caution-bg); color: var(--caution-ink); }
+  .vpill.block   { background: var(--block-bg);   color: var(--block-ink); }
+  .vpill.moved::after { content: " ↓"; }
+  .conf {
+    font-size: 11.5px; font-weight: 600; color: var(--ink-faint);
+    background: var(--surface-soft); border: 1px solid var(--line);
+    border-radius: 999px; padding: 2px 9px;
+  }
+
+  .review-body { font-size: 15.5px; color: var(--ink); }
+  .review-body strong { font-weight: 600; }
+  .review-body em { font-style: italic; }
+  .review-body a { color: var(--accent); text-decoration: underline; }
+  .review-body ul, .review-body ol { margin: 6px 0; padding-left: 22px; }
+  .review-body li { margin: 5px 0; }
+  .review-body p { margin: 6px 0; }
+  .review-body p.r-title { font-weight: 600; margin-top: 12px; }
+  .review-body blockquote {
+    margin: 8px 0; padding: 2px 0 2px 14px;
+    border-left: 3px solid var(--line-strong); color: var(--ink-soft);
+  }
+  .review-body pre {
+    background: var(--surface-soft); border: 1px solid var(--line);
+    border-radius: 8px; padding: 10px 12px; margin: 8px 0;
+    overflow-x: auto; font-size: 13px; line-height: 1.5;
+  }
+  .review-body pre code { background: none; border: 0; padding: 0; font-size: inherit; }
+  code {
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.86em; background: #f0efe9; border: 1px solid var(--line);
+    border-radius: 5px; padding: 1px 5px;
+  }
+
+  /* highlight callout (e.g. a seat that changed its verdict) */
+  .highlight {
+    background: #fff8e8; border: 1px solid #ecd9a3; border-radius: 10px;
+    padding: 12px 16px; margin: 14px 0 0; font-size: 14.5px; color: #6f5212;
+  }
+  .highlight b { color: #5a4209; }
+
+  /* ---- numbered blocker checklist ---- */
+  ol.blockers { list-style: none; counter-reset: blk; margin: 0; padding: 0; }
+  ol.blockers > li {
+    counter-increment: blk; position: relative;
+    background: var(--surface); border: 1px solid var(--line-strong);
+    border-radius: 11px; padding: 15px 18px 15px 56px; margin: 0 0 11px;
+  }
+  ol.blockers > li::before {
+    content: counter(blk); position: absolute; left: 14px; top: 14px;
+    width: 28px; height: 28px; border-radius: 50%;
+    background: var(--block-bg); color: var(--block-ink);
+    font-size: 14px; font-weight: 700; display: flex; align-items: center; justify-content: center;
+  }
+  ol.blockers .b-title { font-weight: 600; }
+  ol.blockers .b-body { font-size: 15px; color: var(--ink-soft); margin-top: 3px; }
+
+  /* ---- dissent (visually distinct) ---- */
+  .dissent {
+    background: #fbf3ec; border: 1px dashed var(--caution-edge);
+    border-radius: 12px; padding: 16px 20px;
+  }
+  .dissent .d-flag {
+    display: inline-block; font-size: 11.5px; font-weight: 700;
+    letter-spacing: 0.07em; text-transform: uppercase; color: var(--caution-ink);
+    background: var(--caution-bg); border-radius: 999px; padding: 3px 10px; margin-bottom: 8px;
+  }
+  .dissent p { margin: 6px 0; font-size: 15.5px; color: #5e4a31; }
+  .dissent .who { font-weight: 700; color: var(--caution-ink); }
+
+  /* ---- what the board couldn't verify (epistemic caveats) ---- */
+  .caveats {
+    background: var(--surface-soft); border: 1px solid var(--line);
+    border-left: 4px solid var(--ink-faint); border-radius: 0 12px 12px 0;
+    padding: 16px 20px;
+  }
+  .caveats ul { margin: 0; padding-left: 22px; }
+  .caveats li { margin: 7px 0; font-size: 15.5px; }
+  .caveats .c-claim { font-weight: 600; }
+  .caveats .c-change { color: var(--ink-soft); }
+
+  /* ---- simple lists ---- */
+  ul.plain { margin: 0; padding-left: 22px; }
+  ul.plain li { margin: 7px 0; font-size: 15.5px; }
+
+  .actions {
+    background: var(--surface-soft); border: 1px solid var(--line);
+    border-radius: 12px; padding: 16px 20px; font-size: 15.5px;
+  }
+  .actions ol { margin: 0; padding-left: 20px; }
+  .actions li { margin: 6px 0; }
+
+  /* ---- footer ---- */
+  footer.meta {
+    margin-top: 40px; padding-top: 18px; border-top: 1px solid var(--line);
+    font-size: 13px; color: var(--ink-faint); line-height: 1.7;
+  }
+  footer.meta code { background: #efeee8; }
+  footer.meta .prov { display: block; margin-top: 6px; }
+  /* subtle, lens-aware professional-advice caveat; dropped when empty */
+  footer.meta .disclaimer {
+    display: block; margin: 0 0 12px; font-style: italic; color: var(--ink-faint);
+  }
+
+  /* ---- responsive ---- */
+  @media (max-width: 560px) {
+    body { font-size: 16px; }
+    .wrap { padding: 22px 15px 56px; }
+    h1 { font-size: 25px; }
+    .verdict .headline { font-size: 20px; }
+    .seat, ol.blockers > li { padding-left: 16px; padding-right: 16px; }
+    ol.blockers > li { padding-left: 50px; }
+  }
+
+  /* ---- print / PDF (Print -> Save as PDF) ---- */
+  @media print {
+    body { background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .wrap { max-width: none; padding: 8px 0 0; }
+    .verdict, .plan, .seat, .round, ol.blockers > li, .dissent, .actions { break-inside: avoid; }
+    a { color: inherit; text-decoration: none; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ===================== HEADER ===================== -->
+  <header class="masthead">
+    <p class="eyebrow">Advisory Board · Multi-model review</p>
+    <h1>how should advisory board respond to openrouter fusion</h1>
+    <p class="subtitle">Rendered from the canonical verdict.json.</p>
+    <div class="meta-row">
+      <span class="chip"><b>Date</b> 2026-06-26</span>
+      <span class="chip"><b>Rounds</b> 2</span>
+      <span class="chip"><b>Board</b> Claude · Codex · Gemini</span>
+    </div>
+  </header>
+
+  <!-- ===================== VERDICT BANNER ===================== -->
+  
+  <div class="verdict caution">
+    <p class="label">Final verdict</p>
+    <p class="headline">Proceed with care — unanimous</p>
+    <p class="note">Workable, but address the flagged concerns before you go ahead.</p>
+  </div>
+
+  <!-- ===================== PLAN UNDER REVIEW ===================== -->
+  <section>
+    <h2>Plan under review</h2>
+    <div class="plan">
+      how should advisory board respond to openrouter fusion
+    </div>
+  </section>
+
+  <!-- ===================== SEAT REVIEWS ===================== -->
+  <section>
+    <h2>Board reviews — round by round</h2>
+
+    
+    <article class="seat">
+      <div class="seat-head">
+        <h3 class="seat-name">Claude</h3>
+        <span class="seat-lens">Market &amp; user value lens</span>
+        <span class="seat-model">claude-opus-4-8</span>
+        
+      </div>
+
+      
+      <div class="round">
+        <div class="round-head">
+          <span class="round-tag">Round 1</span>
+          
+          <span class="vpill caution">Proceed with care</span>
+          
+        </div>
+        <div class="review-body">
+          
+          <p>I have enough grounding. Producing the review directly as my reply, per the task instructions (read-only, no files).</p>
+<p>---</p>
+<p class="r-title">Claude seat — Market &amp; User Value lens</p>
+<p class="r-title">1. Verdict</p>
+<p class="r-title">CAUTION — proceed, but only with the reframing below.<strong> Confidence: </strong>medium-high.</p>
+<p>The plan's instincts are mostly right, but its headline framing is wrong in a way that matters commercially. Candidate #1 ("inline escalation mode") is the right priority, but the brief calls it our "biggest capability gap vs Fusion" and frames it as catching up to Fusion's product. That's the trap. <strong>The gap is real; closing it by imitating Fusion's hosted-metered inline model would forfeit the only moat we have.</strong> Adopt the inline wedge in its <em>local, subscription-backed, gate-bearing</em> form — and lead with positioning (#6), not as a consolation prize but as the load-bearing move.</p>
+<p><strong>What would change the verdict:</strong> if a quick internal eval (a stripped DRACO-style run) showed our multi-round <em>debate</em> does <strong>not</strong> beat a cheaper <em>compare-and-synthesize</em> of the same seats, the whole differentiation story collapses to "expensive single-model with extra steps," and I'd downgrade to block-and-rethink. The DRACO 2×Opus result in the packet is a live warning shot at exactly this. See §5.</p>
+<p class="r-title">2. Strongest objections (market lens)</p>
+<p><strong>A. "Biggest capability gap" is a category error.</strong> Fusion's inline model id is the <em>commodified</em> version of this idea — pass-through priced, one team owns the gateway. If we ship a metered inline API to match it, we compete on their turf, with their cost structure, against the team that controls routing. We lose that race. Our latent advantage is the <em>opposite</em> shape: ~$0 marginal on subscription CLIs (verified: <code>registry.py:23</code>, <code>auth_hint</code> fields show subscription auth across seats), a local-only board for sensitive material (<code>registry.py:494</code>, <code>provider=&quot;local&quot;</code>), and a <strong>gateable verdict that abstains</strong> (<code>board_verdict.py:223</code>). The job-to-be-done Fusion serves — "give an agent a deeper second opinion mid-task, when being wrong is expensive" — we can serve <em>better</em> at the moment of escalation, because we attach a CI-gradeable verdict to the answer, not just prose. Reframe #1 as "the escalation an agent can wire into a gate for free," not "our answer to Fusion's model id."</p>
+<p><strong>B. The DRACO 2×Opus finding undercuts our core marketing claim, and the plan doesn't reckon with it.</strong> The packet's own benchmark says 2× Opus + Opus judge beats solo Opus by +6.7 — "much of the lift is the synthesis / test-time-compute step, not model diversity." If that's true, then "multi-<em>model</em>, multi-<em>provider</em>" is <strong>not</strong> the differentiator a buyer should pay attention to — more compute on one model gets most of the way. Our headline cannot be "three frontier models." It has to be the things compute-stacking does <em>not</em> give you: genuine cross-reading revision (seats read each other and <em>change their minds</em> — <code>SKILL.md:101</code>), provider-diverse blind-spot coverage, the abstaining gate, and privacy. The plan lists these but still calls multi-model the moat in #6. Demote model-diversity in the pitch.</p>
+<p><strong>C. There is no demand evidence in the packet — only a competitor sighting.</strong> The entire decision is reactive to OpenRouter shipping Fusion. That's a reason to clarify positioning; it is <em>not</em> evidence that users want an inline board. Before building #1's full surface, we need one signal that the JTBD exists for <em>our</em> users (agent-in-the-loop developers running CI gates), not Fusion's (deep-research API consumers). Those may be different segments.</p>
+<p><strong>D. Stale proof point.</strong> <code>SKILL.md:140</code> advertises "a real run is in the repo-root <code>examples/payments-idempotency-review/</code>" as the credibility anchor — but <strong>there is no <code>examples/</code> directory in the tree</strong> (verified: <code>ls examples</code> → NONE). Positioning (#6) and a benchmark (#5) both lean on showable artifacts. We are currently shipping a dead pointer to our flagship demo. Fix this before any positioning push, or the differentiation story has a broken first link.</p>
+<p class="r-title">3. Recommended execution sequence</p>
+<p>Ranked by leverage-per-cost for the next milestone:</p>
+<ol><li><strong>#6 Positioning — ADOPT NOW (week 1, near-zero cost).</strong> Rewrite the one-liner: "a deliberation <em>workflow</em> with a gateable, abstaining verdict — runs on your subscriptions at ~$0 marginal, locally when needed," not "an inline model." Demote multi-model; promote debate + gate + economics + privacy. This is the cheapest, highest-leverage move and it <em>constrains every later decision</em>, so it goes first.</li><li><strong>Fix the dead demo pointer (week 1).</strong> Either restore <code>examples/payments-idempotency-review/</code> or strike the claim at <code>SKILL.md:140</code>. Non-negotiable hygiene before #5/#6 go public.</li><li><strong>#1 Inline escalation — ADOPT NOW, but <em>local form only</em> (milestone 1).</strong> A thin MCP/subprocess wrapper over the existing conductor (<code>scripts/run_board.py</code>) that another agent calls as a tool: one question → quick 1-round board → <code>verdict.json</code>. No new metered API. The deliverable that distinguishes us is that the tool call returns a <em>gateable</em> result, not prose. Verified that no such surface exists today: <code>grep -i mcp</code> hits only a CSS font name; <code>escalat</code> hits only the gate's internal "synthesis escalation."</li><li><strong>#4 Crisper structured output — ADOPT NOW as additive fields (milestone 1, low cost), behind a hard guardrail (§4).</strong> <code>partial_coverage</code> / <code>unique_insights</code> improve the synthesis artifact's usefulness. Cheap, and they make our output legible next to Fusion's.</li><li><strong>#5 Benchmark — DEFER the <em>published</em> number; commission a small <em>internal honest</em> eval now.</strong> We need the de-risking signal (does debate beat compare?) before we bet positioning on it. Publishing a number is a later, separate decision gated on the internal result coming out favorable.</li><li><strong>#2 Sandboxed execution seats — DEFER.</strong> Being deep-dived elsewhere; from the market lens it's an internal accuracy lever, not a buyer-visible differentiator, and it collides head-on with the read-XOR-network invariant (<code>SKILL.md:86</code>, <code>data-handling.md:37-39</code>). Rank below #4.</li><li><strong>#3 MCP/domain-tool pass-through to seats — DEFER, leaning REJECT for now.</strong> Narrow segment, large attack-surface and safety-invariant cost, no demand signal. Lowest priority.</li></ol>
+<p class="r-title">4. Invariants and guardrails</p>
+<ul><li><strong>The gate stays uncontaminated.</strong> <code>board_verdict.py:68-69</code> already enforces "<strong>The gate never reads</strong> [confidence]." Any #4 field (<code>partial_coverage</code>, <code>unique_insights</code>) must be <strong>informational only</strong> — never a gate input. The abstain logic must keep reading <em>observed cross-seat agreement</em> (<code>board_verdict.py:244-264</code>), nothing self-reported. This is our most defensible feature; do not dilute it to look like Fusion's richer JSON.</li><li><strong>Read-XOR-network is sacrosolid</strong> (<code>data-handling.md:37-39</code>; <code>SKILL.md:86</code>). Any inline/embeddable mode (#1) that runs in gate posture must inherit the same refusal — a grounded <em>and</em> networked seat is the exfil channel. Don't let "lightweight one-shot" become a quiet bypass of D4.</li><li><strong>Local-only must survive the inline mode.</strong> The <code>ollama</code> seat / <code>provider=&quot;local&quot;</code> egress exclusion (<code>registry.py:494</code>, <code>data-handling.md:25</code>) is a literal moat Fusion (a hosted gateway) structurally <em>cannot</em> match. The inline wedge must support a local board, or we've thrown away the one thing they can't copy.</li><li><strong>No silent metering.</strong> If #1 ever grows an API-key path, it must be opt-in and loudly disclosed — never the default — or "~$0 marginal" stops being true and the positioning is a lie.</li></ul>
+<p class="r-title">5. Risks, stale assumptions, missing evidence</p>
+<ul><li><strong>Missing: any proof debate &gt; compare.</strong> Fusion's judge <em>explicitly does not merge</em> (packet) and still wins benchmarks; the 2×Opus result says synthesis-compute is most of the lift. <strong>We have no evidence our cross-reading-and-revise loop beats a cheap compare.</strong> This is the single biggest hole. Cheap to test internally; expensive to be wrong about publicly.</li><li><strong>Stale claim in our own skill:</strong> <code>SKILL.md:140</code> → non-existent <code>examples/</code> dir (verified). Undermines #5/#6.</li><li><strong>Unverified demand:</strong> no user-side signal that the inline JTBD exists for <em>our</em> segment vs Fusion's. The plan treats competitor existence as demand.</li><li><strong>Segment assumption:</strong> the brief assumes one market. Fusion's buyer (deep-research API caller) and ours (agentic-dev running CI gates) may not overlap; "respond to Fusion" may be defending a hill they aren't attacking.</li><li><strong>Risk of feature-chasing:</strong> #2/#3/#4 collectively add surface and cost; each nudges us toward "Fusion with more knobs" and away from "the one with the gate." The discipline of <em>refusing</em> most of them is itself the strategy.</li></ul>
+<p class="r-title">Per-candidate scorecard</p>
+<p>| # | Candidate | Verdict | One-line rationale | Main risk | Evidence that flips it | |---|---|---|---|---|---| | 1 | Inline escalation | <strong>ADOPT NOW (local form only)</strong> | Real JTBD gap; close it with a gate-bearing local tool, not a metered API | Becomes a metered Fusion-clone and forfeits the moat | Demand signal showing users want hosted/metered, not local | | 2 | Sandboxed exec seats | <strong>DEFER</strong> | Accuracy lever, not buyer-visible; collides with read-XOR-network | Safety-invariant erosion | Eval showing execution-grounding materially lifts verdict correctness | | 3 | MCP domain-tool pass-through | <strong>DEFER → REJECT for now</strong> | Narrow segment, big attack surface, no demand | Surface/safety cost with no buyer | A concrete design-partner asking for domain boards | | 4 | Crisper structured output | <strong>ADOPT NOW (informational only)</strong> | Cheap, legible, additive | A new field leaks into the gate | n/a — guardrail is the answer | | 5 | Published benchmark | <strong>DEFER number; run internal eval now</strong> | Need the de-risk before betting positioning on it | Eval shows debate ≈ compare → claim dies | Internal eval shows debate clearly beats compare/solo | | 6 | Positioning | <strong>ADOPT NOW</strong> | Cheapest, highest-leverage; reframes everything else | Leaning on "multi-model" when compute is the real lift | DRACO-style data proving provider-diversity (not just compute) is load-bearing |</p>
+<p class="r-title">The single highest-leverage move</p>
+<p>Ship <strong>#1 in its local, gate-bearing form</strong> — a callable one-shot board that returns a <code>verdict.json</code>, runs on subscriptions at ~$0, and supports a local seat. It is the <em>product manifestation</em> of #6: it converts our latent moat (free, gateable, private deliberation) into something an agent actually reaches for at a high-stakes fork — answering Fusion's wedge without adopting Fusion's economics. Positioning (#6) is the narrative that must ship alongside it, not after.</p>
+<p class="r-title">The one thing to refuse</p>
+<p><strong>A metered, hosted, API-keyed inline model id that competes with Fusion on pass-through pricing.</strong> It forfeits subscription/local/verifiable advantages, drops us into a routing-economics race against the team that owns the gateway, and dilutes the gate. Refuse it explicitly. (Secondary refusal: letting any Fusion-style field become a gate input.)</p>
+<p class="r-title">Grounding of load-bearing claims</p>
+<ul><li>"No inline/MCP/escalation surface exists today" — <strong>[verified]</strong> <code>grep -ri mcp</code> over the tree hits only <code>references/plan-fonts.css</code> (a font name); <code>escalat</code> hits only <code>scripts/board_verdict.py</code> (internal "synthesis escalation") and <code>references/verdict-schema.md</code>.</li><li>"The gate never reads self-reported confidence; reads observed agreement; abstains when torn or a citation is refuted" — <strong>[verified]</strong> <code>board_verdict.py:68-69</code> ("The gate never reads it"), <code>gate_outcome</code> <code>board_verdict.py:223-268</code>, refuted path <code>:240-242</code>.</li><li>"~$0 marginal / subscription CLIs" and "local-only board is a real lever" — <strong>[verified]</strong> <code>SKILL.md:23</code>; <code>registry.py</code> <code>auth_hint</code> fields; <code>provider=&quot;local&quot;</code> <code>registry.py:494</code>; <code>data-handling.md:25</code>.</li><li>"Read-XOR-network safety, gemini/antigravity force refuse" — <strong>[verified]</strong> <code>SKILL.md:86</code>, <code>data-handling.md:37-39</code>, <code>registry.py:449</code>/<code>:475</code> (<code>isolates_network=False</code>).</li><li>"verdict.json has no partial_coverage/unique_insights today; buckets are blockers/dissent/concerns/caveats" — <strong>[verified]</strong> <code>verdict-schema.md:53-75</code>, <code>board_verdict.py:39</code> (<code>EVIDENCE_CONTAINERS</code>).</li><li>"Flagship example run is advertised but absent" — <strong>[verified]</strong> <code>SKILL.md:140</code> claims <code>examples/payments-idempotency-review/</code>; <code>ls examples</code> → NONE.</li><li>"DRACO: 2×Opus self-fusion = +6.7 over solo; lift is mostly synthesis-compute, not diversity" — <strong>[packet-only]</strong> stated in the brief; not checkable in this tree. This is the claim most worth independently verifying before we set positioning, because it cuts <em>against</em> the multi-model pitch.</li><li>"Fusion is pass-through priced ~4–5×, judge does not merge, server-tool layer beta" — <strong>[packet-only]</strong> from the brief; not verifiable here.</li></ul>
+<p class="r-title">What I'd ask the other seats to challenge</p>
+<ul><li><strong>Codex (execution/repo lens):</strong> Can the existing conductor (<code>run_board.py</code>) be wrapped as a local MCP/server-tool with <em>no</em> new metered path and <em>no</em> weakening of D4's read-XOR-network gate? If the inline mode can't preserve the gate cheaply, my #1 ranking is wrong.</li><li><strong>Gemini (product/rollout/user-workflow lens):</strong> Is the inline JTBD real for <em>our</em> segment (agentic-dev/CI) or am I projecting Fusion's deep-research-API segment onto our users? Challenge my segment assumption in §5.</li><li><strong>Both / synthesizer:</strong> Stress-test objection B — if a cheap compare-and-synthesize of two Opus runs matches our multi-round debate, what in the positioning survives? I claim the gate + provider-diverse blind-spot coverage + privacy do; I want that contested, because the whole CAUTION verdict hinges on debate being worth more than compute.</li><li><strong>Whoever owns #5:</strong> Is an honest internal eval that <em>might disprove our own pitch</em> something we're willing to run before marketing the claim? If not, we shouldn't make the claim at all.</li></ul>
+<p>VERDICT: caution</p>
+        </div>
+      </div>
+      
+      <div class="round">
+        <div class="round-head">
+          <span class="round-tag">Round 2</span>
+          
+          <span class="vpill caution">Proceed with care</span>
+          
+        </div>
+        <div class="review-body">
+          
+          <p>I have what I need. I've verified the load-bearing claims against the tree; writing my round-2 review now.</p>
+<p>---</p>
+<p class="r-title">Round 2 — Claude seat (Market &amp; user value lens)</p>
+<p class="r-title">1. Updated verdict</p>
+<p class="r-title">CAUTION — proceed, but only with the reframing and sequencing below. Confidence: high.</p>
+<p>What would change it: hard demand evidence that buyers want an <em>inline answer-improver</em> (Fusion's job) more than a <em>gateable decision artifact</em> (our job). If that showed up, I'd flip from "differentiate" to "compete," and much of my dissent with Codex would dissolve. Absent that evidence, competing on Fusion's turf is the losing move.</p>
+<p>The board is unanimous caution and I keep that. My round-1 framing objection survives contact with the other reviews, but I've narrowed where I actually disagree with Codex — see §2.</p>
+<p class="r-title">2. Where I changed my mind / where I still dissent</p>
+<p><strong>Changed my mind (toward Codex, partially).</strong> In round 1 I called candidate #1 ("biggest capability gap") a <em>category error</em> and treated it as near-distraction. Reading <strong>Codex</strong>'s exact construction — "a thin local tool/CLI/MCP wrapper over existing conductor, <strong>not a new hosted API</strong>" — I concede the inline mode is worth building <strong>now</strong>, because it's the feature that makes the positioning <em>true</em> rather than aspirational. A buyer can't "escalate to your board from inside your agent on your subscription" today: I verified there is <strong>no inline/MCP/server-tool surface in the tree</strong> — the conductor exposes only <code>init, preflight, toolchain, run, render, consensus, verify, validate</code> (<code>scripts/_conductor/cli.py:592-644</code>). So the gap is real; I was wrong to wave it off.</p>
+<p><strong>Still dissent — with Codex, on framing and on rank order.</strong> I do <strong>not</strong> accept "biggest GTM gap <em>versus Fusion</em>." That frame casts us as a follower closing a gap on a competitor's product. The local-MCP board is a <em>differentiator to seize</em> (subscription, gate, privacy — none of which Fusion has), not a <em>parity feature to ship</em>. The distinction is not pedantic: it decides whether marketing says "we also do inline now" (commodity, we lose) or "escalate to a board your CI can gate, on your own subscription, that never ships your code anywhere" (category of one). And on rank: Codex makes inline <em>the</em> milestone; I rank <strong>#6 positioning first</strong>, because shipping the MCP wrapper without the reframe just produces a worse, free Fusion.</p>
+<p><strong>Still dissent — with the implicit pro-benchmark lean (#5).</strong> A DRACO-style "debate beats solo" number is a market <em>liability</em> risk, not just an asset — see §3 and §6.</p>
+<p><strong>Agree with Gemini</strong>, fully, on the CLI-background-execution DX problem (§5) and on read-XOR-network as inviolable.</p>
+<p class="r-title">3. Strongest remaining objections</p>
+<p><strong>A. The jobs-to-be-done are different products; conflating them is the core risk.</strong> Fusion's JTBD: <em>"I'm an agent mid-task, being wrong is expensive, give me a better answer now"</em> — an answer-improver priced per call, one team owns the gateway. Our JTBD: <em>"I have a high-stakes plan/architecture/decision and I want a defensible, debated verdict my CI can gate and that I can trust against my own code, at ~$0 marginal, without the code leaving my machine."</em> Those are <strong>different buyers</strong>. Every candidate should be scored against <em>our</em> JTBD, not Fusion's feature list. Most of the packet's framing scores against Fusion's.</p>
+<p><strong>B. The "+6.7 from 2×Opus" result quietly threatens our entire pitch.</strong> The packet's own number says most of the lift is <strong>synthesis / test-time compute, not model diversity and not debate</strong>. We have <strong>no evidence</strong> our cross-read-and-revise loop beats Fusion's cheaper <em>compare-don't-merge</em>. If we publish a deep-research accuracy benchmark (#5) and it shows debate ≈ compare, we've spent credibility to disprove our own headline. The benchmark is a coin-flip we don't need to call yet.</p>
+<p><strong>C. Our differentiators have a demand-side crack: the three-frontier-model promise is fragile.</strong> I verified <code>isolates_network=false</code> for both Google seats (<code>registry.py:449,475</code>) and the auth hint: <em>"Google account; consumer tiers sunset 2026-06-18 — enterprise/API only"</em> (<code>registry.py:455</code>). For a buyer without enterprise Google auth, the default "three frontier models" board silently becomes two, and the gemini seat can't be de-networked so it can't even sit on a gate+<code>--repo</code> run. The "panel of frontier models on your subscription" pitch is partly true today. That's a positioning honesty constraint, not just an ops bug.</p>
+<p class="r-title">4. Recommended execution sequence (ranked by leverage-per-cost, market lens)</p>
+<ol><li><strong>#6 Positioning — ADOPT NOW (week 1, ~$0).</strong> Rewrite the one-liner to: <em>"a deliberation <strong>workflow</strong> with a gateable, abstaining verdict — runs on your subscriptions at ~$0 marginal, and can review your own code without it leaving the machine."</em> Name the moat explicitly: debate + economics + privacy/local + a verdict CI can gate. This is the cheapest, highest-leverage move and it's the precondition for #1 landing as a differentiator instead of a me-too.</li><li><strong>#1 Inline escalation — ADOPT NOW, but built as a <em>local, gate-preserving MCP/CLI wrapper over <code>run_board.py</code></em>, no metered path.</strong> Rationale: it's what makes the positioning real and is a genuine wedge (Fusion has no gate, no subscription economics, no local mode). Main risk: an inline mode that bypasses the egress/consent gate (<code>scripts/_conductor/egress.py</code>) or the read-XOR-network rule to "feel fast" — that forfeits the exact moat #6 sells. Evidence that would change rank: if the existing conductor <em>can't</em> be wrapped without a new metered path or gate weakening, demote it.</li><li><strong>#4 Crisper structured output — DEFER, informational-only.</strong> One-line rationale: our <code>caveats[]</code> couldn't-verify bucket plus typed <code>evidence[]</code> (<code>references/verdict-schema.md:73-92</code>) already serve the decision JTBD; <code>partial_coverage</code>/<code>unique_insights</code> are <em>comparison</em> fields for an <em>answer</em> artifact. Adopt only as display sugar that <strong>never</strong> becomes a gate input. Risk: schema bloat that dilutes the gate's legibility. Evidence to change: users asking for the side-by-side coverage map specifically.</li><li><strong>#5 Published benchmark — DEFER, and reframe the metric.</strong> Don't benchmark deep-research accuracy (Fusion's turf, and objection B says we might lose). Benchmark <strong>gate precision/recall</strong> — does the abstaining gate catch decisions a solo model would ship that turn out wrong? That's a number <em>no competitor can match because they have no gate</em>. Risk: building Fusion's benchmark by reflex and handing them a favorable comparison.</li><li><strong>#3 MCP/domain-tool pass-through — REJECT for the gate path, DEFER for advisory-only.</strong> Collides head-on with read-XOR-network (<code>SKILL.md:86</code>). Low market value relative to the invariant risk it imports.</li><li><strong>#2 Sandboxed execution seats — DEFER</strong> (separate deep-dive run owns it; from the market lens it's not load-bearing for the Fusion response).</li></ol>
+<p><strong>Single highest-leverage move:</strong> ship #6 + #1-as-local-MCP <strong>together</strong> — "the board you escalate to from your own agent, on your subscription, that returns a verdict your CI can gate and never sends your code anywhere." That sentence is both the positioning and the product.</p>
+<p><strong>The one thing to refuse:</strong> a <strong>metered, hosted inline API</strong> that competes with <code>openrouter/fusion</code> on its own pass-through-priced, server-side terms. It trades our three structural moats (≈$0 marginal, local/private, gateable) for a commodity slot in someone else's gateway. Equivalently: never let a gate-bearing run go networked to feel inline.</p>
+<p class="r-title">5. Invariants &amp; guardrails</p>
+<ul><li><strong>The gate never reads soft signals.</strong> Verified: <code>gate_outcome</code> reads each seat's <code>round_verdicts[-1]</code> and the docstring states <em>"never the gameable <code>confidence</code>"</em> (<code>board_verdict.py:239,244-245</code>). Any #4 field must be informational-only; it must not enter <code>gate_outcome</code>.</li><li><strong>Abstain semantics stay sacred.</strong> A refuted citation → abstain (exit 3), and a declared verdict that de-escalates below a majority-tripping board → abstain (<code>board_verdict.py:240-242,257-264</code>). The inline mode must preserve exit-3 abstain, not collapse it into a binary answer to look like a model.</li><li><strong>Read XOR network on any gate-bearing/<code>--repo</code> run</strong> (<code>SKILL.md:86</code>; enforced by <code>isolates_network</code> in <code>registry.py</code>). The inline wrapper inherits this unconditionally.</li><li><strong>Inline mode reuses the egress/consent gate</strong> (<code>scripts/_conductor/egress.py</code>) — no new path that ships bytes without the hash-bound pre-spawn stop and data-handling disclosure (<code>SKILL.md:17</code>).</li><li><strong>A board is still ≥2 seats that actually ran</strong> (<code>board_verdict.py:172-174</code>); an inline "one-shot board" must not quietly become a one-seat call dressed as a board.</li></ul>
+<p class="r-title">6. Risks, stale assumptions, missing evidence</p>
+<ul><li><strong>Missing — the core market datum:</strong> do buyers want an inline answer-improver or a gateable decision artifact? Everything above hinges on it and we have only inference. This is the thing to go learn before over-investing in #1.</li><li><strong>Missing — any proof debate &gt; compare.</strong> See objection B. We're asserting a value prop the packet's own 2×Opus number undercuts.</li><li><strong>Stale/internal drift:</strong> <code>SKILL.md:49</code> advertises the Gemini seat as "Gemini 3.1 Pro," but the registry default is <code>gemini-3.5-flash</code> (<code>registry.py:440</code>). Couldn't-verify which is canonical from here; either way the public-facing model claim and the code disagree, which is a positioning-honesty bug.</li><li><strong>Demand risk:</strong> the Google-tier sunset (<code>registry.py:455</code>) means the marquee "three frontier models on your subscription" is, for many users, two — and the third can't sit on a gated repo run. Positioning must not oversell the default lineup.</li><li><strong>DX risk (Gemini's, endorsed):</strong> the seats are interactive subscription CLIs; an inline/MCP mode that spawns them in the background is the hard part, and getting it wrong produces a worse experience than the full run it's meant to shortcut.</li></ul>
+<p class="r-title">7. Concrete evidence</p>
+<ul><li><code>scripts/_conductor/cli.py:592-644</code> — subcommands are <code>init/preflight/toolchain/run/render/consensus/verify/validate</code>; <strong>no inline/MCP/server-tool surface exists</strong>. The capability gap is real. <strong>[verified]</strong></li><li><code>scripts/board_verdict.py:239</code> — <em>"The decision reads each seat's final-round verdict, never the gameable <code>confidence</code>."</em> The gate is uncontaminated by soft fields. <strong>[verified]</strong></li><li><code>scripts/board_verdict.py:240-242, 257-264</code> — abstain (exit 3) on a refuted citation and on a verdict that de-escalates below a majority-tripping board. <strong>[verified]</strong></li><li><code>scripts/board_verdict.py:172-174</code> — <em>"a board needs &gt;= 2 seats that ran; … dropped seats don't count."</em> <strong>[verified]</strong></li><li><code>scripts/_conductor/registry.py:449,475</code> — <code>isolates_network=False</code> for gemini and antigravity, <em>"no known flag disables GoogleSearch grounding — surfaced loudly."</em> <strong>[verified]</strong></li><li><code>scripts/_conductor/registry.py:455</code> — gemini auth hint: <em>"consumer tiers sunset 2026-06-18 — enterprise/API only."</em> <strong>[verified]</strong></li><li><code>SKILL.md:86</code> — <em>"the safety policy is <strong>read XOR network</strong> … Seats that can't be de-networked (today gemini, antigravity) make a gate+<code>--repo</code> run <strong>refuse</strong>."</em> <strong>[verified]</strong></li><li><code>references/verdict-schema.md:73-92</code> — <code>blockers/dissent/concerns</code> carry typed <code>evidence[]</code> (<code>code|source|command|judgment</code>); <code>caveats[]</code> is the couldn't-verify bucket. No <code>partial_coverage</code>/<code>unique_insights</code> today — #4 would be additive. <strong>[verified]</strong></li><li><code>scripts/_conductor/egress.py:1-3</code> — the hash-bound, tiered-consent <em>"pre-spawn hard stop"</em> that any inline mode must reuse. <strong>[verified]</strong></li><li>Fusion benchmark / "+6.7 from 2×Opus," pass-through pricing, server-tool beta — <strong>[packet-only]</strong> (not checkable against this tree).</li></ul>
+<p>VERDICT: caution</p>
+        </div>
+      </div>
+      
+
+      
+
+    </article>
+    
+    <article class="seat">
+      <div class="seat-head">
+        <h3 class="seat-name">Codex</h3>
+        <span class="seat-lens">Execution &amp; gtm lens</span>
+        <span class="seat-model">gpt-5.5</span>
+        
+      </div>
+
+      
+      <div class="round">
+        <div class="round-head">
+          <span class="round-tag">Round 1</span>
+          
+          <span class="vpill caution">Proceed with care</span>
+          
+        </div>
+        <div class="review-body">
+          
+          <p class="r-title">Verdict</p>
+<p>Caution, high confidence. Proceed, but narrow the response to one milestone: ship an inline/local escalation mode plus clearer structured output and positioning. What would change my view: credible user evidence that customers care more about domain-tool pass-through or a public benchmark than about invoking the board from their existing agent workflow.</p>
+<p class="r-title">Candidate Calls</p>
+<p>| Candidate | Call | Rationale | Main Risk | Would Change If | |---|---:|---|---|---| | 1. Inline / embeddable escalation | ADOPT NOW, rank 1 | Biggest GTM gap versus Fusion. Build as a thin local tool/CLI/MCP wrapper over existing conductor, not a new hosted API. | Bypassing egress, provenance, or gate rules to feel “lightweight.” | If users mostly run planned full reviews and rarely need selective escalation. | | 2. Sandboxed execution-grounded seats | DEFER, rank 4 | Valuable, but heavier than inline. Existing command re-execution is post-verdict and allowlisted, not seat-level test execution. | False security, arbitrary execution, secret leakage. | If a separate deep dive proves a strong sandbox story with low UX cost. | | 3. MCP / domain-tool pass-through | DEFER, rank 6 | High enterprise upside, but it blows up the consent and exfiltration model. Needs capability manifests first. | Credentials/internal data leaking through peer rounds or artifacts. | If one concrete buyer use case requires DB/API grounding and accepts a read-only capability policy. | | 4. Crisper structured output | ADOPT NOW, rank 2 | Add <code>partial_coverage</code>, <code>unique_insights</code>, <code>blind_spots</code> as optional verdict fields. This strengthens the inline mode. | Schema/render churn and duplicated caveats. | If schema consumers are too brittle for an additive <code>@3</code>; then add as render-only first. | | 5. Published benchmark | DEFER, rank 5 | Useful for credibility, but premature until the inline contract and schema are stable. | A weak benchmark damages trust more than no benchmark. | If sales/adoption stalls specifically on proof that debate beats solo. | | 6. Positioning / differentiation | ADOPT NOW, rank 3 | Make the moat explicit: subscription/local economics, debate, evidence verification, and gateable verdicts. | Overclaiming privacy or verification. | If Fusion also ships local, repo-grounded, gateable provenance at similar economics. |</p>
+<p class="r-title">Recommended Execution Sequence</p>
+<ol><li>Add an <code>ask</code> or <code>one-shot</code> mode: one command takes a question/source, runs 2 to 3 seats in parallel, optionally runs the neutral synthesizer, prints compact JSON to stdout, and still writes minimal <code>/tmp</code> provenance.</li><li>Add optional verdict fields: <code>partial_coverage</code>, <code>unique_insights</code>, <code>blind_spots</code>, maybe <code>raw_seat_summaries</code>.</li><li>Ship positioning docs and examples around “deliberation workflow with a gateable verdict,” not “another model endpoint.”</li><li>Then pursue execution-grounded seats by extending the existing allowlisted command verification model.</li><li>Build an internal benchmark harness before publishing numbers.</li><li>Only then design MCP/domain-tool pass-through with explicit read-only scopes, credential policy, and per-tool egress disclosure.</li></ol>
+<p class="r-title">Invariants</p>
+<p>Do not bypass data handling for convenience. Do not run a one-seat “board.” Do not silently substitute models. Do not weaken read-XOR-network for repo-grounded gate mode. Do not claim verification proves reasoning correctness. Keep artifacts/provenance even for inline mode. Refuse a metered hosted API clone that gives up subscription CLIs, local-only mode, and gateable evidence.</p>
+<p class="r-title">Strongest Objections</p>
+<p>Inline mode can dilute the product if it becomes a shallow Fusion clone. The answer is to make it a local escalation wrapper around the conductor, not a server-side model id.</p>
+<p>Privacy positioning is fragile: the default board sends data to external providers. The honest moat is controllable egress, local-only option, and provenance, not “private by default.”</p>
+<p>Benchmarks are tempting but dangerous now. Without stable output fields and a frozen runner, a public DRACO-style number will be hard to defend.</p>
+<p class="r-title">Evidence</p>
+<ul><li>[verified: opened the file in the repository and read the line] <code>SKILL.md:23</code>: “Use subscription CLIs by default, not provider API keys.”</li><li>[verified] <code>SKILL.md:98-101</code>: round 2 is a rebuttal pass where seats read the prior board packet and revise.</li><li>[verified] <code>SKILL.md:117-119</code>: the current design already calls for neutral synthesis, evidence-backed/judgment/couldn’t-verify buckets, and <code>verdict.json</code>.</li><li>[verified] <code>scripts/_conductor/cli.py:592-646</code>: current public surface is CLI subcommands, not an embeddable server/tool interface.</li><li>[verified] <code>references/verdict-schema.md:131-140</code>: gate abstains when the board is torn or a citation is refuted.</li><li>[verified] <code>references/data-handling.md:37-40</code>: repo gate mode is read-XOR-network, and snapshot scope is consent/verify, not physical read confinement.</li><li>[verified] <code>scripts/verify_evidence.py:42-81</code>: command re-execution is opt-in, allowlisted, and “not a kernel sandbox.”</li><li>[verified] <code>references/board-composition.md:16</code>: <code>ollama</code> local seats are registered for must-not-leave material.</li><li>[packet-only] Fusion’s 1 to 8 model panel, JSON judge fields, pass-through pricing, server-tool beta, and DRACO claim are supported by the provided packet, not by files in this repo.</li></ul>
+<p class="r-title">Ask Other Seats To Challenge</p>
+<p>Challenge whether inline should be CLI-only first or MCP-first. Challenge whether <code>partial_coverage</code> and <code>blind_spots</code> should be schema fields or derived renderer sections. Challenge whether MCP/domain tools should be rejected outright until sandboxed execution exists.</p>
+<p>VERDICT: caution</p>
+        </div>
+      </div>
+      
+      <div class="round">
+        <div class="round-head">
+          <span class="round-tag">Round 2</span>
+          
+          <span class="vpill caution">Proceed with care</span>
+          
+        </div>
+        <div class="review-body">
+          
+          <p class="r-title">1. Updated Verdict</p>
+<p>Caution, high confidence. Proceed, but only by narrowing the response to a local, embeddable escalation workflow plus positioning and additive schema clarity, not a hosted Fusion clone. I would change to <code>block</code> if the next milestone requires a metered API/model-id product or weakens egress, provenance, or gate abstention.</p>
+<p class="r-title">2. Changed Mind / Dissent</p>
+<p>Changed with Claude: I now agree “biggest capability gap” is too broad. Inline is only valuable if it is a local wrapper over the conductor; chasing Fusion’s hosted model-id shape is a category error.</p>
+<p>Changed with Gemini: I take the background CLI DX risk more seriously. The inline tool should behave like an async local job with preflight/status/artifact paths, not promise a fast synchronous answer.</p>
+<p>Still dissent with Claude: I would not put positioning alone as the next milestone. GTM needs a callable surface so other agents can actually escalate to the board.</p>
+<p>Still dissent with Gemini: CLI DX is a scoping constraint, not a blocker. The repo already has preflight, timeouts, failure classification, and <code>--synthesize</code>; packaging that behind a local tool is feasible.</p>
+<p class="r-title">3. Candidate Calls</p>
+<p>| Candidate | Call | Rationale | Main Risk | Would Change If | |---|---|---|---|---| | 1. Inline / embeddable escalation | ADOPT NOW | Build a thin local CLI/MCP-style wrapper over <code>run_board.py</code>, not a hosted API. | Bypassing consent, provenance, or gate semantics to feel “instant.” | Wrapper cannot preserve egress hash, read-XOR-network, and artifact bundle. | | 2. Sandboxed execution-grounded seats | DEFER | Valuable, but broader than command-evidence verification and security-heavy. | Turning seats into arbitrary code runners. | A real kernel sandbox + safe test-run profile is proven. | | 3. MCP / domain-tool pass-through | DEFER, and reject for gate+repo by default | Useful for bespoke advisory boards, dangerous for gateable verdicts. | Tool outputs become exfil and prompt-injection channels. | Tools are local/read-only/capability-scoped with output redaction and no network conflict. | | 4. Crisper structured output | ADOPT NOW | Add <code>partial_coverage</code>, <code>unique_insights</code>, <code>blind_spots</code> as informational fields. | New fields accidentally move the gate. | Existing <code>caveats</code>/<code>open_questions</code> prove sufficient in real runs. | | 5. Published benchmark | DEFER | Needed for credibility, not the first response to Fusion. | Slow, noisy benchmark distracts from distribution. | Buyers/users ask for proof before trying the tool. | | 6. Positioning / differentiation | ADOPT NOW | Make the moat explicit: deliberation workflow, gateable verdict, subscription economics, privacy/local, verifiability. | Overclaiming debate without benchmark evidence. | Users clearly prefer fast single-call answers over verifiable workflow. |</p>
+<p class="r-title">4. Strongest Remaining Objections</p>
+<p>The Fusion trap is real: becoming a metered inline model product discards the board’s strongest advantages.</p>
+<p>The CLI integration path can be brittle: auth, stale model names, long latency, and hanging CLIs have to be handled as product surface, not hidden internals.</p>
+<p>Domain-tool pass-through is the highest-risk candidate. It can violate the read-XOR-network model unless scoped to advisory mode or local-only tools.</p>
+<p>There is still no verified benchmark here proving cross-reading debate beats a judge/synthesis-only panel. Treat “debate is better” as positioning hypothesis until measured.</p>
+<p class="r-title">5. Recommended Execution Sequence</p>
+<ol><li>Rewrite positioning now: “local deliberation workflow with a gateable, abstaining verdict,” not “Fusion-compatible model.”</li><li>Ship a local one-shot escalation surface: <code>advisory-board ask</code> or MCP tool that runs preflight, one quick board, optional <code>--synthesize --strict-exit</code>, and returns <code>verdict.json</code> plus artifact paths.</li><li>Add additive schema/render support for <code>partial_coverage</code>, <code>unique_insights</code>, and <code>blind_spots</code>; keep them out of gate logic.</li><li>Design execution-grounded seats separately, starting from command-evidence constraints rather than general bash access.</li><li>Defer MCP/domain-tool pass-through to advisory/local-only profiles.</li><li>Benchmark after the integration exists, using logs from real one-shot escalations.</li></ol>
+<p>Single highest-leverage move: the local embeddable escalation milestone, with positioning included in the same release notes/docs.</p>
+<p>One thing to refuse: a hosted metered <code>advisory-board/fusion</code>-style model id that bypasses local subscriptions, local-only mode, provenance artifacts, or the abstaining gate.</p>
+<p class="r-title">6. Invariants And Guardrails</p>
+<p>No gateable run may weaken read-XOR-network.</p>
+<p>New structured fields are informational only; the gate continues to read observed verdicts and refuted citations, not confidence or narrative fields.</p>
+<p>At least two seats must actually run; degraded/dropped seats stay visible.</p>
+<p>No silent model substitution.</p>
+<p>No prompt, packet, artifact, or metadata may store secrets.</p>
+<p>Domain tools are off by default for gate+repo and must be capability-scoped before advisory use.</p>
+<p>The conductor should plumb facts and tokens; models reason. Do not add semantic claim clustering in deterministic code.</p>
+<p class="r-title">7. Risks, Stale Assumptions, Missing Evidence</p>
+<p>Model names are volatile and there is apparent doc/code drift: the skill text names Gemini 3.1 Pro while the registry default is Gemini 3.5 Flash. Treat model IDs as a preflight concern, not a promise.</p>
+<p>I could not verify Fusion’s public claims against the web in this read-only repo review; those remain packet-only.</p>
+<p>The snapshot does not substantiate a DRACO-style benchmark for this skill. “Debate beats solo” remains unproven here.</p>
+<p>Execution-grounded seats are riskier than current command-evidence re-execution because they let the debating agent run code before synthesis.</p>
+<p class="r-title">8. Concrete Evidence</p>
+<p><code>SKILL.md:23</code> [verified: opened the file in the repository and read the line] says the default is subscription CLIs, not provider API keys. This grounds the economics/moat claim.</p>
+<p><code>SKILL.md:82</code> [verified: opened the file in the repository and read the line] describes repo-grounding as a read-only snapshot with scope hash and manifest. This grounds the provenance/consent advantage.</p>
+<p><code>SKILL.md:86</code> [verified: opened the file in the repository and read the line] says gate+repo refuses non-network-isolatable seats such as Gemini/Antigravity. This grounds the read-XOR-network guardrail.</p>
+<p><code>references/data-handling.md:37-40</code> [verified: opened the file in the repository and read the line] states exfil control is network isolation, not read confinement. This is why domain-tool pass-through is risky.</p>
+<p><code>scripts/_conductor/registry.py:177-186</code> [verified: opened the file in the repository and read the line] builds Codex with read-only sandbox, <code>--ephemeral</code>, and <code>-C</code> workdir. This grounds feasibility for local wrapping.</p>
+<p><code>scripts/_conductor/registry.py:194-206</code> [verified: opened the file in the repository and read the line] says Gemini has no reliable flag to disable GoogleSearch grounding. This grounds the gate refusal.</p>
+<p><code>scripts/_conductor/egress.py:274-297</code> [verified: opened the file in the repository and read the line] implements the hard-stop refusal for gate+repo with unisolatable seats.</p>
+<p><code>references/verdict-schema.md:68-69</code> [verified: opened the file in the repository and read the line] says confidence is informational and the gate never reads it. New fields should follow this pattern.</p>
+<p><code>scripts/board_verdict.py:223-239</code> [verified: opened the file in the repository and read the line] defines abstain conditions from observed seat agreement and refuted citations, not prose.</p>
+<p><code>scripts/_conductor/cli.py:531-619</code> [verified: opened the file in the repository and read the line] shows the current surface is CLI subcommands and flags, including <code>--synthesize</code>, not an embeddable server/tool yet.</p>
+<p><code>scripts/_conductor/synthesizer.py:1-20</code> [verified: opened the file in the repository and read the line] shows a neutral synthesizer already exists and validates merged output, supporting a thin one-shot wrapper.</p>
+<p><code>references/verdict-schema.md:73-75</code> [verified: opened the file in the repository and read the line] lists current verdict fields; Fusion-style <code>partial_coverage</code> and <code>unique_insights</code> are not present in the schema section.</p>
+<p>Fusion facts in the prompt, including one API call, 1-8 models, judge JSON, and DRACO claims, are [packet-only: supported by the material above but not checked against the tree].</p>
+<p>VERDICT: caution</p>
+        </div>
+      </div>
+      
+
+      
+
+    </article>
+    
+    <article class="seat">
+      <div class="seat-head">
+        <h3 class="seat-name">Gemini</h3>
+        <span class="seat-lens">Second-order &amp; risk lens</span>
+        <span class="seat-model">gemini-3.5-flash</span>
+        
+      </div>
+
+      
+      <div class="round">
+        <div class="round-head">
+          <span class="round-tag">Round 1</span>
+          
+          <span class="vpill caution">Proceed with care</span>
+          
+        </div>
+        <div class="review-body">
+          
+          <p class="r-title">Advisory Board Strategic Review: Response to OpenRouter Fusion</p>
+<p><strong>Seat:</strong> Gemini <strong>Role Emphasis:</strong> Second-order &amp; risk — competitive response, cannibalization, downside and stakeholder risk</p>
+<p>---</p>
+<p class="r-title">1. Verdict &amp; Confidence Level</p>
+<p><strong>Verdict:</strong> <code>caution</code> (proceed only with the changes and positioning revisions below) <strong>Confidence:</strong> High <em>What would change this:</em> This verdict would shift to <code>block</code> if the board attempted to compete directly with OpenRouter on low-latency, inline, metered API completions, or if we compromised our core "Read XOR Network" safety boundary.</p>
+<p>---</p>
+<p class="r-title">2. Strongest Objections (Risk &amp; Cannibalization Analysis)</p>
+<ul><li><strong>Objection 1: The CLI Background Execution DX Disaster (Feature 1 — Inline Escalation Mode)</strong></li></ul>
+<p>Our seat adapters run on subscription-backed local CLIs (such as <code>antigravity-cli</code>, <code>@openai/codex</code>, and <code>claude</code>) that require interactive browser/OAuth logins, regular version upgrades, and local session caches (as verified in <code>registry.py:L429</code>, <code>L455</code>, <code>L481</code>). Packaging this as a low-latency background inline tool (e.g., an MCP server) in another agent's loop is a developer experience trap. The moment a subscriber’s session expires or a CLI version drifts, the parent agent's loop will block or fail silently.</p>
+<ul><li><strong>Objection 2: Breach of the "Read XOR Network" Invariant (Feature 3 — MCP / Domain-Tool Pass-through)</strong></li></ul>
+<p>Under <code>references/data-handling.md:L35-41</code>, our repo-grounded safety depends on the <strong>Read XOR Network</strong> policy. A seat with read access to local code (<code>--repo</code>) must never have network access. If we pass domain-specific tools (DB, internal APIs, browser) to seats while they are reviewing code, we create an immediate exfiltration vector. A malicious repository file with an embedded prompt injection could instruct a seat to query the database and exfiltrate credentials or code via the browser/network tool.</p>
+<ul><li><strong>Objection 3: Sandboxing Complexity &amp; Latency Penalties (Feature 2 — Sandbox Execution)</strong></li></ul>
+<p>Executing code on the local host to ground claims introduces severe security risks. As grounded in <code>references/data-handling.md:L41-45</code>, Codex's <code>--sandbox read-only</code> does <strong>not</strong> confine physical reads to the working directory. Building secure, local, multi-platform container sandboxes (e.g., Docker or WASM) within a Python/CLI tool adds massive operational footprint and maintenance overhead, turning a lightweight, highly-portable skill into heavy, brittle infrastructure.</p>
+<p>---</p>
+<p class="r-title">3. Recommended Execution Sequence</p>
+<p>We must avoid playing on OpenRouter's home turf (server-side, fast-answering, high-volume API completions) and instead double down on our structural moats: <strong>deliberate multi-round debate, verifiability, privacy, and zero marginal cost</strong>.</p>
+<p>| Rank | Candidate | Action | Technical Rationale &amp; Mitigation | | :--- | :--- | :--- | :--- | | <strong>1</strong> | <strong>6. Positioning / Differentiation</strong> | <strong>ADOPT NOW</strong> | Position the board as a <strong>deliberate decision-making workflow and gatekeeping engine</strong> for high-stakes PRs/commits, not an inline model. Frame our subscription/local architecture as the privacy-respecting, zero-marginal-cost choice. | | <strong>2</strong> | <strong>4. Crisper Structured Output</strong> | <strong>ADOPT NOW (Modified)</strong> | Do <strong>NOT</strong> modify the <code>verdict.json</code> schema (which must remain lean and gate-centric). Instead, update the synthesizer prompt (<code>_conductor/synthesizer.py</code>) and Markdown/HTML templates to render "Unique Insights" and "Partial Coverage" as explicit sections in human-facing views. | | <strong>3</strong> | <strong>5. Published Benchmark</strong> | <strong>DEFER</strong> | Creating a DRACO benchmark is costly and drifts as models update. Instead, curate a portfolio of reproducible <strong>qualitative case studies</strong> (like <code>examples/payments-idempotency-review/verdict.json</code>) where our multi-round, grounded debate catches bugs that solo models ship. | | <strong>4</strong> | <strong>2. Sandboxed Execution</strong> | <strong>DEFER</strong> | Postpone general sandboxed execution until secure, zero-config local WASM runners can be embedded directly into target provider CLIs without introducing local host vulnerabilities. | | <strong>5</strong> | <strong>1. Inline Escalation Mode</strong> | <strong>REJECT</strong> | Avoid this. Headless background execution of subscription CLIs in agent loops is extremely fragile and prone to silent credential expiration timeouts. | | <strong>6</strong> | <strong>3. MCP / Domain-Tool Pass-through</strong> | <strong>REJECT</strong> | Permanently reject domain-tool pass-through for grounded seats. It fundamentally violates the "Read XOR Network" safety policy. |</p>
+<p>---</p>
+<p class="r-title">4. Invariants &amp; Guardrails</p>
+<ul><li><strong>Invariant 1 (Read XOR Network):</strong> No seat with repository read access (<code>--repo</code>) shall ever be passed domain tools with network-enabled capabilities (browser, external API) or write permissions.</li><li><strong>Invariant 2 (Deterministic Gating):</strong> The CI/PR gate (<code>board_verdict.py</code>) must remain driven by deterministic token checks and validated citations. We must never transition to a heuristic, LLM-based comparison step for gate validation.</li><li><strong>Invariant 3 (Subscription &amp; Local Economics):</strong> Keep local-first (<code>ollama</code>) and subscription CLIs as first-class citizens. We must not transition to a metered, API-key-only architecture that forfeits our privacy and cost advantages.</li></ul>
+<p>---</p>
+<p class="r-title">5. Risks, Stale Assumptions, and Missing Evidence</p>
+<ul><li><strong>Stale Assumption: Google CLI/Auth Longevity:</strong> As grounded in <code>registry.py:L455</code> and <code>board-composition.md</code>, Google sunset consumer tiers for <code>gemini-cli</code> on 2026-06-18, leaving only enterprise/API, and requiring migration to the newer agent-first <code>antigravity</code> CLI (<code>agy</code>). Our strategy must assume that paid consumer tiers are rapidly shifting, making local-first (<code>ollama</code>) models and enterprise API fallbacks increasingly vital.</li><li><strong>Latency &amp; Timeout Risks:</strong> Multi-seat, multi-round debates are inherently slow (default timeout cap is 15 minutes, <code>registry.py:L70</code>). This makes running them inline inside other agent loops highly vulnerable to timing out.</li><li><strong>Missing Evidence:</strong> We lack data proving developers actually want an inline, fast-answering "micro-board," or if they prefer keeping the board as a high-stakes PR gate.</li></ul>
+<p>---</p>
+<p class="r-title">6. Concrete Evidence from the Source Material</p>
+<ul><li><strong><code>SKILL.md:L17-21</code> [verified]:</strong> Core hard rules: <em>"Never write files or make edits... Never present a degraded or dropped seat as a full board... a board needs at least two seats that actually ran."</em></li><li><strong><code>references/data-handling.md:L35-45</code> [verified]:</strong> The "Read XOR Network" (D4) policy, and the honest limitation that Codex's read-only sandbox does <strong>not</strong> physically confine reads to the working directory (R9).</li><li><strong><code>scripts/_conductor/registry.py:L194-200</code> [verified]:</strong> The fact that the Gemini CLI adapter cannot disable GoogleSearch grounding (<code>isolates_network=False</code>), making it a NO-GO in gate mode.</li><li><strong><code>scripts/_conductor/registry.py:L214-224</code> [verified]:</strong> Google consumer tier sunset details (2026-06-18) and Antigravity CLI (<code>agy</code>) quirks (silent substitution of unknown model names and stdin hanging issues).</li><li><strong><code>scripts/board_verdict.py:L223-239</code> [verified]:</strong> The exact implementation of how the <code>abstain</code> exit (code 3) is computed based on observed cross-seat agreement and refuted citations.</li></ul>
+<p>---</p>
+<p class="r-title">7. What to Ask the Other Board Seats to Challenge</p>
+<ul><li><strong>To Claude (Architecture &amp; Adversarial Seat):</strong> Challenge the security boundaries of passing tools to seats. Could local-only, de-networked DB tools still be abused via prompt injection to leak sensitive database schemas into the final consensus markdown?</li><li><strong>To Codex (Implementation &amp; Execution Seat):</strong> Challenge the execution path of safe sandboxing. Can we isolate execution entirely inside a lightweight, zero-network WASM shell, and what is the development effort/bundle size penalty?</li></ul>
+<p>---</p>
+<p>VERDICT: caution</p>
+        </div>
+      </div>
+      
+      <div class="round">
+        <div class="round-head">
+          <span class="round-tag">Round 2</span>
+          
+          <span class="vpill caution">Proceed with care</span>
+          
+        </div>
+        <div class="review-body">
+          
+          <p class="r-title">Round 2 Advisory Board Review: Gemini Seat</p>
+<p><strong>Role Emphasis:</strong> Second-order &amp; risk — competitive response, cannibalization, downside, and stakeholder risk</p>
+<p>---</p>
+<p class="r-title">1. Updated Verdict &amp; Confidence</p>
+<ul><li><strong>Verdict:</strong> <code>caution</code></li><li><strong>Confidence:</strong> High</li><li><strong>What would change it:</strong> Solid, production-validated evidence showing that an inline, background tool-escalation mode can run on subscription-backed CLIs without hitting interactive authentication prompts, causing shell hangs, violating provider Terms of Service, or bypassing our strict <code>read XOR network</code> security boundary.</li></ul>
+<p>---</p>
+<p class="r-title">2. Changed Mind &amp; Dissent</p>
+<ul><li><strong>Where we CHANGED OUR MIND:</strong></li><li><strong>With respect to Codex (Candidate 1):</strong> In Round 1, Codex strongly advocated for adopting Candidate 1 (Inline Escalation Mode) immediately as its top priority. We originally opposed this outright as a developer experience disaster due to background authentication hangs. However, after reviewing the seat adapters (<code>scripts/_conductor/registry.py:L395-510</code> [verified]) and the execution harness (<code>references/execution-harness.md</code> [verified]), we change our mind to <strong>conditionally support a local-only CLI/MCP bridge</strong> in a subsequent milestone. If scoped strictly as a local-only tool running on already-authenticated user-owned CLIs, it bridges the capability gap without adopting a risky hosted/metered architecture.</li><li><strong>With respect to Claude (Candidate 1):</strong> Claude argued that Candidate 1 is a "category error." We agree with Claude's positioning moat but change our mind on a complete rejection or long deferral; we can prototype a local CLI/MCP bridge once positioning and structured outputs are stabilized.</li><li><strong>Where we STILL DISSENT:</strong></li><li><strong>Dissent from Codex's Rank 1 Priority for Candidate 1:</strong> We still dissent from making Candidate 1 the immediate priority. Doing so severely underestimates the high operational risks: (a) developer frustration with high-latency multi-round local runs in active IDE loops (<code>SKILL.md:L42</code> [verified] warns that runs can take minutes), and (b) background authentication hangs where non-interactive subprocesses block on credential entry or stdin reads (<code>scripts/_conductor/registry.py:L480</code> [verified]; <code>references/execution-harness.md:L63</code> [verified]). Candidate 6 (Positioning) and Candidate 4 (Crisper Structured Output) must precede it.</li><li><strong>Dissent from any metered, hosted gateway or server-side API:</strong> We completely dissent from entering the metered, server-side API market. Doing so cannibalizes our core <strong>subscription-backed, ~$0 marginal cost moat</strong> (<code>SKILL.md:L35</code> [verified]), exposes us to high liability regarding repository code egress to third-party endpoints without the local, hash-bound explicit consent flow (<code>references/data-handling.md:L29</code> [verified]), and pits us directly against OpenRouter's core competency.</li></ul>
+<p>---</p>
+<p class="r-title">3. Strongest Remaining Objections</p>
+<ul><li><strong>Objection 1: The High-Latency / Blocked Developer Loop Risk (Second-Order/UX):</strong> Active coding agents expect tool calls to return in single-digit seconds. Convening a 2-round multi-model board with local CLIs takes <em>minutes</em> due to slow subprocess spawns and deep reasoning times (<code>SKILL.md:L42</code> [verified]). Exposing this inline as a background tool will lead to frequent agent timeouts and severe developer frustration unless the calling agent is explicitly designed for asynchronous, high-latency deliberation.</li><li><strong>Objection 2: Non-Interactive Stdin/Auth Hangs:</strong> In an automated IDE or server-tool loop, there is no active TTY. If a seat's subscription credentials expire, or if the subprocess reads stdin to EOF, it will hang or crash. As verified in <code>scripts/_conductor/registry.py:L480</code> [verified] (<code>agy</code> verified to hang without <code>DEVNULL</code>) and <code>references/execution-harness.md:L63</code> [verified] (<code>codex</code> always closed), non-interactive execution is incredibly fragile.</li><li><strong>Objection 3: Tool Pass-through (Candidate 3) Prompt-Injection Exfiltration Risk:</strong> Passing active database, API, or system tools to seats (even if de-networked) is an unacceptable second-order risk. An adversarial repository under review could contain prompt-injection payloads that trick the seat into querying sensitive database schemas, then writing those schemas into its review output—which is then transmitted and fanned out to other external providers in Round 2 (<code>SKILL.md:L99</code> [verified]; <code>references/data-handling.md:L29</code> [verified]).</li></ul>
+<p>---</p>
+<p class="r-title">4. Recommended Execution Sequence</p>
+<ol><li><strong>Milestone 1: Candidate #6 (Positioning &amp; Differentiation) — ADOPT NOW.</strong></li></ol>
+<ul><li><em>Rationale:</em> Near-zero cost; immediately solidifies our branding as a high-integrity, high-deliberation <em>workflow</em> with a gateable, abstaining verdict, rather than a fast inline model.</li><li><em>Main Risk:</em> No technical barriers built, leaving the GTM gap open briefly.</li></ul>
+<ol start="2"><li><strong>Milestone 1.5: Candidate #4 (Crisper Structured Output) — ADOPT NOW.</strong></li></ol>
+<ul><li><em>Rationale:</em> Add optional fields (<code>partial_coverage</code>, <code>unique_insights</code>) to <code>verdict.json</code> and render them.</li><li><em>Main Risk:</em> Diluting the focus of the report if not strictly segregated.</li><li><em>Guardrail:</em> These fields must be purely informational and must <strong>never</strong> feed the deterministic gating logic in <code>board_verdict.py</code> (<code>references/verdict-schema.md:L68-69</code> [verified]).</li></ul>
+<ol start="3"><li><strong>Milestone 2: Candidate #1 (Local CLI/MCP Escalation Bridge) — DEFER / PROTOTYPE.</strong></li></ol>
+<ul><li><em>Rationale:</em> Build a local, CLI-driven wrapper that exposes <code>run_board.py</code> as a tool, enforcing strict timeouts, preflight checks, and a loud warning regarding subscription auth and latency.</li><li><em>Main Risk:</em> Background auth hangs and high-latency timeouts in developer IDEs.</li></ul>
+<ol start="4"><li><strong>Milestone 3: Candidate #2 (Sandboxed Execution-Grounded Seats) — DEFER.</strong></li></ol>
+<ul><li><em>Rationale:</em> Highly complex; sandbox environments must prevent local disk escapes and exfiltration before we allow seats to execute code.</li></ul>
+<ol start="5"><li><strong>Milestone 4: Candidate #3 (MCP/Domain Tool Pass-through) &amp; Candidate #5 (Published Benchmark) — REJECT.</strong></li></ol>
+<ul><li><em>Rationale:</em> Tool pass-through is rejected due to prompt-injection and exfiltration risks. Benchmark is rejected due to rate-limiting, slow execution, and terms-of-service/suspension risks on subscription CLIs.</li></ul>
+<p>---</p>
+<p class="r-title">5. Invariants and Guardrails</p>
+<ul><li><strong>Invariant 1: The Deterministic Gate remains untouched by "Soft" Fields:</strong> The gating logic in <code>scripts/board_verdict.py:L217-251</code> [verified] must only evaluate verified <code>round_verdicts</code> and verified citations. Soft fields like <code>partial_coverage</code> or <code>unique_insights</code> are purely informational and must not influence gate outcomes.</li><li><strong>Invariant 2: Read XOR Network Security Boundary:</strong> Any seat with repository read access (<code>--repo</code>) must be network-isolated. If a seat cannot be network-isolated (such as <code>gemini</code> or <code>antigravity</code>), the run must refuse in gate mode (<code>scripts/_conductor/config.py:L110</code> [verified]; <code>references/data-handling.md:L39</code> [verified]). No tool-use or escalation mode can bypass this quarantine.</li><li><strong>Invariant 3: Zero-Metered Egress / Subscription Moat:</strong> We must never build a hosted, metered API gateway. All seat interactions must be driven through local CLI adapters owned and authenticated by the user (<code>SKILL.md:L35</code> [verified]).</li></ul>
+<p>---</p>
+<p class="r-title">6. Risks, Stale Assumptions, and Missing Evidence</p>
+<ul><li><strong>Risk: Account Ban/Rate-Limiting on Subscription CLIs:</strong> Driving subscription CLIs via automated, tight background loops (such as active IDE extension tool calls) violates terms of service, leading to rate-limiting or account bans.</li><li><strong>Stale Assumption: Gemini CLI Consumer Auth Viability:</strong> The consumer tiers of <code>gemini-cli</code> were sunset on 2026-06-18 (<code>scripts/_conductor/registry.py:L455</code> [verified], <code>references/board-composition.md:L17</code> [verified]). Believing we can continue to rely on consumer-tier <code>gemini-cli</code> is stale. We must transition users to <code>antigravity</code> (Google's agent-first <code>agy</code> CLI successor) or paid API keys.</li><li><strong>Missing Evidence: Deliberate Debate vs Single-Shot Compare:</strong> There is no hard evidence in the repository that a multi-round debate with cross-reading is significantly superior to a single-shot "compare" by a strong judge. We need internal evaluation metrics, but compiling them is hampered by rate limits on subscription CLIs.</li></ul>
+<p>---</p>
+<p class="r-title">7. Concrete Evidence</p>
+<ul><li><strong><code>SKILL.md:L17-21</code> [verified]:</strong> Core hard rules: <code>&quot;Never write files or make edits... Never present a degraded or dropped seat as a full board... a board needs at least two seats that actually ran.&quot;</code></li><li><strong><code>SKILL.md:L35</code> [verified]:</strong> Core Defaults: <code>&quot;Use subscription CLIs by default, not provider API keys.&quot;</code></li><li><strong><code>references/data-handling.md:L39</code> [verified]:</strong> <code>&quot;Gate mode requires read XOR network (D4)... Gate + --repo therefore requires every seat to be network-isolatable; a seat that can&#x27;t be de-networked (today gemini, antigravity) makes the run refuse...&quot;</code></li><li><strong><code>references/verdict-schema.md:L68-69</code> [verified]:</strong> <code>&quot;confidence — low | medium | high. A self-reported number; informational. The gate never reads it — a gameable confidence must not move a gate.&quot;</code></li><li><strong><code>scripts/_conductor/registry.py:L455</code> [verified]:</strong> Gemini auth hint: <code>&quot;run gemini once and authenticate (Google account; consumer tiers sunset 2026-06-18 — enterprise/API only)&quot;</code></li><li><strong><code>scripts/_conductor/registry.py:L480</code> [verified]:</strong> Antigravity adapter detail: <code>&quot;agy reads stdin to EOF — verified to hang without DEVNULL&quot;</code></li><li><strong><code>scripts/board_verdict.py:L238</code> [verified]:</strong> Gate decision logic: <code>&quot;The decision reads each seat&#x27;s final-round verdict, never the gameable confidence.&quot;</code></li><li><strong><code>references/execution-harness.md:L63</code> [verified]:</strong> Stdin execution caveat: <code>&quot;codex always takes its prompt as an argument with stdin closed.&quot;</code></li><li><strong><code>scripts/_conductor/config.py:L110</code> [verified]:</strong> Unenforced network seats: <code>&quot;return [s.name for s in self.board if not s.adapter.isolates_network]&quot;</code></li><li><strong><code>scripts/run_board.py:L53-54</code> [verified]:</strong> Gating logic basis: <code>&quot;driven by OBSERVED cross-seat agreement, never self-reported confidence.&quot;</code></li></ul>
+<p>---</p>
+<p>VERDICT: caution</p>
+        </div>
+      </div>
+      
+
+      
+
+    </article>
+    
+
+  </section>
+
+  <!-- ===================== CONSENSUS BLOCKERS ===================== -->
+  <section>
+    <h2>Consensus blockers — must fix before ship</h2>
+    <ol class="blockers">
+      
+      <li>
+        <span class="b-title">Refuse a metered, hosted inline API (the Fusion trap)</span>
+        <div class="b-body">All three seats converge that becoming a metered, server-side inline model product would discard the board&#x27;s structural moats — ~$0 marginal subscription economics, local/private operation, and a gateable abstaining verdict. The single thing to refuse is a hosted, metered advisory-board/fusion-style model id that bypasses local subscriptions, local-only mode, provenance artifacts, or the abstaining gate. Inline escalation should instead be a thin local CLI/MCP wrapper over the existing conductor, not a new hosted API.</div>
+      </li>
+      
+      <li>
+        <span class="b-title">Any inline/escalation mode must preserve egress consent, read-XOR-network, and exit-3 abstain</span>
+        <div class="b-body">A local escalation wrapper built to &#x27;feel instant&#x27; must not bypass the hash-bound egress/consent gate, the read-XOR-network rule, or the abstain (exit 3) semantics. Gate + --repo already refuses any seat that cannot be de-networked (today gemini, antigravity); the wrapper inherits this unconditionally. An inline &#x27;one-shot board&#x27; must also remain a real board of &gt;= 2 seats that actually ran, not a one-seat call dressed as a board.</div>
+      </li>
+      
+      <li>
+        <span class="b-title">New structured-output fields must stay informational and never feed the gate</span>
+        <div class="b-body">Adding Fusion-style fields (partial_coverage, unique_insights, blind_spots) is endorsed as additive, but the deterministic gate must keep reading each seat&#x27;s observed final-round verdict and refuted citations, never self-reported confidence or narrative/comparison fields. Any new field that leaks into gate_outcome dilutes the gate&#x27;s legibility and re-introduces a gameable signal.</div>
+      </li>
+      
+    </ol>
+  </section>
+
+  <!-- ===================== DISSENT / MINORITY REPORT ===================== -->
+  
+  <section>
+    <h2>Dissent &amp; minority report</h2>
+    <div class="dissent">
+      <span class="d-flag">Dissent on the record</span>
+      
+      <p><span class="who">Claude:</span> Ranks positioning (#6) as the first milestone — the precondition for inline landing as a differentiator rather than a me-too — and rejects framing inline as the &#x27;biggest GTM gap versus Fusion.&#x27; The local-MCP board is a differentiator to seize (subscription, gate, privacy), not a parity feature to ship; shipping the MCP wrapper without the reframe just produces a worse, free Fusion.</p>
+      
+      <p><span class="who">Codex:</span> Dissents from making positioning alone the next milestone: GTM needs a callable surface so other agents can actually escalate to the board. Holds the local embeddable escalation milestone as the single highest-leverage move, with positioning shipped in the same release. Treats CLI DX as a scoping constraint, not a blocker, since the repo already has preflight, timeouts, failure classification, and --synthesize.</p>
+      
+      <p><span class="who">Gemini:</span> Dissents from making inline escalation (#1) the immediate priority: positioning (#6) and crisper structured output (#4) must precede it, because background auth hangs and minutes-long multi-round local runs make an inline IDE tool fragile. Conditionally supports only a local-only CLI/MCP bridge over already-authenticated user CLIs in a later milestone, and completely rejects any metered hosted gateway.</p>
+      
+    </div>
+  </section>
+
+  <!-- ===================== WHAT THE BOARD COULDN'T VERIFY ===================== -->
+  
+  <section>
+    <h2>What the board couldn't verify</h2>
+    <div class="caveats">
+      <ul>
+        
+        <li><span class="c-claim">Fusion&#x27;s public claims (one API call, 1–8 models, judge JSON, pass-through pricing, &#x27;+6.7 from 2×Opus&#x27; / DRACO-style results) are packet-only and could not be checked against the tree in this read-only review.</span> — <span class="c-change"></span></li>
+        
+        <li><span class="c-claim">There is no verified benchmark in the repository proving that multi-round cross-reading debate beats a judge/synthesis-only panel; &#x27;debate beats solo/compare&#x27; remains a positioning hypothesis until measured.</span> — <span class="c-change"></span></li>
+        
+        <li><span class="c-claim">It could not be verified from this read which Gemini model id is canonical (SKILL.md text vs registry default).</span> — <span class="c-change"></span></li>
+        
+      </ul>
+    </div>
+  </section>
+
+  <!-- ===================== OPEN QUESTIONS ===================== -->
+  <section>
+    <h2>Open questions</h2>
+    <ul class="plain">
+      
+      <li>Do buyers actually want an inline answer-improver (Fusion&#x27;s job) or a gateable decision artifact (the board&#x27;s job)? Everything hinges on this and only inference is available.</li>
+      
+      <li>Does the cross-read-and-revise debate loop measurably outperform a cheaper compare-don&#x27;t-merge or judge/synthesis-only panel — and would a published benchmark prove or disprove it?</li>
+      
+    </ul>
+  </section>
+
+  <!-- ===================== NEXT ACTIONS ===================== -->
+  <section>
+    <h2>Next actions</h2>
+    <div class="actions">
+      <ol>
+        
+        <li>Rewrite positioning now (week 1, ~$0): a local deliberation workflow with a gateable, abstaining verdict that runs on your subscriptions at ~$0 marginal and can review your own code without it leaving the machine — naming the moat (debate + economics + privacy/local + CI-gateable verdict), not a &#x27;Fusion-compatible model.&#x27;</li>
+        
+        <li>Ship a local one-shot escalation surface (e.g. `advisory-board ask` / MCP tool) as a thin wrapper over run_board.py: preflight, one quick board, optional --synthesize --strict-exit, returning verdict.json plus artifact paths — with strict timeouts and loud auth/latency warnings, and no metered/hosted path.</li>
+        
+        <li>Add additive informational schema/render fields (partial_coverage, unique_insights, blind_spots), strictly segregated and kept out of gate logic.</li>
+        
+        <li>Defer the published benchmark until the integration exists; when run, prefer gate precision/recall (does the abstaining gate catch decisions a solo model would ship that turn out wrong?) over deep-research accuracy on Fusion&#x27;s turf, using logs from real one-shot escalations.</li>
+        
+        <li>Reject MCP/domain-tool pass-through for the gate+repo path by default; defer to local-only / read-only / capability-scoped advisory profiles.</li>
+        
+        <li>Defer sandboxed execution-grounded seats to a separate deep-dive, starting from command-evidence constraints rather than general bash access.</li>
+        
+      </ol>
+    </div>
+  </section>
+
+  <!-- ===================== FOOTER / PROVENANCE ===================== -->
+  
+  <footer class="meta">
+    <span class="disclaimer">An advisory board sharpens your judgment; it doesn&#x27;t replace professional advice where your decision warrants it.</span>
+    Rendered from <code>verdict.json</code> by <code>scripts/render_verdict.py</code>.
+  </footer>
+
+</div>
+</body>
+</html>

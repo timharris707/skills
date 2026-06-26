@@ -1,0 +1,108 @@
+<!doctype html><html lang=en><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><title>OpenRouter Fusion vs. Advisory Board — competitive comparison</title><style>
+:root{color-scheme:light dark}
+*{box-sizing:border-box}
+body{margin:0;background:#0d1117;color:#e6edf3;font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+.wrap{max-width:860px;margin:0 auto;padding:48px 28px 80px}
+h1{font-size:1.9rem;line-height:1.25;margin:.2em 0 .1em;letter-spacing:-.01em}
+h2{font-size:1.3rem;margin:1.9em 0 .5em;padding-bottom:.3em;border-bottom:1px solid #21262d}
+h3{font-size:1.08rem;margin:1.4em 0 .4em;color:#c9d4e0}
+h4{font-size:.98rem;margin:1.1em 0 .3em;color:#9aa7b4}
+p{margin:.7em 0}
+a{color:#6cb6ff;text-decoration:none}a:hover{text-decoration:underline}
+strong{color:#fff;font-weight:650}
+code{background:#161b22;border:1px solid #21262d;border-radius:5px;padding:.1em .35em;font:.86em ui-monospace,SFMono-Regular,Menlo,monospace;color:#e3b341}
+ul,ol{margin:.6em 0;padding-left:1.4em}li{margin:.3em 0}
+blockquote{margin:1em 0;padding:.5em 1em;border-left:3px solid #347d39;background:#12281a;border-radius:0 6px 6px 0;color:#bcd9c2}
+hr{border:0;border-top:1px solid #21262d;margin:2em 0}
+table{border-collapse:collapse;width:100%;margin:1.1em 0;font-size:.92rem;display:block;overflow-x:auto}
+th,td{border:1px solid #21262d;padding:.5em .7em;text-align:left;vertical-align:top}
+thead th{background:#161b22;color:#fff;font-weight:600}
+tbody tr:nth-child(even){background:#0f141a}
+.meta{color:#8b949e;font-size:.85rem;margin-top:.4em}
+</style></head><body><main class=wrap><h1>OpenRouter Fusion vs. Advisory Board — competitive comparison</h1>
+<blockquote>Fusion is the same core idea as the advisory board, built independently — strong validation of the thesis, and a useful map of where we differ and what's worth borrowing.</blockquote>
+<ul>
+<li><strong>Subject:</strong> OpenRouter "Fusion" (launched ~June 13, 2026) vs. the <code>advisory-board</code> skill</li>
+<li><strong>Date:</strong> 2026-06-26</li>
+<li><strong>Sources:</strong> OpenRouter model page, plugin/router/server-tool docs, launch blog ("Surpassing Frontier Performance with Fusion"), HN #48537641; our <code>skills/advisory-board/SKILL.md</code> + <code>scripts/_conductor/registry.py</code></li>
+<li><strong>Confidence:</strong> Fusion facts from primary sources (a few flagged unverified at the end); our facts from the skill source.</li>
+</ul>
+<h2>Headline</h2>
+<p>Fusion is, structurally, <strong>the same core idea as the advisory board, built independently.</strong> Both make the same wager: <em>several frontier models from different providers, grounded with web search, with a judge that surfaces consensus and disagreement, beats any single model on high-stakes reasoning.</em> They even land on the <strong>same default lineup</strong> — Claude Opus + OpenAI GPT + Google Gemini.</p>
+<p>They diverge on three things that matter: <strong>whether the models actually debate, what it costs to run, and where the thing lives.</strong> OpenRouter shipping this is encouraging external validation of our core bet — and a clear map of our moat and the few things worth borrowing.</p>
+<h2>What Fusion is</h2>
+<p>A server-side orchestration behind a single model alias (<code>openrouter/fusion</code>). One call fans a prompt out to a panel of <strong>1–8 models in parallel</strong> (default: <code>claude-opus-latest</code>, <code>gpt-latest</code>, <code>gemini-pro-latest</code>), each with web search + fetch on. A <strong>judge model</strong> then <em>compares</em> the panel answers (explicitly "does not merge") into structured JSON — <code>consensus</code>, <code>contradictions</code>, <code>partial_coverage</code>, <code>unique_insights</code>, <code>blind_spots</code> — and a final model writes the answer. Pass-through priced (~4–5× a single completion, ~2–7× latency), streams, OpenAI/Anthropic-API-compatible, attachable as a <strong>server tool</strong> so a coding agent escalates to it selectively. Positioned explicitly as "overkill for short prompts — for when the cost of being wrong outweighs a few extra completions." Server-tool layer is labeled <strong>beta</strong>.</p>
+<h2>Side by side</h2>
+<table><thead><tr><th>Dimension</th><th><strong>Fusion</strong></th><th><strong>Advisory Board</strong></th></tr></thead><tbody>
+<tr><td>Topology</td><td>Fan-out → judge → final writer. <strong>One pass.</strong></td><td>Fan-out → <strong>debate across 2–3 rounds</strong> → neutral synthesizer</td></tr>
+<tr><td>Do models see each other?</td><td><strong>No</strong> — panel answers in parallel, blind to each other; only the judge reads all</td><td><strong>Yes</strong> — seats read each other's findings each round, revise, and dissent</td></tr>
+<tr><td>Model diversity</td><td>Cross-provider (Opus/GPT/Gemini), 1–8 configurable</td><td>Cross-provider (Opus/GPT/Gemini), 2–5 seats</td></tr>
+<tr><td>Role differentiation</td><td>None — every panelist gets the same prompt</td><td><strong>Distinct lenses per seat</strong> (architecture / implementation / product-ops…)</td></tr>
+<tr><td>Auth &amp; cost</td><td>OpenRouter <strong>API key, metered</strong>, ~4–5× single completion</td><td><strong>Subscription CLIs, ~$0 marginal</strong> (uses your Claude/ChatGPT/Gemini plans)</td></tr>
+<tr><td>Latency</td><td>~2–3× (HN reports ~7×) a single call</td><td>Minutes — multi-round, high reasoning</td></tr>
+<tr><td>Web grounding</td><td>Exa/Parallel search+fetch, on by default</td><td>Seats web-search; <strong>plus optional repo-grounding</strong> with read-only snapshot</td></tr>
+<tr><td>Citation integrity</td><td>Inline citations; no verification layer</td><td><strong><code>verify</code> chain</strong> stamps each citation verified/unverified/<strong>refuted</strong>; fabrication fails the gate</td></tr>
+<tr><td>Output</td><td>Structured JSON inline (+ raw responses)</td><td>Artifact bundle: per-round files, packets, <code>final-consensus.md</code>/<code>.html</code>, <code>verdict.json</code>, <code>run-metadata</code></td></tr>
+<tr><td>Decision / gating</td><td>Analysis, not a verdict</td><td><strong>CI-gateable</strong> ship/caution/block, <strong>abstains</strong> when torn or a citation is refuted</td></tr>
+<tr><td>Epistemic honesty</td><td><code>blind_spots</code> section</td><td><code>blind_spots</code> <strong>+ confidence levels + evidence/judgment/couldn't-verify buckets + minority report</strong></td></tr>
+<tr><td>Privacy</td><td>Cloud-only; data → OpenRouter + panel providers + Exa</td><td><strong>Data-handling consent, redaction, local-only board option</strong>, read-XOR-network gate safety</td></tr>
+<tr><td>Where it lives</td><td>Inline API / server tool / chat UI — <strong>embeddable</strong></td><td>Local skill/CLI workflow — <strong>not embeddable inline</strong></td></tr>
+<tr><td>Setup</td><td>Zero — one model id</td><td>Install + auth 2–3 CLIs</td></tr>
+<tr><td>Orchestration control</td><td>Server-side, opaque</td><td><strong>You own the conductor</strong>; deterministic packets &amp; convergence</td></tr>
+</tbody></table>
+<h2>The crux: debate vs. one-shot</h2>
+<p>The single most important difference. <strong>Fusion's panel never talks to each other</strong> — models answer the same question in isolation, and a judge reports where they happened to agree. Our seats <strong>read each other's work and argue across rounds</strong>, changing or defending positions, with the conductor measuring movement until they converge. Fusion gives a <em>snapshot of independent opinions, compared.</em> The board gives a <em>deliberation that has been pressure-tested.</em></p>
+<p>OpenRouter's own benchmark hints this is where the value lives: <strong>fusing Opus 4.8 with itself</strong> (2× Opus, Opus judge) jumped <strong>+6.7 points</strong> over solo Opus — i.e. much of the lift came from the <strong>synthesis / test-time-compute step, not model diversity per se.</strong> That's a direct argument that the board's extra rounds of deliberation buy something real, and it validates the board's "same provider in two seats" fallback config.</p>
+<h2>Tool surface &amp; "taking action" (the axis that's easy to misread)</h2>
+<p>A natural first read is "Fusion's agents take action; are ours under-armed?" On tool <em>surface</em>, it's the reverse:</p>
+<ul>
+<li><strong>Fusion's panel</strong> gets <code>web_search</code> + <code>web_fetch</code> (Exa), plus <code>bash</code> in the DRACO benchmark. Its "action" is <strong>web research + sandboxed computation</strong> — it does not mutate your environment.</li>
+<li><strong>Our seats are full agentic CLIs</strong> held read-only by design (<code>registry.py</code>): Claude <code>--permission-mode plan</code> (read-only bash + web), <strong>Codex <code>--sandbox read-only</code> which <em>can</em> execute commands</strong> (no writes/network), Gemini <code>--approval-mode plan</code> (executes <strong>no</strong> tools), plus optional repo-grounding.</li>
+</ul>
+<p>So on raw arsenal we arm seats <em>at least</em> as much as Fusion. The difference is <strong>posture</strong>, not tooling — and the read-only posture is load-bearing: the board's whole safety guarantee is <strong>read XOR network</strong> (a seat that can both read your repo and reach the net is the exfiltration channel the gate exists to break). Fusion carries no such guarantee (cloud-only; your data's already at OpenRouter + Exa).</p>
+<p><strong>The one genuine gap</strong> the "take action" framing points at is <strong>execution-grounded reasoning</strong>: the Fusion benchmark let models <em>run</em> things to check claims; our default leans read-and-reason, and Gemini can't execute at all. For "does this reproduce / what does the benchmark say / does this query return what they claim," a read-only seat is genuinely weaker. That gap, and its safe envelope, is scoped separately in <code>design/run-board-executable-evidence.md</code>.</p>
+<h2>What Fusion validates about the board</h2>
+<p>Built independently, Fusion converged on: multi-provider panel → judge → structured output, web grounding on by default, "consensus / contradictions / blind spots" as the output shape, the model-diversity thesis, and "escalation primitive, not a default" positioning. <strong>Every one is a load-bearing choice in the advisory board.</strong> A serious infra company shipping the same design is a signal the core bet is right.</p>
+<h2>Pros &amp; cons</h2>
+<p><strong>Fusion</strong></p>
+<ul>
+<li>✅ Inline, one API call, embeddable in any app/agent; server-tool lets a coding agent self-escalate</li>
+<li>✅ Zero setup, managed, streaming, auto-decides whether deliberation is even needed</li>
+<li>✅ Lower latency for a single query; a published benchmark (DRACO) showing it beats frontier solo</li>
+<li>❌ No real debate — parallel-and-compare, not deliberate-and-converge</li>
+<li>❌ Metered ~4–5× cost; cloud-only (no privacy/local mode); opaque orchestration</li>
+<li>❌ Analysis, not a gateable decision; no citation-verification/fabrication guard; no role/lens differentiation</li>
+</ul>
+<p><strong>Advisory Board</strong></p>
+<ul>
+<li>✅ Genuine multi-round debate with role lenses; neutral synthesis + minority report</li>
+<li>✅ <strong>~$0 marginal</strong> on existing subscriptions; runs local/redacted with consent gates for sensitive material</li>
+<li>✅ Repo-grounding + citation verification that <strong>refutes fabrications</strong>; CI-gateable verdict; durable, human-readable artifact bundle with full provenance</li>
+<li>✅ You own and can audit the whole orchestration</li>
+<li>❌ Heavyweight: install/auth several CLIs, minutes per run</li>
+<li>❌ <strong>Not embeddable inline</strong> — a workflow you run, not a model you call</li>
+<li>❌ No managed option, no published benchmark, no "auto-skip when overkill" gating; weaker execution-grounding</li>
+</ul>
+<h2>Strategic takeaways</h2>
+<ol>
+<li><strong>Different lanes, not direct rivals.</strong> Fusion is an <em>inline escalation model</em>; the board is a <em>deliberation workflow with a durable, gateable verdict.</em> We don't need to out-API Fusion.</li>
+<li><strong>Our moat is debate + economics + verifiability + privacy.</strong> Lean into those in positioning — none are things Fusion does.</li>
+<li><strong>Worth borrowing:</strong> (a) Fusion's crisp <code>partial_coverage</code> / <code>unique_insights</code> sections complement our evidence buckets; (b) the <strong>server-tool "escalate selectively" pattern</strong> — we have no lightweight single-question mode, only the full run, so a "one-shot board" lane is worth a design note; (c) a DRACO-style <strong>published benchmark</strong> to substantiate "debate beats solo."</li>
+<li><strong>The self-fusion +6.7 result is ammunition</strong> for the board's deliberation-heavy design and its same-provider-multi-seat fallback.</li>
+<li><strong>Execution-grounding</strong> is the real capability gap — scoped in <code>design/run-board-executable-evidence.md</code>.</li>
+</ol>
+<h2>Board verdicts (dogfooded)</h2>
+<p>Both strategic questions below were run <strong>through the advisory board itself</strong> — grounded, 3-seat (Claude·Codex·Gemini) cross-provider boards debating across rounds — so the response is the product's own deliberation, not a single author's take. (Doing so also surfaced and fixed a real self-review bug in the conductor; see <a href="https://github.com/timharris707/skills/pull/32">skills#32</a>.)</p>
+<p><strong>"How should advisory-board respond to Fusion?"</strong> → <em>Proceed with care — high confidence, unanimous</em> (<code>design/roundtables/fusion-response-run/</code>). The board:</p>
+<ul>
+<li><strong>Adopt now:</strong> rewrite positioning as a <em>local, gateable, abstaining deliberation workflow at ~$0 marginal</em> (not an inline model); <strong>ship a local one-shot escalation surface</strong> (<code>advisory-board ask</code> / an MCP tool) as a thin wrapper over <code>run_board.py</code> — the embeddability gap vs Fusion, but exposing the <em>real</em> board (debate + gate intact), never a degraded one-shot; add <code>partial_coverage</code>/<code>unique_insights</code>/<code>blind_spots</code> as <strong>informational, never gate-bearing</strong> schema fields.</li>
+<li><strong>Defer:</strong> a published benchmark (until the integration exists; then measure gate precision/recall, not raw accuracy); execution-grounded seats (own deep-dive, below).</li>
+<li><strong>Reject:</strong> MCP/domain-tool pass-through on the gate+repo path (collides with read-XOR-network) — allowed only on local-only/advisory profiles.</li>
+</ul>
+<p><strong>"Should we add a sandboxed-execution seat mode, and what's the safe envelope?"</strong> → <em>Build-with-constraints — high confidence, unanimous</em>, 3 rounds (<code>design/roundtables/executable-evidence-run/</code>). Reframed the feature as a <strong>declared-command broker</strong> (not seat bash), gated on proving execution output isn't an ungated egress channel. Full build plan: <code>design/run-board-executable-evidence.md</code>.</p>
+<h2>Unverified / honest caveats</h2>
+<ul>
+<li>Fusion's model-page metadata shows <strong>"$0 / $0 per-million-tokens"</strong> — almost certainly a placeholder (it bills the underlying models pass-through). <strong>Not a free tier.</strong></li>
+<li>The full "9 models in this router" list and all preset slugs beyond <code>general-high</code> / <code>general-budget</code> weren't reachable (a <code>/labs/fusion</code> page 404s). Default production search provider ("Exa or Parallel") isn't pinned beyond the benchmark using Exa.</li>
+<li>Server-tool layer is <strong>beta</strong>; behavior may change.</li>
+</ul></main></body></html>

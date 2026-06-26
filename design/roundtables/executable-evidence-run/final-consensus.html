@@ -1,0 +1,881 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>should advisory board add a sandboxed execution seat mode</title>
+<style>
+  :root {
+    --maxw: 820px;
+    --ink: #1c1d22;
+    --ink-soft: #4a4d57;
+    --ink-faint: #74777f;
+    --line: #e4e3dd;
+    --line-strong: #d2d1c9;
+    --surface: #ffffff;
+    --page: #f6f5f1;
+    --surface-soft: #faf9f5;
+    --accent: #4f46b8;
+    /* verdict palettes */
+    --ship-bg: #e9f5ec;     --ship-edge: #2f7d46;   --ship-ink: #1d5e31;
+    --caution-bg: #fdf2dd;  --caution-edge: #b9791b; --caution-ink: #7a4d09;
+    --block-bg: #fbe9e9;    --block-edge: #b23535;  --block-ink: #7e1f1f;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--page);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                 Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji", sans-serif;
+    font-size: 17px;
+    line-height: 1.65;
+  }
+  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 32px 20px 72px; }
+
+  /* ---- header ---- */
+  header.masthead { margin-bottom: 24px; }
+  .eyebrow {
+    font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--ink-faint); font-weight: 600; margin: 0 0 8px;
+  }
+  h1 { font-size: 30px; line-height: 1.2; font-weight: 700; margin: 0 0 8px; letter-spacing: -0.01em; }
+  .subtitle { font-size: 17px; color: var(--ink-soft); margin: 0 0 18px; }
+  .meta-row { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--surface); border: 1px solid var(--line-strong);
+    border-radius: 999px; padding: 5px 13px; font-size: 13.5px; color: var(--ink-soft);
+  }
+  .chip b { font-weight: 600; color: var(--ink); }
+
+  /* ---- verdict banner ---- */
+  .verdict {
+    border-radius: 14px; padding: 22px 24px; margin: 8px 0 32px;
+    border: 1px solid transparent; border-left-width: 6px;
+  }
+  .verdict .label {
+    font-size: 12px; letter-spacing: 0.09em; text-transform: uppercase;
+    font-weight: 700; margin: 0 0 6px; opacity: 0.85;
+  }
+  .verdict .headline { font-size: 23px; font-weight: 700; margin: 0; line-height: 1.25; }
+  .verdict .note { margin: 10px 0 0; font-size: 15.5px; line-height: 1.55; }
+  .verdict.ship    { background: var(--ship-bg);    border-color: var(--ship-edge);    color: var(--ship-ink); }
+  .verdict.caution { background: var(--caution-bg); border-color: var(--caution-edge); color: var(--caution-ink); }
+  .verdict.block   { background: var(--block-bg);   border-color: var(--block-edge);   color: var(--block-ink); }
+
+  /* ---- sections ---- */
+  section { margin: 0 0 34px; }
+  h2 {
+    font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase;
+    font-weight: 700; color: var(--ink-faint); margin: 0 0 14px;
+    padding-bottom: 8px; border-bottom: 1px solid var(--line);
+  }
+
+  /* ---- plan callout ---- */
+  .plan {
+    background: var(--surface-soft); border: 1px solid var(--line);
+    border-left: 4px solid var(--accent); border-radius: 0 10px 10px 0;
+    padding: 16px 20px;
+  }
+  .plan p { margin: 0 0 10px; } .plan p:last-child { margin: 0; }
+
+  /* ---- seat cards ---- */
+  .seat {
+    background: var(--surface); border: 1px solid var(--line-strong);
+    border-radius: 14px; padding: 20px 22px; margin: 0 0 18px;
+  }
+  .seat-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 12px; margin-bottom: 4px; }
+  .seat-name { font-size: 19px; font-weight: 700; margin: 0; }
+  .seat-lens {
+    font-size: 12.5px; font-weight: 600; color: var(--accent);
+    background: #efeefb; border-radius: 999px; padding: 3px 11px;
+  }
+  .seat-model { font-size: 13px; color: var(--ink-faint); }
+  .seat-status {
+    font-size: 11.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+    border-radius: 999px; padding: 3px 10px;
+  }
+  .seat-status.ran      { background: #efeee8;           color: var(--ink-faint); }
+  .seat-status.degraded { background: var(--caution-bg); color: var(--caution-ink); }
+  .seat-status.dropped  { background: var(--block-bg);   color: var(--block-ink); }
+  .round { margin-top: 16px; padding-top: 16px; border-top: 1px dashed var(--line); }
+  .round:first-of-type { margin-top: 12px; }
+  .round-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .round-tag { font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-faint); }
+  /* per-round verdict pill */
+  .vpill { font-size: 12px; font-weight: 700; border-radius: 999px; padding: 3px 11px; line-height: 1.4; }
+  .vpill.ship    { background: var(--ship-bg);    color: var(--ship-ink); }
+  .vpill.caution { background: var(--caution-bg); color: var(--caution-ink); }
+  .vpill.block   { background: var(--block-bg);   color: var(--block-ink); }
+  .vpill.moved::after { content: " ↓"; }
+  .conf {
+    font-size: 11.5px; font-weight: 600; color: var(--ink-faint);
+    background: var(--surface-soft); border: 1px solid var(--line);
+    border-radius: 999px; padding: 2px 9px;
+  }
+
+  .review-body { font-size: 15.5px; color: var(--ink); }
+  .review-body strong { font-weight: 600; }
+  .review-body em { font-style: italic; }
+  .review-body a { color: var(--accent); text-decoration: underline; }
+  .review-body ul, .review-body ol { margin: 6px 0; padding-left: 22px; }
+  .review-body li { margin: 5px 0; }
+  .review-body p { margin: 6px 0; }
+  .review-body p.r-title { font-weight: 600; margin-top: 12px; }
+  .review-body blockquote {
+    margin: 8px 0; padding: 2px 0 2px 14px;
+    border-left: 3px solid var(--line-strong); color: var(--ink-soft);
+  }
+  .review-body pre {
+    background: var(--surface-soft); border: 1px solid var(--line);
+    border-radius: 8px; padding: 10px 12px; margin: 8px 0;
+    overflow-x: auto; font-size: 13px; line-height: 1.5;
+  }
+  .review-body pre code { background: none; border: 0; padding: 0; font-size: inherit; }
+  code {
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.86em; background: #f0efe9; border: 1px solid var(--line);
+    border-radius: 5px; padding: 1px 5px;
+  }
+
+  /* highlight callout (e.g. a seat that changed its verdict) */
+  .highlight {
+    background: #fff8e8; border: 1px solid #ecd9a3; border-radius: 10px;
+    padding: 12px 16px; margin: 14px 0 0; font-size: 14.5px; color: #6f5212;
+  }
+  .highlight b { color: #5a4209; }
+
+  /* ---- numbered blocker checklist ---- */
+  ol.blockers { list-style: none; counter-reset: blk; margin: 0; padding: 0; }
+  ol.blockers > li {
+    counter-increment: blk; position: relative;
+    background: var(--surface); border: 1px solid var(--line-strong);
+    border-radius: 11px; padding: 15px 18px 15px 56px; margin: 0 0 11px;
+  }
+  ol.blockers > li::before {
+    content: counter(blk); position: absolute; left: 14px; top: 14px;
+    width: 28px; height: 28px; border-radius: 50%;
+    background: var(--block-bg); color: var(--block-ink);
+    font-size: 14px; font-weight: 700; display: flex; align-items: center; justify-content: center;
+  }
+  ol.blockers .b-title { font-weight: 600; }
+  ol.blockers .b-body { font-size: 15px; color: var(--ink-soft); margin-top: 3px; }
+
+  /* ---- dissent (visually distinct) ---- */
+  .dissent {
+    background: #fbf3ec; border: 1px dashed var(--caution-edge);
+    border-radius: 12px; padding: 16px 20px;
+  }
+  .dissent .d-flag {
+    display: inline-block; font-size: 11.5px; font-weight: 700;
+    letter-spacing: 0.07em; text-transform: uppercase; color: var(--caution-ink);
+    background: var(--caution-bg); border-radius: 999px; padding: 3px 10px; margin-bottom: 8px;
+  }
+  .dissent p { margin: 6px 0; font-size: 15.5px; color: #5e4a31; }
+  .dissent .who { font-weight: 700; color: var(--caution-ink); }
+
+  /* ---- what the board couldn't verify (epistemic caveats) ---- */
+  .caveats {
+    background: var(--surface-soft); border: 1px solid var(--line);
+    border-left: 4px solid var(--ink-faint); border-radius: 0 12px 12px 0;
+    padding: 16px 20px;
+  }
+  .caveats ul { margin: 0; padding-left: 22px; }
+  .caveats li { margin: 7px 0; font-size: 15.5px; }
+  .caveats .c-claim { font-weight: 600; }
+  .caveats .c-change { color: var(--ink-soft); }
+
+  /* ---- simple lists ---- */
+  ul.plain { margin: 0; padding-left: 22px; }
+  ul.plain li { margin: 7px 0; font-size: 15.5px; }
+
+  .actions {
+    background: var(--surface-soft); border: 1px solid var(--line);
+    border-radius: 12px; padding: 16px 20px; font-size: 15.5px;
+  }
+  .actions ol { margin: 0; padding-left: 20px; }
+  .actions li { margin: 6px 0; }
+
+  /* ---- footer ---- */
+  footer.meta {
+    margin-top: 40px; padding-top: 18px; border-top: 1px solid var(--line);
+    font-size: 13px; color: var(--ink-faint); line-height: 1.7;
+  }
+  footer.meta code { background: #efeee8; }
+  footer.meta .prov { display: block; margin-top: 6px; }
+  /* subtle, lens-aware professional-advice caveat; dropped when empty */
+  footer.meta .disclaimer {
+    display: block; margin: 0 0 12px; font-style: italic; color: var(--ink-faint);
+  }
+
+  /* ---- responsive ---- */
+  @media (max-width: 560px) {
+    body { font-size: 16px; }
+    .wrap { padding: 22px 15px 56px; }
+    h1 { font-size: 25px; }
+    .verdict .headline { font-size: 20px; }
+    .seat, ol.blockers > li { padding-left: 16px; padding-right: 16px; }
+    ol.blockers > li { padding-left: 50px; }
+  }
+
+  /* ---- print / PDF (Print -> Save as PDF) ---- */
+  @media print {
+    body { background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .wrap { max-width: none; padding: 8px 0 0; }
+    .verdict, .plan, .seat, .round, ol.blockers > li, .dissent, .actions { break-inside: avoid; }
+    a { color: inherit; text-decoration: none; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ===================== HEADER ===================== -->
+  <header class="masthead">
+    <p class="eyebrow">Advisory Board · Multi-model review</p>
+    <h1>should advisory board add a sandboxed execution seat mode</h1>
+    <p class="subtitle">Rendered from the canonical verdict.json.</p>
+    <div class="meta-row">
+      <span class="chip"><b>Date</b> 2026-06-26</span>
+      <span class="chip"><b>Rounds</b> 3</span>
+      <span class="chip"><b>Board</b> Claude · Codex · Gemini</span>
+    </div>
+  </header>
+
+  <!-- ===================== VERDICT BANNER ===================== -->
+  
+  <div class="verdict caution">
+    <p class="label">Final verdict</p>
+    <p class="headline">build-with-constraints — unanimous</p>
+    <p class="note"></p>
+  </div>
+
+  <!-- ===================== PLAN UNDER REVIEW ===================== -->
+  <section>
+    <h2>Plan under review</h2>
+    <div class="plan">
+      should advisory board add a sandboxed execution seat mode
+    </div>
+  </section>
+
+  <!-- ===================== SEAT REVIEWS ===================== -->
+  <section>
+    <h2>Board reviews — round by round</h2>
+
+    
+    <article class="seat">
+      <div class="seat-head">
+        <h3 class="seat-name">Claude</h3>
+        <span class="seat-lens">Architecture &amp; systems lens</span>
+        <span class="seat-model">claude-opus-4-8</span>
+        
+      </div>
+
+      
+      <div class="round">
+        <div class="round-head">
+          <span class="round-tag">Round 1</span>
+          
+          <span class="vpill caution">SHIP WITH CHANGES</span>
+          
+        </div>
+        <div class="review-body">
+          
+          <p>I have what I need. Producing the review now — grounded in the files I read.</p>
+<p>---</p>
+<p class="r-title">Advisory Board Review — Sandboxed-Execution Seat Mode</p>
+<p><strong>Seat:</strong> Claude · <strong>Lens:</strong> Architecture &amp; systems — invariants, failure modes, adversarial review</p>
+<p class="r-title">1. Verdict</p>
+<p><strong>BUILD-WITH-CONSTRAINTS — and only as advisory-only, behind a real sandbox boundary, never gate-bearing.</strong> Confidence: <strong>medium-high</strong>.</p>
+<p>The payoff is real for a narrow band of problems (repro, test outcomes, deterministic data checks), but the proposal's tempting shortcut — "lift the <code>--allow-program</code> discipline to seat-time" — is <em>unsound</em>, and I can show why from the code. Seat-time execution inverts every load-bearing property that makes <code>verify_evidence.py</code> safe. The envelope <em>can</em> be drawn, but only if execution runs in an ephemeral, network-denied, host-isolated sandbox <strong>and</strong> the run is forced advisory-only. Reuse the <code>--allow-program</code> <em>primitives</em> (no-shell, curated PATH, scrubbed env, process-group kill); do <strong>not</strong> reuse its <em>trust model</em>.</p>
+<p><strong>What would change it:</strong> if you can demonstrate a kernel-level sandbox (container/microVM/ephemeral) with no host FS mount beyond the snapshot and no network, that survives an adversarial prompt-injection drill, I'd move toward "build" for advisory mode. If the plan insists execution can carry a CI gate, I move to <strong>block</strong>.</p>
+<p class="r-title">2. Strongest objections</p>
+<p><strong>(A) The persisted artifact is itself an egress channel — read-XOR-network is necessary but not sufficient.</strong> This is the central architectural error to avoid. The board's whole exfil model is "cut the network, and a read-capable seat can't phone home" (<code>egress.py:276-297</code>, D4). But a seat's <em>review is persisted and fans out to the other providers in round 2+</em>. <code>egress.py:168-171</code> already says so for grounding:</p>
+<blockquote>"Seats may READ &amp; QUOTE any file below; quotes can be transmitted to the external providers and fan out to the other seats in round 2+."</blockquote>
+<p>Today the worst case is "a seat quotes an out-of-scope file" (<code>data-handling.md:40</code>). Execution makes it catastrophically worse: a model-chosen <code>cat ~/.aws/credentials</code> (or any uid-readable read) lands in the command output, the model paraphrases it into prose, and that prose egresses on the <em>next round</em> even though the seat's live network was cut. Network isolation does not close this; <strong>the artifact is the wire.</strong> <code>verify_evidence.py:78-81</code> already names exactly this hazard for its own narrow case:</p>
+<blockquote>"a subprocess is not a kernel sandbox. A command you allowlist can still READ files its uid can read and PERSIST them into verdict.json's <code>observed.output</code> — so do NOT allowlist programs that read secrets (<code>cat</code>, <code>env</code>, <code>printenv</code>)."</blockquote>
+<p>The mitigation there is <em>a human chose the program ahead of time</em>. Seat-time, the <strong>model</strong> chooses the program. That guardrail evaporates.</p>
+<p><strong>(B) Lifting <code>--allow-program</code> to seat-time inverts its three load-bearing controls.</strong> Read the discipline carefully (<code>verify_evidence.py:42-82</code>, <code>command_allowed</code> at <code>231-273</code>). Its safety rests on three properties, <em>all</em> of which seat-time execution destroys:</p>
+<p>| Property at verify-time | Seat-time reality | |---|---| | <strong>Human pins the program ahead of time</strong> (<code>--allow-program NAME</code>, "the load-bearing control", <code>verify_evidence.py:46-52</code>) | Model picks the command at reasoning time, influenced by the (possibly poisoned) repo | | <strong>Structural match only — exit code + substring, never reads output's meaning</strong> (<code>verify_evidence.py:74-77</code>) | The model's entire purpose is to <em>interpret</em> output meaning and fold it into prose | | <strong>Re-execution is deterministic, repeatable, auditable</strong> (one argv, one verdict) | Open-ended, model-driven, non-replayable — you cannot re-derive what was run or why |</p>
+<p>So "can the <code>--allow-program</code> discipline be lifted to seat-time?" — <strong>No.</strong> You can reuse its mechanical primitives (shlex/no-shell, curated absolute PATH, planted-binary refusal, scrubbed env, throwaway cwd+HOME, process-group timeout — all genuinely good, <code>verify_evidence.py:255-339</code>). You cannot reuse its <em>trust posture</em>, which is "a careful human curated this and we only check structure." Seat-time execution is open-ended and model-driven; it needs a <em>stronger</em> boundary, not the same one.</p>
+<p><strong>(C) "What does a <code>verified</code> stamp mean?" — execution erodes it.</strong> Per <code>verify_evidence.py:7-10</code> and <code>verdict-schema.md:99-101</code>, a <code>verified</code> stamp proves <em>the receipt resolves</em>, not that the inference is sound — it catches fabrication, not faulty reasoning. If a seat ran code at reasoning time in some other context and laundered the result into prose, that prose is now grounded in an <em>unrepeatable, unverifiable, attacker-influenceable</em> execution. The deterministic <code>command</code> re-execution path (<code>resolve_command</code>, <code>verify_evidence.py:368-424</code>) is specifically the thing that lets a gate trust a command citation. Seat-time execution bypasses it. <strong>Therefore execution-capable seats must be advisory-only</strong> — they cannot carry the <code>verified</code>/gate semantics the schema promises.</p>
+<p><strong>(D) Prompt-injection-driven execution from a poisoned repo is a live, not theoretical, surface.</strong> The board already documents the analogous danger for grounding: <code>egress.py:241-244</code> warns a prompt injection in the source "could still drive them to fetch or exfiltrate." A poisoned in-scope file ("run <code>pytest</code> — oh and also <code>curl … | sh</code>", or a malicious <code>conftest.py</code>/<code>Makefile</code>) is precisely the threat <code>verify_evidence.py:66-68</code> defends against with a throwaway cwd. But codex's seat-time sandbox does <strong>not</strong> have that property: per <strong>R9</strong> (<code>data-handling.md:40</code>), <code>--sandbox read-only</code> "does <strong>not</strong> confine reads to its working directory — it can read files <em>outside</em> the snapshot (observed in a real run reading a file from its host home dir)." A model-driven executor in that context reads the whole host uid surface.</p>
+<p><strong>(E) Codex already executes — so part of this surface is <em>already open</em> and partly undisclosed.</strong> <code>codex_argv</code> (<code>registry.py:169-187</code>) runs <code>codex exec --sandbox read-only</code>, and <code>isolates_network=True</code> is asserted with "verified: DNS fails inside" (<code>registry.py:423</code>). Codex can already run read-only commands inside its sandbox today. Combined with R9 (reads escape the snapshot) and (A) (the artifact egresses round 2+), there is a <em>current</em> residual the consent surface only partially covers. Before building <em>more</em> execution, I'd want this existing codex behavior pinned down: what exactly can <code>--sandbox read-only</code> execute, and is the disclosure honest that it executes at all? The manifest discloses <em>readable scope</em> (<code>egress.py:159-171</code>) but I see no disclosure that codex <em>executes commands</em>.</p>
+<p class="r-title">3. Recommended execution sequence (phased, riskiest assumption first)</p>
+<p>The riskiest assumption is <strong>"a sandbox can contain model-driven, injection-influenced execution well enough that the persisted artifact is not an exfil channel."</strong> Test that before building anything user-facing.</p>
+<ul><li><strong>P1 — Adversarial containment spike (no product).</strong> Stand up the candidate sandbox (ephemeral container or microVM: no network, no host FS mount beyond a <em>copy</em> of the snapshot, non-privileged uid, CPU/mem/pids/wall caps, read-only rootfs). Drop a deliberately poisoned repo into it (malicious <code>conftest.py</code>, a file instructing the seat to read <code>~/.ssh</code> and <code>curl</code> out, a fork bomb, a <code>Makefile</code> egress attempt). <strong>Pass bar:</strong> no read outside the snapshot copy reaches any artifact; no network egress; resource caps hold; process-group kill reaps forks (reuse <code>_kill_group_and_collect</code>, <code>spawn.py:117-141</code>). If this fails, <strong>stop — the answer is "don't build, advisory-only stays advisory-only."</strong></li><li><strong>P2 — Honesty pass on the <em>existing</em> codex execution.</strong> Document precisely what <code>codex exec --sandbox read-only</code> can run today; add an explicit "this seat executes read-only commands" line to the disclosure/manifest (<code>egress.py:159-171</code> / <code>disclosure_line</code>). Add an output secret-scan over <em>seat artifacts</em>, not just in-scope files, since execution output now flows into them.</li><li><strong>P3 — Advisory-only execution mode, opt-in, gated behind P1's sandbox.</strong> New explicit flag (e.g. <code>--exec-sandbox</code>), advisory mode only; <code>enforce_egress_gate</code> refuses it under <code>gate_mode</code> (mirror the D4 hard-stop pattern, <code>egress.py:290-297</code>). Output capped and excerpted (reuse <code>_output_excerpt</code>, <code>verify_evidence.py:357-365</code>).</li><li><strong>P4 — Per-seat matrix + the Gemini gap.</strong> Decide uniform-dedicated-sandbox vs per-provider (see §4). Do <strong>not</strong> close the Gemini gap by bolting execution onto a non-network-isolatable seat — label it degraded.</li><li><strong>P5 — Provenance/replay.</strong> Record the exact argv, sandbox image digest, and resource verdict into run-metadata so an "execution-grounded" claim is at least auditable, even if not gate-trusted.</li></ul>
+<p class="r-title">4. Per-seat capability matrix</p>
+<p>Grounded in <code>registry.py</code> REGISTRY entries (<code>isolates_network</code> / <code>supports_isolation</code>):</p>
+<p>| Seat | Executes today | Network-isolatable | Recommendation | |---|---|---|---| | <strong>codex</strong> | <strong>Yes</strong> — <code>--sandbox read-only</code> (<code>registry.py:177</code>, <code>423</code>) | Yes (<code>isolates_network=True</code>, <code>registry.py:423</code>) | Cheapest P1 path, but <strong>R9 means reads escape the snapshot</strong> — do not market as confined. Run inside the P1 sandbox, not as-is. | | <strong>claude</strong> | No — <code>--permission-mode plan</code>, read-only (<code>registry.py:157</code>) | Yes (<code>--disallowed-tools WebSearch WebFetch</code>, <code>registry.py:161</code>, <code>401</code>) | Add execution only via the dedicated P1 sandbox, advisory-only. | | <strong>gemini</strong> | No — executes no tools, grounding only (<code>registry.py:194-206</code>) | <strong>No</strong> (<code>isolates_network=False</code>, <code>registry.py:449</code>) | <strong>Do not add execution.</strong> A seat that can't be de-networked + can execute = the exfil channel D4 exists to break. Label "no-exec, degraded," honestly. | | <strong>antigravity</strong> | No (<code>registry.py:213-228</code>) | No (<code>isolates_network=False</code>, <code>registry.py:475</code>) | Same as gemini — no-exec. | | <strong>ollama</strong> | No | Yes — local, intrinsic (<code>registry.py:502</code>) | Best <em>intrinsic</em> exec candidate (no egress at all); the privacy lever already noted in <code>data-handling.md:24-25</code>. |</p>
+<p><strong>Decision: uniform dedicated sandbox, provider-agnostic.</strong> Do not lean on each provider's native sandbox (uneven, and codex's leaks reads per R9). A single ephemeral sandbox the conductor controls is the only way to make one honest guarantee across seats. The <strong>Gemini gap should be labeled, not closed</strong> — closing it would violate read-XOR-network.</p>
+<p class="r-title">5. Invariants and guardrails</p>
+<ol><li><strong>Execution ⇒ advisory-only, always.</strong> An execution-capable seat may never carry a CI gate. Enforce as a hard-stop in <code>enforce_egress_gate</code>, structurally identical to the D4 refusal (<code>egress.py:290-297</code>): <code>if gate_mode and exec_enabled: refuse</code>. A <code>verified</code> stamp must never derive from seat-time execution.</li><li><strong>No network inside the sandbox, ever</strong> — independent of the seat's own network flag. Network denial is the sandbox's, not the CLI's.</li><li><strong>No host FS beyond a <em>copy</em> of the snapshot.</strong> Not a mount of the real tree (R9 shows the read boundary leaks). HOME and cwd are throwaways (the pattern already exists, <code>verify_evidence.py:285-295</code>, <code>505-519</code>).</li><li><strong>Output is data, capped, scanned.</strong> Cap + head/tail excerpt (<code>_output_excerpt</code>). Run the secret-scan over execution output before it enters any artifact, because artifacts egress round 2+.</li><li><strong>Resource caps are mandatory and process-group enforced</strong> — CPU, memory, pids (fork-bomb), wall-clock; kill the whole group (<code>spawn.py:117-141</code>).</li><li><strong>Disclosure delta:</strong> the manifest/consent must say "seats execute code in an ephemeral sandbox; execution output may be transmitted to providers and fan out in round 2+." The current disclosure (<code>egress.py:218-232</code>) covers reads, not execution — extend it.</li></ol>
+<p class="r-title">6. Risks, stale assumptions, missing evidence</p>
+<ul><li><strong>Stale-ish assumption: "codex read-only sandbox has no network" rests on a one-time manual check</strong> ("verified: DNS fails inside," <code>registry.py:423</code>; flags grounded "2026-06-25," <code>registry.py:69</code>). CLIs move fast (the file says so). Don't make this load-bearing for a new exec feature; the sandbox owns network denial.</li><li><strong>R9 is the crux and it's a documented <em>limitation</em>, not a fixed bug</strong> (<code>data-handling.md:40</code>). Any plan that assumes the snapshot bounds reads is wrong today.</li><li><strong>Missing evidence:</strong> no measurement of <em>how often</em> execution actually changes a verdict. The proposal asserts payoff (repro/tests/benchmarks); I'd want even a small retrospective ("of N runs, would execution have changed the call?") before P3. Concretely: execution helps for <em>deterministic, reproducible</em> checks (does this test pass, does this script exit 0). It is <strong>noise or false confidence</strong> for benchmarks (variance, warm-up, host contention — a seat reporting a benchmark number is reporting one noisy sample) and for anything whose output the model must <em>interpret</em>.</li><li><strong>Missing:</strong> a defined replay/provenance record for seat-time execution (P5). Without it, "execution-grounded" is unauditable.</li></ul>
+<p class="r-title">7. Concrete evidence</p>
+<ul><li><code>registry.py:145-148</code> — "v1 is always read-only … There is intentionally no <code>read_only</code> parameter: an edit-capable seat is out of scope until M3+." [verified]</li><li><code>registry.py:177-183</code> — <code>codex exec --sandbox read-only</code>; <code>--ephemeral</code> so no session files persist. [verified]</li><li><code>registry.py:423</code> — codex <code>isolates_network=True, # --sandbox read-only has no network (verified: DNS fails inside)</code>. [verified]</li><li><code>registry.py:449</code> — gemini <code>isolates_network=False, # no known flag disables GoogleSearch grounding</code>. [verified]</li><li><code>registry.py:194-206</code> — gemini approval-mode plan "is read-only (no edit/exec tools)." [verified]</li><li><code>data-handling.md:40</code> — <strong>R9:</strong> "codex's <code>--sandbox read-only</code> does <strong>not</strong> confine reads to its working directory — it can read files <em>outside</em> the snapshot (observed in a real run reading a file from its host home dir)." [verified]</li><li><code>data-handling.md:39</code> — D4: gate + <code>--repo</code> requires every seat network-isolatable; a seat that can't be de-networked "makes the run <strong>refuse</strong>." [verified]</li><li><code>egress.py:290-297</code> — the D4 hard-stop: <code>if config.gate_mode and config.grounded: … if offending: return decide(False, &quot;refused&quot;, …)</code>. [verified]</li><li><code>egress.py:168-171</code> — "quotes can be transmitted to the external providers and fan out to the other seats in round 2+." [verified — this is the artifact-as-egress-channel proof]</li><li><code>egress.py:241-244</code> — <code>unenforced_network_note</code>: "a prompt injection in the source could still drive them to fetch or exfiltrate." [verified]</li><li><code>verify_evidence.py:46-52</code> — "The program allowlist (NOT the regex) is the load-bearing control … OPT-IN, PROGRAM-PINNED." [verified]</li><li><code>verify_evidence.py:74-81</code> — "STRUCTURAL MATCH ONLY … the verdict is exit code + optional verbatim <code>expect</code> substring — never a reading of the output's meaning. … Still best-effort: a subprocess is not a kernel sandbox. A command you allowlist can still READ files its uid can read and PERSIST them into verdict.json's <code>observed.output</code> — so do NOT allowlist programs that read secrets." [verified — the strongest single piece of evidence against lifting this to seat-time]</li><li><code>verify_evidence.py:7-10</code> &amp; <code>verdict-schema.md:99-101</code> — a <code>verified</code> stamp "proves <em>the receipt resolves</em> … It catches fabrication … not faulty reasoning." [verified]</li><li><code>verdict-schema.md:140</code> — gate abstains (exit 3) when "any citation is <code>refuted</code>." [verified]</li><li><code>spawn.py:117-141</code> / <code>verify_evidence.py:341-354</code> — process-group kill on timeout, reusable primitive. [verified]</li><li><code>config.py:100-110</code> — <code>unenforced_network_seats</code> derives from <code>isolates_network</code> per seat. [verified]</li><li><strong>Judgment calls (mine, not in the repo):</strong> the recommendation to use a kernel-level ephemeral sandbox; that benchmarks are noise; the phasing; "execution ⇒ advisory-only." These are architectural conclusions drawn <em>from</em> the verified facts above, not stated in the source.</li><li><strong>Couldn't verify:</strong> whether <code>codex exec --sandbox read-only</code> actually executes commands in <em>board</em> runs (the adapter enables it; I did not see a run trace). Whether any retrospective exists on execution's verdict-impact. Both flagged as missing evidence.</li></ul>
+<p class="r-title">8. What I'd ask the other seats to challenge</p>
+<ul><li><strong>To the security/threat seat:</strong> Is the "ephemeral container/microVM" boundary in P1 actually sufficient on the dev host (macOS — no native container primitive; Docker/Lima adds its own surface)? Is gVisor/Firecracker-class isolation in scope, or are we pretending?</li><li><strong>To the systems/perf seat:</strong> Refute my claim that benchmarks under execution are noise-not-signal. Is there a disciplined way (pinned cores, N-trials, variance reporting) to make a benchmark citation gate-worthy — or does that just move the problem?</li><li><strong>To whoever owns consent/UX:</strong> Challenge whether disclosing "seats execute code" meaningfully changes user behavior, or whether it's consent-laundering — the same critique <code>egress.py:282</code> levels at warning-only D4 handling.</li><li><strong>Everyone:</strong> Attack my central claim — <em>is</em> the persisted, round-2-fanned-out artifact truly an egress channel that defeats network isolation, or have I overstated it? If you can show artifacts are firewalled from round 2+ fan-out, much of objection (A) weakens.</li></ul>
+<p>---</p>
+<p>Bottom line: the idea is worth building, but only as an <strong>advisory-only</strong> capability inside a <strong>conductor-owned ephemeral sandbox</strong> that the existing per-provider sandboxes (especially codex, per R9) cannot provide. Reuse <code>--allow-program</code>'s <em>mechanics</em>, reject its <em>trust model</em>. Force advisory-only and label the Gemini gap honestly. The one thing that must <strong>never</strong> be allowed: <strong>model-chosen, seat-time execution in a process that shares the host filesystem/uid and whose output can flow into a persisted, provider-fanned artifact</strong> — that is the read-then-exfiltrate channel D4 exists to break, reopened through the artifact instead of the socket.</p>
+<p>VERDICT: caution</p>
+        </div>
+      </div>
+      
+      <div class="round">
+        <div class="round-head">
+          <span class="round-tag">Round 2</span>
+          
+          <span class="vpill caution">SHIP WITH CHANGES</span>
+          
+        </div>
+        <div class="review-body">
+          
+          <p>I have enough verified grounding. Producing the review directly, as the task requires (no plan file; the round-2 instructions explicitly override the plan-mode scaffold and forbid writing files).</p>
+<p>---</p>
+<p class="r-title">Round 2 — Claude seat (Architecture &amp; systems)</p>
+<p class="r-title">1. Updated verdict</p>
+<p><strong>BUILD-WITH-CONSTRAINTS — and only as a <em>brokered, declared-command</em> feature; model-chosen seat-time execution stays advisory-only, never gate-bearing, behind a boundary that also contains the <em>artifact bus</em>, not just the network.</strong> Confidence: <strong>medium-high</strong>.</p>
+<p>What would change it: a working demonstration that execution output entering the round-2+ packet can be hard-bound to the same network-isolation invariant the D4 quarantine already enforces — i.e. that we can gate the <em>output bus</em>, not just the <em>prompt packet</em>. If that hard-stop can't be drawn as cleanly as the existing D4 refusal, drop to "don't build the model-driven variant."</p>
+<p>The framing shift from round 1: this is not a greenfield "should seats execute" question. <strong>One seat already executes</strong> — <code>codex exec --sandbox read-only</code> (<code>registry.py:177</code> [verified]). So "don't build" is not an honest option; we already have an un-standardized, provider-trusted execution surface. The real decision is <em>standardize-and-bound</em> vs <em>leave it as a per-provider accident</em>. That asymmetry pushes me off "advisory-only sandbox" and toward codex's <strong>broker</strong> model.</p>
+<p class="r-title">2. Where I changed my mind / where I still dissent</p>
+<p><strong>Changed — toward codex (high agreement).</strong> Codex's "brokered execution-receipt, not let-each-CLI-run-arbitrary-commands" is architecturally stronger than my round-1 "advisory-only sandbox." The reason is precise and grounded: the safety of the existing re-execution path rests entirely on the command being <strong>human-declared and the program pinned</strong>, with the regex able only to <em>narrow</em> — <code>command_allowed</code> pins <code>argv[0]</code> to <code>--allow-program</code> <em>before</em> any pattern runs (<code>verify_evidence.py:258-272</code> [verified]: "argv[0] is pinned to an explicit program allowlist FIRST so the regex … can never choose the executable"). A broker preserves that property at seat-time (seat <em>proposes</em> a typed <code>command</code>; conductor <em>disposes</em> via the pinned allowlist). Model-direct execution destroys it. I'm adopting the broker as P2.</p>
+<p><strong>Changed — on the cross-provider egress bus being the crux, not a side note.</strong> My round-1 objection (A) was right but I under-weighted that the existing code already fans prior-round stdout forward: <code>build_round2 → build_round2_packet(..., repo_lines=...)</code> carries each usable seat's output into the next packet (<code>egress.py:46-58</code> [verified]), and the manifest itself states quotes "fan out to the other seats in round 2+" (<code>egress.py:168-170</code> [verified]). Execution output would ride that same bus. So read-XOR-network being <em>per-seat</em> is the architectural defect: a sandboxed-but-isolated seat's command output can still reach gemini, whose <code>isolates_network=False</code> (<code>registry.py:449</code> [verified]) — a networked relay.</p>
+<p><strong>Still dissent — from gemini.</strong> Gemini's P1 ("Standardized Local Container Driver … Docker or gVisor … reject per-provider native execution") fixes <em>containment</em> but not the <em>egress invariant</em>, and it puts the wrong thing first. A <code>--network none</code> container stops the executing seat from dialing out, but it does nothing about that seat's stdout being fanned to a non-isolated seat on the bus. And on this host the assumption is shakier than gemini admits: the platform is <code>darwin</code> (macOS) with no native container primitive — Docker/Lima/gVisor each add a VM and their own surface, and the <code>--network none</code> guarantee then rides on that VM's correctness. Containment is necessary for the <em>model-driven</em> variant (my P3), but it is <strong>not</strong> the first risk to retire. The egress-bus hard-stop is.</p>
+<p><strong>Still dissent — from any reading that "codex already executes, so seat-time exec is low-marginal-risk."</strong> R9 says we do <em>not</em> fully trust codex's sandbox: <code>--sandbox read-only</code> "does <strong>not</strong> confine reads to its working directory — it can read files <em>outside</em> the snapshot" (<code>data-handling.md:40</code> [verified]). Leaning harder on that same provider sandbox for <em>more</em> capability is exactly the move data-handling.md warns against.</p>
+<p class="r-title">3. Strongest remaining objections (architecture)</p>
+<p class="r-title">(A) The persisted artifact is a cross-provider egress bus, and the gate only covers the prompt packet.<strong> <code>enforce_egress_gate</code> hashes and binds consent to <code>blobs</code> — the outbound <em>prompts</em> — at pre-spawn (<code>egress.py:262, packet_hash</code> over blobs, <code>egress.py:109-118</code> [verified]). Nothing gates a seat's <em>output</em> before that output becomes the next round's input to networked seats. Execution stdout would join the bus ungated. </strong>This is the invariant to add before anything else.</p>
+<p><strong>(B) Model-driven command choice under injection inverts the trust model.</strong> The whole <code>--allow-program</code> discipline assumes a human named the program. Seat-time, a poisoned in-scope file — readable because R9 means reads aren't snapshot-confined — picks the command. The structural defenses (<code>run_command</code> refuses a binary resolving inside cwd, <code>verify_evidence.py:316-320</code>; curated absolute-only PATH, <code>:276-282</code> [verified]) protect <em>executable identity</em>, not the <em>decision to run</em> nor a legitimately-dangerous program over readable files.</p>
+<p><strong>(C) No resource caps exist anywhere today.</strong> Both execution paths are timeout-only: <code>spawn</code> does process-group SIGTERM→SIGKILL on timeout (<code>spawn.py:112-141</code> [verified]); <code>run_command</code> does process-group-kill on timeout (<code>verify_evidence.py:333-339</code> [verified]). There is <strong>no</strong> rlimit, no memory/pids/CPU cap, no cgroup anywhere in the tree. Output size is the only bounded resource (<code>RERUN_OUTPUT_LIMIT = 4000</code>, <code>verify_evidence.py:112</code> [verified]). Any execution-bearing mode is a trivial fork-bomb/OOM DoS until caps exist.</p>
+<p><strong>(D) <code>verified</code> would lose its meaning.</strong> Today a green stamp means "the receipt <em>resolves</em>" — structural match only, exit code + verbatim <code>expect</code> substring, explicitly "never a reading of the output's meaning" (<code>verify_evidence.py:10-11, 74-81</code> [verified]). A model-chosen seat-time run conflates "receipt resolves" with "the model's live, injection-reachable run said so." That must never earn a gate.</p>
+<p class="r-title">4. Recommended execution sequence</p>
+<ul><li><strong>P1 — retire the riskiest assumption first: prove the egress-bus invariant, not the sandbox.</strong> Add a hard-stop structurally identical to D4 (<code>egress.py:290-297</code> [verified]): execution output may enter the artifact bus only if the producing seat <em>and every downstream seat it fans to</em> are network-isolatable; otherwise refuse the whole run with a labeled NO-GO. Test: a board of <code>{​exec-seat, gemini}</code> in gate mode must <strong>refuse</strong>. If we can't draw this line as cleanly as the existing <code>unenforced_network_seats</code> check (<code>config.py:101-110</code> [verified]), stop here.</li><li><strong>P2 — generalize <code>--allow-program</code> to seat-time as a broker.</strong> Seat proposes typed <code>command</code> citations; the conductor runs only declared, allowlisted, bare-program commands under the <em>existing</em> discipline (no shell, scrubbed env, throwaway cwd+HOME, planted-binary refusal). Model never executes directly. Cheapest reuse of proven code.</li><li><strong>P3 — only if open-ended model-driven exec is genuinely needed:</strong> add a real boundary (ephemeral microVM / gVisor) <strong>plus</strong> resource caps (rlimit/cgroup) — advisory-only, never gate-bearing.</li><li><strong>P4 — close or honestly label the matrix.</strong> Do not fake gemini execution; mark it degraded as the code already does honestly elsewhere.</li></ul>
+<p class="r-title">5. Invariants and guardrails</p>
+<ol><li><strong>Execution output is egress.</strong> Gate it on the <em>bus</em>, not just the prompt packet (new; closes objection A).</li><li><strong>Network-severance is per-destination, not per-seat.</strong> No seat-time execution if any seat the artifact reaches isn't network-isolatable (generalize D4 / <code>unenforced_network_seats</code>).</li><li><strong>Model proposes, allowlist disposes.</strong> Never lift the program allowlist into a model-chosen command. The bare-name pin (<code>command_allowed</code>) is load-bearing and must stay human-set.</li><li><strong>Execution ⇒ advisory for the gate.</strong> A model-driven run never yields <code>verified</code>; only deterministic re-execution of a declared citation does.</li><li><strong>Hard resource caps mandatory</strong> (mem/pids/CPU/wallclock) before any new exec path — none exist today.</li></ol>
+<p class="r-title">6. Risks, stale assumptions, missing evidence</p>
+<ul><li><strong>Stale-by-design:</strong> every isolation flag was "grounded against the installed CLIs' --help on 2026-06-25 … re-verify before a large run, they move fast" (<code>registry.py:68-69</code> [verified]). The codex "DNS fails inside" claim is a one-time manual check (<code>registry.py:423</code> [verified]). Today is 2026-06-26 — one day on, still fresh, but the load-bearing <code>isolates_network=True</code> for codex rests on that single observation.</li><li><strong>Missing evidence:</strong> no CPU/memory caps in the codebase (searched; only timeout/process-group handling found in <code>spawn.py</code> and <code>verify_evidence.py</code>). Confirms objection C is real, not hypothetical.</li><li><strong>Couldn't verify:</strong> the provider-CLI sandbox claims themselves (codex read-only network behavior, gemini grounding non-removability) are asserted in comments, not independently testable from the tree.</li><li><strong>R9 residual:</strong> reads are not snapshot-confined (<code>data-handling.md:40</code> [verified]); the broker's throwaway-cwd discipline (<code>verify_evidence.py:64-68</code> [verified]) mitigates <em>cwd-based</em> attacker files but not a command that reads <code>$HOME</code>-adjacent or absolute paths its uid can reach — hence "allowlist only programs you trust to be read-only over public material" (<code>verify_evidence.py:79-81</code> [verified]) stays a human judgment, not a guarantee.</li></ul>
+<p class="r-title">7. The one thing that must never be allowed</p>
+<p><strong>A model-chosen, seat-time execution must never produce output that (a) carries a <code>verified</code>/CI gate or (b) crosses to any seat that is not network-isolated.</strong> Execution may inform an advisory opinion; it may never become a gate stamp, and its output may never reach a networked relay. Both halves reduce to: seat-time execution output is subject to the <em>same</em> read-XOR-network quarantine the D4 hard-stop already enforces for reads — applied to the <em>output bus</em>, which today it is not.</p>
+<p class="r-title">8. Concrete evidence</p>
+<ul><li><code>registry.py:177</code> — <code>codex exec --sandbox read-only</code> — codex already executes [verified].</li><li><code>registry.py:449</code>, <code>config.py:101-110</code> — <code>gemini isolates_network=False</code>; <code>unenforced_network_seats</code> is the existing per-seat network-isolation check [verified].</li><li><code>egress.py:290-297</code> — the D4 unconditional hard-stop (<code>if config.gate_mode and config.grounded … return decide(False, &quot;refused&quot;, _d4_refusal_detail(offending))</code>) — the structural template P1 reuses [verified].</li><li><code>egress.py:46-58, 168-170</code> — prior-round output fans into round-2+ packets and to other providers (the egress bus) [verified].</li><li><code>egress.py:109-118, 262</code> — consent binds to the <em>prompt packet</em> hash, not seat output [verified].</li><li><code>verify_evidence.py:255-273, 276-282, 316-320</code> — <code>command_allowed</code> bare-name pin + curated PATH + planted-binary refusal (the broker discipline to reuse) [verified].</li><li><code>verify_evidence.py:10-11, 74-81</code> — <code>verified</code> = structural match only, "never a reading of the output's meaning" [verified].</li><li><code>spawn.py:112-141</code>, <code>verify_evidence.py:112, 333-339</code> — timeout/process-group kill and 4000-char output cap are the <em>only</em> resource bounds; no mem/CPU/pids caps [verified].</li><li><code>data-handling.md:37-40</code> — exfil control is network-isolation, not read-confinement; R9 (codex reads outside the snapshot) [verified].</li></ul>
+<p>VERDICT: caution</p>
+        </div>
+      </div>
+      
+      <div class="round">
+        <div class="round-head">
+          <span class="round-tag">Round 3</span>
+          
+          <span class="vpill caution">SHIP WITH CHANGES</span>
+          
+        </div>
+        <div class="review-body">
+          
+          <p>I have verified the load-bearing citations. Note one correction for the record: <code>egress.py:290-297</code> confirms the D4 hard-stop, <code>data-handling.md:37-40</code> confirms read-XOR-network (not read-confinement), and <code>verify_evidence.py:78-80</code> explicitly states "a subprocess is not a kernel sandbox" and "do NOT allowlist programs that read secrets ... because the matched command's stdout/stderr is captured into <code>observed.output</code>." That last line is the empirical anchor for the artifact-bus-as-egress objection. Here is my round-3 review.</p>
+<p>---</p>
+<p class="r-title">Claude seat — Round 3 (Architecture &amp; systems)</p>
+<p class="r-title">1. Updated verdict</p>
+<p><strong>BUILD-WITH-CONSTRAINTS — declared-command brokered execution only; model-chosen seat-time execution stays advisory-only and never gate-bearing; the isolation boundary must contain the <em>artifact bus</em>, not just the network.</strong> Confidence: <strong>high</strong>.</p>
+<p>What would change it: a malicious-repo prototype showing that (a) execution output cannot reach an external seat unless its content is inside the consent hash, and (b) read confinement / resource caps actually hold under an adversarial in-scope file — that would move me toward <code>ship</code> for the declared-command tier. A demonstrated bypass of the output-redaction gate would move me to <code>block</code>.</p>
+<p class="r-title">2. Changed mind / still dissent</p>
+<ul><li><strong>Converged with codex (high agreement), reaffirmed from R2.</strong> Codex's "deterministic execution receipts before model-driven execution — commands declared by user/config, not chosen freely by a seat" is the correct spine. It is the same discipline that already exists in <code>verify_evidence.py</code> (<code>--allow-program</code>, program-pinned, no-shell, scrubbed-env), lifted forward. I no longer hold my R1 framing of "advisory-only sandbox" as the primary shape; the primary shape is <em>brokered receipt</em>.</li><li><strong>Converged with gemini on sequencing.</strong> Their R2 move — <em>don't</em> jump straight to a heavy container/VM driver for P1, prove the brokered-receipt invariant first — is right. A VM at P1 spends the latency budget (their "minutes, not seconds" objection, valid) before we've even proven the cheap control works.</li><li><strong>Still dissent from any reading that leans on Codex's existing <code>--sandbox read-only</code> as sufficient isolation.</strong> <code>registry.py:423</code> asserts <code>isolates_network=True</code> with the parenthetical "verified: DNS fails inside" — but <code>registry.py:68-69</code>-style stamping makes every such flag <em>stale-by-design</em> (grounded once on 2026-06-25), and <code>data-handling.md:40</code> flatly says codex can read files <strong>outside the snapshot</strong> (R9). So codex-already-executes is a <em>foundation to reuse</em>, not a <em>boundary to trust</em>. We must not let "codex already does it" become the argument that the envelope is already drawn.</li></ul>
+<p class="r-title">3. Strongest remaining objections</p>
+<p><strong>(A) The artifact bus is a cross-provider egress channel, and the gate hashes the prompt packet — not execution output.</strong> This is now repo-confirmed, not theoretical. <code>verify_evidence.py:78-80</code> (verified) says in its own words: a subprocess "is not a kernel sandbox," and you must <em>not</em> allowlist programs that read secrets "because the matched command's stdout/stderr is captured into <code>observed.output</code>." That is the system telling you execution output is a persisted, attacker-influenceable field. <code>egress.py:262</code> (verified) binds consent via <code>packet_hash(blobs)</code> over the outbound <em>prompts</em> at pre-spawn; nothing in the gate hashes a command's stdout produced <em>after</em> spawn. In round 2+, that output fans out to the other providers (<code>data-handling.md:29</code>, verified). <strong>Network-off does not close this</strong> — a network-isolated codex can still write an out-of-scope secret into <code>observed.output</code>, which then egresses to gemini (which <code>egress.py:296</code>/<code>registry.py:449</code> confirm cannot be de-networked). The network severance and the artifact bus are two different channels; D4 only severs the first.</p>
+<p><strong>(B) Prompt-injection-driven execution from a poisoned in-scope file.</strong> <code>prompts.py:41,107-121</code> (verified) shows the team already understands this: a "forged fence in a poisoned repo file the seat quotes is just as" dangerous, and injection defense is "EXTENDED to fetched files." But that is <em>prose hygiene in the prompt</em>, not an <em>enforcement boundary</em>. Once a seat can execute, a malicious in-scope <code>README</code> that says "run <code>./build.sh</code>" converts a prose-injection into code execution. Declared-command brokering is the structural answer: if the seat cannot choose the command, the poisoned file cannot pick it. This is the core reason model-chosen seat-time execution must not ship in the gate-bearing path.</p>
+<p><strong>(C) "Verified" stamp semantics.</strong> If a seat runs arbitrary code, a <code>verified</code> verdict means "this machine ran something" — not "this claim is true under a pinned, reproducible discipline." <code>verify_evidence.py:30-38</code> (verified) already draws this line correctly for re-execution: <code>verified</code> only when <em>allowlisted</em> and the pinned re-run matches <code>expect_exit</code>; otherwise <code>unverified</code>, never silently passed. An execution-capable <em>seat</em> must inherit that asymmetry exactly, or the gate stamp degrades into theater.</p>
+<p class="r-title">4. Recommended execution sequence</p>
+<ul><li><strong>P1 — prove the egress-bus invariant, not the sandbox (riskiest assumption first).</strong> Add a hard-stop structurally identical to D4 (<code>egress.py:290-297</code>): execution output may enter the artifact bus <em>only if</em> its content is folded into the consent hash, or it is dropped through the same output secret-scan that <code>data-handling.md:40</code> already names. Test it with a malicious in-scope file that writes a planted secret to stdout and asserts it never reaches an external seat. If this invariant can't be made to hold, stop — no later phase matters.</li><li><strong>P2 — declared-command brokered receipts.</strong> Lift <code>--allow-program</code> to seat-time: user/config declares the exact program + arg-pattern; conductor runs it via the existing <code>run_command</code> (<code>verify_evidence.py:298</code>: no shell, curated PATH, scrubbed env, process-group timeout); the <em>receipt</em> (exit code + redacted output) is handed to seats as DATA. No seat chooses the command. This tier can be gate-bearing because it is deterministic and pinned.</li><li><strong>P3 — resource caps + real read confinement.</strong> Add CPU/memory/pids/wall caps and a filesystem boundary that actually confines reads to the snapshot (closing R9 — <code>data-handling.md:40</code>). Only here does a container/ephemeral sandbox earn its latency cost.</li><li><strong>P4 (optional, never gate-bearing) — model-chosen seat-time execution</strong> inside the P3 boundary, advisory-only, loud disclosure. This is the OpenRouter-Fusion-style <code>bash</code> tool, and it stays out of any <code>verified</code> stamp permanently.</li></ul>
+<p class="r-title">5. Invariants and guardrails</p>
+<ol><li><strong>Execution output is egress.</strong> Gate it on the <em>bus</em>, not just the prompt packet (closes objection A).</li><li><strong>No read+network for any execution-capable seat in a grounded run</strong> — the existing D4 hard-stop (<code>egress.py:290-297</code>) extends unchanged.</li><li><strong>Network-severance is per-destination, not per-seat:</strong> no seat-time execution output may flow into a board where <em>any</em> downstream seat is <code>isolates_network=False</code> (gemini/antigravity, <code>registry.py:449</code>).</li><li><strong>Commands are declared, not model-chosen, in any gate-bearing path.</strong> Model choice ⇒ advisory-only, forever.</li><li><strong>Curated PATH, no shell, scrubbed env, process-group timeout</strong> are non-negotiable and already exist (<code>verify_evidence.py:59-73,298-310</code>) — reuse, don't reinvent.</li><li><strong><code>verified</code> keeps its asymmetry:</strong> anything that couldn't run under the pinned discipline is <code>unverified</code>, never silently passed (<code>verify_evidence.py:30-38</code>).</li><li><strong>Re-verify isolation flags per CLI release.</strong> Every flag is stamped stale-by-design.</li></ol>
+<p class="r-title">6. Risks, stale assumptions, missing evidence</p>
+<ul><li><strong>Stale-by-design:</strong> <code>isolates_network=True</code> for codex (<code>registry.py:423</code>) and <code>=False</code> for gemini (<code>registry.py:449</code>) are point-in-time facts grounded 2026-06-25. The "DNS fails inside" claim is one observation, not a guarantee; CLIs move fast.</li><li><strong>R9 unclosed:</strong> codex reads outside the snapshot (<code>data-handling.md:40</code>). Until P3, read-confinement is a property we <em>don't</em> have — do not claim it in any consent surface.</li><li><strong>Missing evidence:</strong> no test in-tree exercises execution output as an egress vector under a malicious repo. That is exactly the P1 test, and its absence is the single biggest gap.</li><li><strong>Latency unmeasured:</strong> gemini's "minutes not seconds" concern is plausible but unquantified; P2's brokered receipts should be benchmarked before any P3 container commitment.</li></ul>
+<p class="r-title">7. The one thing that must never be allowed</p>
+<p><strong>A network-isolated seat must never be able to launder out-of-scope content into a persisted artifact that then fans out to a seat that cannot be de-networked.</strong> Concretely: execution output reaching <code>observed.output</code> / the round-2 fan-out without passing the same consent-hash + secret-scan boundary that protects the prompt packet. The repo already warns this is live (<code>verify_evidence.py:80</code>); shipping execution without gating the bus would weaponize it.</p>
+<p class="r-title">Citations</p>
+<ul><li><code>scripts/_conductor/egress.py:262,272-297</code> — <code>packet_hash(blobs)</code> binds consent to outbound prompts; D4 hard-stop refuses grounded gate runs with un-isolatable seats. [verified]</li><li><code>references/data-handling.md:29,37-40</code> — grounded reply persisted + fans out; gate exfil control is network isolation not read-confinement; codex reads outside snapshot (R9). [verified]</li><li><code>scripts/_conductor/registry.py:177-187,423</code> — codex executes under <code>--sandbox read-only</code>, <code>isolates_network=True</code> ("DNS fails inside"). [verified]</li><li><code>scripts/_conductor/registry.py:194-206,448-449</code> — gemini <code>--approval-mode plan</code>, <code>isolates_network=False</code> (no flag disables GoogleSearch). [verified]</li><li><code>scripts/verify_evidence.py:30-38,46-80,235-260,276-310</code> — <code>--allow-program</code> discipline: opt-in, program-pinned, curated PATH, scrubbed env, no-shell, process-group timeout; "not a kernel sandbox"; output captured into <code>observed.output</code>; verified/unverified asymmetry. [verified]</li><li><code>scripts/_conductor/prompts.py:41,107-121</code> — repo files are DATA; forged-fence injection acknowledged; injection defense extended to fetched files. [verified]</li></ul>
+<p>VERDICT: caution</p>
+        </div>
+      </div>
+      
+
+      
+
+    </article>
+    
+    <article class="seat">
+      <div class="seat-head">
+        <h3 class="seat-name">Codex</h3>
+        <span class="seat-lens">Implementation &amp; testing lens</span>
+        <span class="seat-model">gpt-5.5</span>
+        
+      </div>
+
+      
+      <div class="round">
+        <div class="round-head">
+          <span class="round-tag">Round 1</span>
+          
+          <span class="vpill caution">SHIP WITH CHANGES</span>
+          
+        </div>
+        <div class="review-body">
+          
+          <p class="r-title">1. Verdict</p>
+<p>Build with constraints. Confidence: high. This should be a brokered, sandboxed execution-receipt feature, not “let each provider CLI run arbitrary commands.” I would change to <code>ship</code> only after a prototype proves read confinement, network-off, and CPU/memory/pid/disk caps against malicious-repo fixtures.</p>
+<p class="r-title">2. Strongest Objections</p>
+<p>The current system already treats read+network as the core exfiltration hazard. Adding model-driven execution increases that hazard because poisoned repo files can steer a seat from “read this file” to “run this command.”</p>
+<p><code>verify_evidence.py --allow-program</code> is a useful foundation for deterministic receipt replay, but it explicitly says a subprocess is not a kernel sandbox. It is not enough for open-ended seat-time execution.</p>
+<p>Codex’s current read-only sandbox is not uniform and is not read-confined. The repo explicitly says it can read outside the snapshot, so leaning on Codex alone would create asymmetric and misleading guarantees.</p>
+<p>Execution helps most for repros, test outcomes, migrations, benchmark sanity checks, and data-shape checks. It is noise when commands are flaky, dependency-heavy, network-dependent, or when the model treats “tests passed” as proof of correctness.</p>
+<p class="r-title">3. Recommended Execution Sequence</p>
+<p>P1: Build deterministic execution receipts first. User or repo plan declares commands, conductor runs only allowlisted bare programs with pinned args, no shell, scrubbed env, empty HOME, output caps, timeout, and structured <code>exec_receipts.json</code>.</p>
+<p>P2: Test the riskiest assumption first: malicious repo fixtures attempting network exfil, host-home reads, planted binaries, fork/CPU/memory abuse, huge output, writes outside scratch, poisoned <code>conftest.py</code> or build hooks.</p>
+<p>P3: Add a real sandbox backend: container/VM or equivalent OS sandbox with repo mounted read-only, writable temp only, no host home, no inherited secrets, no network by default, non-root user, pid/cpu/memory/disk/output caps.</p>
+<p>P4: Expose execution to seats through a brokered request protocol. Seats may request from an approved command catalog; the conductor decides and returns receipts. Do not let repo text directly cause host execution.</p>
+<p>P5: Gate only on deterministic receipts and stamped evidence. Open-ended model-driven execution remains advisory-only.</p>
+<p class="r-title">4. Invariants And Guardrails</p>
+<p>Filesystem: repo snapshot is read-only and read-confined by the sandbox, not just chmod. Writable paths are ephemeral scratch only.</p>
+<p>Network: external repo-grounded seats must never have network. Dependency fetching happens before the run into a disclosed, hashed image/cache, or the run is advisory-only.</p>
+<p>Process/resources: per-command wall timeout, CPU, memory, pid, disk, and output limits. Kill the whole process group or container.</p>
+<p>Command policy: no shell, no path-based argv[0], no <code>cat/env/printenv</code>, no package-manager install scripts unless explicitly isolated and offline. Command allowlist and sandbox image hash are part of consent.</p>
+<p>Prompt injection: every repo file is data under review. A file saying “run this” must never be authority to execute.</p>
+<p>Gate semantics: a <code>verified</code> command proves the receipt ran and matched structural expectations, not that the model’s inference is sound.</p>
+<p>One thing that must never be allowed: a repo-grounded external seat with both network access and arbitrary/model-driven execution.</p>
+<p class="r-title">Capability Matrix</p>
+<p>Claude: current registry uses <code>--permission-mode plan</code> and can disable WebSearch/WebFetch in gate posture. New execution should be broker-only, not provider-native.</p>
+<p>Codex: current registry uses <code>codex exec --sandbox read-only</code>; it is the closest existing execution seat, but R9 says it is not read-confined. Do not use it as the whole sandbox story.</p>
+<p>Gemini: current registry says plan mode has no edit/exec tools and network is not removable. Either feed it broker receipts or label it no-exec/degraded for execution-grounded runs.</p>
+<p>Antigravity: same network-removal problem as Gemini; treat as no gate+repo execution.</p>
+<p>Ollama/local: useful for must-not-leave material because it has no external provider egress, but execution still needs the same broker sandbox.</p>
+<p class="r-title">5. Risks, Stale Assumptions, Missing Evidence</p>
+<p>Could not verify CPU/memory limits in current code; current spawn path shows timeout/process-group handling, not resource caps.</p>
+<p>Could not independently verify provider CLI sandbox claims like Codex DNS failure or Claude read-only bash from runtime; I verified only the repository’s configured argv/comments.</p>
+<p>Model/tool CLI behavior drifts quickly. The registry itself says flags were grounded on 2026-06-25 and should be rechecked before large runs.</p>
+<p class="r-title">6. Concrete Evidence</p>
+<ul><li><code>scripts/_conductor/registry.py:58-65</code> says gate isolation flags live in the registry and include read-only enforcement plus network removal. [verified: opened the file in the repository and read the line]</li><li><code>scripts/_conductor/registry.py:145-148</code> says v1 is always read-only and edit-capable seats are out of scope. [verified: opened the file in the repository and read the line]</li><li><code>scripts/_conductor/registry.py:177-185</code> builds Codex as <code>codex exec --sandbox read-only</code> and adds <code>--ephemeral</code> plus <code>-C workdir</code>. [verified: opened the file in the repository and read the line]</li><li><code>scripts/_conductor/registry.py:194-206</code> says Gemini approval-mode plan is read-only, has no edit/exec tools, and network cannot reliably be disabled. [verified: opened the file in the repository and read the line]</li><li><code>references/data-handling.md:37-40</code> states gate mode relies on network isolation, not read confinement, and R9 says Codex can read outside the snapshot. [verified: opened the file in the repository and read the line]</li><li><code>scripts/verify_evidence.py:48-73</code> defines the current command replay discipline: opt-in program pinning, no shell, curated PATH, isolated cwd/HOME, scrubbed env, timeout. [verified: opened the file in the repository and read the line]</li><li><code>scripts/verify_evidence.py:78-81</code> warns that a subprocess is not a kernel sandbox and allowed commands can read files and persist output. [verified: opened the file in the repository and read the line]</li><li><code>scripts/_conductor/egress.py:274-297</code> hard-stops gate+repo when any seat cannot be network-isolated. [verified: opened the file in the repository and read the line]</li><li><code>references/verdict-schema.md:99-101</code> says verified evidence proves the receipt resolves, not that the inference is sound. [verified: opened the file in the repository and read the line]</li><li>Claude “can run read-only bash” is packet-only for me; the tree verifies plan mode and WebSearch/WebFetch handling, not that runtime bash behavior. [packet-only: supported by the material above but not checked against the tree]</li></ul>
+<p class="r-title">7. Ask Other Seats To Challenge</p>
+<p>Ask security to attack the broker design with poisoned test files, build hooks, planted binaries, and dependency scripts.</p>
+<p>Ask product/ops whether brokered receipts still deliver enough value versus slower UX.</p>
+<p>Ask architecture whether gate mode should forbid model-selected commands entirely and allow only maintainer-declared command recipes.</p>
+<p>VERDICT: caution</p>
+        </div>
+      </div>
+      
+      <div class="round">
+        <div class="round-head">
+          <span class="round-tag">Round 2</span>
+          
+          <span class="vpill caution">SHIP WITH CHANGES</span>
+          
+        </div>
+        <div class="review-body">
+          
+          <p class="r-title">1. Updated Verdict</p>
+<p>Build with constraints. Confidence: high.</p>
+<p>What would change it: a prototype that proves real read confinement, network denial, resource caps, and artifact/output redaction under malicious-repo tests would move this toward <code>ship</code>; failure to prove those in a provider-independent sandbox should move it to <code>block</code>.</p>
+<p class="r-title">2. Changed My Mind / Dissent</p>
+<p>Changed toward Claude: Claude’s persisted-artifact objection is stronger than I weighted in round 1. Even with network off, command stdout/stderr and <code>observed.output</code> can become an egress channel. The repo itself acknowledges this for command reruns: allowlisted commands can read files and persist them into <code>verdict.json</code> [verified: opened the file in the repository and read the line: <code>scripts/verify_evidence.py:78-81</code>].</p>
+<p>Changed toward Gemini: I now agree more strongly that provider-native execution should not be the abstraction. Codex can already run commands, but R9 says its read-only sandbox does not physically confine reads to the snapshot [verified: <code>references/data-handling.md:40</code>]. That disqualifies “just use each CLI’s native execution” as the safe envelope.</p>
+<p>Still dissent with Gemini: “Standardized local container driver” is right directionally, but Docker alone is not a sufficient claim on macOS unless verified with adversarial tests. The requirement is a proved boundary: no network, no host sockets, read-only snapshot mount, ephemeral scratch, CPU/memory/pid limits, and artifact controls.</p>
+<p class="r-title">3. Strongest Remaining Objections</p>
+<p>The largest unresolved risk is prompt-injection-driven execution from poisoned repo files. Current prompts tell seats repo files are data, not instructions [verified: <code>scripts/_conductor/prompts.py:112-121</code>], but prompt hygiene is not a sandbox.</p>
+<p>Second, artifacts are egress. A malicious command can print secrets or huge sensitive output into receipts, even if the process has no network.</p>
+<p>Third, current subprocess machinery has timeouts and process-group cleanup, but I found no CPU or memory limit in the spawn path [verified: <code>scripts/_conductor/spawn.py:78-114</code>]. That is not enough for arbitrary code.</p>
+<p>Fourth, the capability matrix is uneven today: Codex executes in read-only sandbox, Gemini is explicitly plan/no tools with non-removable network, and Antigravity is also networked [verified: <code>scripts/_conductor/registry.py:177-206</code>, <code>scripts/_conductor/registry.py:448-475</code>].</p>
+<p class="r-title">4. Recommended Execution Sequence</p>
+<p>P1: Build deterministic execution receipts before model-driven execution. Commands must be declared by user/config, not chosen freely by a seat. Reuse <code>--allow-program</code> ideas: bare program allowlist, no shell, pinned args, curated PATH, scrubbed env, isolated cwd, timeout, output cap.</p>
+<p>P2: Add a real sandbox driver and test the boundary first. Mount the approved repo snapshot read-only, provide only ephemeral writable scratch, no network, no host home, no Docker socket, no SSH agent, no cloud creds, no package-manager network fetches, hard CPU/memory/pid/file/output caps.</p>
+<p>P3: Add malicious-repo tests: planted <code>pytest</code>, malicious <code>conftest.py</code>, dependency hooks, symlink escapes, secret files, huge output, fork bombs, localhost/network attempts, and attempts to read outside the snapshot.</p>
+<p>P4: Integrate with seats as receipt-grounding, not seat autonomy. A seat can request/suggest a run, but the conductor/broker decides whether it matches policy. Gemini should be labeled honestly as “receipt-fed, no native execution,” not equivalent execution.</p>
+<p>P5: Gate policy. Execution-capable model reasoning must be advisory-only. Deterministic broker receipts may feed <code>verify_evidence</code>, but a model-driven execution seat must not carry a CI gate until the schema and gate logic can refuse/abstain on <code>exec_used</code>.</p>
+<p class="r-title">5. Invariants And Guardrails</p>
+<p>No read+network for repo-grounded execution. Existing gate mode already refuses grounded runs when a seat cannot be network-isolated [verified: <code>scripts/_conductor/egress.py:274-297</code>].</p>
+<p>No provider-native arbitrary command execution as the safety boundary.</p>
+<p>No shell, no path executables, no cwd-planted binaries, no inherited secrets, no inherited HOME, no package installs unless pre-fetched outside the seat run and explicitly consented.</p>
+<p>Filesystem must be read-confined by the sandbox, not just chmod. The existing snapshot is useful but explicitly not enough as the primary write/read boundary [verified: <code>scripts/_conductor/grounding.py:294-301</code>].</p>
+<p>Every receipt must include command, allowed program policy, sandbox image/version, source/scope hash, network status, exit code, duration, truncated output, and redaction/secret-scan status.</p>
+<p class="r-title">6. Risks, Stale Assumptions, Missing Evidence</p>
+<p>Codex network isolation is currently a registry comment grounded on 2026-06-25, not a permanent guarantee [verified: <code>scripts/_conductor/registry.py:423</code>]. Reverify per release.</p>
+<p>The current <code>--allow-program</code> mechanism states plainly that subprocess reruns are “not a kernel sandbox” [verified: <code>scripts/verify_evidence.py:78-81</code>]. It is a good receipt discipline, not a seat-time sandbox.</p>
+<p>I could not verify any existing test suite in this snapshot; <code>tests/</code> is absent from the read-only tree. That makes sandbox boundary tests a prerequisite, not a follow-up.</p>
+<p><code>board_verdict.py</code> gates on final-round verdicts and refuted citations [verified: <code>scripts/board_verdict.py:223-268</code>]. I did not find schema support for “this verdict used execution,” so adding execution without schema/gate changes would create false confidence.</p>
+<p class="r-title">7. Concrete Evidence</p>
+<p><code>scripts/_conductor/registry.py:58-65</code> says isolation flags live in the adapter registry, including read-only enforcement and network removal [verified: opened the file in the repository and read the line].</p>
+<p><code>scripts/_conductor/registry.py:145-148</code> says v1 is always read-only and edit-capable seats are out of scope [verified].</p>
+<p><code>scripts/_conductor/registry.py:177-186</code> builds Codex with <code>codex exec --sandbox read-only</code>, <code>--ephemeral</code>, and optional <code>-C workdir</code> [verified].</p>
+<p><code>scripts/_conductor/registry.py:194-206</code> says Gemini approval-mode plan is read-only/no edit-exec tools, but its GoogleSearch network cannot be reliably disabled [verified].</p>
+<p><code>references/data-handling.md:37-40</code> states the core model: gate mode uses network isolation, not read confinement, and R9 says Codex can read outside the snapshot [verified].</p>
+<p><code>scripts/verify_evidence.py:42-81</code> defines command re-execution as opt-in, program-pinned, no-shell, scrubbed-env, but explicitly not a kernel sandbox [verified].</p>
+<p><code>scripts/_conductor/egress.py:257-260</code> says no board subprocess may run before the egress gate passes [verified].</p>
+<p><code>scripts/_conductor/rounds.py:168-189</code> points grounded seats at the snapshot and otherwise uses an ephemeral tempdir in gate mode [verified].</p>
+<p>VERDICT: caution</p>
+        </div>
+      </div>
+      
+      <div class="round">
+        <div class="round-head">
+          <span class="round-tag">Round 3</span>
+          
+          <span class="vpill caution">SHIP WITH CHANGES</span>
+          
+        </div>
+        <div class="review-body">
+          
+          <ol><li><strong>Updated Verdict</strong></li></ol>
+<p>Build with constraints. Confidence: high. What would change it: a prototype that proves real read confinement, network denial, CPU/memory/pid caps, and output redaction against malicious-repo fixtures before any model-driven seat-time execution is allowed.</p>
+<ol start="2"><li><strong>Changed Mind / Dissent</strong></li></ol>
+<p>Changed toward Claude: execution output is itself an egress bus. The repo persists seat stdout/stderr into round artifacts, and later rounds read prior outputs, so “network off” is insufficient if command output can carry secrets.</p>
+<p>Changed toward Gemini: latency and operational drag argue for brokered deterministic receipts first, not a VM/container seat-time free-for-all first.</p>
+<p>Still dissent: I would not make provider-native execution the abstraction. Codex can already execute, Gemini cannot, and Gemini’s network cannot be removed. A uniform broker should execute commands and give all seats receipts.</p>
+<ol start="3"><li><strong>Strongest Remaining Objections</strong></li></ol>
+<p>Prompt-injection-driven execution remains the main risk. Prompt text correctly says repo files are data, but that is model hygiene, not a security boundary.</p>
+<p>Codex read-only is not read confinement. The repo explicitly says Codex can read outside the snapshot; an execution mode must not claim snapshot-only reads unless it actually enforces them.</p>
+<p><code>--allow-program</code> is a useful receipt discipline, not a kernel sandbox. The tool itself warns an allowlisted process can read accessible files and persist output.</p>
+<p>Current resource control evidence is thin: I verified timeouts/process-group kill, but not CPU, memory, pid, disk, or network-namespace enforcement.</p>
+<ol start="4"><li><strong>Recommended Execution Sequence</strong></li></ol>
+<p>P1: Build deterministic brokered execution receipts. Commands are user/config declared, not chosen freely by a seat. Reuse the existing no-shell, program-pinned, curated-PATH, scrubbed-env, isolated-cwd pattern. Add output scanning/redaction before any receipt enters round artifacts.</p>
+<p>P2: Add execution consent/disclosure: exact commands, programs, args policy, repo scope, network posture, writable dirs, output recipients, and retention. Execution output must be treated as provider-egressed material.</p>
+<p>P3: For repo-touching commands, move from subprocess discipline to a real sandbox: read-only repo snapshot mount, no network, separate tmp/HOME, CPU/memory/pid/file/output caps, and destroyed-after-run state.</p>
+<p>P4: Let seats request commands only through the broker policy. Rejected requests become advisory notes, not executed shell text.</p>
+<p>P5: Gate mode may consume brokered receipts, but open-ended model-chosen execution stays advisory-only.</p>
+<ol start="5"><li><strong>Invariants And Guardrails</strong></li></ol>
+<p>No repo-grounded execution with network. No shell. No path-based executable. No cwd PATH resolution. No inherited secrets. No writes to the source tree. No dependency install/postinstall/network fetch in gate mode. No unredacted stdout/stderr into artifacts. No gate-bearing claim based on a sandbox that lacks real read confinement.</p>
+<p>The one thing that must never be allowed: a poisoned in-scope repo file causing a seat to run attacker-chosen code with both repo read access and any egress path, including cross-provider artifact egress.</p>
+<ol start="6"><li><strong>Risks / Missing Evidence</strong></li></ol>
+<p>Stale assumption: CLI isolation flags were grounded on June 25, 2026, and must be rechecked before relying on them.</p>
+<p>Missing evidence: I found no tests in this snapshot via <code>rg --files -g &#x27;*test*&#x27; -g &#x27;tests/**&#x27;</code>, despite <code>scripts/README.md</code> saying the test suite exists. Treat safety tests as unverified here.</p>
+<p>Couldn’t verify: actual network namespace behavior, read confinement, CPU/memory/pid caps, output secret scanning after command execution, and malicious-repo execution fixtures.</p>
+<ol start="7"><li><strong>Concrete Evidence</strong></li></ol>
+<ul><li>Adapter isolation is centralized in <code>registry.py</code>; it lists read-only and network-removal flags at <code>scripts/_conductor/registry.py:56-65</code> [verified: opened the file in the repository and read the line].</li><li>Codex uses <code>codex exec --sandbox read-only</code>, adds <code>--ephemeral</code>, and sets <code>-C</code> when a workdir exists at <code>scripts/_conductor/registry.py:169-186</code> [verified].</li><li>Codex network isolation is a registry claim, “DNS fails inside,” at <code>scripts/_conductor/registry.py:412-431</code> [verified].</li><li>Gemini uses <code>--approval-mode plan --skip-trust</code>, but comments say network is not enforceable at <code>scripts/_conductor/registry.py:194-206</code>; the adapter sets <code>isolates_network=False</code> at <code>scripts/_conductor/registry.py:434-449</code> [verified].</li><li>Read-XOR-network and R9 are explicit: <code>references/data-handling.md:37-40</code> says gate mode relies on network isolation, not read confinement, and Codex can read outside the snapshot [verified].</li><li>Gate + repo refuses unisolatable network seats at <code>scripts/_conductor/egress.py:274-297</code> [verified].</li><li>Command re-execution is opt-in, program-pinned, no-shell, curated-PATH, isolated-cwd/HOME, scrubbed-env, but “not a kernel sandbox” at <code>scripts/verify_evidence.py:42-81</code> [verified].</li><li>The implementation enforces bare program allowlisting and regex arg refinement at <code>scripts/verify_evidence.py:231-273</code> [verified].</li><li>Command execution uses curated PATH, closed stdin, captured output, and process-group start at <code>scripts/verify_evidence.py:298-327</code> [verified].</li><li>Seat subprocesses have process-group timeouts at <code>scripts/_conductor/spawn.py:78-114</code>, and the adapter default cap is 900s at <code>scripts/_conductor/registry.py:80-86</code> [verified].</li><li>Seat stdout/stderr are persisted into artifacts at <code>scripts/_conductor/rounds.py:267-276</code> [verified].</li><li>Later-round prompts include prior reviews as data under review at <code>scripts/_conductor/prompts.py:250-267</code> [verified].</li><li>A <code>verified</code> stamp proves receipt resolution, not inference soundness, at <code>references/verdict-schema.md:92-101</code> [verified].</li></ul>
+<p>VERDICT: caution</p>
+        </div>
+      </div>
+      
+
+      
+
+    </article>
+    
+    <article class="seat">
+      <div class="seat-head">
+        <h3 class="seat-name">Gemini</h3>
+        <span class="seat-lens">Product &amp; operations lens</span>
+        <span class="seat-model">gemini-3.5-flash</span>
+        
+      </div>
+
+      
+      <div class="round">
+        <div class="round-head">
+          <span class="round-tag">Round 1</span>
+          
+          <span class="vpill caution">SHIP WITH CHANGES</span>
+          
+        </div>
+        <div class="review-body">
+          
+          <p class="r-title">Gemini Seat Verdict: Sandboxed-Execution Seat Mode</p>
+<p><strong>Role Emphasis:</strong> Product &amp; Operations — Rollout, Latency, Observability, Evaluation, and User-Workflow Risk.</p>
+<p>---</p>
+<p class="r-title">1. Verdict &amp; Confidence</p>
+<ul><li><strong>Verdict:</strong> <code>caution</code> (Proceed only with the changes, constraints, and invariants described below).</li><li><strong>Confidence Level:</strong> High.</li><li><strong>What would change it:</strong> If performance benchmarking of the local container driver proves that cold-start and runtime overhead adds <code>&gt;120s</code> per round (severely degrading the interactive developer loop), or if we find that key package managers (<code>npm</code> or <code>brew</code>) cannot be cleanly cached offline inside a sterile container image, I would downgrade my verdict to <code>block</code>.</li></ul>
+<p>---</p>
+<p class="r-title">2. Strongest Objections</p>
+<ol><li><strong>Flakiness &amp; Non-Determinism in CI Gates:</strong> Software tests are notoriously flaky, environment-sensitive, and resource-dependent. If a seat's final verdict (<code>ship</code> / <code>caution</code> / <code>block</code>) is derived from dynamic execution results (e.g. running a test suite under local CPU/memory limits), transient resource starvation could flip a seat from <code>ship</code> to <code>block</code>. Under <code>board_verdict.py</code>'s gate mode, this will flakily block PR merges, driving operational friction and destroying developer trust in the automated gate.</li><li><strong>Critical Prompt Injection &amp; Repo Poisoning Risk:</strong> An agentic, execution-capable seat is highly vulnerable to repo poisoning. If a seat is instructed by a poisoned in-scope file (e.g., a malicious <code>GEMINI.md</code> or a helper script) to execute a command, it will do so at seat-time. If the seat is networked (e.g., Claude or Gemini) or has access to host-inherited credentials/files, this becomes an immediate exfiltration and host compromise vector.</li><li><strong>Severe Operational Latency Inflation:</strong> Running containers, configuring virtual environments, installing dependencies, and executing test suites or benchmarks are heavy, time-consuming processes. This will balloon the round-trip latency of <code>run_board.py</code> (which currently finishes text processing in seconds to a few minutes). With the standard seat <code>timeout_s: 900</code> (15 minutes), multiple agentic execution turns will cause frequent timeouts and costly retries, degrading the interactive user workflow.</li><li><strong>Uneven Per-Provider Execution Capabilities:</strong> The capability matrix is highly fragmented. Today, <code>gemini-cli</code> and <code>antigravity-cli</code> do not support network isolation (<code>isolates_network=False</code>), and <code>antigravity</code> silently substitutes unknown model IDs. Relying on provider-specific, native execution flags (like Codex's <code>codex exec</code>) is fragile, hard to observe, and introduces uneven safety boundaries across seats.</li></ol>
+<p>---</p>
+<p class="r-title">3. Recommended Execution Sequence (Phased Rollout)</p>
+<ul><li><strong>Phase 1 (P1): Standardized Local Container Driver.</strong> Reject per-provider native execution. Instead, build a single, uniform local container driver (e.g., Docker or gVisor) that wraps all executed commands. The host spawns a sterile, network-isolated, offline container pre-loaded with standard runtimes (Node, Python). Seat tool calls are routed uniformly through this local driver.</li><li><strong>Phase 2 (P2): Verify-Time Sandbox Migration.</strong> Migrate the existing verify-time command re-execution (<code>scripts/verify_evidence.py</code>'s <code>--allow-program</code> logic) from the host to the local offline container. This hardens the current M3 evidence verification and validates our container driver in a low-risk, highly-deterministic environment.</li><li><strong>Phase 3 (P3): Seat-Time Execution (Opt-In, Non-CI).</strong> Enable seat-time sandboxed execution for local interactive runs under explicit user consent. Disclose exactly what container image is used and which files are mounted.</li><li><strong>Phase 4 (P4): CI Gating Isolation &amp; Advisory-Only Default.</strong> For runs executed inside CI, default sandboxed execution to <code>advisory-only</code> (or force gate <code>abstain</code> on execution failures) to guarantee that non-deterministic, flaky container failures do not block the merge queue.</li></ul>
+<p>---</p>
+<p class="r-title">4. Invariants and Guardrails</p>
+<ol><li><strong>Absolute Network Severance (Read-XOR-Network):</strong> Any container executing code <em>must</em> run with network access physically disabled (e.g., Docker <code>--network none</code>). Application-level tool blocks (e.g. <code>--disallowed-tools</code>) are useless once a model can execute arbitrary python or shell code inside a container.</li><li><strong>Read-Only Workspace Mounts:</strong> The repository snapshot must be mounted as read-only, or the container must operate on a temporary copy-on-write workspace. Execution must <em>never</em> be allowed to mutate the developer's live workspace or output artifacts.</li><li><strong>Rigid Resource and Time Limits:</strong> Set hard constraints on container resources to prevent infinite loops, memory leaks, and fork-bombs from locking up the host:</li></ol>
+<ul><li>CPU allocation capped to <code>1 CPU</code>.</li><li>Memory usage capped to <code>512MB</code>.</li><li>Process limit (to prevent fork-bombs, e.g., <code>ulimit -u</code>).</li><li>Strict execution timeout (maximum <code>30s</code> per execution tool call).</li></ul>
+<ol start="4"><li><strong>Pragmatic Environment Scrubbing:</strong> Absolutely no host environment variables, cloud credentials (AWS, GCP, NPM tokens), SSH agents, or <code>.env</code> files can be inherited by the execution container.</li></ol>
+<p>---</p>
+<p class="r-title">5. Risks, Stale Assumptions, and Missing Evidence</p>
+<ul><li><strong>Stale Assumption:</strong> The assumption that we can rely on provider-native execution sandboxes. As proven by the <code>R9</code> read-confinement limitation, Codex's <code>--sandbox read-only</code> does <em>not</em> restrict physical reads to the snapshot and can access the host's files outside the working directory. Relying on CLI-specific sandboxes is a major security hazard.</li><li><strong>Risk of Toolchain Dependency Lag:</strong> If a seat tries to run tests that require npm packages or brew formulae not pre-bundled in our offline container image, the execution will crash. Building a robust, offline package mirror/cache layer is a high-complexity operational overhead.</li><li><strong>Missing Evidence:</strong> We lack concrete metrics on container startup overhead and test run execution times under heavily throttled CPU/memory. We must run a pilot phase before any rollout.</li></ul>
+<p>---</p>
+<p class="r-title">6. Concrete Evidence from the Source Material</p>
+<ul><li><strong><code>scripts/_conductor/registry.py:201-204</code></strong> [verified: opened the file in the repository and read the line]: Confirms that the <code>gemini</code> adapter is run under <code>--approval-mode plan</code>, which executes no tools.</li><li><strong><code>scripts/_conductor/registry.py:443</code></strong> [verified: opened the file in the repository and read the line]: Confirms that <code>gemini</code> has <code>isolates_network=False</code> because "no known flag disables GoogleSearch grounding."</li><li><strong><code>scripts/_conductor/registry.py:148-151</code></strong> [verified: opened the file in the repository and read the line]: Shows <code>codex_argv</code> utilizes <code>codex exec --sandbox read-only</code>.</li><li><strong><code>scripts/_conductor/registry.py:212-230</code></strong> [verified: opened the file in the repository and read the line]: Details <code>antigravity</code>'s silent model substitutions and lack of web/grounding removal (<code>isolates_network=False</code>).</li><li><strong><code>references/data-handling.md:79-84</code></strong> [verified: opened the file in the repository and read the line]: Outlines that gate-mode requires read XOR network (D4), and grounded seats that cannot be network-isolated (Gemini and Antigravity) force the run to refuse rather than proceeding.</li><li><strong><code>references/data-handling.md:85-92</code></strong> [verified: opened the file in the repository and read the line]: Documents the <code>R9</code> read-confinement limitation where Codex's <code>--sandbox read-only</code> can read files outside the snapshot, establishing that the snapshot bounds consent/verification, not physical reads.</li><li><strong><code>scripts/verify_evidence.py:23-41</code></strong> [verified: opened the file in the repository and read the line]: Details the safety disciplines for command re-execution (M3) including no-shell, curated PATH, isolated CWD, scrubbed env, and process-group-kills.</li><li><strong><code>scripts/verify_evidence.py:220-252</code></strong> [verified: opened the file in the repository and read the line]: Implements the <code>command_allowed</code> parser which requires argv[0] to be a bare program name in the <code>--allow-program</code> list, preventing path-based executables.</li><li><strong><code>scripts/verify_evidence.py:278-299</code></strong> [verified: opened the file in the repository and read the line]: Prevents execution of shadow binaries by refusing commands that resolve inside the working directory.</li><li><strong><code>references/verdict-schema.md:105-127</code></strong> [verified: opened the file in the repository and read the line]: Establishes the gate <code>abstain</code> rules, which are triggered by split majority votes, de-escalation contradictions, or refuted citations.</li></ul>
+<p>---</p>
+<p class="r-title">7. Other Board Seats Challenge</p>
+<ul><li><strong>To Claude (Architecture &amp; Security focus):</strong> "Can we mathematically guarantee that an agent cannot escape Docker network isolation if local host unix sockets are exposed, or if the container shares the host's PID namespace?"</li><li><strong>To Codex (Implementation &amp; Execution focus):</strong> "Since Codex's native <code>codex exec --sandbox read-only</code> leaks physical reads outside the workspace (<code>R9</code> limitation), what performance and disk-write overhead do we face if we force all file reads to go through a localized, copy-on-write virtual filesystem inside Docker?"</li></ul>
+<p>VERDICT: caution</p>
+        </div>
+      </div>
+      
+      <div class="round">
+        <div class="round-head">
+          <span class="round-tag">Round 2</span>
+          
+          <span class="vpill caution">SHIP WITH CHANGES</span>
+          
+        </div>
+        <div class="review-body">
+          
+          <p class="r-title">Gemini Seat — Round 2 Review (Product &amp; Operations Focus)</p>
+<p><strong>Role Emphasis:</strong> Product &amp; Operations — Rollout, Latency, Observability, Evaluation, and User-Workflow Risk.</p>
+<p>---</p>
+<p class="r-title">1. Updated Verdict &amp; Confidence</p>
+<ul><li><strong>Verdict:</strong> <code>caution</code> (Proceed only with the changes, constraints, and invariants described below).</li><li><strong>Confidence:</strong> <strong>high</strong>.</li><li><strong>What would change it:</strong> A high-performance, containerized prototype demonstrating board execution latency under 2.0s with zero-flakiness test execution and verified host isolation would shift us to <code>ship</code>.</li></ul>
+<p>---</p>
+<p class="r-title">2. Where We Changed Our Mind &amp; Where We Still Dissent</p>
+<ul><li><strong>Where we CHANGED OUR MIND (aligning with Codex):</strong></li></ul>
+<p>In Round 1, we advocated for an immediate jump to a heavy, standardized container driver (Docker/gVisor) as the Phase 1 implementation. We now agree with Codex that building <strong>brokered execution receipts (static command execution)</strong> first is a significantly more pragmatic, low-latency, and lower-risk starting point. Rather than giving a seat open-ended, model-driven dynamic execution tools at seat-time (which introduces immense latency and unpredictable flakiness), we should first extend the existing <code>--allow-program</code> verification discipline to run vetted, pre-declared commands. This keeps developer CLI latency low while we operationally test the sandbox's boundaries.</p>
+<ul><li><strong>Where we STILL DISSENT (with Claude and Codex):</strong></li><li><strong>With Claude's complete ban on CI Gates:</strong> Claude insists execution-enabled seats must <em>never</em> carry CI gates and must always remain advisory-only. We partially dissent: while <em>dynamic, model-driven</em> seat-time execution is too flaky for a blocking CI gate, <em>deterministic execution receipts</em> (verifying that a specific, vetted test suite runs and passes via an offline, resource-constrained receipt verification step) <strong>should</strong> be allowed to bear gates. Standardizing this separation of concerns protects the CI pipeline without throwing away the operational value of automated gate verification.</li><li><strong>With the "No-Network" universal standard for execution:</strong> Claude and Codex assert that any execution-capable seat <em>never</em> has network. While we agree with "Read XOR Network" for CI gates, in <em>advisory</em> mode on a user's local machine, allowing managed network access (e.g., fetching missing packages or verifying external API endpoints) with loud warnings may be necessary for operations. However, this must be opt-in and clearly isolated from secrets.</li></ul>
+<p>---</p>
+<p class="r-title">3. Strongest Remaining Objections</p>
+<ol><li><strong>Operational Latency &amp; Workflow Degradation:</strong> Standard seat runs currently complete in seconds. Spawning a VM or container for open-ended seat execution at seat-time will destroy the interactive CLI loop, pushing latency into minutes and rendering the tool unusable for local developer inner-loops.</li><li><strong>Dependency &amp; Environment Pollution on Dev Hosts:</strong> Local execution under a basic "read-only" sandbox (like Codex's native CLI sandbox) relies on host-installed dependencies. If dependencies are missing or misconfigured, the board will fail non-deterministically (false negatives). Conversely, if the sandbox attempts to install dependencies (e.g., <code>npm install</code>), it will pollute host caches or fail due to write restrictions.</li><li><strong>The "Persisted Artifact as Egress Channel" Vulnerability:</strong> As Claude rightly noted, even with network disabled, a seat can execute code, extract sensitive data, and write it into its JSON verdict/evidence (e.g., embedding a private key read from memory/environment into a "test output" quote). Since that artifact is saved and later loaded/processed, it represents a deferred exfiltration vector.</li></ol>
+<p>---</p>
+<p class="r-title">4. Recommended Execution Sequence (Phased Rollout)</p>
+<ul><li><strong>Phase 1 (P1): Deterministic Brokered Receipts (Static Execution).</strong></li></ul>
+<p>No seat-time model-driven execution. Extend the existing <code>verify_evidence.py</code> <code>--allow-program</code> discipline. The user or the static repo plan specifies exactly what command to run, and the conductor runs it in a sterilized process group using <code>verify_evidence.py</code>'s current logic (curated PATH, separate HOME, no shell, process-group timeout). This is zero-agent-overhead, low-latency, and deterministic.</p>
+<ul><li><strong>Phase 2 (P2): Dry-run Evaluation and Observability Harness.</strong></li></ul>
+<p>Introduce shadow execution in advisory mode. Collect metrics on latency, flakiness, and exit-code drift across different developer setups. Log all execution invocations to a secure local audit trail.</p>
+<ul><li><strong>Phase 3 (P3): Ephemeral Containerized Sandboxing (Dynamic Execution).</strong></li></ul>
+<p>Introduce optional model-driven execution restricted strictly to a local container driver (e.g., Docker/gVisor with <code>--network none</code> and strict CPU/memory caps). This is strictly <em>advisory-only</em> and is never allowed to block CI gates.</p>
+<p>---</p>
+<p class="r-title">5. Invariants &amp; Guardrails</p>
+<ol><li><strong>Host Binary Protection (Resolution Guard):</strong> Any executable run during seat-time must be resolved using a curated PATH that excludes relative paths and the current working directory, and must be rejected if it resolves inside the working directory (re-using the logic from <code>verify_evidence.py:295-303</code>). This prevents repo-poisoning prompt injections from invoking planted binaries (e.g., a malicious <code>./pytest</code> in the root).</li><li><strong>Environment Scrubbing &amp; Isolated Caching:</strong> The sandbox execution environment must be strictly white-listed. Variables like <code>HOME</code> must point to a throwaway temporary directory (re-using <code>verify_evidence.py:285-290</code>) to prevent writes/caches from dropping dotfiles into the reviewed source or polluting host caches.</li><li><strong>Hard Resource and Time Quotas:</strong> Every execution subprocess must run with a process-group timeout (re-using <code>_kill_group_and_collect</code> in <code>spawn.py</code>) and explicit CPU/memory limits (e.g., systemd-run slices or container limits) to prevent runaway resource exhaustion / denial of service.</li></ol>
+<p>---</p>
+<p class="r-title">6. Risks, Stale Assumptions, &amp; Missing Evidence</p>
+<ul><li><strong>Stale Assumption on Codex's Read-Only Sandbox:</strong> The packet claims Codex's <code>--sandbox read-only</code> prevents disk writes and network access. However, as noted in <code>references/data-handling.md:40</code>, Codex can still read files <em>outside</em> the snapshot (the <code>R9</code> read-confinement limitation). We lack verification on whether Codex's native sandbox can be completely trusted to prevent covert channel writes (e.g., writing to <code>/tmp</code> or using Unix domain sockets on macOS).</li><li><strong>Host OS Primitive Divergence (Missing Evidence):</strong> A containerized sandbox primitive (like Docker <code>--network none</code> or gVisor) behaves differently on macOS (which runs Docker in a Linux VM, introducing host-VM file-sharing latency and socket leaks) than on Linux. We lack concrete evidence of how host socket exposures (e.g., sharing <code>/var/run/docker.sock</code>) or process-namespace sharing would impact isolation on macOS.</li></ul>
+<p>---</p>
+<p class="r-title">7. Concrete Evidence</p>
+<ol><li><code>scripts/_conductor/registry.py:194-206</code> <code>[verified: opened the file in the repository and read the line]</code> - Confirms the Gemini seat's current invocation under <code>--approval-mode plan</code> executes no tools and has no command execution or network-isolation capabilities.</li><li><code>scripts/_conductor/registry.py:448-450</code> <code>[verified: opened the file in the repository and read the line]</code> - Shows that Gemini's network is not removable: <code>isolates_network=False</code> because "no known flag disables GoogleSearch grounding."</li><li><code>references/data-handling.md:37-40</code> <code>[verified: opened the file in the repository and read the line]</code> - Explicitly documents the <code>R9</code> read-confinement limitation: "codex's <code>--sandbox read-only</code> does <strong>not</strong> confine reads to its working directory — it can read files <em>outside</em> the snapshot."</li><li><code>scripts/verify_evidence.py:240-272</code> <code>[verified: opened the file in the repository and read the line]</code> - Documents the bare program name check, path-based rejection, and <code>--allow-program</code> check in <code>command_allowed()</code>.</li><li><code>scripts/verify_evidence.py:285-303</code> <code>[verified: opened the file in the repository and read the line]</code> - Shows <code>run_command</code> resolving binaries via <code>_curated_path()</code> and rejecting them if they resolve inside the working directory (mitigating planted binary attacks).</li><li><code>scripts/_conductor/egress.py:274-297</code> <code>[verified: opened the file in the repository and read the line]</code> - Implements the D4 hard-stop: <code>if config.gate_mode and config.grounded:</code> refusing the run if <code>unenforced_network_seats</code> is populated.</li><li><code>scripts/_conductor/spawn.py:110-155</code> <code>[verified: opened the file in the repository and read the line]</code> - Implements process group isolation (<code>start_new_session=True</code>) and hard timeouts to prevent orphaned worker leakages.</li></ol>
+<p>VERDICT: caution</p>
+        </div>
+      </div>
+      
+      <div class="round">
+        <div class="round-head">
+          <span class="round-tag">Round 3</span>
+          
+          <span class="vpill caution">SHIP WITH CHANGES</span>
+          
+        </div>
+        <div class="review-body">
+          
+          <p class="r-title">Round 3 Advisory Board Review: Sandboxed-Execution Seat Mode</p>
+<p><strong>Seat:</strong> Gemini (Product &amp; Operations Role) <strong>Role Emphasis:</strong> Rollout, Latency, Observability, Evaluation, and User-Workflow Risk</p>
+<p>---</p>
+<p class="r-title">1. Updated Verdict &amp; Confidence</p>
+<ul><li><strong>Verdict:</strong> <code>caution</code> (Proceed ONLY with the changes, constraints, and invariants described below).</li><li><strong>Confidence:</strong> <strong>High</strong></li><li><strong>What would change it:</strong> Empirically demonstrating an OS-level sandbox wrapper (e.g., namespace-based or lightweight kernel isolation) that delivers sub-second spin-up times on Darwin/Linux while fully enforcing physical read-confinement and network-severance across all active provider seats.</li></ul>
+<p>---</p>
+<p class="r-title">2. Where We Changed Our Mind &amp; Where We Still Dissent</p>
+<ul><li><strong>Where We CHANGED OUR MIND (Aligning with Codex and Claude):</strong></li></ul>
+<p>In Round 1, we leaned toward an ambitious Phase 1 rollout of a heavy, containerized container/VM driver. We now abandon that view. From a product rollout and operational latency standpoint, spinning up Docker containers or micro-VMs inside an interactive CLI loop will completely destroy the developer workflow by adding tens of seconds (or minutes) of overhead. We now fully align with <strong>Codex's</strong> recommendation to build <strong>Static User-Brokered Receipts (Static Execution)</strong> as Phase 1. By executing only user-vetted, predefined commands at run-time, we bypass the extreme prompt-injection risks of model-chosen commands and avoid the crippling startup latencies of dynamically orchestrated sandboxes.</p>
+<ul><li><strong>Where We STILL DISSENT (Specifically with Claude's Round 2 proposal regarding the Artifact Bus):</strong></li></ul>
+<p><strong>Claude</strong> proposed gating/filtering execution output <em>on the shared artifact bus</em> (treating execution output as egress). As a Product &amp; Operations seat, we strongly dissent from this approach. Attempting to run regex-based or secondary LLM-based redaction/filtering on the multi-seat conversation bus in real-time introduces heavy runtime latency, high false-positive rates that disrupt valid model reasoning, and significant operational complexity. From an observability and debugging perspective, we should enforce safety structurally <strong>at the execution boundary itself</strong> (by physically denying network access and scrubbing process environments at spawn-time) rather than trying to filter the generated text after the execution has already occurred. Furthermore, under the brokered-receipt model, since the user has statically approved the commands, filtering their outputs is redundant and operationally counterproductive.</p>
+<p>---</p>
+<p class="r-title">3. Strongest Remaining Objections</p>
+<ol><li><strong>Interactive Loop Latency &amp; Workflow Degradation (Operational Risk):</strong></li></ol>
+<p>Developer adoption of the Advisory Board relies heavily on sub-10-second interactive CLI cycles. Spawning sandboxes during a multi-round seat run multiplies execution latency. If a seat-time model runs multiple commands to "test" or "verify" an assertion, the CLI loop will degrade from seconds to minutes, making it unusable in local developer workflows.</p>
+<ol start="2"><li><strong>Google Provider Non-Isolation (Rollout &amp; Compatibility Risk):</strong></li></ol>
+<p>The <code>gemini</code> and <code>antigravity</code> (<code>agy</code>) adapters are hard-coded to <code>isolates_network=False</code> (<code>registry.py:449, 475</code>) because their CLIs do not support disabling Google Search grounding. Because they cannot be isolated, <code>egress.py:274-297</code> unconditionally blocks them from participating in grounded runs under <code>gate</code> mode. Adding a seat-time execution capability that requires network severance will permanently lock Gemini out of execution-capable <code>gate</code> reviews, creating a stark, degraded-tier user experience for Google-reliant teams.</p>
+<ol start="3"><li><strong>Verdict Determinism &amp; Environment Drift (Evaluation Risk):</strong></li></ol>
+<p>If seat-time execution is allowed to alter local files or depends on local packages, run-to-run consistency is lost. A seat run on developer Machine A might pass, while failing on CI Agent B due to environment differences. This drift ruins the board's viability as a reliable CI/CD gate.</p>
+<p>---</p>
+<p class="r-title">4. Recommended Execution Sequence</p>
+<ul><li><strong>Phase 1 (P1): Static User-Brokered Receipts (Deterministic Brokered Execution):</strong></li></ul>
+<p>Do not allow models to generate or execute arbitrary code at seat-time. Extend the existing <code>verify_evidence.py</code> <code>--allow-program</code> paradigm. The user statically defines the allowed commands in their config or command line. The model can request the execution of a pre-defined receipt; the runner executes it, captures the output, and injects the text back into the context. This leverages verified path sanitization and environment scrubbing.</p>
+<ul><li><strong>Phase 2 (P2): Lightweight Namespace-Based Local Sandboxing:</strong></li></ul>
+<p>For local/Codex seats, implement low-overhead OS-level sandboxing (using <code>sandbox-exec</code> on macOS or <code>unshare</code> on Linux) to enforce real read-confinement and network severance, avoiding VM warm-up times.</p>
+<ul><li><strong>Phase 3 (P3): Async / Off-Loop Containerized Execution:</strong></li></ul>
+<p>If open-ended, model-driven seat-time execution is absolutely necessary, push it out of the interactive CLI loop. Move this tier to an asynchronous background CI worker or webhook where a 1–2 minute container startup delay (utilizing gVisor or Firecracker) is operationally acceptable.</p>
+<p>---</p>
+<p class="r-title">5. Invariants and Guardrails</p>
+<ol><li><strong>Strict Read-XOR-Network (D4 Integration):</strong></li></ol>
+<p>If a seat executes a command, it must be network-isolated. Seats that cannot be network-isolated (Gemini/Antigravity) must be structurally blocked from running any execution commands.</p>
+<ol start="2"><li><strong>Host Binary Protection (The Resolution Guard):</strong></li></ol>
+<p>Any executable run during seat-time must resolve via a curated <code>PATH</code> that strips empty, relative, and current-directory (<code>.</code>) paths. It must fail closed if the executable resolves inside the working directory under review, blocking planted binaries.</p>
+<ol start="3"><li><strong>Isolated Disposable Environment (CWD &amp; HOME Separation):</strong></li></ol>
+<p>The sandbox environment must keep <code>HOME</code> entirely separate from the reviewed repository directory (<code>cwd</code>). This ensures that package managers (e.g., <code>npm</code>, <code>pip</code>) or version tools (e.g., <code>git</code>) do not write configuration files or drop cached dotfiles into the reviewed codebase.</p>
+<ol start="4"><li><strong>Process Group Termination &amp; Session Isolation:</strong></li></ol>
+<p>Every spawned command must run in its own session (<code>start_new_session=True</code>) under a strict process group timeout, ensuring that orphaned background daemon workers spawned by a tool are fully terminated on timeout.</p>
+<p>---</p>
+<p class="r-title">6. Risks, Stale Assumptions, and Missing Evidence</p>
+<ul><li><strong>The Codex Read-Confinement Leak (R9 Limitation):</strong></li></ul>
+<p>The common assumption that Codex's read-only sandbox isolates its file reads is a dangerous illusion. As documented in <code>references/data-handling.md:37-40</code>, Codex can physically read files <em>outside</em> its working directory (such as host configuration files or SSH keys). If Codex executes commands, a prompt-injection attack could read sensitive host dotfiles and print them to stdout, exposing them to the conversation bus.</p>
+<ul><li><strong>The Antigravity (<code>agy</code>) Command-Line Drift:</strong></li></ul>
+<p>The deprecation of consumer <code>gemini-cli</code> in favor of <code>agy</code> (Antigravity CLI) means our network isolation assumptions (<code>registry.py:214-227</code>) are tied to transitional tools. If the enterprise/API-tier Antigravity CLIs introduce a robust, verifiable flag to disable external web-grounding, our network-isolation block for Google seats can be safely removed, but we currently lack the local test suites to verify this behavior.</p>
+<p>---</p>
+<p class="r-title">7. Concrete Evidence</p>
+<ul><li><strong>[verified: opened the file in the repository and read the line]</strong> <code>scripts/_conductor/registry.py:423</code></li></ul>
+<p>Confirms that Codex relies on <code>--sandbox read-only</code> and comments that its network isolation was verified via a DNS failure check:</p>
+<pre><code>  isolates_network=True,   # --sandbox read-only has no network (verified: DNS fails inside)</code></pre>
+<ul><li><strong>[verified: opened the file in the repository and read the line]</strong> <code>scripts/_conductor/registry.py:449, 475</code></li></ul>
+<p>Confirms that Gemini and Antigravity seats explicitly advertise that they cannot disable external grounding:</p>
+<pre><code>  isolates_network=False,  # no known flag disables GoogleSearch grounding — surfaced loudly
+  ...
+  isolates_network=False,  # agent-first harness; web/grounding not removable — surfaced loudly</code></pre>
+<ul><li><strong>[verified: opened the file in the repository and read the line]</strong> <code>references/data-handling.md:37-40</code></li></ul>
+<p>Documents that Codex is not physically confined to reading only the repository snapshot:</p>
+<pre><code>  The snapshot bounds consent/verify, not physical reads (R9). Be honest about this: codex's --sandbox read-only does not confine reads to its working directory — it can read files outside the snapshot (observed in a real run reading a file from its host home dir).</code></pre>
+<ul><li><strong>[verified: opened the file in the repository and read the line]</strong> <code>scripts/_conductor/egress.py:274-297</code></li></ul>
+<p>Shows the unconditional gate-mode halt that prevents a grounded run from proceeding if a non-isolatable seat like Gemini is present:</p>
+<pre><code>  if config.gate_mode and config.grounded:
+      ...
+      offending = config.unenforced_network_seats
+      if offending:
+          return decide(False, "refused", _d4_refusal_detail(offending))</code></pre>
+<ul><li><strong>[verified: opened the file in the repository and read the line]</strong> <code>scripts/verify_evidence.py:312-320</code></li></ul>
+<p>Demonstrates the robust resolution guard that prevents execution of binaries that resolve inside the working directory:</p>
+<pre><code>  resolved = shutil.which(argv[0], path=env["PATH"])
+  if not resolved:
+      return None, "", f"executable not found on the curated PATH: {​argv[0]!r}"
+  real_resolved = os.path.realpath(resolved)
+  real_cwd = os.path.realpath(cwd)
+  ...
+  if real_resolved == real_cwd or real_resolved.startswith(cwd_prefix):
+      return None, "", (f"executable {​argv[0]!r} resolves inside the working dir "
+                        "(possible planted binary) — refusing to run it")</code></pre>
+<ul><li><strong>[verified: opened the file in the repository and read the line]</strong> <code>scripts/verify_evidence.py:275-293</code></li></ul>
+<p>Verifies the PATH-cleansing and HOME isolation logic applied during command execution:</p>
+<pre><code>  def _curated_path() -&gt; str:
+      entries = [p for p in os.environ.get("PATH", "").split(os.pathsep)
+                 if p and p not in (".", "") and os.path.isabs(p)]
+      return os.pathsep.join(entries) if entries else os.defpath
+
+  def _rerun_env(cwd: str, home=None) -&gt; dict:
+      env = {​k: os.environ[k] for k in RERUN_ENV_KEYS if k in os.environ}
+      env["PATH"] = _curated_path()
+      env["HOME"] = home or cwd
+      return env</code></pre>
+<ul><li><strong>[verified: opened the file in the repository and read the line]</strong> <code>scripts/_conductor/spawn.py:98-106, 117-141</code></li></ul>
+<p>Demonstrates how child seats are spawned in their own session to guarantee complete process group termination on timeout:</p>
+<pre><code>  proc = subprocess.Popen(
+      argv,
+      ...
+      start_new_session=True,
+  )
+  ...
+  def _kill_group_and_collect(proc: "subprocess.Popen") -&gt; tuple:
+      def _killpg(sig: int) -&gt; None:
+          try:
+              os.killpg(os.getpgid(proc.pid), sig)</code></pre>
+<p>---</p>
+<p>VERDICT: caution</p>
+        </div>
+      </div>
+      
+
+      
+
+    </article>
+    
+
+  </section>
+
+  <!-- ===================== CONSENSUS BLOCKERS ===================== -->
+  <section>
+    <h2>Consensus blockers — must fix before ship</h2>
+    <ol class="blockers">
+      
+      <li>
+        <span class="b-title">Execution output is a cross-provider egress channel the gate does not cover</span>
+        <div class="b-body">Seat stdout/stderr is persisted into round artifacts (observed.output) and fans out to other providers in later rounds, but the consent gate hashes the outbound prompt packet at pre-spawn — not command output produced after spawn. A network-isolated seat can still write out-of-scope content into observed.output, which then egresses to a seat (gemini/antigravity) that cannot be de-networked. D4 severs the network channel only; the artifact bus is a separate, ungated channel. Both Claude and Codex converged on this as the load-bearing objection.</div>
+      </li>
+      
+      <li>
+        <span class="b-title">Prompt-injection-driven execution from a poisoned in-scope file</span>
+        <div class="b-body">Once a seat can execute, a malicious in-scope file (e.g. a README saying &#x27;run ./build.sh&#x27;) converts a prose-injection into code execution. The repo already understands repo files are DATA and that injection defense extends to fetched files, but that is prompt hygiene, not an enforcement boundary. Declared-command brokering is the structural answer: if the seat cannot choose the command, the poisoned file cannot pick it — so model-chosen seat-time execution must not ship in the gate-bearing path.</div>
+      </li>
+      
+      <li>
+        <span class="b-title">Codex --sandbox read-only is not read confinement (R9)</span>
+        <div class="b-body">The repo explicitly documents that codex can read files outside the snapshot, observed in a real run reading a host home-dir file. An execution mode must not claim snapshot-only reads unless it actually enforces them; until real read confinement exists, a prompt-injected seat could read host dotfiles/secrets and print them to stdout, exposing them to the bus.</div>
+      </li>
+      
+      <li>
+        <span class="b-title">An execution-capable seat erodes the meaning of the `verified` stamp</span>
+        <div class="b-body">If a seat runs arbitrary code, a `verified` verdict means &#x27;this machine ran something&#x27;, not &#x27;this claim is true under a pinned, reproducible discipline&#x27;. The existing re-execution path already draws this line correctly — `verified` only when allowlisted and the pinned re-run matches expected exit, otherwise `unverified`, never silently passed. An execution-capable seat must inherit that asymmetry exactly or the stamp degrades into theater.</div>
+      </li>
+      
+    </ol>
+  </section>
+
+  <!-- ===================== DISSENT / MINORITY REPORT ===================== -->
+  
+  <section>
+    <h2>Dissent &amp; minority report</h2>
+    <div class="dissent">
+      <span class="d-flag">Dissent on the record</span>
+      
+      <p><span class="who">Gemini:</span> Dissents from Claude&#x27;s proposal to gate/filter execution output on the shared artifact bus (treating output as egress). Argues regex- or LLM-based redaction on the multi-seat bus adds heavy runtime latency, high false-positive rates, and operational complexity; safety should be enforced structurally at the execution boundary (deny network, scrub env at spawn-time), and under a static brokered-receipt model where the user has pre-approved commands, output filtering is redundant.</p>
+      
+      <p><span class="who">Codex:</span> Still dissents from making provider-native execution the abstraction. Codex can execute, Gemini cannot, and Gemini&#x27;s network cannot be removed; a uniform broker should execute declared commands and hand all seats receipts rather than relying on each provider&#x27;s native execution.</p>
+      
+      <p><span class="who">Claude:</span> Still dissents from any reading that leans on codex&#x27;s existing --sandbox read-only as sufficient isolation. The isolates_network flag is stamped stale-by-design and codex reads outside the snapshot, so codex-already-executes is a foundation to reuse, not a boundary to trust.</p>
+      
+    </div>
+  </section>
+
+  <!-- ===================== WHAT THE BOARD COULDN'T VERIFY ===================== -->
+  
+  <section>
+    <h2>What the board couldn't verify</h2>
+    <div class="caveats">
+      <ul>
+        
+        <li><span class="c-claim">No test in the snapshot exercises execution output as an egress vector under a malicious repo; Codex found no tests at all via `rg --files -g &#x27;*test*&#x27; -g &#x27;tests/**&#x27;` despite the README claiming a suite exists, so safety tests are unverified here.</span> — <span class="c-change"></span></li>
+        
+        <li><span class="c-claim">Isolation flags (codex isolates_network=True &#x27;DNS fails inside&#x27;; gemini/antigravity =False) were grounded point-in-time on 2026-06-25 and are stale-by-design — re-verify per CLI release.</span> — <span class="c-change"></span></li>
+        
+        <li><span class="c-claim">Latency (&#x27;minutes not seconds&#x27;) is plausible but unquantified.</span> — <span class="c-change"></span></li>
+        
+        <li><span class="c-claim">Actual network-namespace behavior, real read confinement, CPU/memory/pid caps, and output secret-scanning after execution could not be verified.</span> — <span class="c-change"></span></li>
+        
+      </ul>
+    </div>
+  </section>
+
+  <!-- ===================== OPEN QUESTIONS ===================== -->
+  <section>
+    <h2>Open questions</h2>
+    <ul class="plain">
+      
+      <li>Can a hard-stop structurally identical to D4 be made to hold so that execution output enters the artifact bus only if folded into the consent hash (or dropped by an output secret-scan)? If not, no later phase matters.</li>
+      
+      <li>Can read confinement, network denial, and CPU/memory/pid caps be demonstrated against malicious-repo fixtures before any model-driven seat-time execution is allowed?</li>
+      
+      <li>Can a lightweight OS-level sandbox (namespace-based, e.g. sandbox-exec/unshare) deliver sub-second spin-up while enforcing read-confinement and network-severance, or must open-ended execution move off the interactive loop?</li>
+      
+      <li>If enterprise/API-tier Antigravity adds a verifiable flag to disable web-grounding, the network-isolation block for Google seats could be lifted — but local test suites to verify this are currently missing.</li>
+      
+    </ul>
+  </section>
+
+  <!-- ===================== NEXT ACTIONS ===================== -->
+  <section>
+    <h2>Next actions</h2>
+    <div class="actions">
+      <ol>
+        
+        <li>P1 — Prove the egress-bus invariant first: a D4-structured hard-stop so execution output reaches the artifact bus only if its content is in the consent hash or passes the output secret-scan; test with a malicious in-scope file that writes a planted secret to stdout and assert it never reaches an external seat. If it can&#x27;t hold, stop.</li>
+        
+        <li>P2 — Deterministic declared-command brokered receipts: user/config declares the exact program + arg pattern; the conductor runs it via the existing no-shell, program-pinned, curated-PATH, scrubbed-env, isolated-cwd/HOME, process-group-timeout discipline; the redacted receipt (exit code + scanned output) is handed to seats as DATA. No seat chooses the command. This tier may be gate-bearing.</li>
+        
+        <li>P3 — Add real resource caps (CPU/memory/pid/wall) and a filesystem boundary that actually confines reads to the snapshot (closing R9); only here does a container/ephemeral sandbox earn its latency cost.</li>
+        
+        <li>P4 — Model-chosen seat-time execution, if ever, stays inside the P3 boundary, advisory-only, loudly disclosed, and permanently excluded from any `verified` stamp; rejected broker requests become advisory notes, not executed shell.</li>
+        
+        <li>Reuse existing controls rather than reinventing: curated PATH, no shell, scrubbed env, process-group timeout, and the planted-binary resolution guard already in verify_evidence.py.</li>
+        
+        <li>Maintain invariants: no read+network for any execution-capable seat in a grounded run; no execution output may flow into a board containing any seat that cannot be de-networked; commands are declared not model-chosen in any gate-bearing path; re-verify isolation flags per CLI release.</li>
+        
+      </ol>
+    </div>
+  </section>
+
+  <!-- ===================== FOOTER / PROVENANCE ===================== -->
+  
+  <footer class="meta">
+    Rendered from <code>verdict.json</code> by <code>scripts/render_verdict.py</code>.
+  </footer>
+
+</div>
+</body>
+</html>

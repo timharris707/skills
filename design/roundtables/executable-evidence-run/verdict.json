@@ -1,0 +1,229 @@
+{
+  "schema": "advisory-board/verdict@2",
+  "title": "should advisory board add a sandboxed execution seat mode",
+  "date": "2026-06-26",
+  "lens_preset": "software-architecture",
+  "rounds": 3,
+  "board": [
+    {
+      "seat": "Claude",
+      "model": "claude-opus-4-8",
+      "lens": "Architecture & systems",
+      "round_verdicts": [
+        "caution",
+        "caution",
+        "caution"
+      ],
+      "dropped": false
+    },
+    {
+      "seat": "Codex",
+      "model": "gpt-5.5",
+      "lens": "Implementation & testing",
+      "round_verdicts": [
+        "caution",
+        "caution",
+        "caution"
+      ],
+      "dropped": false
+    },
+    {
+      "seat": "Gemini",
+      "model": "gemini-3.5-flash",
+      "lens": "Product & operations",
+      "round_verdicts": [
+        "caution",
+        "caution",
+        "caution"
+      ],
+      "dropped": false
+    }
+  ],
+  "verdict": "caution",
+  "confidence": "high",
+  "decision": "build-with-constraints",
+  "blockers": [
+    {
+      "title": "Execution output is a cross-provider egress channel the gate does not cover",
+      "body": "Seat stdout/stderr is persisted into round artifacts (observed.output) and fans out to other providers in later rounds, but the consent gate hashes the outbound prompt packet at pre-spawn — not command output produced after spawn. A network-isolated seat can still write out-of-scope content into observed.output, which then egresses to a seat (gemini/antigravity) that cannot be de-networked. D4 severs the network channel only; the artifact bus is a separate, ungated channel. Both Claude and Codex converged on this as the load-bearing objection.",
+      "evidence": [
+        {
+          "kind": "code",
+          "path": "scripts/verify_evidence.py",
+          "line": 78
+        },
+        {
+          "kind": "source",
+          "url": "scripts/verify_evidence.py",
+          "quote": "a subprocess is not a kernel sandbox"
+        },
+        {
+          "kind": "source",
+          "url": "scripts/verify_evidence.py",
+          "quote": "do NOT allowlist programs that read secrets ... because the matched command's stdout/stderr is captured into `observed.output`"
+        },
+        {
+          "kind": "code",
+          "path": "scripts/_conductor/egress.py",
+          "line": 262
+        },
+        {
+          "kind": "code",
+          "path": "references/data-handling.md",
+          "line": 29
+        },
+        {
+          "kind": "code",
+          "path": "scripts/_conductor/rounds.py",
+          "line": 267
+        },
+        {
+          "kind": "code",
+          "path": "scripts/_conductor/prompts.py",
+          "line": 250
+        }
+      ]
+    },
+    {
+      "title": "Prompt-injection-driven execution from a poisoned in-scope file",
+      "body": "Once a seat can execute, a malicious in-scope file (e.g. a README saying 'run ./build.sh') converts a prose-injection into code execution. The repo already understands repo files are DATA and that injection defense extends to fetched files, but that is prompt hygiene, not an enforcement boundary. Declared-command brokering is the structural answer: if the seat cannot choose the command, the poisoned file cannot pick it — so model-chosen seat-time execution must not ship in the gate-bearing path.",
+      "evidence": [
+        {
+          "kind": "code",
+          "path": "scripts/_conductor/prompts.py",
+          "line": 41
+        },
+        {
+          "kind": "code",
+          "path": "scripts/_conductor/prompts.py",
+          "line": 107
+        }
+      ]
+    },
+    {
+      "title": "Codex --sandbox read-only is not read confinement (R9)",
+      "body": "The repo explicitly documents that codex can read files outside the snapshot, observed in a real run reading a host home-dir file. An execution mode must not claim snapshot-only reads unless it actually enforces them; until real read confinement exists, a prompt-injected seat could read host dotfiles/secrets and print them to stdout, exposing them to the bus.",
+      "evidence": [
+        {
+          "kind": "code",
+          "path": "references/data-handling.md",
+          "line": 37
+        },
+        {
+          "kind": "source",
+          "url": "references/data-handling.md",
+          "quote": "codex's --sandbox read-only does not confine reads to its working directory — it can read files outside the snapshot (observed in a real run reading a file from its host home dir)"
+        }
+      ]
+    },
+    {
+      "title": "An execution-capable seat erodes the meaning of the `verified` stamp",
+      "body": "If a seat runs arbitrary code, a `verified` verdict means 'this machine ran something', not 'this claim is true under a pinned, reproducible discipline'. The existing re-execution path already draws this line correctly — `verified` only when allowlisted and the pinned re-run matches expected exit, otherwise `unverified`, never silently passed. An execution-capable seat must inherit that asymmetry exactly or the stamp degrades into theater.",
+      "evidence": [
+        {
+          "kind": "code",
+          "path": "scripts/verify_evidence.py",
+          "line": 30
+        },
+        {
+          "kind": "code",
+          "path": "references/verdict-schema.md",
+          "line": 92
+        }
+      ]
+    }
+  ],
+  "dissent": [
+    {
+      "who": "Gemini",
+      "body": "Dissents from Claude's proposal to gate/filter execution output on the shared artifact bus (treating output as egress). Argues regex- or LLM-based redaction on the multi-seat bus adds heavy runtime latency, high false-positive rates, and operational complexity; safety should be enforced structurally at the execution boundary (deny network, scrub env at spawn-time), and under a static brokered-receipt model where the user has pre-approved commands, output filtering is redundant."
+    },
+    {
+      "who": "Codex",
+      "body": "Still dissents from making provider-native execution the abstraction. Codex can execute, Gemini cannot, and Gemini's network cannot be removed; a uniform broker should execute declared commands and hand all seats receipts rather than relying on each provider's native execution."
+    },
+    {
+      "who": "Claude",
+      "body": "Still dissents from any reading that leans on codex's existing --sandbox read-only as sufficient isolation. The isolates_network flag is stamped stale-by-design and codex reads outside the snapshot, so codex-already-executes is a foundation to reuse, not a boundary to trust."
+    }
+  ],
+  "concerns": [
+    {
+      "title": "Interactive-loop latency and workflow degradation",
+      "body": "Adoption relies on sub-10-second interactive CLI cycles. Spawning sandboxes (Docker/micro-VM) during a multi-round seat run, or a seat running multiple commands to 'test' assertions, degrades the loop from seconds to minutes and makes it unusable locally. This is why the board sequenced brokered receipts before any container/VM driver. Latency remains plausible but unquantified.",
+      "evidence": [
+        {
+          "kind": "judgment",
+          "detail": "Gemini's operational objection that sandbox spin-up multiplies seat-run latency; Claude notes the 'minutes not seconds' concern is plausible but unmeasured and should be benchmarked before any container commitment."
+        }
+      ]
+    },
+    {
+      "title": "Google provider non-isolation locks Gemini/Antigravity out of execution-capable gate runs",
+      "body": "gemini and antigravity advertise isolates_network=False because no flag disables GoogleSearch grounding, and the gate+repo path unconditionally blocks non-isolatable network seats from grounded runs. Adding seat-time execution that requires network severance permanently excludes Google-reliant teams from execution-capable gate reviews — a degraded tier.",
+      "evidence": [
+        {
+          "kind": "code",
+          "path": "scripts/_conductor/registry.py",
+          "line": 449
+        },
+        {
+          "kind": "code",
+          "path": "scripts/_conductor/registry.py",
+          "line": 475
+        },
+        {
+          "kind": "code",
+          "path": "scripts/_conductor/egress.py",
+          "line": 274
+        }
+      ]
+    },
+    {
+      "title": "Resource-control evidence is thin",
+      "body": "Process-group timeouts and process-group kill are verified, but CPU, memory, pid, disk, and network-namespace enforcement were not verified in the snapshot. Real caps are required before model-chosen execution earns its place.",
+      "evidence": [
+        {
+          "kind": "code",
+          "path": "scripts/_conductor/spawn.py",
+          "line": 98
+        },
+        {
+          "kind": "judgment",
+          "detail": "Codex verified timeouts/process-group kill but could not verify CPU/memory/pid/disk caps or network-namespace behavior."
+        }
+      ]
+    },
+    {
+      "title": "Verdict determinism / environment drift",
+      "body": "If seat-time execution alters local files or depends on local packages, run-to-run consistency is lost: a run may pass on one machine and fail on a CI agent due to environment differences, ruining the board's viability as a reliable CI/CD gate.",
+      "evidence": [
+        {
+          "kind": "judgment",
+          "detail": "Gemini's evaluation-risk objection that local-state-dependent execution destroys run-to-run determinism."
+        }
+      ]
+    }
+  ],
+  "caveats": [
+    "No test in the snapshot exercises execution output as an egress vector under a malicious repo; Codex found no tests at all via `rg --files -g '*test*' -g 'tests/**'` despite the README claiming a suite exists, so safety tests are unverified here.",
+    "Isolation flags (codex isolates_network=True 'DNS fails inside'; gemini/antigravity =False) were grounded point-in-time on 2026-06-25 and are stale-by-design — re-verify per CLI release.",
+    "Latency ('minutes not seconds') is plausible but unquantified.",
+    "Actual network-namespace behavior, real read confinement, CPU/memory/pid caps, and output secret-scanning after execution could not be verified."
+  ],
+  "open_questions": [
+    "Can a hard-stop structurally identical to D4 be made to hold so that execution output enters the artifact bus only if folded into the consent hash (or dropped by an output secret-scan)? If not, no later phase matters.",
+    "Can read confinement, network denial, and CPU/memory/pid caps be demonstrated against malicious-repo fixtures before any model-driven seat-time execution is allowed?",
+    "Can a lightweight OS-level sandbox (namespace-based, e.g. sandbox-exec/unshare) deliver sub-second spin-up while enforcing read-confinement and network-severance, or must open-ended execution move off the interactive loop?",
+    "If enterprise/API-tier Antigravity adds a verifiable flag to disable web-grounding, the network-isolation block for Google seats could be lifted — but local test suites to verify this are currently missing."
+  ],
+  "next_actions": [
+    "P1 — Prove the egress-bus invariant first: a D4-structured hard-stop so execution output reaches the artifact bus only if its content is in the consent hash or passes the output secret-scan; test with a malicious in-scope file that writes a planted secret to stdout and assert it never reaches an external seat. If it can't hold, stop.",
+    "P2 — Deterministic declared-command brokered receipts: user/config declares the exact program + arg pattern; the conductor runs it via the existing no-shell, program-pinned, curated-PATH, scrubbed-env, isolated-cwd/HOME, process-group-timeout discipline; the redacted receipt (exit code + scanned output) is handed to seats as DATA. No seat chooses the command. This tier may be gate-bearing.",
+    "P3 — Add real resource caps (CPU/memory/pid/wall) and a filesystem boundary that actually confines reads to the snapshot (closing R9); only here does a container/ephemeral sandbox earn its latency cost.",
+    "P4 — Model-chosen seat-time execution, if ever, stays inside the P3 boundary, advisory-only, loudly disclosed, and permanently excluded from any `verified` stamp; rejected broker requests become advisory notes, not executed shell.",
+    "Reuse existing controls rather than reinventing: curated PATH, no shell, scrubbed env, process-group timeout, and the planted-binary resolution guard already in verify_evidence.py.",
+    "Maintain invariants: no read+network for any execution-capable seat in a grounded run; no execution output may flow into a board containing any seat that cannot be de-networked; commands are declared not model-chosen in any gate-bearing path; re-verify isolation flags per CLI release."
+  ],
+  "unanimous": true
+}
