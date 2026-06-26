@@ -10,6 +10,7 @@ from _conductor.constants import (
     DEFAULT_LENS,
     DEFAULT_MAX_ROUNDS,
     EXIT_EGRESS_BLOCKED,
+    EXIT_NO_VERDICT,
     EXIT_OK,
     EXIT_PREFLIGHT_NOGO,
     EXIT_USAGE,
@@ -486,6 +487,14 @@ def _run_synthesis_step(config, rounds_done: list, args, last_dir: str, *,
           f"{verdict_path} (advisory-board/verdict@2; cite typed evidence on each "
           "blocker). Then run the deterministic M5 chain "
           f"(verify → consensus → validate --gate).")
+    # Default: exit 0 so a synth hiccup never discards the successful rounds (the
+    # warning + absent verdict.json is the signal). --strict-exit flips ONLY the
+    # return code to EXIT_NO_VERDICT so a CI gate can't misread synth failure as
+    # success — every print, the verdict-rejected.json write, and the fallback
+    # message above are byte-identical in both modes. Both synth-failure modes
+    # (parse error and schema-rejected) flow through here, so both honor the flag.
+    if getattr(args, "strict_exit", False):
+        return EXIT_NO_VERDICT
     return EXIT_OK
 
 
@@ -603,6 +612,10 @@ def build_parser() -> argparse.ArgumentParser:
     p_run.add_argument("--timeout", type=int, default=None, metavar="SECONDS",
                        help="per-seat hard timeout for the round-1 fan-out "
                             "(default: the adapter cap, 900s = 15 min)")
+    p_run.add_argument("--strict-exit", dest="strict_exit", action="store_true",
+                       help="exit non-zero if --synthesize fails to produce a usable "
+                            "verdict.json (for CI gates). Default exits 0 with a warning "
+                            "so a synth hiccup never discards the successful rounds.")
     p_run.set_defaults(func=cmd_run)
 
     p_tool = sub.add_parser("toolchain",

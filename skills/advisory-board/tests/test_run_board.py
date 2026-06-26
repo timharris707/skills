@@ -3874,6 +3874,53 @@ class TestSynthesizerE2E(EnvMixin):
         self.assertFalse(os.path.exists(os.path.join(out, "verdict-rejected.json")))
         self.assertIn("synthesizer did NOT produce", text)
 
+    def test_strict_exit_returns_nonzero_on_schema_rejection(self):
+        # --strict-exit + a synth schema failure → EXIT_NO_VERDICT (non-zero), so a
+        # CI gate can't misread the synth failure as success. The warning, the
+        # verdict-rejected.json drop, and the fallback message are unchanged — only
+        # the exit code differs.
+        os.environ["MOCK_CLAUDE_SYNTH_MODE"] = "schema_fail"
+        out = self._out()
+        code, text, _ = run_cli(["run", "--source", SAMPLE, "--out", out, "--yes",
+                                 "--synthesize", "--strict-exit"])
+        self.assertEqual(code, rb.EXIT_NO_VERDICT)
+        self.assertNotEqual(code, rb.EXIT_OK)
+        # Same side effects as the default mode — only the return code changed.
+        self.assertFalse(os.path.exists(os.path.join(out, "verdict.json")))
+        self.assertTrue(os.path.exists(os.path.join(out, "verdict-rejected.json")))
+        self.assertIn("synthesizer did NOT produce a usable verdict.json", text)
+
+    def test_strict_exit_returns_nonzero_on_parse_failure(self):
+        # The other synth-failure mode (unparseable output / dropped seat) also
+        # honors --strict-exit.
+        os.environ["MOCK_CLAUDE_SYNTH_MODE"] = "invalid_json"
+        out = self._out()
+        code, text, _ = run_cli(["run", "--source", SAMPLE, "--out", out, "--yes",
+                                 "--synthesize", "--strict-exit"])
+        self.assertEqual(code, rb.EXIT_NO_VERDICT)
+        self.assertFalse(os.path.exists(os.path.join(out, "verdict.json")))
+        self.assertIn("synthesizer did NOT produce", text)
+
+    def test_default_exit_zero_on_synth_failure_without_strict(self):
+        # Regression guard: the DEFAULT (no --strict-exit) path must still exit 0 on
+        # a synth failure — a synth hiccup must never discard the successful rounds.
+        os.environ["MOCK_CLAUDE_SYNTH_MODE"] = "schema_fail"
+        out = self._out()
+        code, text, _ = run_cli(["run", "--source", SAMPLE, "--out", out, "--yes",
+                                 "--synthesize"])
+        self.assertEqual(code, rb.EXIT_OK)
+        self.assertTrue(os.path.exists(os.path.join(out, "verdict-rejected.json")))
+        self.assertIn("synthesizer did NOT produce a usable verdict.json", text)
+
+    def test_strict_exit_does_not_bite_on_synth_success(self):
+        # --strict-exit only fires on synth FAILURE. A successful synthesis with the
+        # flag set still exits 0 and writes verdict.json.
+        out = self._out()
+        code, _, _ = run_cli(["run", "--source", SAMPLE, "--out", out, "--yes",
+                              "--synthesize", "--strict-exit"])
+        self.assertEqual(code, rb.EXIT_OK)
+        self.assertTrue(os.path.exists(os.path.join(out, "verdict.json")))
+
     def test_synthesizer_seat_override_routes_to_codex(self):
         out = self._out()
         code, _, _ = run_cli(["run", "--source", SAMPLE, "--out", out, "--yes",
