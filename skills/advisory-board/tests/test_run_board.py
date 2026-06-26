@@ -3232,6 +3232,32 @@ class TestRenderVerdict(unittest.TestCase):
             html_out = rh.render(hd, open(rh.default_template()).read())
             self.assertIn("<code>SET NX</code>", html_out)
 
+    def test_nested_seat_review_indents_in_rendered_handoff(self):
+        # artifact-formatting regression: a step with indented sub-bullets in a seat's
+        # round-N/<seat>.md must render as a nested <ul> INSIDE the parent <li> (so the
+        # handoff CSS '.review-body ul' padding-left indents it), not a flat sibling list.
+        import render_handoff as rh
+        with tempfile.TemporaryDirectory() as d:
+            os.makedirs(os.path.join(d, "round-1"))
+            with open(os.path.join(d, "round-1", "claude.md"), "w") as fh:
+                fh.write("1. First step\n"
+                         "2. Fix the money:\n"
+                         "    - smaller deposit\n"
+                         "    - net 30 terms\n"
+                         "3. Then scope")
+            hd = rv.build_handoff_data(self.data, run_dir=d)
+            html_out = rh.render(hd, open(rh.default_template()).read())
+            # the sub-bullets are nested in the parent <li>, closing with </ul></li>
+            self.assertIn(
+                "Fix the money:<ul><li>smaller deposit</li>"
+                "<li>net 30 terms</li></ul></li>",
+                html_out,
+            )
+            self.assertIn("</ul></li>", html_out)
+            # the descendant rule that indents review-body lists (incl. nested) is present
+            self.assertIn(".review-body ul, .review-body ol { margin: 6px 0; padding-left: 22px; }",
+                          html_out)
+
 
 class TestVerdictLabels(unittest.TestCase):
     """The plain-language, lens-aware verdict label (v1.6.0)."""
