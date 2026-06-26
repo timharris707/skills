@@ -3,88 +3,80 @@
 command         : gemini -p <prompt> -m gemini-3.5-flash --approval-mode plan --skip-trust
 prompt-source   : prompts/gemini-round-2.prompt
 source-hash     : sha256:06457237f46bec318a3b6cb24bd63d00a04fcd6d2451ebb8bbb000661252fc57   (identical across seats → same-material independence)
-prompt-hash     : sha256:eb5cae9aa8921341b82eb247693861f8590ccbe11b9b1287f659d9b0b84dcbc3   (the exact bytes this seat received)
-packet-hash     : sha256:b297836a41979d5dbac4a281eb8196dc455e3fffdedbb294f5ee536906c04043   (round-2 packet; reuses the run's egress approval — derivatives of already-approved source to the same providers)
+prompt-hash     : sha256:e0e3d871af29db7bed613fbc76d6ae780789d2fc4ecd8138a77f75833392101c   (the exact bytes this seat received)
+packet-hash     : sha256:76ed47763284f92ba56a251f828cf09a7b00bf41f937fb6eddc2bc9307d85121   (round-2 packet; reuses the run's egress approval — derivatives of already-approved source to the same providers)
 model-requested : gemini-3.5-flash
 model-answered  : unknown (CLI reported none — not assumed)
 exit-code       : 0
 timed-out       : no
-elapsed-s       : 34.73
+elapsed-s       : 49.62
 attempts        : 1
 status          : ran
 failure-class   : -
 
 ----------------8<---------------- STDOUT ----------------8<----------------
-### 1. Updated Verdict & Confidence
-* **Verdict:** **block**
-* **Confidence:** High
-* **What would change it:** A concrete proposal including:
-  1. Transitioning the clock source to `time.monotonic()` with dependency injection.
-  2. A thread-safe, memory-bounded registry/manager for multi-client tracking to prevent Out-Of-Memory (OOM) vulnerabilities.
-  3. Integration of observability hooks (telemetry, metrics, and logs) for hot-path monitoring.
-  4. An explicit fail-open mechanism in case of rate-limiter exceptions or lock starvation.
+### 1. Updated Verdict
+* **Verdict:** BLOCK (do not proceed).
+* **Confidence Level:** High.
+* **One line on what would change it:** Migrating rate limiting upstream to an API Gateway (e.g., Envoy, Nginx) or a centralized, non-blocking caching layer (e.g., Redis), or adding explicit dry-run execution, structured telemetry emission, and a memory-bounded registry with eviction.
 
 ---
 
-### 2. Changed Mind & Dissent
-* **Where we CHANGED OUR MIND:**
-  * We agree with **Claude** that switching to `time.monotonic()` and injecting the clock source (`now_fn=time.monotonic`) is the cleanest way to fix the clock-drift issue while making the unit tests deterministic, avoiding flaky and slow `time.sleep()` calls.
-* **Where we STILL DISSENT:**
-  * We **STILL DISSENT** from **Claude's** verdict of **caution (ship with changes)**. Claude argues that multi-client bucket management, memory eviction, and async support are out of scope for this individual class.
-  * **Reason for Dissent:** From a Product & Operations standpoint, evaluating "production-readiness to put on the hot path" cannot treat this class in isolation from its stated operational intent: "per-client rate limiting." A rate-limiter is only as safe as its container. If workers instantiate a new `TokenBucket` per client without an eviction/TTL policy, a simple client-ID harvesting attack or a distributed traffic spike will leak memory and trigger an OOM crash across all worker processes. We cannot approve an implementation whose natural integration pattern guarantees a severe availability risk.
+### 2. Where you CHANGED YOUR MIND and where you STILL DISSENT
+* **Where I Changed My Mind (relative to Round 1 Gemini & Round 1 Claude):**
+  * We are shifting our verdict from **CAUTION** to **BLOCK**. In Round 1, we suggested localized code patches (monotonic clocks, eviction registries). However, from a **Product & Operations** perspective, local in-memory patching is an operational trap. Locking on the Python hot path under the GIL during an abusive traffic spike creates a massive latency blast radius for legitimate traffic. Additionally, because API workers run across multiple independent processes, a local in-memory token bucket cannot enforce a global "fixed requests-per-second per client" limit—it leaks limits by a factor of $M$ (where $M$ is the number of worker processes). The implementation is both architecturally ineffective and operationally dangerous. We now fully align with **Codex's** verdict to **BLOCK**.
+* **Where I Still Dissent (relative to Claude's CAUTION):**
+  * We dissent from **Claude's** recommendation to proceed with changes. Claude assumes clock-source and clamping changes are sufficient. We contend that the complete lack of dry-run capabilities (essential for safe rollouts), zero observability metrics (critical for SRE monitoring), and multi-process rate-limiting leakage are absolute operational showstoppers that cannot be resolved with minor local code edits.
 
 ---
 
 ### 3. Strongest Remaining Objections
-1. **Unbounded Memory Leak & OOM Vector (Multi-Client Scale):** The proposal mandates "per-client rate limiting," yet the implementation only provides a single bucket. If integrated into middleware using a naive dictionary (`client_id -> TokenBucket`), memory will grow indefinitely. Without a thread-safe, size-bounded LRU cache or TTL eviction mechanism, the system is highly vulnerable to memory exhaustion.
-2. **Zero Observability & Telemetry on the Hot Path:** Putting a component on the hot path of *every* public request without metrics or log emission is an operational hazard. We have no way to monitor:
-   * Volumetric rate-limiting trends (allow/reject counts).
-   * Lock acquisition latency (contention overhead).
-   * Depletion rates or error states.
-3. **GIL-Bound Thread Contention:** Serializing *every* inbound request behind a single `threading.Lock` to compute float arithmetic degrades p99 latencies under heavy concurrent spikes, particularly under Python's Global Interpreter Lock (GIL).
-4. **No Fail-Safe/Fail-Open Guardrail:** If an unexpected runtime exception occurs or if lock acquisition stalls, `allow()` fails closed, resulting in an immediate cascade of HTTP 500s for legitimate user traffic.
+* **GIL & Lock Contention Latency Spike (Latency Risk):** Under heavy concurrent abusive traffic, thousands of requests will contend for `self._lock` in Python. Under the GIL, thread lock acquisition overhead and context switching will severely spike latency for all requests (allowed and denied alike), leading to a self-inflicted Denial of Service (DoS).
+* **Multi-Process Limit Leakage (Rollout & Product Policy):** Modern production web servers run multiple independent worker processes. Each process maintains its own independent `TokenBucket` registry. A client can bypass their rate limit by up to $M$ times, defeating the core product requirement.
+* **Observability Zero-Point (Operations Risk):** The implementation has zero metrics, zero logging, and zero trace spans. Operations cannot monitor block rates, lock wait times, client-specific usage, or system health, making production triage impossible.
+* **No Dry-Run / Evaluation Strategy (Rollout Risk):** There is no "shadow mode" to evaluate limits against real-world traffic. Deploying this directly to block traffic creates an extreme risk of blocking legitimate user workflows due to misconfigured rate limits.
+* **Blackholing Large Requests (User-Workflow Risk):** If a client requests more tokens than the bucket's capacity ($n > \text{capacity}$), they are permanently blocked, even if the bucket is fully refilled. This is a severe failure mode for legitimate batch requests.
 
 ---
 
 ### 4. Recommended Execution Sequence
-1. **Clock Source Reform & Dependency Injection:** Swap `time.time()` with `time.monotonic()`, and inject the time source via the constructor (`now_fn=time.monotonic`) to facilitate fast, deterministic mock tests.
-2. **Build a Memory-Bounded Multi-Client Wrapper:** Implement a parent registry/manager that handles `client_id` lookups using an LRU cache or TTL-based eviction scheme to bound maximum memory footprint.
-3. **Add Telemetry Hooks:** Instrument the code with low-overhead metrics callbacks (e.g., `on_allow()`, `on_reject()`, `on_error()`) to track utilization and lock-contention overhead.
-4. **Introduce Fail-Open Behavior:** Wrap the middleware integration in a `try-except` block to ensure that if the rate-limiter encounters any internal failure, it defaults to `True` (fail-open) and increments a critical alert metric.
-5. **Concurrency & Load Testing:** Author a multi-threaded benchmark using `concurrent.futures` to empirically measure the lock acquisition latency and p99 degradation under high-throughput scenarios.
+If the team insists on an in-application rate limiter (against our recommendation to move upstream), the following sequence is required before any code can touch the production hot path:
+1. **Clock & Math Safety:** Swap `time.time()` to `time.monotonic()` and apply safety clamping: `elapsed = max(0.0, now - self._last)`.
+2. **Input Validation:** Fail fast if $n \le 0$, and implement a safe handling policy for $n > \text{capacity}$ (either cap the request cost or reject with a clear error).
+3. **Telemetry & Instrumentation:** Add Prometheus/StatsD metrics for `rate_limit.allowed` (counter), `rate_limit.blocked` (counter), `rate_limit.lock_wait_time_ms` (histogram), and `rate_limit.tokens_remaining` (gauge). Add debug logging for blocked requests.
+4. **Dry-Run/Shadow Mode:** Add a `dry_run: bool` config parameter. When `True`, evaluate the bucket, log/emit metrics, but always return `True` to allow traffic.
+5. **Memory-Bounded Registry:** Wrap bucket instantiation in a thread-safe registry with a strict LRU/TTL eviction policy to bound memory growth and prevent OOM under DDoS.
 
 ---
 
-### 5. Invariants & Guardrails
-* **Monotonicity Invariant:** `elapsed >= 0.0`. Even with monotonic clocks, explicitly enforce this boundary using `elapsed = max(0.0, now - self._last)`.
-* **Token Value Guardrail:** `0.0 <= self._tokens <= self.capacity` must be strictly maintained across all threads.
-* **Memory Capacity Guardrail:** The multi-client registry must enforce an upper limit of $N$ active trackers (e.g., max 10,000 unique client buckets) before evicting the oldest entries.
-* **Availability Guardrail (Fail-Open):** Any rate-limiter operational failure or timeout must fail open, preserving API availability over strict enforcement.
+### 5. Invariants and Guardrails
+* **Time Monotonicity:** $\Delta t = \text{now} - \text{last} \ge 0$ must always hold.
+* **Token Range Conservation:** $0.0 \le \text{tokens} \le \text{capacity}$ at the end of every execution.
+* **Request Cost Bound:** No request cost $n$ may exceed `capacity` without triggering safety fallback logic.
+* **Memory Boundary:** Registry memory consumption must be hard-capped (e.g., maximum of $K$ client buckets).
+* **Fail-Open Policy:** If the rate limiter encounters registry errors or lock acquisition timeouts, it must fail-open to preserve API availability, while raising high-priority operational alerts.
 
 ---
 
-### 6. Risks, Stale Assumptions, & Missing Evidence
-* **Stale Assumption (Thread-Lock Efficiency):** The assumption that a standard synchronous lock is negligible on the hot path ignores the performance reality of multi-threaded WSGI workers under extreme traffic.
-* **Missing Operational Context:** There is no documentation or code illustrating how client identifiers are extracted and mapped to rate-limiting buckets in the routing middleware.
-* **No High-Concurrency Verification:** The existing unit test suite contains zero concurrent/multi-threaded test cases to prove the claimed thread-safety or measure contention overhead.
+### 6. Risks, Stale Assumptions, and Missing Evidence
+* **Stale Assumption (Process Isolation):** The proposal assumes a single shared memory space, ignoring the multi-process nature of production Python WSGI/ASGI servers.
+* **Missing Evidence (Performance under Stress):** There is no load-test data or profiling demonstrating the latency impact of lock contention on the hot path under a 10x-100x traffic spike.
+* **Risk (DDoS Amplification):** A CPU-heavy or lock-heavy rate limiter on the hot path acts as an amplification vector for DDoS attacks by consuming local CPU and worker thread pools.
 
 ---
 
 ### 7. Concrete Evidence
-* **System Time Dependency:**
-  ```python
-  self._last = time.time()  # tokenbucket.py, line 24
-  now = time.time()         # tokenbucket.py, line 29
-  ```
-* **Thread-Lock Serialization:**
-  ```python
-  with self._lock:          # tokenbucket.py, line 28
-  ```
-* **No Negative Interval Guard:**
-  ```python
-  elapsed = now - self._last  # tokenbucket.py, line 30
-  ```
-  *(If the system clock is adjusted backwards by `ntpd`, `elapsed` will resolve to a negative value, rapidly draining tokens and stalling API requests).*
+* **Wall-clock time source:**
+  * `self._last = time.time()` in `TokenBucket.__init__` (line 27)
+  * `now = time.time()` in `TokenBucket.allow` (line 32)
+* **Uncapped refill calculation (vulnerable to negative elapsed):**
+  * `self._tokens = min(self.capacity, self._tokens + elapsed * self.rate)` in `TokenBucket.allow` (line 35)
+* **Hard-coded thread lock on hot path:**
+  * `with self._lock:` in `TokenBucket.allow` (line 31)
+* **No telemetry/observability:**
+  * Code contains zero imports or references to logging, metrics, or trace packages in `tokenbucket.py`.
+* **Undefined behavior for large requests ($n > \text{capacity}$):**
+  * `if self._tokens >= n:` (line 36) in `TokenBucket.allow` will always return `False` if $n > \text{capacity}$, with no error raised or warning logged.
 
 VERDICT: block
 ----------------8<---------------- STDERR ----------------8<----------------

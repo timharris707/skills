@@ -1,71 +1,61 @@
-I'll respond directly with my round-2 review — this is an analytical review task, and the instructions are explicit: return the full review text, write no files.
+## Round 2 review — Claude seat (Architecture & systems)
 
----
+### 1. Updated verdict
 
-# Round-2 review — Claude seat (Architecture & systems)
+**Caution — proceed only with the changes below. Confidence: high.**
 
-## 1. Updated verdict
+What would flip it to **block**: if the board's question is read literally as "is *this artifact* a production-ready *per-client* rate limiter," then the artifact is incomplete — there is no per-client dimension in the code at all (no registry, no eviction, no shared-state semantics). I keep it at caution because the token-bucket *primitive* is sound and the in-class defects are cheap, agreed fixes; but the registry layer must be designed and reviewed before this enforces anything per-client. What would flip it to **ship**: monotonic clock + clamp + `n` validation landed, *and* an explicit, written acceptance of per-process enforcement semantics (or a shared store).
 
-**Ship with changes (CAUTION).** Confidence: **high** on the defects themselves; **medium** on disposition, because one open question is a requirements-scope call only the team can settle.
+### 2. Where I changed my mind / where I still dissent
 
-What would change it: I move to **block** if the team confirms *this class is the entire rate-limiting system* (no per-client registry + eviction being built elsewhere) — because then it structurally cannot deliver the "per-client" limiting the proposal promises. I move to **ship** only after the monotonic-clock fix lands with a test that exercises a non-monotonic time source.
+- **Changed (toward codex):** In round 1 I treated per-process semantics as a secondary note. I now elevate it to a **co-equal gate** with the clock bug. Reason (codex, exactly): *"Missing evidence that per-worker rate limiting is acceptable versus global per-client enforcement."* This is not a code bug — it's a contract bug. With N workers each holding an independent bucket, a client's enforced rate is N× the configured rate. The number you publish is not the number you enforce. A one-line clock fix does nothing for this.
+- **Still dissent from codex on the *label*:** codex says **block**; I say **caution**. Codex's own "what would change it" is *"switch to an injectable monotonic clock"* — a fix list, not "abandon the approach." Block and caution here name the same conditions; caution communicates "the primitive is right, these changes are required" more accurately than block, which reads as "wrong approach."
+- **Still dissent from gemini on lock contention/GIL:** gemini lists *"GIL-related latency overhead"* from `threading.Lock` on the hot path as a risk. Overstated. The critical section is ~5 arithmetic ops; under CPython the GIL already serializes bytecode, so the marginal cost of this lock is negligible and contention is bounded by that tiny section. The lock is not the bottleneck and is not a reason to shard or go lock-free. (The real contention risk lives one level up, in the *registry* lock — see below — not in this bucket.)
+- **Agree with gemini (and adopt):** the **unbounded registry / OOM** point. A `client_id → TokenBucket` map with no TTL/LRU eviction is an attacker-controlled memory-growth primitive (spray unique client IDs → OOM the worker). This is in-scope for the proposal even though it's absent from the code.
 
-## 2. Where I changed my mind / where I still dissent
+### 3. Strongest remaining objections
 
-**Held position (no change):** wall-clock on the refill path is the one mandatory, ship-gating defect. Gemini and I agree on the *evidence* here.
+1. **Wall-clock source on the hot path (unanimous, must-fix).** `self._last = time.time()` (`__init__`) and `now = time.time()` (`allow`). A backward NTP/operator step makes `elapsed < 0`, and `self._tokens + elapsed * self.rate` *reduces* tokens → a spurious **denial window** for legitimate traffic, proportional to the step size (operator steps can be large). Forward steps over-refill but are capped at `capacity`, so that side is benign.
 
-**Still dissent from gemini — disposition (block vs caution).** The clock defect is a one-line source change (`time.time()` → `time.monotonic()`) over a small, well-understood critical section. A defect with a known, contained, one-line fix is the textbook definition of "proceed with changes," not "do not proceed." Block should be reserved for a problem the listed changes don't resolve.
+2. **Per-process enforcement ≠ per-client enforcement (contract bug, not fixable in-class).** The implementation is a single shared bucket per process; the proposal asks for per-client limiting across a fleet of multi-threaded workers. Enforced limit = configured × worker-count. Must be an explicit, accepted decision or moved to a shared store (Redis/gateway).
 
-**Still dissent from gemini — the async/event-loop objection.** Gemini calls the synchronous threaded model a "stale assumption." The operating context states the opposite verbatim: *"Workers are multi-threaded; a single `TokenBucket` instance is shared across a worker's threads."* The threaded model is a *given constraint of this review*, not an assumption the author made. The `threading.Lock` is the correct primitive for that constraint. I reject this as a ship-gating concern.
+3. **The reviewed artifact is a component, not the rate limiter.** The per-client registry — where eviction, the get-or-create race, client-id cardinality attacks, and the real lock contention all live — is simply not present. We cannot certify "per-client rate limiting" production-ready from a single-bucket class. The most dangerous failure modes are in the code that wasn't submitted.
 
-**Partial dissent from gemini — the "memory leak."** The leak gemini describes lives in a per-client *registry* (a dict of buckets keyed by client) that **does not exist in the packet**. The class under review is a single bucket; it does not leak. The concern is real for the *system*, but it is a property of unwritten code, so I file it as a requirements-scope gap, not a defect in the implementation shown. Attributing a leak to `tokenbucket.py` overstates the evidence.
+4. **`n` is unvalidated.** `allow(n)` with `n <= 0`: negative `n` *adds* tokens (`self._tokens -= n`) and always returns `True` — a bucket-inflation path; `n == 0` always passes. And `n > capacity` is a **permanent denial** (tokens are capped at `capacity`, can never reach `n`). Needs validation and a defined policy.
 
-**Where I'd concede ground toward gemini:** if "production-ready to put on the hot path of every public request" is read to include the per-client machinery, then the packet is materially incomplete and block is defensible. I think the honest read is that the packet handed us one component; hence my caution hinges on the team answering the scope question.
+### 4. Recommended execution sequence
 
-## 3. Strongest remaining objections
+1. **Clock:** `time.time()` → `time.monotonic()` in `__init__` and `allow()`. (Gate.)
+2. **Clamp defensively:** `elapsed = max(0.0, now - self._last)` even with monotonic — defense-in-depth, and documents the invariant. (Gate.)
+3. **Validate `n`:** `if n <= 0: raise ValueError`; decide and document `n > capacity` policy (reject at config time, or clamp). (Gate.)
+4. **Decide enforcement semantics explicitly:** accept per-worker (and adjust the published/configured number accordingly), or adopt a shared store. Write it down. (Gate — this is a decision, not code.)
+5. **Design + review the registry separately:** size-bounded TTL/LRU eviction, thread-safe atomic get-or-create (avoid the double-create token-loss race), client-id normalization/cardinality cap. (Gate for "per-client.")
+6. **Define spike behavior:** fail-open vs fail-closed on bad config / unexpected clock, and document burst semantics (capacity = max burst).
+7. Inject the clock for testability; add tests for backward-step (no denial), `n<=0`, `n>capacity`, and concurrent get-or-create.
 
-1. **Wall clock on the refill path → over-throttle / denial stall (MANDATORY, ship-gating).** `self._last = time.time()` and `elapsed = now - self._last`. On a backward NTP step or operator clock change, `elapsed < 0`, so `self._tokens += elapsed * self.rate` *subtracts* tokens. A large backward correction can drive `_tokens` deeply negative and the bucket then **denies every request until wall-clock time catches back up** — a self-inflicted outage on the exact event the context warns about. Forward steps are masked by the `min(capacity, …)` cap, so the asymmetry is: forward = harmless, backward = stall. Fix: `time.monotonic()` (process-wide, non-decreasing, immune to ntpd and operator changes), plus a defensive `elapsed = max(0.0, elapsed)`.
+### 5. Invariants and guardrails
 
-2. **Test suite gives false confidence (ship-gating for the fix to be trustworthy).** `python3 -m unittest` passes, but: zero threads are spawned despite thread-safety being a headline claim; no clock-correction test exists (and *cannot* be written without injecting the clock); the refill tests rely on `time.sleep()` wall-clock margins, which are flaky on loaded CI. A green suite here proves the happy path, not the properties we care about.
+- **`0 ≤ _tokens ≤ capacity` after every `allow()`.** Currently violable below zero by backward clock steps and above-by-design via negative `n`. After fixes #2/#3 this holds; add an assertion in tests.
+- **Time is non-decreasing as seen by the bucket:** `elapsed ≥ 0` always. Guaranteed by monotonic + clamp.
+- **Tokens increase only by `elapsed * rate`, never by a clock anomaly or a negative `n`.**
+- **Lock invariant (already correct):** refill-and-consume is atomic under `self._lock`; `_last` is updated before the consume check — no double-spend. Preserve this; do not split the lock.
+- **Registry invariants (to be added):** bounded entry count; at most one bucket per live client id; eviction must not reset an active client's bucket to full (eviction = burst-grant gift to attackers if mistimed).
 
-3. **No clock injection → the one defect we most need to test is untestable.** Without a `now_fn` seam, you cannot deterministically reproduce a backward clock step. The fix and the test for the fix should land together.
+### 6. Risks, stale assumptions, missing evidence
 
-4. **Per-client scope gap (requirements, team must resolve).** Proposal says "per-client rate limiting"; code is a single shared bucket. Per-client demands a keyed registry with bounded growth/eviction (LRU or TTL) and its own concurrency story. If that lives elsewhere, fine — but it must exist before this goes on the hot path, or one bucket throttles all clients in aggregate (wrong semantics) or an unbounded dict leaks (gemini's real point, in its real location).
+- **Stale assumption:** that `time.time()` is monotonic. The packet supplies its own counter-evidence (*"Hosts run `ntpd`; wall-clock corrections … do happen"*).
+- **Risk:** advertised limit ≠ enforced limit (per-process multiplication). Silent and surprising under fleet scaling.
+- **Risk:** attacker-controlled unique client IDs → unbounded registry growth → worker OOM. No eviction shown.
+- **Missing evidence:** (a) whether per-worker enforcement is acceptable; (b) the registry implementation, which is where most production failure modes live; (c) spike/fail-open-vs-closed policy; (d) a contention profile — though I assess in-bucket lock contention as a non-issue under CPython, the *registry* lock is unprofiled.
+- **Non-issue I want to retire from the board's worry list:** float drift in the refill math (negligible) and in-bucket GIL/lock latency (negligible). Don't spend engineering effort there.
 
-5. **Adversarial input on `n` (minor, cheap to fix).** `allow(n)` does not validate `n`. `allow(-1)` *adds* a token (`self._tokens -= -1`); `allow(0)` always passes consuming nothing; `allow(n)` with `n > capacity` denies forever (can never accrue past the cap). If `n` is ever caller-influenced, guard `n > 0` and consider rejecting `n > capacity` explicitly rather than silently looping false.
+### 7. Concrete evidence (quoted)
 
-## 4. Recommended execution sequence
-
-1. **Switch to `time.monotonic()`** in `__init__` (`self._last`) and `allow()` (`now`). Mandatory; gates ship.
-2. **Add `elapsed = max(0.0, now - self._last)`** as a belt-and-suspenders clamp — cheap insurance and self-documenting.
-3. **Inject the clock**: constructor `now_fn: Callable[[], float] = time.monotonic`, store and call it. Enables deterministic tests.
-4. **Add tests** for: (a) a fed clock that jumps backward → `_tokens` never decreases except by consumption, no stall; (b) concurrency — N threads hammering one bucket, assert total grants ≤ `capacity + rate*duration` (no double-spend); (c) `n` validation.
-5. **Resolve the per-client scope question** with the team (registry + eviction in scope here or owned elsewhere) before hot-path rollout.
-6. **Decide and document the caller's fail policy** (fail-open vs fail-closed) if `allow()` ever raises — it's a system property, but it must be a *decision*, not an accident.
-
-## 5. Invariants and guardrails
-
-- **Monotonic-time invariant:** after the fix, `elapsed ≥ 0` on every call → `_tokens` is non-decreasing except by explicit consumption. Assert in tests.
-- **Token-range invariant:** `0 ≤ _tokens ≤ capacity` holds at the end of every `allow()` (negative is now impossible because grants only fire when `_tokens ≥ n` and the clamp prevents negative refill). Assert it.
-- **No-double-spend invariant:** the read-modify-write stays entirely inside `self._lock`. This already holds and must be preserved — do not move `time` reads or token math outside the lock for "performance."
-- **Bounded-growth guardrail (system level):** any per-client registry must have a hard cap and eviction; size must be observable.
-- **Availability guardrail:** the caller's fail-mode on exception is a deliberate, documented choice.
-
-## 6. Risks, stale assumptions, missing evidence
-
-- **Stale assumption (gemini's async claim):** contradicted by the stated multi-threaded context. Not a risk for this review.
-- **Missing evidence — concurrency:** thread-safety is claimed and headlined but never exercised. The lock looks correct on inspection; "looks correct" is not "tested."
-- **Missing evidence — clock behavior:** the top stated concern ("wall-clock corrections … do happen in production") has no corresponding test, and can't have one without the injection seam.
-- **Missing evidence — load/contention:** single-bucket lock contention on the hot path is plausibly fine (tiny critical section) but unmeasured. Lower priority than correctness; worth a p99 check before fleet-wide rollout.
-- **Risk — silent semantic drift:** if per-client is dropped to "one global bucket," behavior is wrong in a way tests won't catch.
-
-## 7. Concrete evidence
-
-- `self._last = time.time()` (constructor) and `now = time.time()` / `elapsed = now - self._last` (`allow`): wall-clock interval math, directly contradicting the context's *"Hosts run `ntpd`; wall-clock corrections (and operator clock changes) do happen in production."*
-- `self._tokens = min(self.capacity, self._tokens + elapsed * self.rate)`: refill math is correct *given `elapsed ≥ 0`*; the cap masks forward jumps, leaving backward jumps as the unguarded failure mode.
-- `if self._tokens >= n: self._tokens -= n; return True`: correct under the lock — no double-spend; but no guard on `n`, so negative `n` increments tokens.
-- `with self._lock:` wraps the full refill-and-consume — the thread-safety claim is sound for a single bucket; the suite's `test_*` methods spawn **zero threads**, so it's unverified.
-- `self.rate = rate` (no `float()` cast) vs `self.capacity = float(capacity)`: cosmetic inconsistency, not a defect.
-- Proposal text "per-client rate limiting" vs a single `TokenBucket` with no keyed registry in the packet: the scope gap, in evidence.
+- Wall clock: `self._last = time.time()` (`__init__`); `now = time.time()` (`allow`).
+- No lower clamp: `self._tokens = min(self.capacity, self._tokens + elapsed * self.rate)` — bounds only the top; `elapsed = now - self._last` can be negative.
+- Atomic, correct lock discipline (keep): `with self._lock:` wraps refill + `self._tokens -= n` + return.
+- Unvalidated `n`: signature `def allow(self, n: float = 1)`; `if self._tokens >= n:` then `self._tokens -= n` — negative `n` inflates tokens; `n > capacity` can never pass.
+- Per-client gap: class docstring says *"One bucket instance is shared across a worker's threads"* — confirming single-bucket-per-process; no `client_id` map anywhere in `tokenbucket.py`.
+- Config validation present and adequate for `rate`/`capacity`: `if rate <= 0 or capacity <= 0: raise ValueError`.
 
 VERDICT: caution

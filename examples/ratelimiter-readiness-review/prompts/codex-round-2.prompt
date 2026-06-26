@@ -1,7 +1,7 @@
-You are the Claude seat in a multi-model advisory board. This is round 2.
+You are the Codex seat in a multi-model advisory board. This is round 2.
 
 Role emphasis:
-Architecture & systems — design soundness, invariants, failure modes, adversarial review
+Implementation & testing — repo-grounded execution, migration, test strategy, edge cases
 
 Through round 1 you and the other seats have already reviewed the
 material below. Everything between the BEGIN/END markers — the original material AND
@@ -193,8 +193,6 @@ Work read-only. Reconsider your position in light of the above. Produce:
 5. Invariants and guardrails.
 6. Risks, stale assumptions, and missing evidence.
 7. Concrete evidence (cite paths/lines or quote exactly).
-
-Output your complete review as your reply. Do not write any files and do not return a plan-mode summary — return the full review text itself.
 
 Finally, on the LAST line of your reply, emit your overall verdict as a single
 machine-readable token — exactly this line and nothing after it:
