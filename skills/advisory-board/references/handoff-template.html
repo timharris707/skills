@@ -164,10 +164,22 @@
 
   .review-body { font-size: 15.5px; color: var(--ink); }
   .review-body strong { font-weight: 600; }
-  .review-body ul { margin: 6px 0; padding-left: 22px; }
+  .review-body em { font-style: italic; }
+  .review-body a { color: var(--accent); text-decoration: underline; }
+  .review-body ul, .review-body ol { margin: 6px 0; padding-left: 22px; }
   .review-body li { margin: 5px 0; }
   .review-body p { margin: 6px 0; }
   .review-body p.r-title { font-weight: 600; margin-top: 12px; }
+  .review-body blockquote {
+    margin: 8px 0; padding: 2px 0 2px 14px;
+    border-left: 3px solid var(--line-strong); color: var(--ink-soft);
+  }
+  .review-body pre {
+    background: var(--surface-soft); border: 1px solid var(--line);
+    border-radius: 8px; padding: 10px 12px; margin: 8px 0;
+    overflow-x: auto; font-size: 13px; line-height: 1.5;
+  }
+  .review-body pre code { background: none; border: 0; padding: 0; font-size: inherit; }
   code {
     font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
     font-size: 0.86em; background: #f0efe9; border: 1px solid var(--line);
@@ -314,8 +326,9 @@
           <span class="conf">confidence: {{ROUND_CONFIDENCE}}</span>
         </div>
         <div class="review-body">
-          <!-- {{ROUND_REVIEW}}: this seat's findings as HTML — <p>, <ul>/<li>,
-               <p class="r-title"> sub-heads, <code> for inline code. -->
+          <!-- {{ROUND_REVIEW}}: this seat's findings, authored as raw Markdown and
+               converted to HTML by render_handoff.py (_md) — headings -> <p class="r-title">,
+               **bold**/*italic*, -/1. lists, `code`/```fences```. -->
           {{ROUND_REVIEW}}
         </div>
       </div>
