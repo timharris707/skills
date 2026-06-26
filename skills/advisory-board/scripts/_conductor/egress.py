@@ -54,7 +54,8 @@ def build_round2(config: RunConfig, prev_results: list, round_no: int = 2) -> tu
                                      board_packet=board_packet,
                                      own_review=own[r.seat],
                                      cross_reading=config.cross_reading,
-                                     round_no=round_no)
+                                     round_no=round_no,
+                                     grounded=config.grounded)
         blobs.append(PacketBlob(
             seat=seat.name,
             provider=seat.provider,
@@ -95,7 +96,7 @@ def build_packet(config: RunConfig) -> list:
     """Materialize the exact per-seat round-1 prompts that would leave the machine."""
     blobs: list = []
     for seat in config.board:
-        prompt = build_round1_prompt(seat, config.source.text)
+        prompt = build_round1_prompt(seat, config.source.text, grounded=config.grounded)
         blobs.append(PacketBlob(
             seat=seat.name,
             provider=seat.provider,

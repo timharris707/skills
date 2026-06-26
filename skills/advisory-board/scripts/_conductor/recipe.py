@@ -12,7 +12,7 @@ from _conductor.constants import (
 from _conductor.registry import REGISTRY
 from _conductor.config import RunConfig
 from _conductor.prompts import (
-    PROMPT_TEMPLATE_VERSION,
+    prompt_template_version,
     prompt_template_sha,
 )
 from _conductor.synthesizer import (
@@ -225,8 +225,11 @@ def config_to_recipe(config: RunConfig) -> dict:
         "lens": config.lens,
         "output": config.output,
         "out_dir": config.out_dir,
-        "prompt_template": PROMPT_TEMPLATE_VERSION,
-        "prompt_template_sha256": prompt_template_sha(),
+        # Conditional on grounding (P4/D6): a non-grounded run records @2 + the @2
+        # sha byte-for-byte (the {repo_grounding} clause renders empty there), so
+        # existing recipes/hashes never churn; a grounded run records @3 + the @3 sha.
+        "prompt_template": prompt_template_version(config.grounded),
+        "prompt_template_sha256": prompt_template_sha(config.grounded),
         "synthesize": config.synthesize,
         "synthesizer_seat": config.synthesizer_seat,
         "synthesizer_template": SYNTHESIZER_TEMPLATE_VERSION if config.synthesize else None,
