@@ -18,7 +18,8 @@ Standard library only; no third-party dependencies.
 handoff-data.json shape (keys mirror the template's {{TOKENS}}, lowercased):
 
   Top level (scalars):  title, subtitle, date, board, rounds, verdict,
-                        verdict_class, verdict_note, plan, metadata, dissent_flag
+                        verdict_class, verdict_note, disclaimer, plan, metadata,
+                        dissent_flag
   Lists of objects:     seats[], blockers[], dissents[], caveats[],
                         questions[], actions[]
     seats[]:   seat_name, seat_lens, seat_model, seat_status, seat_status_class,
@@ -73,17 +74,18 @@ BLOCK_KEYS = {
 
 # Tokens whose values are authored HTML fragments and pass through unescaped.
 RAW_TOKENS = {
-    "SUBTITLE", "BOARD", "VERDICT_NOTE", "PLAN", "METADATA", "SEAT_HIGHLIGHT",
-    "ROUND_REVIEW", "BLOCKER_BODY", "DISSENT_BODY", "CAVEAT_CLAIM",
-    "CAVEAT_IMPACT", "QUESTION", "ACTION",
+    "SUBTITLE", "BOARD", "VERDICT_NOTE", "DISCLAIMER", "PLAN", "METADATA",
+    "SEAT_HIGHLIGHT", "ROUND_REVIEW", "BLOCKER_BODY", "DISSENT_BODY",
+    "CAVEAT_CLAIM", "CAVEAT_IMPACT", "QUESTION", "ACTION",
 }
 
 
 def drop_empty_optionals(out: str) -> str:
-    """Remove the three optional elements when their token rendered empty."""
+    """Remove the optional elements when their token rendered empty."""
     out = re.sub(r'\s*<span class="seat-status\s*">\s*</span>', "", out)
     out = re.sub(r'\s*<div class="highlight">\s*</div>', "", out)
     out = re.sub(r'\s*<span class="conf">confidence:\s*</span>', "", out)
+    out = re.sub(r'\s*<span class="disclaimer">\s*</span>', "", out)
     return out
 
 

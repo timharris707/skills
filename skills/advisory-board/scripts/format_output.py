@@ -15,7 +15,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from _verdict_labels import human_label, is_software_lens  # noqa: E402  lens-aware label
+from _verdict_labels import human_label, is_software_lens, lens_disclaimer  # noqa: E402  lens-aware label + disclaimer
 
 
 def die(message: str) -> None:
@@ -48,12 +48,19 @@ def verdict_line(data: dict) -> str:
     return f"{label} ({data.get('confidence', '?')} confidence, {stance})"
 
 
+def _disclaimer(data: dict):
+    """The lens-aware professional-advice caveat, or None for a software/absent lens."""
+    return lens_disclaimer(data.get("lens_preset"))
+
+
 def as_tldr(data: dict) -> str:
     blockers = data.get("blockers", [])
     tops = "; ".join(b.get("title", "blocker") for b in blockers[:3]) if blockers else ""
     title = data.get("title", "Review")
     tail = f" Top blockers: {tops}." if blockers else ""
-    return f"{title}: {verdict_line(data)}.{tail}"
+    disclaimer = _disclaimer(data)
+    note = f" ({disclaimer})" if disclaimer else ""
+    return f"{title}: {verdict_line(data)}.{tail}{note}"
 
 
 def as_pr(data: dict) -> str:
@@ -82,6 +89,9 @@ def as_pr(data: dict) -> str:
     rounds = data.get("rounds", "?")
     plural = "" if rounds == 1 else "s"
     out.append(f"<sub>Board: {seats} - {rounds} round{plural}.</sub>")
+    disclaimer = _disclaimer(data)
+    if disclaimer:
+        out += ["", f"<sub>_{disclaimer}_</sub>"]
     return "\n".join(out)
 
 
@@ -96,6 +106,9 @@ def as_slack(data: dict) -> str:
     actions = data.get("next_actions", [])
     if actions:
         out.append("*Next:* " + "; ".join(actions))
+    disclaimer = _disclaimer(data)
+    if disclaimer:
+        out.append(f"_{disclaimer}_")
     return "\n".join(out)
 
 

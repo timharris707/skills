@@ -45,6 +45,20 @@ PLAIN_NOTES = {
 # carried no `lens_preset`; see `human_label`).
 SOFTWARE_PRESET = "software-architecture"
 
+# Lens-aware professional-advice caveat for the human-facing artifacts. A software-lens
+# board (and the absent/None default, which maps to software) carries NO disclaimer, so
+# existing software runs are unchanged. The legal preset gets the lawyer-specific line;
+# every other non-software preset (and any unknown one) gets the universal one. These
+# strings are approved wording — keep them VERBATIM.
+LEGAL_DISCLAIMER = (
+    "Directional review to help you focus a conversation with a qualified attorney "
+    "— not legal advice."
+)
+UNIVERSAL_DISCLAIMER = (
+    "An advisory board sharpens your judgment; it doesn't replace professional advice "
+    "where your decision warrants it."
+)
+
 
 def is_software_lens(lens_preset: Optional[str]) -> bool:
     """True when the board-level preset is the software-architecture family.
@@ -75,3 +89,22 @@ def human_label(token: str, lens_preset: Optional[str] = None,
     if is_software_lens(lens_preset):
         return SOFTWARE_LABELS.get(token, str(token)), None
     return PLAIN_LABELS.get(token, str(token)), PLAIN_NOTES.get(token)
+
+
+def lens_disclaimer(lens_preset: Optional[str]) -> Optional[str]:
+    """The professional-advice caveat to render for a board's lens, or ``None``.
+
+    * a software-lens board — ``software-architecture`` or the absent/``None`` default
+      that :func:`is_software_lens` maps to software — carries no disclaimer (existing
+      software runs are unchanged);
+    * a ``legal-contract`` board gets the lawyer-specific line;
+    * every other non-software preset (business-decision, product-strategy,
+      research-paper, writing-editing, and any unknown non-software value) gets the
+      universal one.
+
+    Renderer-only: this never touches the verdict.json schema or the machine gate."""
+    if is_software_lens(lens_preset):
+        return None
+    if lens_preset == "legal-contract":
+        return LEGAL_DISCLAIMER
+    return UNIVERSAL_DISCLAIMER
