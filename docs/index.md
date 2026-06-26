@@ -4,7 +4,7 @@ title: Skills
 
 # Skills
 
-Reusable AI workflow skills for planning, review, orchestration, and execution support.
+Reusable AI workflow skills for the moments where one opinion isn't enough — reviewing, deciding, and pressure-testing the hard calls before you commit.
 
 This repository is provider-agnostic. Individual skills may include runtime-specific adapter files, but the main skill instructions are written to stay portable.
 
@@ -12,7 +12,9 @@ This repository is provider-agnostic. Individual skills may include runtime-spec
 
 ### [Advisory Board](./advisory-board)
 
-A multi-model round table for strengthening any plan, design, decision, or document before you commit to it. Several frontier models review the same material, debate across rounds, and converge on a single working handoff — plus a machine-readable verdict you can gate CI on. Domain lens presets cover software, product, research, legal, business, and writing.
+**Get a room full of expert advisors for any big decision — before you commit.** Several leading AI models from Anthropic, OpenAI, and Google each examine the same thing — your plan, your draft, your decision — then debate it out loud and hand you one clear recommendation: what's solid, what's risky, and what to do next. Works for software, but also product, research, legal, business, and writing.
+
+[**See a real board in action →**](./sample-handoff.html) — a finished handoff on *"Should I go full-time on my side project?"* (verdict: proceed with care, unanimous), or [read the full page](./advisory-board).
 
 ## Repository Principles
 
