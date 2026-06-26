@@ -422,20 +422,20 @@ footer.colophon code { background: var(--surface-2); }
           
           <span class="chip"><b>Owner</b> Tim</span>
           
-          <span class="chip"><b>Baseline</b> advisory-board/v1.0.0 + plan view · **M1 (v1.1.0) + M4 (v1.2.0) shipped** · 337 tests green</span>
+          <span class="chip"><b>Baseline</b> advisory-board/v1.0.0 + plan view · **M1 (v1.1.0) + M4 (v1.2.0) + M2 (v1.3.0) shipped** · 373 tests green</span>
           
         </div>
       </div>
       <div class="gauge">
-        <svg class="ring" viewBox="0 0 120 120" width="118" height="118" role="img" aria-label="Overall progress 59%">
+        <svg class="ring" viewBox="0 0 120 120" width="118" height="118" role="img" aria-label="Overall progress 86%">
           <circle class="ring-track" cx="60" cy="60" r="52" fill="none" stroke-width="11"/>
           <circle class="ring-arc" cx="60" cy="60" r="52" fill="none" stroke-width="11"
                   stroke-linecap="round" transform="rotate(-90 60 60)"
-                  stroke-dasharray="326.7" stroke-dashoffset="134.0"/>
-          <text class="ring-pct" x="60" y="57" text-anchor="middle" dominant-baseline="middle">59%</text>
+                  stroke-dasharray="326.7" stroke-dashoffset="45.7"/>
+          <text class="ring-pct" x="60" y="57" text-anchor="middle" dominant-baseline="middle">86%</text>
           <text class="ring-sub" x="60" y="76" text-anchor="middle" dominant-baseline="middle">complete</text>
         </svg>
-        <div class="gauge-count"><b>13</b> / 22 tasks done</div>
+        <div class="gauge-count"><b>19</b> / 22 tasks done</div>
       </div>
     </div>
 
@@ -443,7 +443,7 @@ footer.colophon code { background: var(--surface-2); }
       
       <span class="rail-item done"><i class="dot"></i>M1</span>
       
-      <span class="rail-item todo"><i class="dot"></i>M2</span>
+      <span class="rail-item done"><i class="dot"></i>M2</span>
       
       <span class="rail-item todo"><i class="dot"></i>M3</span>
       
@@ -557,16 +557,16 @@ footer.colophon code { background: var(--surface-2); }
 
     </article>
     
-    <article class="milestone todo">
+    <article class="milestone done">
       <div class="ms-head">
         <div class="ms-num">2</div>
         <div class="ms-head-main">
           <h3 class="ms-title">Neutral synthesizer seat</h3>
           <div class="ms-meta">
-            <span class="badge todo"><span class="dot"></span>To do</span>
+            <span class="badge done"><span class="dot"></span>Done</span>
             <span class="ms-progress">
-              <span class="ms-bar"><span style="width:0%"></span></span>
-              0/6
+              <span class="ms-bar"><span style="width:100%"></span></span>
+              6/6
             </span>
           </div>
         </div>
@@ -577,54 +577,54 @@ footer.colophon code { background: var(--surface-2); }
       
 
       
-      <div class="phase todo">
+      <div class="phase done">
         <div class="phase-head">
           <span class="phase-dot"></span>
           <h4 class="phase-title">Phase 1 — Synthesizer prompt + seat</h4>
-          <span class="phase-state">To do</span>
+          <span class="phase-state">Done</span>
         </div>
         <ul class="checklist">
           
-          <li class="todo"><span class="tick"></span><span class="task-text">Author the neutral-synthesis prompt (artifacts in, <code>verdict@2</code> JSON out, no new opinions)</span></li>
+          <li class="done"><span class="tick">✓</span><span class="task-text">Author the neutral-synthesis prompt (<code>SYNTHESIZER_TEMPLATE</code> in <code>scripts/_conductor/synthesizer.py</code>, versioned <code>advisory-board/synthesizer@1</code>; sha256 recorded in the recipe + the raw record) — artifacts + the conductor-extracted <code>VERDICT:</code> tokens in, <strong>content fields only</strong> out (the synthesizer cannot write <code>schema/title/date/rounds/board</code> — those are merged in from the conductor&#x27;s authoritative skeleton; <code>PROTECTED_SKELETON_KEYS</code> enforces it)</span></li>
           
-          <li class="todo"><span class="tick"></span><span class="task-text">Spawn it as a no-lens seat that reads <code>round-N/*.md</code> only</span></li>
+          <li class="done"><span class="tick">✓</span><span class="task-text">Spawn it as a no-lens seat that reads the FINAL round&#x27;s <code>round-N/*.md</code> only (never the source directly) — the prompt frames it as &quot;the SYNTHESIZER&quot;, not a board seat; the chosen seat is <code>claude</code> by default (overridable via <code>--synthesizer-seat</code>)</span></li>
           
-          <li class="todo"><span class="tick"></span><span class="task-text">Validate its output against the <code>verdict@2</code> schema before accepting</span></li>
+          <li class="done"><span class="tick">✓</span><span class="task-text">Validate its output against the <code>verdict@2</code> schema before accepting — <code>validate_verdict</code> calls <code>board_verdict.validate</code> (the same gate the user runs at gate time); on failure the conductor writes <code>verdict-rejected.json</code> + a loud warning, <strong>never</strong> a <code>verdict.json</code> that didn&#x27;t validate</span></li>
           
         </ul>
         
         <div class="testing">
           <p class="t-label">Testing strategy</p>
-          <div class="t-body"><p>feed the committed example&#x27;s rounds to the synthesizer mock; assert schema-valid <code>verdict@2</code> and that evidence ids resolve.</p></div>
+          <div class="t-body"><p>30 new unit + e2e tests covering JSON extraction (fence / bare braces / nested-<code>}</code> / non-object / parse fail), the skeleton smuggling defense, missing-token refusal, recipe round-trip, <code>--from-recipe</code> reproduction, and a full <code>run --synthesize</code> against the mock board that validates the output against <code>board_verdict.validate</code>.</p></div>
         </div>
         
         
         <div class="gate">
           <span class="g-label">Validation gate</span>
-          <code>python3 scripts/run_board.py verify /tmp/v.json --run ../../examples/payments-idempotency-review --check</code>
+          <code>`python3 -m unittest discover -s tests -t tests` (373 tests green)</code>
         </div>
         
       </div>
       
-      <div class="phase todo">
+      <div class="phase done">
         <div class="phase-head">
           <span class="phase-dot"></span>
           <h4 class="phase-title">Phase 2 — Make it optional + auditable</h4>
-          <span class="phase-state">To do</span>
+          <span class="phase-state">Done</span>
         </div>
         <ul class="checklist">
           
-          <li class="todo"><span class="tick"></span><span class="task-text"><code>--synthesize</code> opt-in flag; default stays manual (§11 preserved)</span></li>
+          <li class="done"><span class="tick">✓</span><span class="task-text"><code>--synthesize</code> opt-in flag (default stays manual — §11 preserved); <code>--synthesizer-seat</code> chooses the spawning seat (must be on the board so its provider is already disclosed); both persist in the recipe so <code>--from-recipe</code> reproduces</span></li>
           
-          <li class="todo"><span class="tick"></span><span class="task-text">Persist the synthesizer&#x27;s seat artifact + provenance alongside the others</span></li>
+          <li class="done"><span class="tick">✓</span><span class="task-text">Persist the synthesizer&#x27;s seat artifact + provenance alongside the others: <code>prompts/synthesizer.prompt</code> (the egressed bytes), <code>synthesizer/&lt;seat&gt;.md</code> (the verbatim reply), <code>synthesizer/&lt;seat&gt;.raw</code> (Black-Box Recorder — argv, prompt + packet sha256, model-answered, parse/schema errors, accepted yes/no), <code>logs/synthesizer-&lt;seat&gt;.stderr</code>, and a new <code>## Synthesizer</code> section in <code>run-metadata.md</code></span></li>
           
-          <li class="todo"><span class="tick"></span><span class="task-text">Document that the human still gates the abstain/ship call</span></li>
+          <li class="done"><span class="tick">✓</span><span class="task-text">Document that the human still gates the abstain/ship call — the conductor never calls <code>--gate</code> automatically; CHANGELOG <code>## [v1.3.0]</code> ships the honest-limits note; the next-steps printout names <code>validate --gate</code> as the human&#x27;s call</span></li>
           
         </ul>
         
         <div class="testing">
           <p class="t-label">Testing strategy</p>
-          <div class="t-body"><p>a run with and without <code>--synthesize</code> produce the same artifact tree shape; the synthesized verdict still passes <code>--gate</code>.</p></div>
+          <div class="t-body"><p>e2e <code>run --synthesize</code> writes a validated <code>verdict.json</code>; e2e <code>run</code> without <code>--synthesize</code> keeps the manual hand-off; the <code>--from-recipe</code> round-trip reproduces a synth run from an <code>init --synthesize</code> recipe.</p></div>
         </div>
         
         
@@ -851,7 +851,7 @@ footer.colophon code { background: var(--surface-2); }
 
   <!-- ===================== COLOPHON ===================== -->
   <footer class="colophon">
-    Rendered from <code>run-board-v1x.md</code> &middot; 4 milestones &middot; 13/22 tasks complete. The markdown plan is the source of truth &mdash; regenerate with <code>render_plan.py</code>; never hand-edit this file.
+    Rendered from <code>run-board-v1x.md</code> &middot; 4 milestones &middot; 19/22 tasks complete. The markdown plan is the source of truth &mdash; regenerate with <code>render_plan.py</code>; never hand-edit this file.
   </footer>
 
 </div>

@@ -4,7 +4,7 @@
 - **Updated:** 2026-06-25
 - **Source:** design/run-board-conductor.md §15 + the 2026-06-25 handoff (scope)
 - **Owner:** Tim
-- **Baseline:** advisory-board/v1.0.0 + plan view · **M1 (v1.1.0) + M4 (v1.2.0) shipped** · 337 tests green
+- **Baseline:** advisory-board/v1.0.0 + plan view · **M1 (v1.1.0) + M4 (v1.2.0) + M2 (v1.3.0) shipped** · 373 tests green
 
 ## Overview
 v1.0.0 shipped the full board: **preflight → egress gate → round-1 fan-out → round-2 cross-reading → canonical verdict chain**. The v1.x line sharpens four edges that the M6 proof-of-life run exposed: the board always runs a fixed number of rounds, the verdict is still an agent hand-off rather than one command, `command`-evidence is captured but never re-executed, and the cross-reading digest is coarse.
@@ -37,23 +37,23 @@ Testing: end-to-end mock-CLI runs asserting the stop reason and round count; pro
 Gate: `PATH="$PWD/tests/mocks:$PATH" python3 scripts/run_board.py run --source tests/fixtures/sample-plan.md --rounds auto --out "$(mktemp -d)" --yes`
 
 ## Milestone: Neutral synthesizer seat
-status: todo
+status: done
 The verdict chain (`verify → consensus → validate`) runs *after* an agent fills `verdict.json` by hand from the round artifacts (§11: synthesis stays a reasoning task). A spawned **neutral synthesizer seat** — a model with no prior round, briefed only on the artifacts — can draft that `verdict.json`, turning the hand-off into one command while keeping a human gate.
 
 ### Phase 1 — Synthesizer prompt + seat
-status: todo
-- [ ] Author the neutral-synthesis prompt (artifacts in, `verdict@2` JSON out, no new opinions)
-- [ ] Spawn it as a no-lens seat that reads `round-N/*.md` only
-- [ ] Validate its output against the `verdict@2` schema before accepting
-Testing: feed the committed example's rounds to the synthesizer mock; assert schema-valid `verdict@2` and that evidence ids resolve.
-Gate: `python3 scripts/run_board.py verify /tmp/v.json --run ../../examples/payments-idempotency-review --check`
+status: done
+- [x] Author the neutral-synthesis prompt (`SYNTHESIZER_TEMPLATE` in `scripts/_conductor/synthesizer.py`, versioned `advisory-board/synthesizer@1`; sha256 recorded in the recipe + the raw record) — artifacts + the conductor-extracted `VERDICT:` tokens in, **content fields only** out (the synthesizer cannot write `schema/title/date/rounds/board` — those are merged in from the conductor's authoritative skeleton; `PROTECTED_SKELETON_KEYS` enforces it)
+- [x] Spawn it as a no-lens seat that reads the FINAL round's `round-N/*.md` only (never the source directly) — the prompt frames it as "the SYNTHESIZER", not a board seat; the chosen seat is `claude` by default (overridable via `--synthesizer-seat`)
+- [x] Validate its output against the `verdict@2` schema before accepting — `validate_verdict` calls `board_verdict.validate` (the same gate the user runs at gate time); on failure the conductor writes `verdict-rejected.json` + a loud warning, **never** a `verdict.json` that didn't validate
+Testing: 30 new unit + e2e tests covering JSON extraction (fence / bare braces / nested-`}` / non-object / parse fail), the skeleton smuggling defense, missing-token refusal, recipe round-trip, `--from-recipe` reproduction, and a full `run --synthesize` against the mock board that validates the output against `board_verdict.validate`.
+Gate: `python3 -m unittest discover -s tests -t tests` (373 tests green)
 
 ### Phase 2 — Make it optional + auditable
-status: todo
-- [ ] `--synthesize` opt-in flag; default stays manual (§11 preserved)
-- [ ] Persist the synthesizer's seat artifact + provenance alongside the others
-- [ ] Document that the human still gates the abstain/ship call
-Testing: a run with and without `--synthesize` produce the same artifact tree shape; the synthesized verdict still passes `--gate`.
+status: done
+- [x] `--synthesize` opt-in flag (default stays manual — §11 preserved); `--synthesizer-seat` chooses the spawning seat (must be on the board so its provider is already disclosed); both persist in the recipe so `--from-recipe` reproduces
+- [x] Persist the synthesizer's seat artifact + provenance alongside the others: `prompts/synthesizer.prompt` (the egressed bytes), `synthesizer/<seat>.md` (the verbatim reply), `synthesizer/<seat>.raw` (Black-Box Recorder — argv, prompt + packet sha256, model-answered, parse/schema errors, accepted yes/no), `logs/synthesizer-<seat>.stderr`, and a new `## Synthesizer` section in `run-metadata.md`
+- [x] Document that the human still gates the abstain/ship call — the conductor never calls `--gate` automatically; CHANGELOG `## [v1.3.0]` ships the honest-limits note; the next-steps printout names `validate --gate` as the human's call
+Testing: e2e `run --synthesize` writes a validated `verdict.json`; e2e `run` without `--synthesize` keeps the manual hand-off; the `--from-recipe` round-trip reproduces a synth run from an `init --synthesize` recipe.
 Gate: `python3 -m unittest discover -s tests -t tests`
 
 ## Milestone: `command`-evidence re-execution

@@ -44,6 +44,13 @@ fi
 prompt="$(cat)"
 is_review=0
 case "$prompt" in *"MATERIAL UNDER REVIEW"*) is_review=1 ;; esac
+# M2: the synthesizer prompt is identifiable by its unique role frame — the
+# seat is "the SYNTHESIZER", never a board seat, and the prompt mentions
+# "FINAL-ROUND REVIEWS". A round prompt's "MATERIAL UNDER REVIEW" marker still
+# matches above, but the synth marker is stricter, so check it first and clear
+# is_review when matched.
+is_synth=0
+case "$prompt" in *"You are the SYNTHESIZER"*) is_synth=1; is_review=0 ;; esac
 
 # Which round is this? The round-N (N>=2) template header names the round; round 1
 # has no such marker. Used by the `moving` mode to shift its VERDICT across rounds.
@@ -165,6 +172,82 @@ REVIEW
   echo "VERDICT: caution"
 }
 
+# M2 synthesizer emitters. Default (synth_mode=ok or unset) emits a valid
+# verdict@2 content payload — fenced JSON, content-fields only (the conductor
+# fills schema/title/date/rounds/board). The other modes exercise the parse +
+# schema rejection paths.
+synth_mode="${MOCK_CLAUDE_SYNTH_MODE:-ok}"
+emit_synth_ok() {
+  echo "model: ${model:-unknown}" >&2
+  cat <<'SYNTH'
+Here is the synthesized verdict from the board's final-round reviews:
+
+```json
+{
+  "verdict": "caution",
+  "confidence": "medium",
+  "blockers": [
+    {
+      "title": "Concurrency window double-charges under retry storms",
+      "body": "All three seats raised the same race: two same-key requests arriving concurrently both miss the cache and both charge. The plan has no reservation step.",
+      "evidence": [
+        {"kind": "judgment", "detail": "no reservation/lock step in the plan — inferred from absence"}
+      ]
+    }
+  ],
+  "concerns": [
+    {
+      "title": "24h TTL is an undocumented client contract",
+      "body": "After expiry a legitimate retry can create a new charge.",
+      "evidence": [
+        {"kind": "judgment", "detail": "TTL semantics unspecified for clients"}
+      ]
+    }
+  ],
+  "next_actions": [
+    "Add an atomic reserve-before-charge step keyed on (account_id, idempotency_key).",
+    "Bind the idempotency key to a request fingerprint."
+  ]
+}
+```
+SYNTH
+}
+emit_synth_invalid_json() {
+  # Truncated/malformed JSON — tests parse_error
+  echo "model: ${model:-unknown}" >&2
+  cat <<'SYNTH'
+```json
+{verdict: not-valid-json, "confidence": "high"
+SYNTH
+}
+emit_synth_schema_fail() {
+  # JSON is valid, but `verdict` is not one of ship|caution|block — tests schema_error
+  echo "model: ${model:-unknown}" >&2
+  cat <<'SYNTH'
+```json
+{"verdict": "maybe", "confidence": "high"}
+```
+SYNTH
+}
+emit_synth_smuggle_skeleton() {
+  # The synthesizer tries to overwrite conductor-owned fields (schema/title);
+  # merge_synthesizer_content must DROP them, the merged JSON must still validate
+  # against the real conductor skeleton. Tests the smuggling defense.
+  echo "model: ${model:-unknown}" >&2
+  cat <<'SYNTH'
+```json
+{
+  "schema": "evil/v0",
+  "title": "OVERWRITTEN",
+  "rounds": 99,
+  "board": [{"seat": "Evil", "model": "evil", "round_verdicts": ["ship"]}],
+  "verdict": "ship",
+  "confidence": "low"
+}
+```
+SYNTH
+}
+
 case "$mode" in
   moving_cites)
     if [ "$is_review" = "1" ]; then emit_moving_cites; else echo "ready"; fi
@@ -178,7 +261,9 @@ case "$mode" in
   empty)      exit 0 ;;
   timeout)    exec sleep 30 ;;   # exec so no orphaned sleep survives the kill
   stub)
-    if [ "$is_review" = "1" ]; then
+    if [ "$is_synth" = "1" ]; then
+      echo "I am the synthesizer; here is my note."   # short stub, no JSON
+    elif [ "$is_review" = "1" ]; then
       echo "I've reviewed the plan and saved my full notes to review.md."   # plan-mode stub
     else
       echo "ready"
@@ -186,9 +271,25 @@ case "$mode" in
     exit 0 ;;
   degraded)
     echo "model-router retry" >&2
-    if [ "$is_review" = "1" ]; then emit_review; else echo "ready"; fi
+    if [ "$is_synth" = "1" ]; then
+      case "$synth_mode" in
+        invalid_json)     emit_synth_invalid_json ;;
+        schema_fail)      emit_synth_schema_fail ;;
+        smuggle_skeleton) emit_synth_smuggle_skeleton ;;
+        *)                emit_synth_ok ;;
+      esac
+    elif [ "$is_review" = "1" ]; then emit_review
+    else echo "ready"; fi
     exit 1 ;;
   *)
-    if [ "$is_review" = "1" ]; then emit_review; else echo "ready"; fi
+    if [ "$is_synth" = "1" ]; then
+      case "$synth_mode" in
+        invalid_json)     emit_synth_invalid_json ;;
+        schema_fail)      emit_synth_schema_fail ;;
+        smuggle_skeleton) emit_synth_smuggle_skeleton ;;
+        *)                emit_synth_ok ;;
+      esac
+    elif [ "$is_review" = "1" ]; then emit_review
+    else echo "ready"; fi
     exit 0 ;;
 esac

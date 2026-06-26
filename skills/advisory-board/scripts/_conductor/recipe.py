@@ -15,6 +15,10 @@ from _conductor.prompts import (
     PROMPT_TEMPLATE_VERSION,
     prompt_template_sha,
 )
+from _conductor.synthesizer import (
+    SYNTHESIZER_TEMPLATE_VERSION,
+    synthesizer_template_sha,
+)
 
 __all__ = [
     "_scalar_to_yaml",
@@ -193,6 +197,7 @@ def load_recipe(text: str) -> dict:
 RECIPE_COMMENTS = {
     "mode": "run shape",
     "prompt_template": "prompt template (bump/hash changes when the egressed prompt shape changes)",
+    "synthesize": "synthesizer (M2): spawn a no-lens seat after rounds to draft verdict.json",
     "source_kind": "source",
     "board": "board (seat -> provider, model, lens, reasoning)",
     "egress_consent": "egress (consent is bound to the content hash in egress-manifest.md)",
@@ -222,6 +227,10 @@ def config_to_recipe(config: RunConfig) -> dict:
         "out_dir": config.out_dir,
         "prompt_template": PROMPT_TEMPLATE_VERSION,
         "prompt_template_sha256": prompt_template_sha(),
+        "synthesize": config.synthesize,
+        "synthesizer_seat": config.synthesizer_seat,
+        "synthesizer_template": SYNTHESIZER_TEMPLATE_VERSION if config.synthesize else None,
+        "synthesizer_template_sha256": synthesizer_template_sha() if config.synthesize else None,
         "source_kind": config.source.kind,
         "source_ref": config.source.ref,
         "source_bytes": config.source.nbytes,
@@ -281,6 +290,21 @@ def validate_recipe(recipe: dict) -> None:
         mr = recipe["max_rounds"]
         if not isinstance(mr, int) or isinstance(mr, bool) or mr < 1:
             die(f"recipe: 'max_rounds' must be an integer >= 1; got {mr!r}")
+    if "synthesize" in recipe and not isinstance(recipe["synthesize"], bool):
+        die(f"recipe: 'synthesize' must be true or false; got {recipe['synthesize']!r}")
+    if recipe.get("synthesizer_seat") is not None:
+        ss = recipe["synthesizer_seat"]
+        if not isinstance(ss, str) or ss not in REGISTRY:
+            die(f"recipe: 'synthesizer_seat' must be one of {', '.join(sorted(REGISTRY))} or null; "
+                f"got {ss!r}")
+        # The synth seat must also be in THIS recipe's board (same rule as
+        # resolve_config — egress to a board provider only).
+        board_names = {s.get("seat") for s in board if isinstance(s, dict)}
+        if ss not in board_names:
+            pretty = ", ".join(sorted(n for n in board_names if isinstance(n, str)))
+            die(f"recipe: 'synthesizer_seat' {ss!r} is not in this recipe's board "
+                f"({pretty}); the synthesizer egresses to that seat's provider, which "
+                "the run's disclosure only covers for board seats")
 
 
 def recipe_to_config(path: str) -> dict:

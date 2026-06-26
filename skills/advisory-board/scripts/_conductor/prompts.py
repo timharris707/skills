@@ -3,6 +3,7 @@ and the pure string builders that delimit-and-neutralize material under review."
 from __future__ import annotations
 
 import hashlib
+import re
 from typing import Optional
 
 from _conductor.config import SeatConfig
@@ -21,7 +22,30 @@ __all__ = [
     "ROUND2_TEMPLATE_VERSION",
     "build_round2_packet",
     "build_round2_prompt",
+    "neutralize_round_markers",
 ]
+
+
+# Defense-in-depth against a poisoned source steering one seat to ECHO the round
+# packet's data-fence markers back into its review — those bytes then land inside
+# the NEXT round's prompt and, without scrubbing, attacker text after a forged
+# `END BOARD ROUND-N REVIEWS` marker would read as instructions to the next seat
+# (and to the M2 synthesizer, which gets these reviews too). We strip any literal
+# copy of either fence marker (for any round number 1..9) from review/digest
+# content BEFORE it is spliced into the round template. The fence framing in the
+# prompt is the prose defense; this is the byte defense.
+_ROUND_MARKER_RE = re.compile(
+    r"<<<<<<<< (?:BEGIN|END) BOARD ROUND-\d+ REVIEWS"
+    r"(?: \([a-z]+\))?"        # the cross-reading label only appears on BEGIN
+    r" >>>>>>>>"
+)
+
+
+def neutralize_round_markers(text: str) -> str:
+    """Replace any literal copy of the ROUND2_PEERS_BLOCK BEGIN/END marker in
+    `text` with a neutralized form, so a poisoned review cannot break out of the
+    next round's data fence. Pure; idempotent."""
+    return _ROUND_MARKER_RE.sub("[neutralized round-marker]", text)
 
 
 # The machine-readable verdict line every seat ends on (M1). The model reasons;
@@ -158,15 +182,20 @@ def build_round2_packet(usable: list, cross_reading: str, round_no: int = 2) -> 
     """The shared `board-packet-round-N.md`. None when cross-reading is off; the M4
     structured digest (grouped by topic + a verdict/citation agreement header) under
     `summaries`; verbatim concatenation under `full`. `round_no` is the round the
-    packet is built FOR (its reviews are from round_no − 1); defaults to 2."""
+    packet is built FOR (its reviews are from round_no − 1); defaults to 2.
+
+    Either path scrubs any literal copy of the round-2 data-fence marker out of the
+    seat content before splicing — defense-in-depth against a poisoned source that
+    drove a seat to echo the END marker back into its review."""
     if cross_reading == "none":
         return None
     if cross_reading == "summaries":
-        return build_structured_digest(usable, round_no=round_no)
+        return neutralize_round_markers(build_structured_digest(usable, round_no=round_no))
     prev_round = round_no - 1
     parts = [f"# Board packet — round {round_no} (cross-reading: {cross_reading})", ""]
     for r in usable:
-        parts += [f"## {r.seat} ({r.provider}) — round-{prev_round} review", "", r.stdout.strip(), ""]
+        parts += [f"## {r.seat} ({r.provider}) — round-{prev_round} review", "",
+                  neutralize_round_markers(r.stdout.strip()), ""]
     return "\n".join(parts) + "\n"
 
 
@@ -175,7 +204,12 @@ def build_round2_prompt(seat: SeatConfig, source_material: str, *,
                         cross_reading: str, round_no: int = 2) -> str:
     prev_round = round_no - 1
     if cross_reading == "none":
-        block = ROUND2_SOLO_BLOCK.format(own_review=own_review.strip(), prev_round=prev_round)
+        # In solo mode the seat's own previous-round review is fenced and re-shown.
+        # Scrub the same markers — a poisoned source could have steered THIS seat
+        # into echoing the BEGIN/END marker, which would otherwise inject text
+        # into the seat's next-round prompt outside the data fence.
+        block = ROUND2_SOLO_BLOCK.format(own_review=neutralize_round_markers(own_review.strip()),
+                                         prev_round=prev_round)
     else:
         block = ROUND2_PEERS_BLOCK.format(cross_reading=cross_reading, prev_round=prev_round,
                                           board_packet=(board_packet or "").strip())

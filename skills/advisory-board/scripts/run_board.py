@@ -91,6 +91,7 @@ from _conductor.prompts import *  # noqa: F401,F403
 from _conductor.toolchain import *  # noqa: F401,F403
 from _conductor.egress import *  # noqa: F401,F403
 from _conductor.preflight import *  # noqa: F401,F403
+from _conductor.synthesizer import *  # noqa: F401,F403
 from _conductor.recipe import *  # noqa: F401,F403
 from _conductor.artifacts import *  # noqa: F401,F403
 from _conductor.rounds import *  # noqa: F401,F403

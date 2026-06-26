@@ -65,6 +65,13 @@ from _conductor.rounds import (
     run_round,
     write_round_artifacts,
 )
+from _conductor.synthesizer import (
+    SYNTHESIZER_TEMPLATE_VERSION,
+    choose_synthesizer_seat,
+    render_synthesizer_raw,
+    run_synthesizer,
+    synthesizer_template_sha,
+)
 
 __all__ = [
     "cmd_init",
@@ -324,19 +331,138 @@ def cmd_run(args) -> int:
         return EXIT_PREFLIGHT_NOGO
 
     # Rounds are captured. Synthesis stays a REASONING task (§11): the conductor
-    # produces clean packets and hands the latest round's reviews to the orchestrating
-    # agent (or one neutral seat) to fill verdict.json — it does NOT generate the
-    # verdict in code. Once verdict.json exists, the deterministic M5 chain runs:
+    # produces clean packets and either hands them to the orchestrating agent (the
+    # default — verdict.json is hand-authored) or — under `--synthesize` (M2) —
+    # spawns a single no-lens "synthesizer" seat that DRAFTS verdict.json from the
+    # final-round reviews. The conductor does NOT generate the verdict in code in
+    # either path; the synthesizer is a model call whose output is schema-validated
+    # against verdict@2 before acceptance (the human still gates ship/abstain).
     last_dir = f"{config.out_dir}/round-{last[0].round_no}"
     print(f"\nRounds complete ({len(rounds_done)} round(s)): {len(usable_last)} usable reviews in "
           f"{last_dir}/.")
+
+    if config.synthesize:
+        return _run_synthesis_step(config, rounds_done, args, last_dir,
+                                   preflight=preflight, approval=approval,
+                                   convergence=convergence)
+
     print("\nNext — synthesize, then run the deterministic M5 chain:")
     print(f"  1. Read {last_dir}/*.md and write {config.out_dir}/verdict.json "
           "(advisory-board/verdict@2; cite typed evidence on each blocker).")
+    print(f"     (or re-run with --synthesize to spawn the neutral synthesizer seat)")
     print(f"  2. run_board.py verify {config.out_dir}/verdict.json --source <src> --run {config.out_dir}")
     print(f"  3. run_board.py consensus {config.out_dir}/verdict.json --run {config.out_dir} "
           f"-o {config.out_dir}/final-consensus.md")
     print(f"  4. run_board.py validate {config.out_dir}/verdict.json --gate")
+    return EXIT_OK
+
+
+def _run_synthesis_step(config, rounds_done: list, args, last_dir: str, *,
+                        preflight, approval, convergence) -> int:
+    """The M2 synthesizer step. Spawns one no-lens seat to draft verdict.json from
+    the final-round reviews; merges into the conductor's authoritative skeleton;
+    rejects on schema-validation failure. The rounds already succeeded (the value
+    the board produced), so a synth failure prints a loud warning + falls back to
+    the manual hand-off message, exit 0 — never silently 0 with no verdict.json
+    nor a hard error that swallows the successful rounds. The user explicitly
+    asked for synthesis with --synthesize; the loud-warning + verdict.json absence
+    is how they detect that synthesis didn't deliver."""
+    import shutil
+    import tempfile
+    last = rounds_done[-1]
+    seat = choose_synthesizer_seat(config, last, preferred=config.synthesizer_seat)
+    timeout = getattr(args, "timeout", None)
+    print(f"\n=== synthesizer ({seat.name}, no-lens; --synthesize) ===")
+    print(f"prompt template: {SYNTHESIZER_TEMPLATE_VERSION} "
+          f"(sha256:{synthesizer_template_sha()[:12]}…)")
+    print("(the synthesizer is briefed only on the final-round reviews + the conductor-extracted "
+          "VERDICT tokens — it has no lens and never sees the source directly. §11: synthesis "
+          "stays reasoning; the conductor only plumbs the structural fields.)")
+
+    # Gate-mode workdir: scoped, ephemeral, cleaned up after the spawn (mirrors
+    # rounds.run_round's try/finally — without cleanup, every gate-mode synth run
+    # would leak a tmpdir).
+    workdir = tempfile.mkdtemp(prefix="advisory-board-synth-") if config.fs_scoped else None
+    try:
+        sr = run_synthesizer(config, rounds_done, seat=seat, timeout=timeout,
+                             workdir_factory=(lambda: workdir) if workdir else None)
+    finally:
+        if workdir:
+            shutil.rmtree(workdir, ignore_errors=True)
+
+    # Re-write run-metadata.md with the synthesizer section appended (the earlier
+    # write right after the round loop didn't have this — synthesis happens after).
+    _write(os.path.join(config.out_dir, "run-metadata.md"),
+           render_run_metadata(config, preflight, approval, rounds=rounds_done,
+                               convergence=convergence, synthesizer=sr))
+
+    synth_dir = os.path.join(config.out_dir, "synthesizer")
+    os.makedirs(synth_dir, exist_ok=True)
+    # Always persist what the synthesizer produced (or what it failed to produce),
+    # mirroring the round-artifact Black-Box Recorder pattern — a failed call is
+    # forensically inspectable, not lost.
+    if sr.prompt_text:
+        _write(os.path.join(config.out_dir, "prompts", "synthesizer.prompt"), sr.prompt_text)
+    _write(os.path.join(synth_dir, f"{seat.name}.md"), sr.stdout or "(synthesizer produced no stdout)\n")
+    _write(os.path.join(synth_dir, f"{seat.name}.raw"), render_synthesizer_raw(config, sr))
+    _write(os.path.join(config.out_dir, "logs", f"synthesizer-{seat.name}.stderr"),
+           sr.stderr or "")
+
+    print(f"synthesizer: {sr.status}"
+          + (f" ({sr.failure_class})" if sr.failure_class else "")
+          + f"  ·  elapsed {sr.elapsed_s:.1f}s  ·  packet sha256:{sr.packet_hash[:12]}…")
+
+    verdict_path = os.path.join(config.out_dir, "verdict.json")
+    rejected_path = os.path.join(config.out_dir, "verdict-rejected.json")
+
+    if sr.verdict_data is not None:
+        import json
+        # Drop a stale peer artifact from a prior run — only NOW, after this run
+        # has produced a successor. Doing it at the top would have destroyed the
+        # prior good state on any exception path.
+        if os.path.exists(rejected_path):
+            os.unlink(rejected_path)
+            print(f"  (removed stale verdict-rejected.json from a prior run)")
+        with open(verdict_path, "w", encoding="utf-8") as handle:
+            json.dump(sr.verdict_data, handle, indent=2, ensure_ascii=False)
+            handle.write("\n")
+        print(f"\nwrote {verdict_path} (synthesized; advisory-board/verdict@2 — validated)")
+        print("\nNext — the deterministic M5 chain (human still gates ship/abstain):")
+        print(f"  1. run_board.py verify {verdict_path} --source <src> --run {config.out_dir}")
+        print(f"  2. run_board.py consensus {verdict_path} --run {config.out_dir} "
+              f"-o {config.out_dir}/final-consensus.md")
+        print(f"  3. run_board.py validate {verdict_path} --gate")
+        return EXIT_OK
+
+    # Failure path: keep the rounds' value, but be loud that synthesis did NOT
+    # deliver verdict.json. Persist the rejected merged JSON when we got that far,
+    # so the user can hand-fix from there instead of starting from scratch.
+    # The stale verdict.json from a PRIOR run is unlinked HERE — never higher up —
+    # so an unexpected exception above doesn't destroy a prior good state.
+    if sr.raw_content is not None and sr.schema_error:
+        from _conductor.synthesizer import build_skeleton, merge_synthesizer_content
+        try:
+            merged = merge_synthesizer_content(build_skeleton(config, rounds_done), sr.raw_content)
+            import json
+            if os.path.exists(verdict_path):
+                os.unlink(verdict_path)
+                print(f"  (removed stale verdict.json from a prior run)")
+            with open(rejected_path, "w", encoding="utf-8") as handle:
+                json.dump(merged, handle, indent=2, ensure_ascii=False)
+                handle.write("\n")
+        except ValueError:
+            pass
+
+    reason = sr.parse_error or sr.schema_error or sr.failure_class or "synthesizer dropped"
+    print(f"\n⚠ synthesizer did NOT produce a usable verdict.json — reason: {reason}")
+    print(f"  see {synth_dir}/{seat.name}.md and {synth_dir}/{seat.name}.raw "
+          "for the full record")
+    if sr.schema_error and sr.raw_content is not None:
+        print(f"  the merged-but-rejected JSON was written to {rejected_path}")
+    print(f"\nFall back to the manual hand-off — read {last_dir}/*.md and write "
+          f"{verdict_path} (advisory-board/verdict@2; cite typed evidence on each "
+          "blocker). Then run the deterministic M5 chain "
+          f"(verify → consensus → validate --gate).")
     return EXIT_OK
 
 
@@ -393,6 +519,18 @@ def add_run_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--out", help="output directory (default /tmp/advisory-board-<ts>)")
     parser.add_argument("--title", help="run title (default derived from the source)")
     parser.add_argument("--from-recipe", dest="from_recipe", help="re-run from a run-recipe.yaml")
+    parser.add_argument("--synthesize", action="store_true",
+                        help="after the rounds complete, spawn a no-lens synthesizer seat to draft "
+                             "verdict.json from the final-round reviews (M2). §11-safe: the "
+                             "synthesizer is a REASONING SEAT, briefed only on the reviews + the "
+                             "conductor-extracted VERDICT tokens; its output is merged into the "
+                             "conductor's authoritative skeleton and schema-validated against "
+                             "advisory-board/verdict@2 before write. The human still gates ship/abstain.")
+    parser.add_argument("--synthesizer-seat", dest="synthesizer_seat", metavar="SEAT",
+                        help="which seat's CLI/adapter spawns the synthesizer (default: claude if "
+                             "in the board, else the first board seat). Must be one of the run's "
+                             "board seats — the synthesizer egresses to that provider, covered by "
+                             "the run's existing disclosure (a fresh provider would need its own).")
 
 
 def build_parser() -> argparse.ArgumentParser:
