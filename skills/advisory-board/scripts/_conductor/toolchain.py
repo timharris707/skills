@@ -226,6 +226,8 @@ def propose_model(seat: SeatConfig, *, network_on: bool, workdir: Optional[str],
                                   workdir=workdir, network=network_on)
         smoke = spawn(adapter, argv, prompt=SMOKE_PROMPT, timeout=smoke_timeout, cwd=workdir)
         status, _ = classify(smoke, adapter)
-        if status in ("ran", "degraded") and not model_not_found(smoke):
+        # include_stdout: smoke-ping path (fixed SMOKE_PROMPT) where claude emits its
+        # genuine model-not-found notice to stdout — same rationale as preflight_seat.
+        if status in ("ran", "degraded") and not model_not_found(smoke, include_stdout=True):
             return candidate
     return None

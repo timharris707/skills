@@ -990,12 +990,26 @@ class TestModelNotFoundDetector(unittest.TestCase):
         return rb.SpawnResult(1, out, err, 0.0, False)
 
     def test_detects_each_providers_grounded_signature(self):
+        # stderr-emitters (codex/gemini) are caught by the stderr-only default.
         self.assertTrue(rb.model_not_found(self._r(err="ModelNotFoundError: Requested entity was not found.")))
-        self.assertTrue(rb.model_not_found(self._r(out="It may not exist or you may not have access to it.")))
         self.assertTrue(rb.model_not_found(self._r(err='"message":"The model is not supported when using Codex"')))
+        # claude prints its notice to stdout — only the smoke-ping callers opt into
+        # scanning stdout (include_stdout=True); see preflight_seat / propose_model.
+        self.assertTrue(rb.model_not_found(
+            self._r(out="It may not exist or you may not have access to it."),
+            include_stdout=True))
+
+    def test_stdout_signal_ignored_by_default(self):
+        # A model-not-found string on stdout must NOT trip the detector by default —
+        # it may be the review legitimately quoting the board's own source. Only an
+        # explicit include_stdout=True (the smoke-ping path) scans stdout.
+        sig = self._r(out="It may not exist or you may not have access to it.")
+        self.assertFalse(rb.model_not_found(sig))
+        self.assertTrue(rb.model_not_found(sig, include_stdout=True))
 
     def test_clean_output_is_not_flagged(self):
         self.assertFalse(rb.model_not_found(self._r(out="ready")))
+        self.assertFalse(rb.model_not_found(self._r(out="ready"), include_stdout=True))
 
 
 class TestToolchainCheck(EnvMixin):
@@ -1354,10 +1368,23 @@ class TestClassifyRound1(unittest.TestCase):
                                           rb.REGISTRY["claude"])
         self.assertEqual((status, fail), ("dropped", rb.FAILURE_TIMEOUT))
 
-    def test_model_not_found(self):
-        out = "There's an issue with the selected model. It may not exist"
-        status, fail = rb.classify_round1(self._r(stdout=out, exit_code=1), rb.REGISTRY["claude"])
+    def test_model_not_found_on_stderr_is_dropped(self):
+        # Genuine detection preserved: a real model-not-found error on STDERR (codex's
+        # invalid_request_error form) still drops the seat as FAILURE_MODEL.
+        err = '{"type":"invalid_request_error","message":"The model is not supported when using Codex"}'
+        status, fail = rb.classify_round1(
+            self._r(stdout="", stderr=err, exit_code=1), rb.REGISTRY["codex"])
         self.assertEqual((status, fail), ("dropped", rb.FAILURE_MODEL))
+
+    def test_review_quoting_model_not_found_string_is_not_dropped(self):
+        # False-positive guard: a HEALTHY seat (exit 0) whose review quotes the
+        # board's own source containing the literal "ModelNotFound" — with a clean
+        # stderr — must NOT be dropped as FAILURE_MODEL. model_not_found scans stderr
+        # only for the round-1 path, mirroring auth_failed.
+        body = (_REAL_REVIEW + "\nThe registry exposes a `ModelNotFound` signal; "
+                "spawn.py raises it when the model id is unknown / no such model.\n")
+        self.assertEqual(rb.classify_round1(self._r(stdout=body), rb.REGISTRY["codex"]),
+                         ("ran", None))
 
     def test_retryable_set(self):
         self.assertEqual(rb.RETRYABLE_FAILURES, frozenset({rb.FAILURE_TIMEOUT, rb.FAILURE_INVALID}))

@@ -369,8 +369,20 @@ _MODEL_NOT_FOUND_SIGNALS = (
 )
 
 
-def model_not_found(result: "SpawnResult") -> bool:
-    blob = (result.stdout + "\n" + result.stderr).lower()
+def model_not_found(result: "SpawnResult", *, include_stdout: bool = False) -> bool:
+    # Scan stderr ONLY by default — mirroring auth_failed(): never read the review
+    # on stdout, which may legitimately quote a model-not-found string when the
+    # material under review is this very skill's source (e.g. a seat reviewing the
+    # board's own code echoing the literal "ModelNotFound"). A genuine stale/renamed
+    # id surfaces on stderr (codex/gemini emit it there). The ONE exception is the
+    # smoke-ping path (preflight / propose_model): claude prints its "model may not
+    # exist" notice to stdout with exit 1 there, and that path answers a fixed
+    # SMOKE_PROMPT, so its stdout cannot be poisoned by material under review —
+    # those callers opt in with include_stdout=True.
+    blob = result.stderr
+    if include_stdout:
+        blob = result.stdout + "\n" + blob
+    blob = blob.lower()
     return any(sig in blob for sig in _MODEL_NOT_FOUND_SIGNALS)
 
 

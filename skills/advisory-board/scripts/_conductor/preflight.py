@@ -65,7 +65,10 @@ def preflight_seat(seat: SeatConfig, *, network_on: bool, workdir: Optional[str]
     # "degraded-but-ran". This is a stale-CLI / renamed-id symptom, not auth — so
     # probe the seat's fallbacks for a resolvable id to PROPOSE (never auto-apply).
     proposal = None
-    if model_not_found(smoke):
+    # include_stdout: this is the smoke-ping path answering a fixed SMOKE_PROMPT, so
+    # stdout cannot be poisoned by material under review — and claude emits its
+    # genuine "model may not exist" notice to stdout here (grounded 2026-06-25).
+    if model_not_found(smoke, include_stdout=True):
         proposal = propose_model(seat, network_on=network_on, workdir=workdir,
                                   smoke_timeout=smoke_timeout)
         detail = f"version ok; model '{seat.model}' did not resolve ({FAILURE_MODEL})"
