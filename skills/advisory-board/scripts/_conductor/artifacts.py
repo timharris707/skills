@@ -50,6 +50,14 @@ def render_run_card(config: RunConfig) -> str:
         for s in config.board
     )
     net = ", ".join(f"{s.name}={seat_network_status(s, config)}" for s in config.board)
+    synth_line = "off (verdict.json hand-authored from the round artifacts)"
+    if config.synthesize:
+        chosen = config.synthesizer_seat or (
+            "claude" if any(s.name == "claude" for s in config.board) else config.board[0].name)
+        provider = next((s.provider for s in config.board if s.name == chosen),
+                        config.board[0].provider)
+        synth_line = (f"on — seat={chosen} → {provider} (no-lens; verdict.json drafted and "
+                      "schema-validated; human still gates ship/abstain)")
     lines = [
         f"Advisory board run-card — {config.title}",
         f"  date          : {config.date}",
@@ -59,6 +67,7 @@ def render_run_card(config: RunConfig) -> str:
         f"  rounds        : {config.rounds}    cross-reading: {config.cross_reading}",
         f"  lens preset   : {config.lens}",
         f"  output        : {config.output}",
+        f"  synthesizer   : {synth_line}",
         f"  source        : {config.source.ref} "
         f"({config.source.nbytes} bytes, {config.source.nlines} lines, sha256:{config.source.sha256[:12]}…)",
         f"  out dir       : {config.out_dir}",
@@ -118,6 +127,11 @@ def render_artifact_tree(config: RunConfig) -> str:
     ]
     if packet_rounds:
         parts.append(packet_rounds)
+    if config.synthesize:
+        parts += [
+            "  prompts/synthesizer.prompt",
+            "  synthesizer/<seat>.md   synthesizer/<seat>.raw",
+        ]
     parts += [
         "  logs/<seat>-round-N.stderr",
         "  verdict.json   final-consensus.md   handoff-data.json   final-consensus.html",
@@ -166,8 +180,39 @@ def render_convergence_section(convergence: dict) -> list:
     return lines
 
 
+def render_synthesizer_section(synth) -> list:
+    """The M2 synthesizer trace: what spawned, whether the merged JSON validated,
+    and the parse/schema reasons when not. `synth` is the SynthesizerResult the
+    conductor's run_synthesizer returned; absent for a run without --synthesize."""
+    accepted = "yes" if synth.verdict_data is not None else "no"
+    lines = [
+        "",
+        "## Synthesizer",
+        "",
+        f"Seat: {synth.seat}   ·   Model requested: {synth.model_requested}   "
+        f"·   Model answered: {synth.model_answered or 'unknown'}",
+        f"Status: {synth.status}"
+        + (f" ({synth.failure_class})" if synth.failure_class else ""),
+        f"Elapsed: {synth.elapsed_s:.2f}s   ·   Attempts: {synth.attempts}   "
+        f"·   Packet sha256: {synth.packet_hash[:16]}…",
+        f"Accepted (passed advisory-board/verdict@2 validation): {accepted}",
+    ]
+    if synth.parse_error:
+        lines.append(f"Parse error: {synth.parse_error}")
+    if synth.schema_error:
+        lines.append(f"Schema error: {synth.schema_error}")
+    lines.append("")
+    lines.append("The synthesizer is a no-lens reasoning seat (§11): briefed only on the "
+                 "final-round reviews + the conductor-extracted VERDICT tokens, never the "
+                 "source. The conductor merges its content fields into an authoritative "
+                 "skeleton (schema/title/date/rounds/board[]) and runs `board_verdict.validate` "
+                 "before writing verdict.json — the human still gates ship/abstain.")
+    return lines
+
+
 def render_run_metadata(config: RunConfig, preflight: list, approval: EgressApproval,
-                        rounds: Optional[list] = None, convergence: Optional[dict] = None) -> str:
+                        rounds: Optional[list] = None, convergence: Optional[dict] = None,
+                        synthesizer=None) -> str:
     # `rounds` is an ordered list of per-round result lists: [round1_results,
     # round2_results, ...]. None until the first fan-out completes. `convergence`
     # is the M1 stop-rule trace (movement per transition + stop reason).
@@ -233,6 +278,8 @@ def render_run_metadata(config: RunConfig, preflight: list, approval: EgressAppr
         # is structurally unknowable (it silently substitutes — never trusted).
     if convergence is not None:
         lines += render_convergence_section(convergence)
+    if synthesizer is not None:
+        lines += render_synthesizer_section(synthesizer)
     lines += [
         "",
         "## Notes",

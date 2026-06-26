@@ -8,6 +8,56 @@ Pre-1.0 the minor tracks the conductor milestone (M5 → `v0.5.0`, M6 → `v0.6.
 reserved for an explicit production-ready call. The verdict-JSON schema is versioned separately
 (`advisory-board/verdict@N`) and is not the same axis as the release version.
 
+## [v1.3.0] - 2026-06-25 — M2: neutral synthesizer seat
+
+`run --synthesize` now spawns a single **no-lens synthesizer seat** that drafts
+`verdict.json` from the final-round reviews. The conductor still does NOT generate the
+verdict in code (§11); the synthesizer is a **reasoning seat**, briefed only on the round
+artifacts + the conductor-extracted `VERDICT:` tokens — its output is **merged into an
+authoritative skeleton** (schema/title/date/rounds/board are conductor-owned) and
+**schema-validated against `advisory-board/verdict@2` before any write**. The human still
+gates ship/abstain (`board_verdict.py --gate`).
+
+### Added
+- **Neutral synthesizer seat (M2)** — new pure module `scripts/_conductor/synthesizer.py`
+  with `SYNTHESIZER_TEMPLATE` (versioned `advisory-board/synthesizer@1`, sha256 recorded
+  in the recipe + the synth raw record), `build_skeleton` (per-seat `round_verdicts`
+  pulled from `parse_verdict` over each round artifact — never the prose), `extract_json_object`
+  (handles ```` ```json ```` fences, bare ``` fences, prose-prefixed replies, and
+  bare brace-balanced objects; the LAST match wins; nested `}` inside JSON strings are
+  brace-balanced safely), `merge_synthesizer_content` (drops `PROTECTED_SKELETON_KEYS` =
+  `{schema, title, date, rounds, board}` so a model reply cannot rewrite the structural
+  shell; recomputes `unanimous` from the final-round tokens vs. the merged verdict so a
+  model-asserted flag cannot contradict the observed board), and `run_synthesizer` (one
+  retry on Timeout|InvalidOutput per §13; persists a Black-Box Recorder `.raw` alongside
+  the seat reply; refuses synthesis if any usable seat lacks a `VERDICT` token, with
+  `failure_class="missing-verdict-token"` — the conductor must not invent a token to
+  satisfy the schema).
+- **CLI surface** — new flags `--synthesize` and `--synthesizer-seat SEAT` on both `init`
+  and `run`. `--synthesizer-seat` must name a board seat (the synthesizer egresses to that
+  seat's already-disclosed provider — a fresh provider would need its own disclosure);
+  default order is `claude` → first usable seat. Both flags persist in the recipe so
+  `--from-recipe` reproduces a synthesized run.
+- **Provenance** — when `--synthesize` is on, the run dir adds
+  `prompts/synthesizer.prompt` (the exact bytes the synthesizer received),
+  `synthesizer/<seat>.md` (the verbatim reply), `synthesizer/<seat>.raw` (the
+  Black-Box Recorder: argv, prompt + packet sha256, model-answered, parse/schema
+  errors, accepted yes/no), `logs/synthesizer-<seat>.stderr`, and a new
+  **`## Synthesizer`** section in `run-metadata.md`. A run that failed validation
+  drops the merged-but-rejected JSON to `verdict-rejected.json` so the human can
+  hand-fix from there. The run-card and artifact tree show the synthesizer when on.
+- **Recipe schema** — new fields `synthesize` (bool), `synthesizer_seat` (string|null),
+  `synthesizer_template` (`advisory-board/synthesizer@1` when on), and
+  `synthesizer_template_sha256` (drift-detection across the egressed bytes).
+
+### Honest limits
+- The synthesizer is opt-in by design (decision D3) — synthesis is a reasoning task and
+  the human still gates ship/abstain at the `validate --gate` step. The conductor calls
+  no gate automatically on a synthesized verdict.
+- Validation reuses `board_verdict.validate` (the same gate the user runs); on failure
+  the conductor writes `verdict-rejected.json` + a loud warning, **never** a `verdict.json`
+  that didn't validate, and exits 0 (the rounds succeeded — synthesis is a value-add).
+
 ## [v1.2.0] - 2026-06-25 — M4: smarter cross-reading digest
 
 Round 2's `summaries` packet is no longer each round-1 review head-truncated to a char

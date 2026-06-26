@@ -75,6 +75,8 @@ class RunConfig:
     board: list          # list[SeatConfig]
     network_on: bool     # isolation: network
     fs_scoped: bool      # isolation: filesystem scoped
+    synthesize: bool = False         # M2: spawn the neutral synthesizer after rounds
+    synthesizer_seat: Optional[str] = None   # which board seat's adapter runs it
 
     @property
     def gate_mode(self) -> bool:
@@ -217,6 +219,27 @@ def resolve_config(args) -> RunConfig:
     network_on = (mode == "advisory")
     fs_scoped = (mode == "gate")
 
+    # M2 synthesizer. CLI flag wins; otherwise the recipe re-runs as authored.
+    # Both flag and recipe being false → manual hand-off (the v1 default).
+    cli_synthesize = bool(getattr(args, "synthesize", False))
+    recipe_synthesize = bool((base or {}).get("synthesize"))
+    synthesize = cli_synthesize or recipe_synthesize
+    synthesizer_seat = (getattr(args, "synthesizer_seat", None)
+                        or (base or {}).get("synthesizer_seat"))
+    if synthesizer_seat is not None:
+        # The synthesizer egresses to its seat's provider, which the run's
+        # disclosure only covers when that seat is ON the board. Reject HERE so we
+        # don't spend rounds before realizing the choice is invalid — and so the
+        # dry-run run-card doesn't lie about a synth seat the run would refuse.
+        if synthesizer_seat not in REGISTRY:
+            die(f"--synthesizer-seat must be a registered seat ({', '.join(sorted(REGISTRY))}); "
+                f"got {synthesizer_seat!r}")
+        board_names = {s.name for s in board}
+        if synthesizer_seat not in board_names:
+            die(f"--synthesizer-seat {synthesizer_seat!r} is not one of this run's board seats "
+                f"({', '.join(sorted(board_names))}); the synthesizer egresses to that seat's "
+                "provider, which the run's disclosure only covers for board seats")
+
     return RunConfig(
         title=title,
         date=now_date(),
@@ -232,6 +255,8 @@ def resolve_config(args) -> RunConfig:
         board=board,
         network_on=network_on,
         fs_scoped=fs_scoped,
+        synthesize=synthesize,
+        synthesizer_seat=synthesizer_seat,
     )
 
 

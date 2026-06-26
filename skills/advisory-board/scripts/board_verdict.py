@@ -146,9 +146,16 @@ def validate(data: dict) -> None:
             die(f"{where} ({name}): lens must be a string")
         if "dropped" in seat and not isinstance(seat["dropped"], bool):
             die(f"{where} ({name}): dropped must be true or false")
+        is_dropped = bool(seat.get("dropped"))
         verdicts = seat["round_verdicts"]
-        if not isinstance(verdicts, list) or not verdicts:
-            die(f"{where} ({name}): round_verdicts must be a non-empty list")
+        if not isinstance(verdicts, list):
+            die(f"{where} ({name}): round_verdicts must be a list")
+        # A dropped seat may have an empty round_verdicts list (it contributed
+        # no tokens — recording None placeholders would be the conductor inventing
+        # a verdict, which §11 forbids). A seat that ran must have at least one
+        # token, and every recorded token must be a valid SEVERITY.
+        if not is_dropped and not verdicts:
+            die(f"{where} ({name}): round_verdicts must be non-empty for a seat that ran")
         bad = [v for v in verdicts if v not in SEVERITY]
         if bad:
             die(f"{where} ({name}): round_verdicts has invalid value(s): {', '.join(map(repr, bad))}")
