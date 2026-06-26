@@ -15,6 +15,7 @@ __all__ = [
     "EXIT_PREFLIGHT_NOGO",
     "EXIT_USAGE",
     "EXIT_EGRESS_BLOCKED",
+    "EXIT_NO_VERDICT",
     "PROVIDERS",
     "LENS_PRESETS",
     "DEFAULT_LENS",
@@ -44,6 +45,10 @@ EXIT_OK = 0
 EXIT_PREFLIGHT_NOGO = 1   # fewer than two seats GO, or a delegated gate failed
 EXIT_USAGE = 2            # bad arguments / config / IO
 EXIT_EGRESS_BLOCKED = 3   # consent not granted, or sensitivity forbids egress
+EXIT_NO_VERDICT = 4       # --synthesize failed to produce a usable verdict.json,
+                          # and --strict-exit was set (opt-in CI gate). Without
+                          # --strict-exit the same failure exits EXIT_OK (the
+                          # successful rounds are never discarded by a synth hiccup).
 
 PROVIDERS = {
     "claude": "Anthropic",

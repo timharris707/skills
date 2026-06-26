@@ -149,7 +149,11 @@ In CI, treat `3` as "don't auto-merge — a human must decide," distinct from a 
 
 Synthesis stays a reasoning task (§11): the conductor produces clean per-round packets and hands
 them to the orchestrating agent (or one neutral seat) to fill `verdict.json` — it does **not**
-generate the verdict in code. Then the deterministic chain runs:
+generate the verdict in code. When you let the conductor spawn the neutral seat (`run --synthesize`),
+a synth that fails to produce a usable `verdict.json` exits `0` by default (with a loud warning, so a
+synth hiccup never discards the successful rounds). **In CI, pass `run --synthesize --strict-exit`** so
+that failure exits non-zero (`4`, `EXIT_NO_VERDICT`) and the gate can't misread a missing verdict as a
+pass. Then the deterministic chain runs:
 
 ```
 run_board.py verify    verdict.json --source <src-tree> --run <run-dir>   # stamp evidence
