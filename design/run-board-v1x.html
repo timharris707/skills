@@ -416,26 +416,26 @@ footer.colophon code { background: var(--surface-2); }
         
         <div class="meta-row">
           
-          <span class="chip"><b>Updated</b> 2026-06-25</span>
+          <span class="chip"><b>Updated</b> 2026-06-26</span>
           
           <span class="chip"><b>Source</b> design/run-board-conductor.md §15 + the 2026-06-25 handoff (scope)</span>
           
           <span class="chip"><b>Owner</b> Tim</span>
           
-          <span class="chip"><b>Baseline</b> advisory-board/v1.0.0 + plan view · **M1 (v1.1.0) + M4 (v1.2.0) + M2 (v1.3.0) shipped** · 373 tests green</span>
+          <span class="chip"><b>Baseline</b> advisory-board/v1.0.0 + plan view · **M1 (v1.1.0) + M4 (v1.2.0) + M2 (v1.3.0) + M3 (v1.4.0) shipped — v1.x line COMPLETE** · 430 tests green</span>
           
         </div>
       </div>
       <div class="gauge">
-        <svg class="ring" viewBox="0 0 120 120" width="118" height="118" role="img" aria-label="Overall progress 86%">
+        <svg class="ring" viewBox="0 0 120 120" width="118" height="118" role="img" aria-label="Overall progress 100%">
           <circle class="ring-track" cx="60" cy="60" r="52" fill="none" stroke-width="11"/>
           <circle class="ring-arc" cx="60" cy="60" r="52" fill="none" stroke-width="11"
                   stroke-linecap="round" transform="rotate(-90 60 60)"
-                  stroke-dasharray="326.7" stroke-dashoffset="45.7"/>
-          <text class="ring-pct" x="60" y="57" text-anchor="middle" dominant-baseline="middle">86%</text>
+                  stroke-dasharray="326.7" stroke-dashoffset="0.0"/>
+          <text class="ring-pct" x="60" y="57" text-anchor="middle" dominant-baseline="middle">100%</text>
           <text class="ring-sub" x="60" y="76" text-anchor="middle" dominant-baseline="middle">complete</text>
         </svg>
-        <div class="gauge-count"><b>19</b> / 22 tasks done</div>
+        <div class="gauge-count"><b>23</b> / 23 tasks done</div>
       </div>
     </div>
 
@@ -445,7 +445,7 @@ footer.colophon code { background: var(--surface-2); }
       
       <span class="rail-item done"><i class="dot"></i>M2</span>
       
-      <span class="rail-item todo"><i class="dot"></i>M3</span>
+      <span class="rail-item done"><i class="dot"></i>M3</span>
       
       <span class="rail-item done"><i class="dot"></i>M4</span>
       
@@ -638,51 +638,53 @@ footer.colophon code { background: var(--surface-2); }
 
     </article>
     
-    <article class="milestone todo">
+    <article class="milestone done">
       <div class="ms-head">
         <div class="ms-num">3</div>
         <div class="ms-head-main">
           <h3 class="ms-title"><code>command</code>-evidence re-execution</h3>
           <div class="ms-meta">
-            <span class="badge todo"><span class="dot"></span>To do</span>
+            <span class="badge done"><span class="dot"></span>Done</span>
             <span class="ms-progress">
-              <span class="ms-bar"><span style="width:0%"></span></span>
-              0/3
+              <span class="ms-bar"><span style="width:100%"></span></span>
+              4/4
             </span>
           </div>
         </div>
       </div>
 
       
-      <div class="ms-desc"><p><code>verdict@2</code> already types <code>command</code> evidence, but M5 deferred actually <em>running</em> it — those citations stay <code>unverified</code>. This milestone lets <code>verify_evidence.py</code> re-execute a whitelisted command in the captured run dir and compare output to the claim, moving the citation to <code>verified</code>/<code>refuted</code>.</p></div>
+      <div class="ms-desc"><p><code>verdict@2</code> already types <code>command</code> evidence, but M5 deferred actually <em>running</em> it — those citations stay <code>unverified</code>. This milestone lets <code>verify_evidence.py</code> re-execute a whitelisted command and compare output to the claim, moving the citation to <code>verified</code>/<code>refuted</code>. It is <strong>opt-in and allowlist-gated</strong>: re-running a source-derived command is an execution surface (a verdict synthesized from poisoned reviews can carry an attacker-influenced command), so the default is unchanged and the allowlist is the load-bearing control.</p></div>
       
 
       
-      <div class="phase todo">
+      <div class="phase done">
         <div class="phase-head">
           <span class="phase-dot"></span>
           <h4 class="phase-title">Phase 1 — Safe re-execution</h4>
-          <span class="phase-state">To do</span>
+          <span class="phase-state">Done</span>
         </div>
         <ul class="checklist">
           
-          <li class="todo"><span class="tick"></span><span class="task-text">Allowlist of re-runnable commands (no network, no writes outside the run dir)</span></li>
+          <li class="done"><span class="tick">✓</span><span class="task-text">Allowlist of re-runnable commands — <code>--allow-program NAME</code> (repeatable) ENABLES re-execution by pinning <strong>argv[0] to a bare program name you trust</strong> (the load-bearing control); <code>--allow-command REGEX</code> (optional, <code>re.fullmatch</code>) refines the <strong>args</strong>. Nothing runs without <code>--allow-program</code>. <strong>No shell</strong> (<code>shlex.split</code> + <code>shell=False</code> → metacharacters inert), <strong>curated PATH</strong> + resolves-inside-cwd guard (no planted-binary shadowing), <strong>isolated throwaway cwd</strong> by default (no attacker files in cwd; <code>--rerun-cwd</code> opts into a real tree), <strong>scrubbed env</strong> (no inherited PATH/HOME/secrets), stdin closed, <strong>process-group-killed</strong> timeout. Honest: the program allowlist is the control, not a stdlib sandbox.</span></li>
           
-          <li class="todo"><span class="tick"></span><span class="task-text">Capture stdout/exit and diff against the cited expectation</span></li>
+          <li class="done"><span class="tick">✓</span><span class="task-text">Capture stdout/exit and diff against the cited expectation — structural match only (§11): <code>verified</code> iff exit == <code>expect_exit</code> (default 0) AND any verbatim <code>expect</code> substring is present (decided over the FULL output); <code>observed</code> carries the exit, a head+tail excerpt, <code>truncated</code>, and <code>expect_found</code>. Optional <code>expect_exit</code>/<code>expect</code> added to the <code>command</code> evidence schema (additive, stays <code>verdict@2</code>).</span></li>
           
-          <li class="todo"><span class="tick"></span><span class="task-text">Mark the citation <code>verified</code> / <code>refuted</code> with the observed output attached</span></li>
+          <li class="done"><span class="tick">✓</span><span class="task-text">Mark the citation <code>verified</code> / <code>refuted</code> with the observed output attached — and the honest asymmetry: a command that COULDN&#x27;T run (off-allowlist, path argv[0], missing/planted executable, timeout, unparseable) is <code>unverified</code> (an inability), one that RAN and contradicted its expectation is <code>refuted</code> (a positive contradiction). <code>render_verdict.py</code>&#x27;s couldn&#x27;t-verify bucket is kind-aware (a refuted command reports its observed exit).</span></li>
+          
+          <li class="done"><span class="tick">✓</span><span class="task-text"><strong>Hardened by a security-focused adversarial review</strong> (5 lenses → 3 skeptics each): it found 3 confirmed RCE paths (relative argv[0] running a planted script, a dirty-PATH bare-name hijack, and a too-broad regex choosing argv[0]) plus exfil/timeout/renderer findings — all fixed (program-pinning, curated PATH + cwd guard, throwaway cwd, process-group kill, HOME isolation, head+tail receipt, kind-aware renderer).</span></li>
           
         </ul>
         
         <div class="testing">
           <p class="t-label">Testing strategy</p>
-          <div class="t-body"><p>a fixture command that passes and one that fails; assert status transitions and that a non-allowlisted command stays <code>unverified</code> with a reason.</p></div>
+          <div class="t-body"><p>~40 tests — program pinning (incl. &quot;regex can&#x27;t choose argv[0]&quot; + path-argv[0]-never-runs + planted-binary-in-cwd-refused), curated PATH, env+HOME scrub, no-shell, process-group timeout, the full status matrix, head+tail truncation with <code>expect_found</code>, <code>stamp()</code> default unchanged, and <code>main()</code> end-to-end (incl. <code>--allow-command</code> alone does NOT enable, and the throwaway cwd is cleaned up).</p></div>
         </div>
         
         
         <div class="gate">
           <span class="g-label">Validation gate</span>
-          <code>python3 -m unittest discover -s tests -t tests</code>
+          <code>`python3 -m unittest discover -s tests -t tests` (430 tests green)</code>
         </div>
         
       </div>
@@ -851,7 +853,7 @@ footer.colophon code { background: var(--surface-2); }
 
   <!-- ===================== COLOPHON ===================== -->
   <footer class="colophon">
-    Rendered from <code>run-board-v1x.md</code> &middot; 4 milestones &middot; 19/22 tasks complete. The markdown plan is the source of truth &mdash; regenerate with <code>render_plan.py</code>; never hand-edit this file.
+    Rendered from <code>run-board-v1x.md</code> &middot; 4 milestones &middot; 23/23 tasks complete. The markdown plan is the source of truth &mdash; regenerate with <code>render_plan.py</code>; never hand-edit this file.
   </footer>
 
 </div>

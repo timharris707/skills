@@ -1,10 +1,10 @@
 # Advisory Board — v1.x Plan
 > The next four features for the `run_board.py` conductor, after the production-ready v1.0.0.
 
-- **Updated:** 2026-06-25
+- **Updated:** 2026-06-26
 - **Source:** design/run-board-conductor.md §15 + the 2026-06-25 handoff (scope)
 - **Owner:** Tim
-- **Baseline:** advisory-board/v1.0.0 + plan view · **M1 (v1.1.0) + M4 (v1.2.0) + M2 (v1.3.0) shipped** · 373 tests green
+- **Baseline:** advisory-board/v1.0.0 + plan view · **M1 (v1.1.0) + M4 (v1.2.0) + M2 (v1.3.0) + M3 (v1.4.0) shipped — v1.x line COMPLETE** · 430 tests green
 
 ## Overview
 v1.0.0 shipped the full board: **preflight → egress gate → round-1 fan-out → round-2 cross-reading → canonical verdict chain**. The v1.x line sharpens four edges that the M6 proof-of-life run exposed: the board always runs a fixed number of rounds, the verdict is still an agent hand-off rather than one command, `command`-evidence is captured but never re-executed, and the cross-reading digest is coarse.
@@ -57,16 +57,17 @@ Testing: e2e `run --synthesize` writes a validated `verdict.json`; e2e `run` wit
 Gate: `python3 -m unittest discover -s tests -t tests`
 
 ## Milestone: `command`-evidence re-execution
-status: todo
-`verdict@2` already types `command` evidence, but M5 deferred actually *running* it — those citations stay `unverified`. This milestone lets `verify_evidence.py` re-execute a whitelisted command in the captured run dir and compare output to the claim, moving the citation to `verified`/`refuted`.
+status: done
+`verdict@2` already types `command` evidence, but M5 deferred actually *running* it — those citations stay `unverified`. This milestone lets `verify_evidence.py` re-execute a whitelisted command and compare output to the claim, moving the citation to `verified`/`refuted`. It is **opt-in and allowlist-gated**: re-running a source-derived command is an execution surface (a verdict synthesized from poisoned reviews can carry an attacker-influenced command), so the default is unchanged and the allowlist is the load-bearing control.
 
 ### Phase 1 — Safe re-execution
-status: todo
-- [ ] Allowlist of re-runnable commands (no network, no writes outside the run dir)
-- [ ] Capture stdout/exit and diff against the cited expectation
-- [ ] Mark the citation `verified` / `refuted` with the observed output attached
-Testing: a fixture command that passes and one that fails; assert status transitions and that a non-allowlisted command stays `unverified` with a reason.
-Gate: `python3 -m unittest discover -s tests -t tests`
+status: done
+- [x] Allowlist of re-runnable commands — `--allow-program NAME` (repeatable) ENABLES re-execution by pinning **argv[0] to a bare program name you trust** (the load-bearing control); `--allow-command REGEX` (optional, `re.fullmatch`) refines the **args**. Nothing runs without `--allow-program`. **No shell** (`shlex.split` + `shell=False` → metacharacters inert), **curated PATH** + resolves-inside-cwd guard (no planted-binary shadowing), **isolated throwaway cwd** by default (no attacker files in cwd; `--rerun-cwd` opts into a real tree), **scrubbed env** (no inherited PATH/HOME/secrets), stdin closed, **process-group-killed** timeout. Honest: the program allowlist is the control, not a stdlib sandbox.
+- [x] Capture stdout/exit and diff against the cited expectation — structural match only (§11): `verified` iff exit == `expect_exit` (default 0) AND any verbatim `expect` substring is present (decided over the FULL output); `observed` carries the exit, a head+tail excerpt, `truncated`, and `expect_found`. Optional `expect_exit`/`expect` added to the `command` evidence schema (additive, stays `verdict@2`).
+- [x] Mark the citation `verified` / `refuted` with the observed output attached — and the honest asymmetry: a command that COULDN'T run (off-allowlist, path argv[0], missing/planted executable, timeout, unparseable) is `unverified` (an inability), one that RAN and contradicted its expectation is `refuted` (a positive contradiction). `render_verdict.py`'s couldn't-verify bucket is kind-aware (a refuted command reports its observed exit).
+- [x] **Hardened by a security-focused adversarial review** (5 lenses → 3 skeptics each): it found 3 confirmed RCE paths (relative argv[0] running a planted script, a dirty-PATH bare-name hijack, and a too-broad regex choosing argv[0]) plus exfil/timeout/renderer findings — all fixed (program-pinning, curated PATH + cwd guard, throwaway cwd, process-group kill, HOME isolation, head+tail receipt, kind-aware renderer).
+Testing: ~40 tests — program pinning (incl. "regex can't choose argv[0]" + path-argv[0]-never-runs + planted-binary-in-cwd-refused), curated PATH, env+HOME scrub, no-shell, process-group timeout, the full status matrix, head+tail truncation with `expect_found`, `stamp()` default unchanged, and `main()` end-to-end (incl. `--allow-command` alone does NOT enable, and the throwaway cwd is cleaned up).
+Gate: `python3 -m unittest discover -s tests -t tests` (430 tests green)
 
 ## Milestone: Smarter cross-reading digest
 status: done

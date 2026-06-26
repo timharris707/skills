@@ -191,9 +191,28 @@ def _couldnt_verify_lines(data: dict) -> list:
             lines.append(claim + (f" — {impact}" if impact else ""))
     for ev in _iter_evidence(data):
         if ev.get("status") in ("unverified", "refuted"):
-            verb = "could not be resolved" if ev["status"] == "unverified" else "was REFUTED (not found)"
-            lines.append(f"{_evidence_label(ev)} {verb}.")
+            lines.append(f"{_evidence_label(ev)} {_resolution_verb(ev)}.")
     return lines
+
+
+def _resolution_verb(ev: dict) -> str:
+    """A kind-aware verb for an unverified/refuted citation. A `command` that ran and
+    contradicted its expectation is NOT 'not found' — surface the observed exit so the
+    receipt reaches the consensus doc, not just verdict.json."""
+    status = ev.get("status")
+    is_command = ev.get("kind") == "command"
+    observed = ev.get("observed") if isinstance(ev.get("observed"), dict) else {}
+    if status == "unverified":
+        if is_command:
+            return "could not be re-executed (off-allowlist or not runnable)"
+        return "could not be resolved"
+    # refuted
+    if is_command and "exit" in observed:
+        detail = f"exit {observed['exit']}"
+        if observed.get("expect_found") is False:
+            detail += ", expected output absent"
+        return f"was REFUTED on re-execution ({detail})"
+    return "was REFUTED (cited line/quote not found in the material)"
 
 
 # --------------------------------------------------------------------------- #
