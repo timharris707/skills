@@ -286,19 +286,31 @@ def build_handoff_data(data: dict, run_dir=None) -> dict:
     # the absent-preset default). Empty string when absent so the template slot resolves
     # to nothing and the footer line is dropped.
     disclaimer = lens_disclaimer(lens_preset)
+    board_str = " · ".join(s.get("seat", "?") for s in data.get("board", []))
+    rounds_str = str(data.get("rounds", ""))
+    # Footer provenance, in human terms — no internal file/script names. (The old
+    # "Rendered from verdict.json by scripts/render_verdict.py" was a developer string
+    # that leaked onto the page; same for the subtitle below.)
+    metadata = " · ".join(p for p in (
+        f"Board: {board_str}" if board_str else "",
+        f"{rounds_str} rounds" if rounds_str else "",
+        data.get("date", ""),
+    ) if p)
     hd = {
         # non-RAW slots (the renderer escapes them) -> _plain; RAW slots -> _raw.
         "title": _plain(data.get("title", "Advisory Board review")),
-        "subtitle": "Rendered from the canonical verdict.json.",
+        # SUBTITLE describes WHAT was reviewed (shown in the masthead); an authored
+        # subtitle wins, else a neutral default. Never a developer/render string.
+        "subtitle": _raw(data.get("subtitle") or "An independent multi-model review."),
         "date": _plain(data.get("date", "")),
-        "board": _raw(" · ".join(s.get("seat", "?") for s in data.get("board", []))),
-        "rounds": str(data.get("rounds", "")),
+        "board": _raw(board_str),
+        "rounds": rounds_str,
         "verdict": _plain(f"{label} — {_stance(data)}"),
         "verdict_class": _VERDICT_CLASS.get(verdict, ""),
         "verdict_note": _raw(verdict_note) if verdict_note else "",
         "disclaimer": _raw(disclaimer) if disclaimer else "",
         "plan": _raw(data.get("title", "")),
-        "metadata": "Rendered from <code>verdict.json</code> by <code>scripts/render_verdict.py</code>.",
+        "metadata": _raw(metadata),
         "dissent_flag": "Dissent on the record" if data.get("dissent") else "",
         "seats": [],
         "blockers": [{"blocker_title": _plain(b.get("title", "blocker")),
