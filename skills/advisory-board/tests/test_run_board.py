@@ -35,6 +35,8 @@ import run_board as rb  # noqa: E402
 import board_verdict as bv  # noqa: E402  (M5: schema @2 + abstain gate)
 import verify_evidence as ve  # noqa: E402  (M5: evidence resolution)
 import render_verdict as rv  # noqa: E402  (M5: consensus render)
+import format_output as fo  # noqa: E402  (share formats; lens-aware verdict label)
+import _verdict_labels as vl  # noqa: E402  (lens-aware human label module)
 from _conductor import grounding as grd  # noqa: E402  (repo-grounding: scope/snapshot/manifest)
 from _conductor.config import resolve_config as resolve_config  # noqa: E402
 
@@ -3154,6 +3156,10 @@ class TestRenderVerdict(unittest.TestCase):
     def setUp(self):
         with open(VERDICT_M5) as fh:
             self.data = json.load(fh)
+        # This fixture is a software-architecture board; make that explicit so these
+        # tests are a deliberate regression guard for the legacy SHIP/… labels (the
+        # plain-language family is exercised in TestVerdictLabels below).
+        self.data["lens_preset"] = "software-architecture"
         ve.stamp(self.data, SRC_FIXTURE, open(PACKET_FIXTURE).read())
 
     def test_markdown_has_decision_and_evidence(self):
@@ -3198,6 +3204,124 @@ class TestRenderVerdict(unittest.TestCase):
             # end-to-end: render_handoff converts it to real HTML exactly once
             html_out = rh.render(hd, open(rh.default_template()).read())
             self.assertIn("<code>SET NX</code>", html_out)
+
+
+class TestVerdictLabels(unittest.TestCase):
+    """The plain-language, lens-aware verdict label (v1.6.0)."""
+
+    # --- the shared label module ------------------------------------------- #
+
+    def test_software_lens_keeps_legacy_labels(self):
+        for token, label in (("ship", "SHIP"), ("caution", "SHIP WITH CHANGES"),
+                             ("block", "DO NOT SHIP YET")):
+            got, note = vl.human_label(token, "software-architecture")
+            self.assertEqual(got, label)
+            self.assertIsNone(note)  # software labels carry no "what this means" note
+
+    def test_absent_preset_defaults_to_software(self):
+        # An old verdict.json with no lens_preset must read unchanged (backward compat).
+        self.assertEqual(vl.human_label("block", None), ("DO NOT SHIP YET", None))
+
+    def test_non_software_lens_is_plain_with_note(self):
+        cases = {
+            "ship": ("Go ahead", vl.PLAIN_NOTES["ship"]),
+            "caution": ("Proceed with care", vl.PLAIN_NOTES["caution"]),
+            "block": ("Stop and rethink", vl.PLAIN_NOTES["block"]),
+        }
+        for token, (label, note) in cases.items():
+            self.assertEqual(vl.human_label(token, "business-decision"), (label, note))
+
+    def test_unknown_preset_falls_to_plain(self):
+        self.assertEqual(vl.human_label("ship", "totally-made-up"),
+                         ("Go ahead", vl.PLAIN_NOTES["ship"]))
+
+    def test_explicit_decision_overrides_lens_label(self):
+        # A native `decision` wins verbatim under any lens, with no note.
+        self.assertEqual(vl.human_label("block", "business-decision", decision="wind-down"),
+                         ("wind-down", None))
+        self.assertEqual(vl.human_label("ship", "software-architecture", decision="invest"),
+                         ("invest", None))
+
+    # --- render_verdict.py: Markdown + HTML handoff ------------------------ #
+
+    def _plain_verdict(self):
+        return _verdict("block", "block", "block", title="Q3 expansion",
+                        lens_preset="business-decision",
+                        blockers=[{"title": "Unit economics", "body": "Margin is negative."}])
+
+    def test_markdown_plain_label_and_note(self):
+        md = rv.render_markdown(self._plain_verdict())
+        self.assertIn("## Verdict: Stop and rethink", md)
+        self.assertIn(vl.PLAIN_NOTES["block"], md)
+        self.assertNotIn("DO NOT SHIP", md)  # no software jargon on a non-software lens
+
+    def test_markdown_explicit_decision_wins_over_lens(self):
+        data = _verdict("block", "block", "block", title="t",
+                        lens_preset="business-decision", decision="wind-down")
+        md = rv.render_markdown(data)
+        self.assertIn("## Verdict: wind-down", md)
+        self.assertNotIn("Stop and rethink", md)
+
+    def test_handoff_plain_label_note_and_class(self):
+        hd = rv.build_handoff_data(self._plain_verdict())
+        self.assertIn("Stop and rethink", hd["verdict"])
+        # verdict_note is a RAW (HTML-escaped) slot, so match the escaped form.
+        self.assertIn("The board found serious problems", hd["verdict_note"])
+        # The banner color stays keyed on the RAW token, not the lens label.
+        self.assertEqual(hd["verdict_class"], "block")
+
+    def test_handoff_html_round_trips_plain_label(self):
+        import render_handoff as rh
+        hd = rv.build_handoff_data(self._plain_verdict())
+        with open(rh.default_template()) as fh:
+            template = fh.read()
+        html_out = rh.render(hd, template)  # dies on any leftover token
+        self.assertIn("Stop and rethink", html_out)
+        self.assertIn("verdict block", html_out)  # raw-token color class survives
+
+    def test_handoff_round_pills_follow_lens(self):
+        hd = rv.build_handoff_data(_verdict("caution", "caution", "ship",
+                                            lens_preset="research-paper"))
+        pills = [r["round_verdict"] for s in hd["seats"] for r in s["rounds"]]
+        self.assertIn("Proceed with care", pills)
+        self.assertIn("Go ahead", pills)
+
+    def test_authored_verdict_note_wins_over_lens_note(self):
+        data = self._plain_verdict()
+        data["verdict_note"] = "Authored override note."
+        md = rv.render_markdown(data)
+        self.assertIn("Authored override note.", md)
+        self.assertNotIn(vl.PLAIN_NOTES["block"], md)
+
+    # --- format_output.py: verdict_line ------------------------------------ #
+
+    def test_format_output_software_uppercases(self):
+        data = _verdict("block", "block", "block", lens_preset="software-architecture")
+        self.assertIn("DO NOT SHIP YET", fo.verdict_line(data))
+
+    def test_format_output_plain_keeps_natural_case(self):
+        data = _verdict("block", "block", "block", lens_preset="business-decision")
+        line = fo.verdict_line(data)
+        self.assertIn("Stop and rethink", line)
+        self.assertNotIn("STOP AND RETHINK", line)  # plain labels aren't shouted
+
+    def test_format_output_decision_overrides(self):
+        data = _verdict("block", "block", "block", lens_preset="business-decision",
+                        decision="wind-down")
+        self.assertIn("WIND-DOWN", fo.verdict_line(data))  # a decision still upper-cases
+
+    # --- the machine contract is untouched --------------------------------- #
+
+    def test_lens_preset_validates_and_gate_ignores_it(self):
+        data = _verdict("block", "block", "block", lens_preset="business-decision")
+        bv.validate(data)  # a string lens_preset is accepted
+        # The gate reads the raw token, never the human label.
+        outcome, _ = bv.gate_outcome(data, "block")
+        self.assertEqual(outcome, "fail")
+
+    def test_lens_preset_must_be_string(self):
+        with self.assertRaises(SystemExit):
+            bv.validate(_verdict("ship", "ship", "ship", lens_preset=42))
 
 
 class TestM5ChainDelegation(EnvMixin):
@@ -3468,6 +3592,24 @@ class TestSynthesizerPureFunctions(unittest.TestCase):
         merged = rb.merge_synthesizer_content(skel, {"verdict": "ship", "confidence": "high"})
         self.assertTrue(merged["unanimous"])
 
+    def test_merge_repins_lens_preset_blocks_smuggle(self):
+        # `lens_preset` is conductor-authoritative (it names the run's board preset
+        # and selects the human-facing label family), but it is deliberately NOT in
+        # PROTECTED_SKELETON_KEYS — so under `{**skeleton, **safe}` a model-asserted
+        # value in `content` would survive without the explicit re-pin. The merge
+        # must keep the skeleton's value, not the smuggled one.
+        skel = {"schema": "advisory-board/verdict@2", "title": "T", "date": "D",
+                "rounds": 2, "lens_preset": "business-decision", "board": [
+                    {"seat": "Claude", "model": "m", "round_verdicts": ["ship", "ship"],
+                     "dropped": False}]}
+        content = {"lens_preset": "software-architecture",
+                   "verdict": "ship", "confidence": "high"}
+        merged = rb.merge_synthesizer_content(skel, content)
+        self.assertEqual(merged["lens_preset"], "business-decision")
+        # The non-protected fields the synthesizer legitimately set still flow through.
+        self.assertEqual(merged["verdict"], "ship")
+        self.assertEqual(merged["confidence"], "high")
+
     def test_choose_synthesizer_seat_defaults_to_claude(self):
         config = rb.resolve_config(_args(source=SAMPLE, out=tempfile.mkdtemp(prefix="b-")))
         # rounds_done can be empty for this branch — choose only looks at the board
@@ -3517,7 +3659,7 @@ class TestSynthesizerPromptShape(unittest.TestCase):
         # Sha is stable.
         self.assertEqual(rb.synthesizer_template_sha(),
                          rb.synthesizer_template_sha())
-        self.assertEqual(rb.SYNTHESIZER_TEMPLATE_VERSION, "advisory-board/synthesizer@1")
+        self.assertEqual(rb.SYNTHESIZER_TEMPLATE_VERSION, "advisory-board/synthesizer@2")
 
     def test_build_skeleton_per_seat_verdicts_come_from_parse(self):
         config = rb.resolve_config(_args(source=SAMPLE, out=tempfile.mkdtemp(prefix="b-")))
@@ -3536,6 +3678,25 @@ class TestSynthesizerPromptShape(unittest.TestCase):
         self.assertEqual(names, ["Claude", "Codex", "Gemini"])
         verds = [s["round_verdicts"] for s in skel["board"]]
         self.assertEqual(verds, [["block", "block"], ["caution", "block"], ["block", "block"]])
+
+    def test_build_skeleton_writes_lens_preset_from_config(self):
+        # The skeleton must carry the run's board-level lens preset name so the
+        # standalone renderers can pick a lens-aware human label without re-deriving
+        # it. It comes straight from config.lens — assert a NON-default preset lands.
+        config = rb.resolve_config(_args(source=SAMPLE, out=tempfile.mkdtemp(prefix="b-"),
+                                         lens="business-decision"))
+        self.assertEqual(config.lens, "business-decision")
+        rounds = [
+            [_sr("claude", 1, "ok\nVERDICT: ship"),
+             _sr("codex",  1, "ok\nVERDICT: ship"),
+             _sr("gemini", 1, "ok\nVERDICT: ship")],
+            [_sr("claude", 2, "ok\nVERDICT: ship"),
+             _sr("codex",  2, "ok\nVERDICT: ship"),
+             _sr("gemini", 2, "ok\nVERDICT: ship")],
+        ]
+        skel = rb.build_skeleton(config, rounds)
+        self.assertEqual(skel["lens_preset"], "business-decision")
+        self.assertEqual(skel["lens_preset"], config.lens)
 
 
 class TestSynthesizerConfig(EnvMixin):

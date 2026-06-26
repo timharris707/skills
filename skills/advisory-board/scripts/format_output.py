@@ -11,9 +11,11 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 
-LABEL = {"ship": "SHIP", "caution": "SHIP WITH CHANGES", "block": "DO NOT SHIP"}
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _verdict_labels import human_label, is_software_lens  # noqa: E402  lens-aware label
 
 
 def die(message: str) -> None:
@@ -36,8 +38,14 @@ def load(path: str) -> dict:
 
 def verdict_line(data: dict) -> str:
     stance = "unanimous" if data.get("unanimous") else "split board"
-    label = data.get("decision") or LABEL.get(data.get("verdict"), str(data.get("verdict")))
-    return f"{label.upper()} ({data.get('confidence', '?')} confidence, {stance})"
+    lens_preset = data.get("lens_preset")
+    label, _ = human_label(data.get("verdict"), lens_preset, data.get("decision"))
+    # Software labels (and a native decision) read as upper-case tokens, as they
+    # always have; plain-language labels keep their natural case so "Stop and rethink"
+    # doesn't become a shouted "STOP AND RETHINK".
+    if data.get("decision") or is_software_lens(lens_preset):
+        label = label.upper()
+    return f"{label} ({data.get('confidence', '?')} confidence, {stance})"
 
 
 def as_tldr(data: dict) -> str:
