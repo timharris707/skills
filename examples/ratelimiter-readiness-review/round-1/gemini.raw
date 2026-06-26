@@ -1,0 +1,105 @@
+# Black-box recorder — gemini · round 1
+
+command         : gemini -p <prompt> -m gemini-3.5-flash --approval-mode plan --skip-trust
+prompt-source   : prompts/gemini-round-1.prompt
+source-hash     : sha256:06457237f46bec318a3b6cb24bd63d00a04fcd6d2451ebb8bbb000661252fc57   (identical across seats → same-material independence)
+prompt-hash     : sha256:cf084a0b8c3e05c3dafc76fb6c03b35a2ae2e3fa50e9b8c19b0e4d61852fac5b   (the exact bytes this seat received)
+packet-hash     : sha256:2ca8c659997d8d3344f6fdd6800706cc76d706492123b210d76cfc1f783f3525   (egress consent was bound to this)
+model-requested : gemini-3.5-flash
+model-answered  : unknown (CLI reported none — not assumed)
+exit-code       : 0
+timed-out       : no
+elapsed-s       : 55.97
+attempts        : 1
+status          : ran
+failure-class   : -
+
+----------------8<---------------- STDOUT ----------------8<----------------
+# Production-Readiness Review: `TokenBucket` Rate Limiter
+
+## 1. Verdict & Confidence Level
+
+*   **Verdict:** **block**
+*   **Confidence Level:** High
+*   **What would change it:** Transitioning the clock source to `time.monotonic()`, introducing a thread-safe eviction mechanism for per-client buckets to prevent memory leaks, implementing a dry-run (shadow) mode with a fail-open path, and exposing rate-limiting metadata to support standard HTTP response headers.
+
+---
+
+## 2. Strongest Objections
+
+### Objection A: Clock Source Vulnerability (Wall-Clock Drift & Leap Seconds)
+*   **Operational Risk:** The implementation relies on `time.time()` (`tokenbucket.py`, lines 29, 34) to calculate elapsed time. Because `time.time()` measures wall-clock time, it is susceptible to NTP adjustments, manual clock synchronization, or leap seconds. If the system clock is set backward by an operator or NTP, `elapsed` (line 35) becomes negative.
+*   **User Impact:** This negative elapsed time subtracts tokens from `self._tokens` (line 37) without any lower-bound guardrails, driving the token count highly negative. The bucket will enter a lock-out state, rejecting all legitimate inbound requests until the clock catches up or sufficient time elapsed offsets the negative token state. This creates a severe operational risk of an unexpected, hard-to-debug Denial of Service (DoS) for users.
+
+### Objection B: Multi-Process Siloing & Rate Inconsistency
+*   **Rollout Risk:** The proposal states that "allow() runs once per inbound request, in every API worker process." Standard multi-threaded web application servers (e.g., Gunicorn or Uvicorn) run multiple independent worker processes. Because memory is not shared across processes, each process will maintain separate in-memory rate limiters.
+*   **Operational Impact:** A client's actual rate limit becomes non-deterministic and is multiplied by the number of worker processes. Throttling behavior will fluctuate randomly based on how the load balancer routes subsequent requests to different worker processes, leading to erratic rate enforcement and an unpredictable user experience.
+
+### Objection C: Unbounded Memory Leak & Out-Of-Memory (OOM) Risks
+*   **Operations Risk:** The proposal specifies "per-client rate limiting," yet the `TokenBucket` class is a single bucket instance. If the calling middleware maintains a map (e.g., a dictionary) of client IDs or IPs to `TokenBucket` instances to enforce per-client limits, there is no TTL, eviction policy, or maximum size constraint for this dictionary.
+*   **Operational Impact:** In production, a flood of unique client IPs (or malicious scanners) will cause the registry to grow indefinitely, consuming all available system memory. This unbounded memory leak will eventually trigger the kernel Out-Of-Memory (OOM) killer, crashing the API worker processes.
+
+### Objection D: Hot-Path Latency Serialization
+*   **Latency & Spikes:** Acquiring a blocking lock (`threading.Lock`, lines 30, 33) on the hot path of *every* public API request serializes concurrent threads. Under heavy traffic spikes or concurrent client bursts, lock contention will cascade, significantly amplifying request latency. Furthermore, the lack of a "fail-open" strategy means that any unhandled failure within this blocking step will cause the entire API request to fail.
+
+### Objection E: Degraded Developer Experience (DX) & Client Retry Storms
+*   **User-Workflow Risk:** `allow()` returns a bare boolean (line 32). It does not return rate-limit metadata (e.g., remaining capacity, reset time). The HTTP worker cannot populate standard headers (e.g., `Retry-After`, `X-RateLimit-Limit`, `X-RateLimit-Remaining`). Without these headers, clients cannot back off intelligently and are likely to trigger aggressive retry storms, exacerbating backend traffic spikes.
+
+---
+
+## 3. Recommended Execution Sequence
+
+1.  **Phase 1: Clock Source & Math Correction (Immediate Fixes)**
+    *   Change the clock source from `time.time()` to `time.monotonic()`.
+    *   Explicitly guard the elapsed time calculation against negative values: `elapsed = max(0.0, now - self._last)`.
+2.  **Phase 2: Lifecycle & Memory Protection**
+    *   Implement a thread-safe, bounded cache (e.g., an LRU cache or lock-protected `OrderedDict` with size limits) to manage per-client `TokenBucket` instances. Evict idle or fully refilled buckets to bound maximum memory usage.
+3.  **Phase 3: Telemetry, Dry-Run, and Fail-Open Implementation**
+    *   Emit Prometheus metrics on rate-limit decisions (e.g., count of allowed vs. blocked requests) and lock acquisition latencies.
+    *   Implement a `dry_run` configuration flag allowing operators to log rate-limiting actions and gather baseline metrics without dropping traffic.
+    *   Wrap rate limiter checks in a fail-open block so that unexpected exceptions do not block public API traffic.
+4.  **Phase 4: Expose Rate-Limiting Metadata**
+    *   Refactor `allow()` to return a structured payload containing `(allowed: bool, remaining: float, reset_seconds: float)` to let the HTTP layer set standard RFC-compliant headers.
+
+---
+
+## 4. Invariants and Guardrails
+
+*   **Monotonicity Invariant:** `elapsed` MUST always be $\ge 0$.
+*   **Token Value Guardrail:** `_tokens` MUST always remain in the range $[0.0, \text{capacity}]$.
+*   **Availability Guardrail (Fail-Open):** The rate-limiter check must never raise an unhandled exception to the main request thread; if an internal failure occurs, it must fail-open (allow the request) and log a high-priority alert.
+*   **Memory Bounding Guardrail:** The maximum number of active tracking buckets must be strictly capped (e.g., `max_size = 100_000` entries), with stale/inactive clients proactively evicted.
+
+---
+
+## 5. Risks, Stale Assumptions, and Missing Evidence
+
+*   **Stale Assumption (Threading Model):** The implementation assumes a synchronous multi-threaded worker model. Modern high-performance Python backends utilize asynchronous event loops (e.g., ASGI, FastAPI, Asyncio). Using a blocking `threading.Lock` inside an asynchronous event loop can block the single-threaded execution thread, halting the entire application server.
+*   **Missing Evidence (Performance under Contention):** There is no benchmarking data demonstrating how `threading.Lock` behaves under severe traffic spikes (e.g., thousands of concurrent requests per second).
+*   **Missing Evidence (Distributed Scaling):** There is no design for distributed coordination (e.g., Redis-backed state) when scaling backend hosts horizontally. If hosts auto-scale, local in-memory buckets will allow clients to bypass rate-limiting rules.
+
+---
+
+## 6. Concrete Evidence from Source Material
+
+*   **Line 29 (`self._last = time.time()`):** Instantiates the tracking timestamp with a wall-clock timestamp.
+*   **Line 34 (`now = time.time()`):** Obtains the current timestamp using wall-clock time, creating susceptibility to system clock adjustments.
+*   **Line 35 (`elapsed = now - self._last`):** Calculates elapsed time without a lower-bound check, allowing `elapsed` to be negative under backward clock drift.
+*   **Line 37 (`self._tokens = min(self.capacity, self._tokens + elapsed * self.rate)`):** The token calculation formula where negative elapsed values will drain tokens far below zero.
+*   **Line 30 (`self._lock = threading.Lock()`):** Introduces a physical thread lock, which serializes hot-path execution and lacks integration with async framework loops.
+*   **Line 32 (`def allow(self, n: float = 1) -> bool:`):** Restricts return values to a bare boolean, preventing downstream populating of standard HTTP headers.
+
+---
+
+## 7. Challenge Questions for Other Board Seats
+
+1.  **To the Performance & Latency Seat:** "Given that this lock is evaluated on the hot path of *every* request, what is the maximum thread contention overhead we can tolerate before p99 latency degrades unacceptably, and how will this locking model behave in an asynchronous event loop?"
+2.  **To the Architecture & Security Seat:** "Since memory is isolated across worker processes and physical hosts, how do we propose to handle clients who exploit this local silo to cycle their requests across worker processes or scaled hosts to bypass the rate limiter completely?"
+3.  **To the Developer Experience Seat:** "Is it acceptable to roll out a public rate limiter that returns no headers (`Retry-After`, `X-RateLimit-*`), thereby running the risk of client integration failures and aggressive retry loops during traffic surges?"
+
+---
+
+VERDICT: block
+----------------8<---------------- STDERR ----------------8<----------------
+Warning: 256-color support not detected. Using a terminal with at least 256-color support is recommended for a better visual experience.
+

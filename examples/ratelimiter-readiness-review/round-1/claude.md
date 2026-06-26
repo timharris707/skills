@@ -1,0 +1,96 @@
+I'll review this directly as a read-only analytical deliverable, per the packet's instruction to return the full review text. No files written, no system changes.
+
+---
+
+# Review: `TokenBucket` rate limiter — production-readiness
+
+## 1. Verdict
+
+**Ship with changes (CAUTION).** Confidence: **high** on the defects; **medium** on the final disposition (because two of the issues are requirements-scope questions only the team can resolve).
+
+One mandatory fix gates everything: **the limiter uses `time.time()` (wall clock) for interval math in an environment the proposal itself says has NTP corrections and operator clock changes.** That is a self-inflicted-outage bug, not a style nit. The concurrency is actually correct, and the single-bucket refill logic is sound — so this is close, but not shippable as-is.
+
+**What would change my verdict to `ship`:** switch to `time.monotonic()`, and an explicit written decision that the per-process / per-client gaps (§2.2, §2.3) are either out of scope for this class or tracked as a follow-up. **What would push it to `block`:** if the team intends this single instance to *be* the per-client, fleet-wide limiter without a follow-up — then it doesn't meet its own stated requirement.
+
+---
+
+## 2. Strongest objections
+
+### 2.1 Wall clock on the refill path → over-throttling and a denial stall (MANDATORY FIX)
+`self._last = time.time()` and `elapsed = now - self._last` use the system wall clock. The operating context explicitly states: *"Hosts run `ntpd`; wall-clock corrections (and operator clock changes) do happen in production"* and lists *"Clock source"* as a top concern.
+
+Failure mode on a **backward** correction (`now < self._last`):
+- `elapsed` goes **negative**, so `self._tokens + elapsed * self.rate` *subtracts* tokens. The `min(capacity, …)` cap does nothing to floor it — **tokens can go arbitrarily negative.**
+- Worked example: `rate=10`, `capacity=20`, operator winds the clock back 1 hour. `elapsed = -3600` → `tokens = min(20, 20 + (-3600·10)) = -35980`. The bucket now needs **~3,598 seconds of real time** to climb back above zero. During that hour, **every request is denied.** A routine clock correction becomes an hour-long outage for that client/path.
+
+Forward jumps are benign-ish (tokens saturate at `capacity`, one extra burst), but the backward case is a genuine availability hazard on *"the hot path of every public request."*
+
+**Fix:** use `time.monotonic()` for `self._last`/`now`. Monotonic is immune to NTP slew/step and operator changes; it is the canonical clock for interval/rate math. This is a one-line change and there is no good reason to ship without it given the stated environment.
+
+### 2.2 "Per-client" is in the requirement but absent from the implementation
+The proposal asks for *"per-client rate limiting … at a fixed requests-per-second **per client**."* The artifact is a **single bucket** with no client key. The real system needs a `dict[client_id → TokenBucket]`, which drags in three unaddressed problems:
+- **Unbounded memory / DoS vector:** one bucket per distinct client/IP means an attacker spraying unique source identifiers grows the map without bound — the rate limiter becomes the memory-exhaustion attack surface. Needs an eviction/TTL policy (e.g. LRU, or evict buckets at capacity since a full bucket == default state).
+- **Map-level concurrency:** get-or-create on the shared dict needs its own synchronization.
+- This is more than a one-liner, so it can't be hand-waved as "wiring." The board should decide explicitly: is `TokenBucket` a *building block* (then the per-client layer is a separate, reviewable artifact) or *the* limiter (then it's incomplete)?
+
+### 2.3 Per-process state ⇒ the "fixed RPS" limit is actually `rate × worker_count`
+*"`allow()` runs … in every API worker process"* and state lives in process memory. With N worker processes, a client's effective ceiling is **N times** the configured `rate`, and which limit applies depends on load-balancer placement (non-deterministic). For a control whose purpose is *"cap abusive traffic at a fixed requests-per-second,"* the enforced cap is neither fixed nor global. If a true fleet-wide cap is required, it needs shared state (Redis token bucket / cell-based counter). At minimum this must be a **consciously accepted** property, documented, with `rate` set as `target ÷ workers`.
+
+### 2.4 The green test suite covers none of the production risks
+`python3 -m unittest` passing is **false confidence**. The suite has:
+- **No concurrency test** — zero threads spawned, yet thread-safety is a headline claim and a top concern.
+- **No clock-correction test** — impossible to write against a real wall clock, which is itself the argument for injecting the clock.
+- **No multi-process / per-client coverage** — the two biggest correctness gaps are untested because they're unimplemented.
+- **Timing-flaky by construction** — `test_refills_over_time` / `test_caps_at_capacity` rely on `time.sleep` wall-clock deltas; under CI load or a slow box they can flake.
+
+The remedy and the testability fix are the same: **inject the clock** (constructor arg `now_fn=time.monotonic`). That makes refill, saturation, and backward-jump behavior deterministically testable, and removes the sleeps.
+
+### 2.5 Minor: `n` and `allow()` edge cases
+`allow(n)` doesn't validate `n`. `allow(0)` always passes; `allow(-k)` *adds* tokens and passes. `n` is internal (default 1), so low severity, but a guard (`if n <= 0: raise ValueError`) costs nothing and closes a foot-gun. Float precision over long uptime is fine (capped at `capacity`; monotonic deltas are sub-microsecond-accurate).
+
+---
+
+## 3. Recommended execution sequence
+1. **Switch to `time.monotonic()`** (mandatory; blocks ship). Re-derive that `elapsed >= 0` always holds afterward.
+2. **Inject the clock** via constructor (`now_fn=time.monotonic`) to enable deterministic tests.
+3. **Add tests** that actually exercise the risks: (a) concurrency — many threads, assert total grants ≤ capacity + refill over a fixed monotonic window, no double-spend; (b) backward/forward clock injection — assert no negative-token stall; (c) saturation and refill with a fake clock (no `sleep`); (d) `n` validation.
+4. **Decide and document §2.2/§2.3 explicitly:** is this a building block or the limiter? If per-client is in scope here, add the keyed map *with* eviction; if fleet-wide cap is required, choose shared-state vs. accept `rate×workers` and set `rate` accordingly.
+5. Add the `n <= 0` guard.
+
+---
+
+## 4. Invariants & guardrails
+- **Monotonic-time invariant:** after fix, `elapsed >= 0` for all calls → `_tokens` never decreases except by explicit consumption; `0 ≤ _tokens ≤ capacity` always holds. Make this an assertion in tests.
+- **No double-spend under concurrency:** total tokens granted over any monotonic interval ≤ `capacity + rate·Δt`. The single lock around read-modify-write already guarantees this — **this part is correct, keep it.**
+- **Bounded memory** (once per-client): number of live buckets is bounded by an eviction policy; assert it under a unique-client flood.
+- **Effective-rate guardrail:** document `enforced_rate = rate × worker_count` until/unless shared state lands; alert if worker count drifts from the value `rate` was tuned against.
+- **Burst guardrail:** bucket starts full, so first-request burst size == `capacity`; document that `capacity` *is* the burst allowance.
+
+---
+
+## 5. Risks, stale assumptions, missing evidence
+- **Stale assumption:** "Thread-safe" is claimed and true, but is silently equated with "production-safe." The lock solves the *thread* race; it does nothing for the clock, multi-process, or per-client problems — the docstring's confidence is broader than its guarantee.
+- **Missing evidence:** no benchmark of lock contention on the hot path under spike. Critical section is tiny (a clock read + arithmetic) so it's likely fine, but for a *single shared global* bucket it is a serialization point on every request — worth one load test before calling it spike-safe.
+- **Missing evidence:** no statement of expected client cardinality, which drives the §2.2 memory-bound decision.
+- **Risk:** shipping on the strength of "the suite passes clean" — the suite's silence on concurrency/clock is the most dangerous thing in the packet.
+
+---
+
+## 6. Concrete evidence
+- `self._last = time.time()` (constructor) and `now = time.time()` / `elapsed = now - self._last` (`allow`): wall-clock interval math. Contradicts stated context: *"Hosts run `ntpd`; wall-clock corrections (and operator clock changes) do happen in production"* and *"Clock source … the things we care about most."*
+- `self._tokens = min(self.capacity, self._tokens + elapsed * self.rate)`: cap is an upper bound only; with negative `elapsed` there is **no lower bound** → tokens go negative → denial stall.
+- Docstring: *"One bucket instance is shared across a worker's threads"* + proposal *"per-client rate limiting … per client"*: the artifact is one bucket; the per-client keying layer is absent.
+- Proposal: *"`allow()` runs once per inbound request, in every API worker process"*: confirms per-process state ⇒ effective limit = `rate × workers`.
+- `test_tokenbucket.py`: four tests, **zero** `threading` imports, **zero** clock injection — none of the top-stated concerns is exercised. `test_refills_over_time`/`test_caps_at_capacity` use real `time.sleep`, so they are wall-clock-timing-dependent.
+- `def allow(self, n: float = 1)`: no validation of `n`; `n <= 0` short-circuits to `True`.
+
+---
+
+## 7. What I'd ask the other board seats to challenge
+- **Disposition split:** I land on `caution` because the clock fix is one line and the architecture gaps are arguably out of scope for this class. Argue me to `block` if you read "production-ready to put on the hot path of every public request" as requiring the per-client/fleet-wide semantics *in this artifact*.
+- **Monotonic edge cases:** does `time.monotonic()` reset across process restart or differ across CPUs in a way that matters here? (I believe per-process monotonic is sufficient since state is per-process anyway — challenge that.)
+- **Eviction policy:** for the per-client map, is "evict any bucket observed at full capacity" safe, or does it open a refill-reset gaming vector? (Reconstructing a full bucket == default state, so I think it's safe — push on it.)
+- **Multi-process reality:** is `rate × workers` actually acceptable for the abuse-mitigation goal, or is shared state (Redis) non-negotiable? That's a product/threat-model call I'd want the security/ops seat to own.
+- **Lock contention:** anyone have throughput numbers for a single-lock bucket under a real spike before we call §2.4 closed?
+
+VERDICT: caution
