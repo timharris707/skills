@@ -96,6 +96,15 @@ def _validate_evidence_list(items, where: str) -> None:
         elif kind == "command":
             if not isinstance(ev.get("command"), str) or not ev["command"].strip():
                 die(f"{loc}: command evidence needs a non-empty 'command'")
+            # Optional re-execution expectation fields (M3): expect_exit (int) and a
+            # verbatim `expect` substring. Additive to schema @2 — validated only when
+            # present so older verdicts and bare command citations still pass.
+            if "expect_exit" in ev:
+                ee = ev["expect_exit"]
+                if isinstance(ee, bool) or not isinstance(ee, int):
+                    die(f"{loc}: command 'expect_exit' must be an integer; got {ee!r}")
+            if "expect" in ev and not isinstance(ev["expect"], str):
+                die(f"{loc}: command 'expect' must be a string; got {type(ev['expect']).__name__}")
         # kind == "judgment": no external referent required, by design.
 
 

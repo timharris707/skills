@@ -8,6 +8,74 @@ Pre-1.0 the minor tracks the conductor milestone (M5 → `v0.5.0`, M6 → `v0.6.
 reserved for an explicit production-ready call. The verdict-JSON schema is versioned separately
 (`advisory-board/verdict@N`) and is not the same axis as the release version.
 
+## [v1.4.0] - 2026-06-26 — M3: `command`-evidence re-execution
+
+`verify_evidence.py` can now re-execute a `command` citation and move it
+`verified`/`refuted` from observed behavior — closing the last v1.x edge (M5
+captured `command` evidence but never ran it, so those citations stayed
+`unverified`). Re-execution is **opt-in and allowlist-gated**: re-running a
+command cited as evidence is an execution surface, and a verdict synthesized from
+untrusted source (the M2 synthesizer over poisoned reviews) can carry an
+attacker-influenced command — so the default is unchanged (commands stay
+`unverified`) and the allowlist is the load-bearing control.
+
+### Added
+- **`command`-evidence re-execution (M3)** — `--allow-program NAME` (repeatable)
+  ENABLES re-execution for commands whose **argv[0] is exactly that bare program
+  name**; everything else stays `unverified` with a recorded `status_reason`. The
+  **program allowlist is the load-bearing control** — argv[0] is pinned to a program
+  you name, never a path (`./x`, `/bin/sh`, `../x` are refused) and never chosen by
+  a regex. `--allow-command REGEX` (repeatable, optional) further requires the full
+  command to `re.fullmatch` a pattern — for pinning **args**, not the program; it
+  refines, never widens, the program allowlist and cannot enable re-execution on
+  its own.
+- **Layered containment** (hardened after a security review found 3 RCE paths):
+  **no shell** (`shlex.split` + `shell=False` → `;`/`|`/`>`/`$()`/globs are inert
+  literal args); a **curated PATH** (inherited PATH minus `.`/empty/relative
+  entries) + a **resolves-inside-cwd guard** so a `pytest` planted in the reviewed
+  source can't shadow the real one; an **isolated throwaway cwd by default** (NOT
+  the source tree — `--rerun-cwd DIR` opts into a real tree) with **HOME pointed at
+  it** so `~/.aws`/`~/.ssh` aren't reachable; a **scrubbed env** (no inherited
+  `PATH`/`HOME`/secrets; only locale vars); stdin closed; and a **process-group-
+  killed** hard timeout (`--rerun-timeout`, default 30s).
+- **Structural match only** (design §11 / principle #1): `verified` iff exit ==
+  `expect_exit` (default 0) AND any verbatim `expect` substring is present —
+  decided over the FULL output, never a reading of its meaning. `observed` carries
+  the exit, a **head+tail** excerpt (so a runner's tail summary survives
+  truncation), a `truncated` flag, and an explicit `expect_found` so the receipt
+  asserts the match even when it falls in an elided region.
+- **Asymmetric stamping (honest, like `code`)** — a command that COULDN'T be run
+  (off-allowlist, path argv[0], executable absent or resolving inside cwd, timed
+  out, unparseable) is `unverified` (an inability, not a contradiction); a command
+  that RAN and contradicted its expectation is `refuted` (a positive contradiction).
+  `render_verdict.py`'s couldn't-verify bucket is now **kind-aware** — a refuted
+  command reports its observed exit, not the code/quote "not found" wording.
+- **Schema (additive, stays `advisory-board/verdict@2`)** — `command` evidence may
+  carry optional `expect_exit` (int) and `expect` (verbatim substring); both are
+  validated by `board_verdict.py` when present. Bare `{kind, command}` citations
+  and older verdicts are unaffected.
+
+### Honest limits
+- A subprocess is **not a kernel sandbox** (acknowledged the same way the egress
+  scanner is in design §8). The program allowlist + the containments above stop
+  *planted-code* and *secret-env* paths, but a program you allowlist can still
+  READ files its uid can read and **persist them into `verdict.json`'s
+  `observed.output`** — so do NOT allowlist programs that read secrets (`cat`,
+  `env`, `printenv`). Allowlist only programs you trust to be read-only over public
+  material.
+
+Hardened by **two security-focused adversarial-review rounds**: the first found 3 RCE
+paths (relative argv[0] running a planted script, a dirty-PATH bare-name hijack, a
+too-broad regex choosing argv[0]) plus exfil/timeout/renderer issues — all fixed by the
+program-pinning + curated-PATH + isolated-cwd design above; the second confirmed the RCE
+rewrite held (no shipping blocker) and caught two fail-safe fix-introduced issues (a bare
+command that exits non-zero with no expectation pinned was mislabeled `refuted` → now
+`unverified`, so an env-shaped failure isn't defamed as a fabricated receipt; and HOME is
+now a SEPARATE throwaway, never the `--rerun-cwd` tree).
+
+This completes the v1.x line of `design/run-board-v1x.md` (M1, M2, M3, M4 all done).
+**Suite: 430 tests** (up from 386: +44 M3 tests).
+
 ## [v1.3.0] - 2026-06-25 — M2: neutral synthesizer seat
 
 `run --synthesize` now spawns a single **no-lens synthesizer seat** that drafts

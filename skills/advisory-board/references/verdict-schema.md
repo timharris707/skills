@@ -73,13 +73,19 @@ rule). Each item has a `kind`:
 
 - `code` — `path` plus either `line` (positive int) or `symbol` (string).
 - `source` — `url` plus a verbatim `quote`.
-- `command` — a `command` string (re-execution is deferred to v1.x).
+- `command` — a `command` string, plus optional `expect_exit` (int, default 0) and a verbatim
+  `expect` substring. Re-execution is **opt-in** (M3): `verify_evidence.py --allow-program NAME`
+  (+ optional `--allow-command REGEX` to pin args) re-runs a command whose argv[0] is `NAME` with
+  no shell, a curated PATH, an isolated cwd, and a scrubbed env, then attaches the observed
+  exit/output under `observed`.
 - `judgment` — no external referent, by design; carries optional `detail`.
 
 `scripts/verify_evidence.py` **resolves** a verdict's citations and stamps each with a
-`status`: `verified` (the cited line exists / the quoted text is in the captured packet),
-`unverified` (couldn't check — no source/packet, a missing file, or a deferred `command`), or
-`refuted` (we have the material and the line/quote is **not** there — a fabrication signal).
+`status`: `verified` (the cited line exists / the quoted text is in the captured packet / an
+allowlisted command re-ran with the expected exit + `expect` substring), `unverified` (couldn't
+check — no source/packet, a missing file, or a `command` that wasn't allowlisted / couldn't run),
+or `refuted` (we have the material and the line/quote is **not** there, or a re-run command
+contradicted its expectation — a fabrication / wrong-claim signal).
 `code` resolves against the source tree; `source` quotes resolve against the **captured
 packet, never a live URL fetch** (that would breach quarantine in gate mode). **Honesty
 (§9):** a `verified` stamp proves *the receipt resolves*, not that the inference is sound — it

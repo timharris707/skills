@@ -6,7 +6,7 @@
 | ------ | ---- | --------- |
 | `run_board.py` | The **conductor** (M1–M5): deterministic seat-adapter registry, `--dry-run`, toolchain currency (`toolchain` — check/update stale CLIs, propose fallback model ids), executable preflight (GO/NO-GO), a hash-bound egress/quarantine gate before any provider call, the **round-1 fan-out** (real spawn, §13 failure protocol, per-seat `round-1/` artifacts), **rounds 2…N** (cross-reading `board-packet-round-N.md`, debate fan-out, the `--rounds auto` convergence stop-rule, `run-metadata.tsv`), and the **canonical-verdict chain** (`verify` → `consensus` → `validate`). Calls the scripts below; never reimplements them. Implemented as the [`_conductor/`](#package-layout) package — `run_board.py` is a thin façade (re-exports the API + the CLI entry). | `design/run-board-conductor.md` |
 | `board_verdict.py` | Validate `verdict.json` (`@1`/`@2`); gate CI on the verdict (`--gate`) — pass `0` / fail `1` / schema `2` / **abstain `3`** when the board is torn, the declared verdict contradicts the observed board, or a citation is refuted. | `references/verdict-schema.md` |
-| `verify_evidence.py` | Resolve a verdict's typed `evidence[]` and stamp each `verified`/`unverified`/`refuted` — `code` `path:line`/`symbol` against the source, `source` quotes against the **captured packet** (never a live fetch). | `references/verdict-schema.md` |
+| `verify_evidence.py` | Resolve a verdict's typed `evidence[]` and stamp each `verified`/`unverified`/`refuted` — `code` `path:line`/`symbol` against the source, `source` quotes against the **captured packet** (never a live fetch), and (M3, opt-in via `--allow-program NAME`) `command` citations by **program-pinned, no-shell re-execution** in an isolated cwd with a structural exit/`expect` match. | `references/verdict-schema.md` |
 | `render_verdict.py` | Render `final-consensus.md` **from** the canonical `verdict.json` (evidence trail + couldn't-verify bucket); `--handoff-data`/`--html` derive the HTML via `render_handoff.py`. | `references/verdict-schema.md` |
 | `format_output.py` | Render `verdict.json` as a TL;DR, PR comment, Slack message, or normalized JSON. | `references/output-formats.md` |
 | `render_handoff.py` | Render `final-consensus.html` from a `handoff-data.json` — deterministic, fails on any leftover placeholder. | `references/handoff-template.html` |
@@ -61,8 +61,13 @@ python3 scripts/run_board.py preflight --source plan.md
 # (stops at the last round's boundary; synthesis -> verdict.json is the agent's job, §11)
 python3 scripts/run_board.py run --source plan.md --sensitivity public --rounds 2 --cross-reading summaries
 
-# --- the canonical-verdict chain (after the agent fills verdict.json) ---
-# 1. resolve + stamp each typed citation verified/unverified/refuted
+# --- the canonical-verdict chain (after the agent fills verdict.json,
+#     or `run --synthesize` drafts it via the neutral synthesizer seat — M2) ---
+# 1. resolve + stamp each typed citation verified/unverified/refuted.
+#    add --allow-program NAME (+ optional --allow-command 'REGEX' to pin args) to ALSO
+#    re-execute command citations whose argv[0] is NAME (M3; opt-in, program-pinned,
+#    no-shell, isolated cwd, curated PATH, scrubbed env, process-group timeout —
+#    allowlist only read-only programs you trust; a re-run's output is persisted)
 python3 scripts/run_board.py verify <out>/verdict.json --source ./src --run <out>
 # 2. render final-consensus.md FROM the verdict (+ --html for the HTML)
 python3 scripts/run_board.py consensus <out>/verdict.json --run <out> -o <out>/final-consensus.md

@@ -2406,6 +2406,382 @@ class TestEvidenceResolution(unittest.TestCase):
             self.assertIn("atomic SET NX", text)
 
 
+class TestCommandReexecution(unittest.TestCase):
+    """M3 — opt-in, program-allowlisted `command` evidence re-execution.
+
+    The safety model is layered (hardened after a security review found 3 RCE
+    paths): OFF by default; argv[0] PINNED to an explicit `--allow-program` literal
+    (a regex can never choose the executable); no path-based argv[0]; no shell
+    (metacharacters inert); a CURATED PATH + which-outside-cwd guard (no planted
+    binary); an isolated throwaway cwd by default; a scrubbed env (no PATH/HOME
+    inheritance); stdin closed; a process-group-killed hard timeout; and a
+    STRUCTURAL match (exit code + verbatim substring — never reasoning over output,
+    design section 11)."""
+
+    def setUp(self):
+        self.d = tempfile.mkdtemp(prefix="m3-rerun-")
+
+    def cmd(self, command, **kw):
+        return dict(kind="command", command=command, **kw)
+
+    def rerun(self, *programs, patterns=None, timeout=5, cwd=None):
+        return {"programs": set(programs), "patterns": list(patterns or []),
+                "cwd": cwd or self.d, "timeout": timeout}
+
+    # --- command_allowed: argv[0] pinning + optional regex ------------------ #
+    def test_allowed_returns_argv(self):
+        argv, reason = ve.command_allowed("echo hi", self.rerun("echo"))
+        self.assertEqual(argv, ["echo", "hi"])
+        self.assertIsNone(reason)
+
+    def test_program_not_allowlisted_refused(self):
+        argv, reason = ve.command_allowed("curl https://evil", self.rerun("echo"))
+        self.assertIsNone(argv)
+        self.assertIn("allow-program", reason)
+
+    def test_path_argv0_refused(self):
+        # A path-based argv[0] (./x, /bin/sh, ../x) is refused even if the basename
+        # is allowlisted — it could run a planted binary.
+        for bad in ("./pytest -q", "/bin/sh -c id", "../evil/pytest"):
+            argv, reason = ve.command_allowed(bad, self.rerun("pytest", "sh"))
+            self.assertIsNone(argv, bad)
+            self.assertIn("bare program name", reason)
+
+    def test_regex_cannot_choose_program(self):
+        # THE blocker-3 fix: a too-broad --allow-command can't un-pin argv[0].
+        # The command matches the pattern but the program isn't allowlisted.
+        argv, reason = ve.command_allowed(
+            "sh -c id", self.rerun("pytest", patterns=[r"pytest .*|.*id"]))
+        self.assertIsNone(argv)
+        self.assertIn("allow-program", reason)
+
+    def test_pattern_refines_args(self):
+        rerun = self.rerun("pytest", patterns=[r"pytest -q .*"])
+        self.assertIsNotNone(ve.command_allowed("pytest -q tests/x.py", rerun)[0])
+        # program allowlisted but args don't match the pattern -> refused
+        argv, reason = ve.command_allowed("pytest --collect-only", rerun)
+        self.assertIsNone(argv)
+        self.assertIn("does not match", reason)
+
+    def test_pattern_fullmatch_rejects_superstring(self):
+        rerun = self.rerun("pytest", patterns=[r"pytest -q"])
+        # fullmatch: `pytest -q` is allowed, `pytest -q extra` is not.
+        self.assertIsNotNone(ve.command_allowed("pytest -q", rerun)[0])
+        self.assertIsNone(ve.command_allowed("pytest -q extra", rerun)[0])
+
+    def test_malformed_pattern_skipped(self):
+        rerun = self.rerun("echo", patterns=["(unbalanced", r"echo .*"])
+        self.assertIsNotNone(ve.command_allowed("echo hi", rerun)[0])
+
+    def test_empty_command_refused(self):
+        self.assertIsNone(ve.command_allowed("", self.rerun("echo"))[0])
+        self.assertIsNone(ve.command_allowed("   ", self.rerun("echo"))[0])
+
+    # --- env scrub + curated PATH ------------------------------------------ #
+    def test_env_scrubs_secrets(self):
+        os.environ["AWS_SECRET_ACCESS_KEY"] = "leak-me"
+        os.environ["MY_API_TOKEN"] = "leak-me-too"
+        env = ve._rerun_env(self.d)
+        self.assertNotIn("AWS_SECRET_ACCESS_KEY", env)
+        self.assertNotIn("MY_API_TOKEN", env)
+        self.assertIn("PATH", env)
+        self.assertEqual(env["HOME"], self.d, "HOME must point at the throwaway cwd")
+
+    def test_curated_path_drops_dot_and_relative(self):
+        old = os.environ.get("PATH")
+        os.environ["PATH"] = os.pathsep.join([".", "", "relative/bin", "/usr/bin", "/bin"])
+        try:
+            path = ve._curated_path()
+        finally:
+            if old is not None:
+                os.environ["PATH"] = old
+        entries = path.split(os.pathsep)
+        self.assertNotIn(".", entries)
+        self.assertNotIn("", entries)
+        self.assertNotIn("relative/bin", entries)
+        self.assertIn("/usr/bin", entries)
+
+    # --- run_command (no shell, planted-binary guard, group kill) ---------- #
+    def test_run_passing_command(self):
+        code, out, err = ve.run_command(["echo", "hello"], cwd=self.d, timeout=5)
+        self.assertIsNone(err)
+        self.assertEqual(code, 0)
+        self.assertIn("hello", out)
+
+    def test_run_failing_command(self):
+        code, out, err = ve.run_command(["false"], cwd=self.d, timeout=5)
+        self.assertIsNone(err)
+        self.assertNotEqual(code, 0)
+
+    def test_run_missing_executable_is_error(self):
+        code, out, err = ve.run_command(["no_such_binary_xyzzy", "--x"], cwd=self.d, timeout=5)
+        self.assertIsNone(code)
+        self.assertIn("not found", err)
+
+    def test_run_planted_binary_in_cwd_refused(self):
+        # A binary that resolves INSIDE the working dir is refused (it could be the
+        # attacker's planted shadow of a real tool). We make `pytest` resolvable
+        # only inside cwd by adding cwd to the curated PATH for the which() — but
+        # run_command builds its own env, so simulate by putting an executable in
+        # cwd and pointing PATH at cwd.
+        planted = os.path.join(self.d, "plantedtool")
+        with open(planted, "w") as fh:
+            fh.write("#!/bin/sh\necho pwned\n")
+        os.chmod(planted, 0o755)
+        old = os.environ.get("PATH")
+        os.environ["PATH"] = self.d + os.pathsep + (old or "")
+        try:
+            code, out, err = ve.run_command(["plantedtool"], cwd=self.d, timeout=5)
+        finally:
+            if old is not None:
+                os.environ["PATH"] = old
+        # The curated PATH drops nothing here (self.d is absolute), but the
+        # resolves-inside-cwd guard refuses it.
+        self.assertIsNone(code)
+        self.assertIn("inside the working dir", err)
+
+    def test_run_no_shell_metacharacters(self):
+        # ";" is a LITERAL arg to echo (no shell), so it appears in the output.
+        code, out, err = ve.run_command(["echo", "a", ";", "echo", "b"], cwd=self.d, timeout=5)
+        self.assertIsNone(err)
+        self.assertIn(";", out)
+
+    def test_run_timeout_is_error(self):
+        code, out, err = ve.run_command(["sleep", "5"], cwd=self.d, timeout=1)
+        self.assertIsNone(code)
+        self.assertIn("timed out", err)
+
+    # --- resolve_command (status mapping) ---------------------------------- #
+    def test_feature_off_is_unverified(self):
+        ev = self.cmd("echo hello")
+        self.assertEqual(ve.resolve_command(ev, None), "unverified")
+        self.assertNotIn("observed", ev)
+
+    def test_allowed_passing_is_verified(self):
+        ev = self.cmd("echo hello")
+        self.assertEqual(ve.resolve_command(ev, self.rerun("echo")), "verified")
+        self.assertEqual(ev["observed"]["exit"], 0)
+        self.assertIn("hello", ev["observed"]["output"])
+
+    def test_off_allowlist_is_unverified_with_reason(self):
+        ev = self.cmd("curl https://evil.example")
+        self.assertEqual(ve.resolve_command(ev, self.rerun("echo")), "unverified")
+        self.assertIn("allow-program", ev["status_reason"])
+        self.assertNotIn("observed", ev)   # never ran
+
+    def test_path_argv0_never_runs(self):
+        # The full RCE blocker: `./build.sh` planted in cwd must never run.
+        planted = os.path.join(self.d, "build.sh")
+        marker = os.path.join(self.d, "RAN")
+        with open(planted, "w") as fh:
+            fh.write(f"#!/bin/sh\ntouch {marker}\n")
+        os.chmod(planted, 0o755)
+        ev = self.cmd("./build.sh")
+        status = ve.resolve_command(ev, self.rerun("build.sh", cwd=self.d))
+        self.assertEqual(status, "unverified")
+        self.assertFalse(os.path.exists(marker), "the planted script must NOT have run")
+
+    def test_could_not_run_is_unverified_not_refuted(self):
+        ev = self.cmd("no_such_binary_xyzzy")
+        self.assertEqual(ve.resolve_command(ev, self.rerun("no_such_binary_xyzzy")), "unverified")
+        self.assertIn("could not re-execute", ev["status_reason"])
+
+    def test_nonzero_exit_with_pinned_expect_exit_is_refuted(self):
+        # A non-zero exit that contradicts an EXPLICIT expect_exit is a real refutation.
+        ev = self.cmd("false", expect_exit=0)
+        self.assertEqual(ve.resolve_command(ev, self.rerun("false")), "refuted")
+        self.assertEqual(ev["observed"]["exit"], 1)
+
+    def test_bare_nonzero_exit_is_unverified_not_refuted(self):
+        # Second-pass fix: a BARE command (no expect/expect_exit pinned) that exits
+        # non-zero is `unverified`, not `refuted` — the scrubbed env (no PYTHONPATH/
+        # VIRTUAL_ENV) can flip a legit command to non-zero, and a refuted citation
+        # would wrongly route the gate to abstain.
+        ev = self.cmd("false")
+        self.assertEqual(ve.resolve_command(ev, self.rerun("false")), "unverified")
+        self.assertIn("no expect/expect_exit pinned", ev["status_reason"])
+        self.assertEqual(ev["observed"]["exit"], 1)   # the receipt is still attached
+
+    def test_home_is_separate_throwaway_not_rerun_cwd(self):
+        # Second-pass fix: under --rerun-cwd, HOME must NOT be the reviewed tree, so a
+        # HOME-writing command can't drop dotfiles into the source. main() mints a
+        # separate throwaway HOME; assert a re-run sees HOME != its cwd.
+        path = self._write_verdict([self.cmd(
+            "sh -c " + json.dumps("echo HOME=$HOME"), expect="HOME=")])
+        src_tree = tempfile.mkdtemp(prefix="m3-src-")
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            ve.main([path, "--allow-program", "sh", "--rerun-cwd", src_tree])
+        with open(path) as fh:
+            data = json.load(fh)
+        observed = data["blockers"][0]["evidence"][0].get("observed", {})
+        home_line = observed.get("output", "")
+        self.assertIn("HOME=", home_line)
+        self.assertNotIn(src_tree, home_line, "HOME must not be the --rerun-cwd source tree")
+
+    def test_rerun_cwd_filesystem_root_refused(self):
+        path = self._write_verdict([self.cmd("echo hi")])
+        with contextlib.redirect_stderr(io.StringIO()):
+            with self.assertRaises(SystemExit):
+                ve.main([path, "--allow-program", "echo", "--rerun-cwd", os.sep])
+
+    def test_expect_exit_match(self):
+        ev = self.cmd("false", expect_exit=1)
+        self.assertEqual(ve.resolve_command(ev, self.rerun("false")), "verified")
+
+    def test_expect_substring_present_verified(self):
+        ev = self.cmd("echo all tests passed", expect="passed")
+        self.assertEqual(ve.resolve_command(ev, self.rerun("echo")), "verified")
+        self.assertIs(ev["observed"]["expect_found"], True)
+
+    def test_expect_substring_absent_refuted(self):
+        ev = self.cmd("echo something else", expect="passed")
+        self.assertEqual(ve.resolve_command(ev, self.rerun("echo")), "refuted")
+        self.assertIs(ev["observed"]["expect_found"], False)
+
+    def test_expect_substring_whitespace_normalized(self):
+        ev = self.cmd("echo 3 passed in 0.1s", expect="3   passed")
+        self.assertEqual(ve.resolve_command(ev, self.rerun("echo")), "verified")
+
+    def test_malformed_expect_exit_requires_clean_exit(self):
+        ev = self.cmd("false", expect_exit="banana")
+        self.assertEqual(ve.resolve_command(ev, self.rerun("false")), "refuted")
+
+    def test_output_excerpt_head_and_tail(self):
+        # A large output keeps head+tail (a runner's summary is usually at the tail),
+        # with the middle elided — and the stamp decision still uses the FULL output.
+        # The python code rides in a double-quoted segment so shlex keeps it one arg.
+        code = "print('H'*100); print('x'*9000); print('TAILMARK')"
+        ev = self.cmd(f'python3 -c "{code}"', expect="TAILMARK")
+        status = ve.resolve_command(ev, self.rerun("python3"))
+        self.assertEqual(status, "verified")   # expect matched on FULL output
+        self.assertTrue(ev["observed"]["truncated"])
+        # The tail marker survives the head+tail excerpt even though it's past the limit.
+        self.assertIn("TAILMARK", ev["observed"]["output"])
+        self.assertIn("elided", ev["observed"]["output"])
+        self.assertIs(ev["observed"]["expect_found"], True)
+
+    # --- stamp() integration ----------------------------------------------- #
+    def test_stamp_default_keeps_commands_unverified(self):
+        data = {"blockers": [{"evidence": [self.cmd("echo hi")]}]}
+        counts = ve.stamp(data, None, None)
+        self.assertEqual(data["blockers"][0]["evidence"][0]["status"], "unverified")
+        self.assertEqual(counts["unverified"], 1)
+
+    def test_stamp_with_rerun_resolves_commands(self):
+        data = {"blockers": [{"evidence": [self.cmd("echo hi"),
+                                           self.cmd("false", expect_exit=0)]}]}
+        counts = ve.stamp(data, None, None, self.rerun("echo", "false"))
+        evs = data["blockers"][0]["evidence"]
+        self.assertEqual(evs[0]["status"], "verified")
+        self.assertEqual(evs[1]["status"], "refuted")
+        self.assertEqual((counts["verified"], counts["refuted"]), (1, 1))
+
+    # --- main() end to end -------------------------------------------------- #
+    def _write_verdict(self, evidence):
+        path = os.path.join(self.d, "v.json")
+        data = {
+            "schema": "advisory-board/verdict@2", "verdict": "caution",
+            "confidence": "medium", "rounds": 1,
+            "board": [{"seat": "Claude", "model": "m", "round_verdicts": ["caution"]},
+                      {"seat": "Codex", "model": "m", "round_verdicts": ["caution"]}],
+            "blockers": [{"title": "t", "body": "b", "evidence": evidence}],
+        }
+        with open(path, "w") as fh:
+            json.dump(data, fh)
+        return path
+
+    def test_main_without_allow_program_stays_unverified(self):
+        path = self._write_verdict([self.cmd("echo hi")])
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            rc = ve.main([path])
+        self.assertEqual(rc, 0)
+        with open(path) as fh:
+            data = json.load(fh)
+        self.assertEqual(data["blockers"][0]["evidence"][0]["status"], "unverified")
+        self.assertIn("re-execution is opt-in", err.getvalue())
+
+    def test_main_allow_command_alone_does_not_enable(self):
+        # The migration guard: --allow-command without --allow-program runs NOTHING.
+        path = self._write_verdict([self.cmd("echo hi")])
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            rc = ve.main([path, "--allow-command", r"echo .*"])
+        self.assertEqual(rc, 0)
+        with open(path) as fh:
+            data = json.load(fh)
+        self.assertEqual(data["blockers"][0]["evidence"][0]["status"], "unverified")
+        self.assertIn("program allowlist is the enabler", err.getvalue())
+
+    def test_main_with_allow_program_reexecutes(self):
+        path = self._write_verdict([self.cmd("echo hi"), self.cmd("false", expect_exit=0)])
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            rc = ve.main([path, "--allow-program", "echo", "--allow-program", "false",
+                          "--rerun-cwd", self.d])
+        self.assertEqual(rc, 0)
+        with open(path) as fh:
+            data = json.load(fh)
+        evs = data["blockers"][0]["evidence"]
+        self.assertEqual(evs[0]["status"], "verified")
+        self.assertEqual(evs[1]["status"], "refuted")
+        self.assertIn("REFUTED", err.getvalue())
+
+    def test_main_default_cwd_is_throwaway_and_cleaned(self):
+        # No --rerun-cwd: a fresh throwaway dir is created and removed after.
+        import glob
+        before = set(glob.glob("/tmp/advisory-board-rerun-*"))
+        path = self._write_verdict([self.cmd("echo hi")])
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            ve.main([path, "--allow-program", "echo"])
+        after = set(glob.glob("/tmp/advisory-board-rerun-*"))
+        self.assertEqual(after - before, set(), "the throwaway rerun cwd must be cleaned up")
+
+    def test_main_bad_rerun_timeout_exits(self):
+        path = self._write_verdict([self.cmd("echo hi")])
+        with contextlib.redirect_stderr(io.StringIO()):
+            with self.assertRaises(SystemExit):
+                ve.main([path, "--allow-program", "echo", "--rerun-timeout", "0"])
+
+    def test_main_bad_rerun_cwd_exits(self):
+        path = self._write_verdict([self.cmd("echo hi")])
+        with contextlib.redirect_stderr(io.StringIO()):
+            with self.assertRaises(SystemExit):
+                ve.main([path, "--allow-program", "echo", "--rerun-cwd",
+                         os.path.join(self.d, "nope")])
+
+
+class TestCommandEvidenceSchema(unittest.TestCase):
+    """board_verdict.validate accepts optional M3 expect fields on command evidence."""
+
+    def _v(self, ev):
+        return {"schema": "advisory-board/verdict@2", "verdict": "caution",
+                "confidence": "medium", "rounds": 1,
+                "board": [{"seat": "A", "model": "m", "round_verdicts": ["caution"]},
+                          {"seat": "B", "model": "m", "round_verdicts": ["caution"]}],
+                "blockers": [{"title": "t", "body": "b", "evidence": [ev]}]}
+
+    def test_bare_command_valid(self):
+        bv.validate(self._v({"kind": "command", "command": "pytest -q"}))
+
+    def test_expect_fields_valid(self):
+        bv.validate(self._v({"kind": "command", "command": "pytest -q",
+                             "expect_exit": 0, "expect": "passed"}))
+
+    def test_expect_exit_must_be_int(self):
+        with self.assertRaises(SystemExit):
+            bv.validate(self._v({"kind": "command", "command": "x", "expect_exit": "0"}))
+
+    def test_expect_exit_rejects_bool(self):
+        with self.assertRaises(SystemExit):
+            bv.validate(self._v({"kind": "command", "command": "x", "expect_exit": True}))
+
+    def test_expect_must_be_string(self):
+        with self.assertRaises(SystemExit):
+            bv.validate(self._v({"kind": "command", "command": "x", "expect": 42}))
+
+
 class TestRenderVerdict(unittest.TestCase):
     def setUp(self):
         with open(VERDICT_M5) as fh:
