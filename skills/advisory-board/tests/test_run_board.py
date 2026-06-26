@@ -2814,16 +2814,22 @@ class TestRenderVerdict(unittest.TestCase):
         self.assertIn("Atomic dedup", html_out)
 
     def test_run_dir_prose_pulled_into_round_review(self):
+        import render_handoff as rh
         with tempfile.TemporaryDirectory() as d:
             os.makedirs(os.path.join(d, "round-1"))
             with open(os.path.join(d, "round-1", "claude.md"), "w") as fh:
                 fh.write("Independent take: needs an atomic `SET NX`.")
             hd = rv.build_handoff_data(self.data, run_dir=d)
             claude = next(s for s in hd["seats"] if s["seat_name"] == "Claude")
+            # round_review is raw MARKDOWN — render_handoff owns the one md->html step
             self.assertIn("atomic", claude["rounds"][0]["round_review"])
-            self.assertIn("<code>SET NX</code>", claude["rounds"][0]["round_review"])
-            # round 2 had no file -> a pointer, never invented prose
+            self.assertIn("`SET NX`", claude["rounds"][0]["round_review"])
+            self.assertNotIn("<code>", claude["rounds"][0]["round_review"])
+            # round 2 had no file -> a markdown pointer, never invented prose
             self.assertIn("round-2/claude.md", claude["rounds"][1]["round_review"])
+            # end-to-end: render_handoff converts it to real HTML exactly once
+            html_out = rh.render(hd, open(rh.default_template()).read())
+            self.assertIn("<code>SET NX</code>", html_out)
 
 
 class TestM5ChainDelegation(EnvMixin):

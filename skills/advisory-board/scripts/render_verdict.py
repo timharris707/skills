@@ -220,7 +220,6 @@ def _resolution_verb(ev: dict) -> str:
 # --------------------------------------------------------------------------- #
 
 _VERDICT_CLASS = {"ship": "ship", "caution": "caution", "block": "block"}
-_BACKTICK = re.compile(r"`([^`]+)`")
 
 
 _ZW = "​"  # zero-width space
@@ -246,32 +245,22 @@ def _plain(text: str) -> str:
     return _nb(text)
 
 
-def _md_to_html(text: str) -> str:
-    """Minimal, honest md->HTML: escape, turn `code` into <code>, paragraph-wrap on
-    blank lines. We deliberately do NOT reconstruct rich structure the JSON never
-    held - the full prose lives in the round-N/<seat>.md artifacts this points at."""
-    blocks = re.split(r"\n\s*\n", text.strip())
-    paras = []
-    for block in blocks:
-        escaped = _raw(block.strip())
-        escaped = _BACKTICK.sub(lambda m: "<code>" + m.group(1) + "</code>", escaped)
-        escaped = escaped.replace("\n", "<br>\n")
-        if escaped:
-            paras.append(f"<p>{escaped}</p>")
-    return "\n".join(paras)
-
-
 def _round_review(run_dir, seat_name: str, round_no: int, verdict: str) -> str:
+    """The seat's round review as raw MARKDOWN. render_handoff.py owns the single
+    Markdown->HTML conversion (its _md_review), so this must NOT pre-render HTML — a
+    second conversion there would escape the tags into literal text. The full prose
+    lives in the round-N/<seat>.md artifacts; when one is present we hand it back
+    verbatim, else a Markdown pointer to it."""
     if run_dir:
         for candidate in glob.glob(os.path.join(run_dir, f"round-{round_no}", "*.md")):
             if os.path.splitext(os.path.basename(candidate))[0].lower() == seat_name.lower():
                 try:
                     with open(candidate, encoding="utf-8", errors="replace") as handle:
-                        return _md_to_html(handle.read())
+                        return handle.read()
                 except OSError:
                     break
-    pointer = _nb(f"round-{round_no}/{html.escape(seat_name.lower())}.md")
-    return f"<p>Round {round_no} verdict: <strong>{_nb(html.escape(verdict))}</strong>. Full review in <code>{pointer}</code>.</p>"
+    return (f"Round {round_no} verdict: **{verdict}**. "
+            f"Full review in `round-{round_no}/{seat_name.lower()}.md`.")
 
 
 def build_handoff_data(data: dict, run_dir=None) -> dict:

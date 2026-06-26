@@ -36,6 +36,12 @@ render to nothing — the pill/callout is dropped, not left blank.
 Label/enum fields are HTML-escaped by the renderer. Prose/body fields are passed
 through as HTML, so the data author must escape them and wrap inline code in
 <code> (matching the template's output contract). RAW (pass-through) fields:
+
+EXCEPTION — seat round reviews: each seat's `round_review` is authored as raw
+Markdown (exactly what the model produced) and converted to HTML here by _md
+(headings, bold/italic, lists, inline + fenced code). The data author does NOT
+hand-build HTML for it — that is the fragile step that used to leave literal `##`
+and `**` in the published handoff. Every other prose field stays authored HTML.
 """
 from __future__ import annotations
 
@@ -52,6 +58,7 @@ from _render_engine import (  # noqa: E402  shared block / {{TOKEN}} engine
     render_item,
     strip_comments,
 )
+from _md import md_to_html  # noqa: E402  seat reviews are Markdown -> rendered to HTML here
 
 # Block-comment name -> the data key holding its list of items.
 BLOCK_KEYS = {
@@ -80,7 +87,40 @@ def drop_empty_optionals(out: str) -> str:
     return out
 
 
+_ZW = "​"  # zero-width space
+
+
+def _md_review(markdown: str) -> str:
+    """Convert a seat review from Markdown to HTML, then break any `{{...}}` adjacency
+    in the result (a review quoting a template) with a zero-width space, so it can't
+    masquerade as an unfilled token and trip assert_fully_resolved. ROUND_REVIEW is a
+    RAW pass-through slot, so this is the one place its braces get neutralized."""
+    return md_to_html(markdown or "").replace("{", "{" + _ZW)
+
+
+def markdownify_reviews(data: dict) -> dict:
+    """Return a shallow copy of `data` with each seat round's `round_review` Markdown
+    converted to HTML. Done on a copy so the original data is untouched (and a second
+    render can't double-convert already-HTML)."""
+    if not isinstance(data.get("seats"), list):
+        return data
+    data = dict(data)
+    seats = []
+    for seat in data["seats"]:
+        if isinstance(seat, dict) and isinstance(seat.get("rounds"), list):
+            seat = dict(seat)
+            seat["rounds"] = [
+                {**r, "round_review": _md_review(r.get("round_review", ""))}
+                if isinstance(r, dict) else r
+                for r in seat["rounds"]
+            ]
+        seats.append(seat)
+    data["seats"] = seats
+    return data
+
+
 def render(data: dict, template: str) -> str:
+    data = markdownify_reviews(data)
     out = render_item(template, data, BLOCK_KEYS, RAW_TOKENS)
     out = drop_empty_optionals(out)
     out = strip_comments(out)
