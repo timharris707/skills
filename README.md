@@ -1,6 +1,6 @@
 # Skills
 
-Reusable AI workflow skills for planning, review, orchestration, and execution support.
+**A panel of expert advisors for any hard decision.** Reusable AI workflow skills for the moments where one opinion isn't enough — reviewing, deciding, and pressure-testing the calls worth getting right before you commit.
 
 This repository is provider-agnostic: a skill may ship adapter metadata for a specific runtime, but the source of truth in `SKILL.md` stays readable, portable, and easy to adapt.
 
@@ -8,36 +8,36 @@ This repository is provider-agnostic: a skill may ship adapter metadata for a sp
 
 | Skill | Purpose |
 | --- | --- |
-| [Advisory Board](./skills/advisory-board/SKILL.md) | A multi-model round table that reviews the same material, debates across rounds, and produces a single working handoff. |
+| [Advisory Board](./skills/advisory-board/SKILL.md) | Convene a board of leading AI models to review the same decision, debate across rounds, and hand back one clear recommendation. |
 
 ## Advisory Board
 
-Bring an idea, problem, plan, or architecture to a board of frontier models sitting in different roles. `advisory-board` runs Claude, Codex, and Gemini through their subscription CLIs as separate seats: each reviews the same source independently, then reads a packet of the others' findings and answers the strongest objections, before a final synthesis turns the debate into one working handoff. You leave with the best conclusion the board can reach together — not three disconnected opinions.
+**Get a room full of expert advisors for any big decision — before you commit.** Bring the board whatever you're weighing — a plan, a draft, a contract, a design, a real-life choice — and several leading AI models each examine it independently, then read each other's notes, argue out the disagreements, and hand you back one clear answer: what's solid, what's risky, and what to do next. You read it like a memo, not a config file. It works for software, but also for product, research, legal, business, and writing decisions.
 
-Default behavior:
-
-- two rounds of review and rebuttal;
-- read-only unless edits are explicitly requested;
-- cross-reading via summaries;
-- subscription-backed CLIs where available;
-- the highest available reasoning setting for each provider, verified at run time.
+The board is **leading models from Anthropic, OpenAI, and Google** — Claude, Codex/GPT-5.5, and Gemini — each sitting in a different seat. Each reviews the same source on its own, then reads a packet of the others' findings and answers the strongest objections, before a final synthesis turns the debate into one working handoff. You leave with the best conclusion the board can reach together — not three disconnected opinions.
 
 Use it to:
 
+- weigh a big personal or business decision — a job offer, a price change, going full-time on a side project;
+- get a sharp first read on a draft, a pitch, a cover letter, or a hard email before you send it;
 - pressure-test a plan, design, or architecture before you build;
-- stress a decision, strategy, or proposal from several angles at once;
-- surface risks, stale assumptions, and missing evidence;
-- let strong models debate and sharpen each other's thinking;
-- collapse several model opinions into a single, clean takeaway;
-- review non-software work too — product, research, legal, business, and writing — via built-in lens presets.
+- surface risks, stale assumptions, and missing evidence a single opinion would miss;
+- collapse several strong opinions into one clean, plain-English takeaway.
+
+Default behavior: two rounds of review and rebuttal; read-only unless edits are explicitly requested; you see exactly what would be sent to each provider and approve it before anything leaves your machine — redact what's sensitive, or run a fully local board where nothing is sent at all.
 
 ## See It In Action
 
+Here's a real board debating a real decision — *"Should I go full-time on my side project?"*
+
+> **Verdict: Proceed with care — unanimous, high confidence.** The blocker all three advisors converged on: *"Income case never closes: $12k MRR ≠ replacing a $165k salary."* They didn't say "don't do it" — they said exactly what had to be true first, and handed back the next steps to get there.
+
 Every run ends in a single, self-contained HTML handoff — verdict, the round-by-round debate, consensus blockers, preserved dissent, and next actions — that opens offline in any browser with no dependencies.
 
-- **View a live sample:** [rendered handoff for a payments idempotency review](https://htmlpreview.github.io/?https://github.com/timharris707/skills/blob/main/examples/payments-idempotency-review/final-consensus.html)
-- **Browse the full run:** [`examples/payments-idempotency-review/`](./examples/payments-idempotency-review/) — per-seat round notes, the board packet, and both the Markdown and HTML handoffs.
-- **Gate on it:** every run also emits a machine-readable [`verdict.json`](./examples/payments-idempotency-review/verdict.json); `scripts/board_verdict.py --gate` turns the board's `ship | caution | block` call into a CI exit code, and `scripts/format_output.py` reshapes it into a PR comment, Slack message, or TL;DR.
+- **View a live sample:** [rendered handoff for the side-project decision](https://htmlpreview.github.io/?https://github.com/timharris707/skills/blob/main/examples/side-project-go-full-time-review/final-consensus.html)
+- **Browse the full run:** [`examples/side-project-go-full-time-review/`](./examples/side-project-go-full-time-review/) — per-seat round notes, the board packet, and both the Markdown and HTML handoffs.
+
+**Also built for engineers:** point the board at a real codebase and advisors cite exact `path:line` evidence. Every run also emits a machine-readable [`verdict.json`](./examples/side-project-go-full-time-review/verdict.json); `scripts/board_verdict.py --gate` turns the board's `ship | caution | block` call into a CI exit code, and `scripts/format_output.py` reshapes it into a PR comment, Slack message, or TL;DR. See the technical [payments idempotency review](https://htmlpreview.github.io/?https://github.com/timharris707/skills/blob/main/examples/payments-idempotency-review/final-consensus.html) for a code-grounded run.
 
 The look comes from one template, [`handoff-template.html`](./skills/advisory-board/references/handoff-template.html), so any agent that installs the skill renders the same clean output.
 

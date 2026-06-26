@@ -1,0 +1,60 @@
+schema: advisory-board/run-recipe@1
+title: 'Should I go full-time on my side project?'
+date: 2026-06-26
+
+# run shape
+mode: advisory
+sensitivity: public
+rounds: "2"
+max_rounds: 3
+cross_reading: summaries
+lens: business-decision
+output: full-handoff
+out_dir: /Users/timharris/projects/skills/.claude/worktrees/marketing-refresh/examples/side-project-go-full-time-review
+
+# prompt template (bump/hash changes when the egressed prompt shape changes)
+prompt_template: advisory-board/round1@2
+prompt_template_sha256: 27f5d18e3de3d13bfbce812ba2e9d9ee2d9239d9b3bc03c08dd2f3323538c57d
+
+# synthesizer (M2): spawn a no-lens seat after rounds to draft verdict.json
+synthesize: true
+synthesizer_seat: null
+synthesizer_template: advisory-board/synthesizer@1
+synthesizer_template_sha256: 96a8427ffa40c9068ff97853bd2e34144ac41abf04bd064286984cc2f6b4a6a5
+
+# source
+source_kind: path
+source_ref: /Users/timharris/projects/skills/.claude/worktrees/marketing-refresh/examples/side-project-go-full-time-review/proposal.md
+source_bytes: 1918
+source_lines: 27
+source_sha256: 15ac5d99ef4cd3d42aafd524e6ee3e185ee6b44b980d82e3e65f97d1196d9d2c
+
+# board (seat -> provider, model, lens, reasoning)
+board:
+  - seat: claude
+    provider: Anthropic
+    model: claude-opus-4-8
+    lens: First principles & economics — does the core logic and the math hold up
+    reasoning: xhigh
+  - seat: codex
+    provider: OpenAI
+    model: gpt-5.5
+    lens: Execution & feasibility — can this org actually do it, with what and by when
+    reasoning: xhigh
+  - seat: gemini
+    provider: Google
+    model: gemini-3-pro-preview
+    lens: Second-order & downside — stakeholders, incentives, what breaks if it works
+    reasoning: HIGH
+
+# egress (consent is bound to the content hash in egress-manifest.md)
+egress_consent: tiered
+egress_providers:
+  - claude seat -> Anthropic
+  - codex seat -> OpenAI
+  - gemini seat -> Google
+
+# isolation posture (follows mode); 'partial' = some seats not network-isolated
+isolation_network: "on"
+isolation_network_unenforced:
+isolation_filesystem: open
