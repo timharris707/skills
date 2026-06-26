@@ -134,6 +134,11 @@ Required content fields:
   medium = a clear majority, low = torn or a single voice carrying the call.
 
 Optional content fields (include each only when the reviews support it):
+- `decision` (string): the board's call in its OWN domain language, for when "ship"
+  reads oddly — e.g. `invest` / `hold` / `wind-down` for a business decision, `accept`
+  / `revise` / `reject` for a paper. It becomes the human-facing label verbatim; the
+  machine `verdict` stays the gate axis. Set it only when the board's domain has a
+  natural word the reviews used; a software-shipping board needs none.
 - `blockers` (array of objects): a deduplicated list of the load-bearing objections
   the board raised in the final round. Each object: `title` (short), `body`
   (the seat-grounded reasoning), `evidence` (array — see below).
@@ -175,8 +180,9 @@ Reply with the ```json``` fence and nothing else.
 
 # Bump when the template shape (or its escape semantics) changes. The sha covers
 # the exact bytes, so any edit changes the recorded sha even without a bump. @1 is
-# the v1.3.0 first-cut of the M2 synthesizer prompt.
-SYNTHESIZER_TEMPLATE_VERSION = "advisory-board/synthesizer@1"
+# the v1.3.0 first-cut of the M2 synthesizer prompt; @2 adds the optional `decision`
+# field guidance (the plain-language / lens-aware verdict label, v1.6.0).
+SYNTHESIZER_TEMPLATE_VERSION = "advisory-board/synthesizer@2"
 
 
 def synthesizer_template_sha() -> str:
@@ -260,6 +266,10 @@ def build_skeleton(config: RunConfig, rounds_done: list) -> dict:
         "schema": "advisory-board/verdict@2",
         "title": config.title,
         "date": config.date,
+        # The board-level lens preset name, so the renderers (which read verdict.json
+        # standalone) can pick a lens-aware human label without re-deriving it. The
+        # machine `verdict` token is unaffected — this only colors the human label.
+        "lens_preset": config.lens,
         "rounds": rounds_run,
         "board": board,
     }
@@ -432,6 +442,12 @@ def merge_synthesizer_content(skeleton: dict, content: dict) -> dict:
                          f"{type(content).__name__}")
     safe = {k: v for k, v in content.items() if k not in PROTECTED_SKELETON_KEYS}
     merged = {**skeleton, **safe}
+    # `lens_preset` is conductor-authoritative (it names the run's board preset). It's
+    # not in PROTECTED_SKELETON_KEYS — keeping that set, and the prompt's enumeration
+    # of it, byte-stable — so re-pin it from the skeleton here, the same way we never
+    # trust a model-asserted `unanimous`.
+    if "lens_preset" in skeleton:
+        merged["lens_preset"] = skeleton["lens_preset"]
     final_tokens = {seat["round_verdicts"][-1] for seat in skeleton.get("board", [])
                     if seat.get("round_verdicts") and not seat.get("dropped")}
     if "verdict" in merged and final_tokens:

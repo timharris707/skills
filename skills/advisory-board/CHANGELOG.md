@@ -8,6 +8,37 @@ Pre-1.0 the minor tracks the conductor milestone (M5 → `v0.5.0`, M6 → `v0.6.
 reserved for an explicit production-ready call. The verdict-JSON schema is versioned separately
 (`advisory-board/verdict@N`) and is not the same axis as the release version.
 
+## [v1.6.0] - 2026-06-26 — Plain-language, lens-aware verdict label
+
+The machine token `verdict: ship|caution|block` stays byte-identical (the gate
+axis is untouched), but the **human-facing label** is now lens-aware. A
+`software-architecture` board keeps the familiar `SHIP` / `SHIP WITH CHANGES` /
+`DO NOT SHIP YET`; every other lens preset (product, research, legal, business,
+writing — and any unknown one) renders plain language — `Go ahead` / `Proceed
+with care` / `Stop and rethink` — plus a one-line "what this means" note, so a
+non-developer reader isn't handed shipping jargon. An explicit `decision` field
+still wins verbatim.
+
+### Added
+- **`lens_preset` in `verdict.json`** — the conductor writes the run's board-level
+  lens preset name into the canonical verdict so the renderers (which read it
+  standalone) can pick the right label family. Type-checked (optional string) by
+  `board_verdict.py`; documented in `references/verdict-schema.md`. A wholly
+  absent field defaults to the software family (backward compatible: every
+  pre-feature verdict.json was a software-lens run).
+- **Shared `scripts/_verdict_labels.py`** — one `human_label(token, lens_preset,
+  decision)` source of truth so the three renderers stop diverging (they each
+  carried their own, already-drifted, label map).
+
+### Changed
+- `render_verdict.py` (Markdown headline, handoff `verdict`/`verdict_note`,
+  per-round pills) and `format_output.py` (`verdict_line`) now resolve labels
+  through `_verdict_labels.human_label`. The handoff banner color
+  (`verdict_class`) stays keyed on the **raw** token, not the label. Plain labels
+  keep their natural case (no shouted "STOP AND RETHINK").
+- The M2 synthesizer prompt gains a light `decision` optional-field nudge
+  (template version `synthesizer@1` → `@2`).
+
 ## [v1.5.0] - 2026-06-26 — Repo-grounded review (`--repo`)
 
 Optional `--repo PATH` augments `--source`: the source file frames the question

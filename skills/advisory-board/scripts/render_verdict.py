@@ -37,8 +37,8 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _render_engine import die  # noqa: E402  shared with the other renderers
+from _verdict_labels import human_label  # noqa: E402  lens-aware label, shared with format_output
 
-LABEL = {"ship": "SHIP", "caution": "SHIP WITH CHANGES", "block": "DO NOT SHIP YET"}
 STATUS_WORD = {"verified": "verified", "unverified": "unverified", "refuted": "REFUTED"}
 EVIDENCE_CONTAINERS = ("blockers", "dissent", "concerns")
 
@@ -125,10 +125,13 @@ def render_markdown(data: dict) -> str:
     out.append(f"Board: {seats}. Rounds: {rounds}.")
     out.append("")
 
-    label = data.get("decision") or LABEL.get(data.get("verdict"), str(data.get("verdict")))
+    label, note = human_label(data.get("verdict"), data.get("lens_preset"), data.get("decision"))
     out.append(f"## Verdict: {label} — {_stance(data)} ({data.get('confidence', '?')} confidence)")
-    if data.get("verdict_note"):
-        out.append(data["verdict_note"])
+    # An explicit verdict_note (authored in the verdict.json) wins; else the plain
+    # "what this means" line a non-software lens supplies.
+    note = data.get("verdict_note") or note
+    if note:
+        out.append(note)
     out.append("")
 
     blockers = data.get("blockers", [])
@@ -265,7 +268,11 @@ def _round_review(run_dir, seat_name: str, round_no: int, verdict: str) -> str:
 
 def build_handoff_data(data: dict, run_dir=None) -> dict:
     verdict = data.get("verdict", "")
-    label = data.get("decision") or LABEL.get(verdict, str(verdict))
+    lens_preset = data.get("lens_preset")
+    label, note = human_label(verdict, lens_preset, data.get("decision"))
+    # An explicit verdict_note (authored) wins; else the plain lens note. The banner
+    # color (verdict_class) stays keyed on the raw token, never the lens label.
+    verdict_note = data.get("verdict_note") or note
     hd = {
         # non-RAW slots (the renderer escapes them) -> _plain; RAW slots -> _raw.
         "title": _plain(data.get("title", "Advisory Board review")),
@@ -275,7 +282,7 @@ def build_handoff_data(data: dict, run_dir=None) -> dict:
         "rounds": str(data.get("rounds", "")),
         "verdict": _plain(f"{label} — {_stance(data)}"),
         "verdict_class": _VERDICT_CLASS.get(verdict, ""),
-        "verdict_note": _raw(data["verdict_note"]) if data.get("verdict_note") else "",
+        "verdict_note": _raw(verdict_note) if verdict_note else "",
         "plan": _raw(data.get("title", "")),
         "metadata": "Rendered from <code>verdict.json</code> by <code>scripts/render_verdict.py</code>.",
         "dissent_flag": "Dissent on the record" if data.get("dissent") else "",
@@ -293,12 +300,16 @@ def build_handoff_data(data: dict, run_dir=None) -> dict:
         name = seat.get("seat", "?")
         rounds = []
         for round_no, rv in enumerate(seat.get("round_verdicts", []), 1):
+            # Per-round pills follow the board-level lens family (the note is for the
+            # headline only; a pill is just the short label). No `decision` here — a
+            # round_verdict is always a raw ship/caution/block token.
+            rv_label, _ = human_label(rv, lens_preset)
             rounds.append({
                 "round_label": f"Round {round_no}",
-                "round_verdict": _plain(LABEL.get(rv, rv)),
+                "round_verdict": _plain(rv_label),
                 "round_verdict_class": _VERDICT_CLASS.get(rv, ""),
                 "round_confidence": "",
-                "round_review": _round_review(run_dir, name, round_no, LABEL.get(rv, rv)),
+                "round_review": _round_review(run_dir, name, round_no, rv_label),
             })
         lens = seat.get("lens", "") or ""
         hd["seats"].append({

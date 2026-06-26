@@ -16,6 +16,7 @@ via `scripts/render_handoff.py`. It drives tooling — most usefully a **CI / la
   "verdict": "block",
   "confidence": "high",
   "unanimous": true,
+  "lens_preset": "software-architecture",
   "rounds": 2,
   "board": [
     {
@@ -55,7 +56,15 @@ via `scripts/render_handoff.py`. It drives tooling — most usefully a **CI / la
   gate axis. (`abstain` is **not** a `verdict` value — it is a *gate outcome* computed at gate
   time from observed agreement; see below. It can't be self-asserted, by design.)
 - `decision` (optional) — the native call when the decision isn't software-shipping (e.g.
-  `invest` / `hold` / `wind-down`). Map it onto `verdict`; tooling reads `verdict`.
+  `invest` / `hold` / `wind-down`). Map it onto `verdict`; tooling reads `verdict`. When set,
+  it's the human label verbatim — it wins over the lens-derived label below.
+- `lens_preset` (optional) — the board-level lens preset name the run used (e.g.
+  `software-architecture`, `business-decision`, `research-paper`). The conductor writes it; it
+  picks the **human-facing** verdict label only — the machine `verdict` token is untouched. A
+  `software-architecture` board (and an old file with no `lens_preset`) keeps the legacy
+  `SHIP` / `SHIP WITH CHANGES` / `DO NOT SHIP YET` labels; every other preset (and any unknown
+  one) renders plain language — `Go ahead` / `Proceed with care` / `Stop and rethink` — plus a
+  one-line "what this means" note. An explicit `decision` overrides all of this.
 - `confidence` — `low` | `medium` | `high`. A self-reported number; informational. **The gate
   never reads it** — a gameable confidence must not move a gate.
 - `unanimous` — did every seat land on `verdict` in the final round.
@@ -102,6 +111,7 @@ file *may* carry `evidence[]`, and a malformed item is rejected regardless of ve
 - `verdict` ∈ {ship, caution, block}; `confidence` ∈ {low, medium, high}; `rounds` a positive int.
 - each `board[]` seat has `seat`, `model`, a non-empty `round_verdicts` (every entry a valid
   verdict); `lens`/`dropped` type-checked when present.
+- `lens_preset` is a string when present (it selects the human label; it never moves a gate).
 - at least **two** seats actually ran (a `dropped` seat doesn't count — a one-voice board isn't a board).
 - if `unanimous` is present, it matches the seats' final-round verdicts.
 - every `evidence[]` item (on blockers/dissent/concerns or at the top level) is well-formed for

@@ -173,6 +173,11 @@ def validate(data: dict) -> None:
     if len(ran) < 2:
         die(f"a board needs >= 2 seats that ran; found {len(ran)} (dropped seats don't count)")
 
+    # Optional board-level lens preset (e.g. "software-architecture", "business-decision").
+    # Used only to pick a lens-aware human label; the machine `verdict` is unaffected.
+    if "lens_preset" in data and not isinstance(data["lens_preset"], str):
+        die(f"lens_preset must be a string when present; got {type(data['lens_preset']).__name__}")
+
     for key in EVIDENCE_CONTAINERS:
         if key in data and not isinstance(data[key], list):
             die(f"{key} must be a list when present; got {type(data[key]).__name__}")
