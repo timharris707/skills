@@ -373,6 +373,80 @@ class TestClassify(unittest.TestCase):
         self.assertEqual(status, "degraded")
 
 
+class TestModelNotFoundSelfReview(unittest.TestCase):
+    """Regression: a healthy seat must not be dropped as ModelNotFound just
+    because its stderr echoes the signal strings. The acute case is a board
+    reviewing THIS skill's own source — codex's file-read trace echoes
+    registry.py's `_MODEL_NOT_FOUND_SIGNALS` list to stderr. PR #27 closed the
+    stdout leak; the shape gate in classify_round1 / _classify_synthesizer_shape
+    closes the stderr-echo path: screen for model-not-found / auth ONLY when no
+    usable output came back.
+    """
+
+    # A complete, well-formed round-1 review (passes check_round1_shape).
+    REVIEW = (
+        "## Verdict\nVERDICT: caution\n\n"
+        "## Strongest objections\nThe proposal trades safety for embeddability "
+        "and needs a hard isolation boundary before any execution seat ships.\n\n"
+        "## Execution & sequencing\nStage the work behind a flag; verify the gate "
+        "abstains on a refuted citation first.\n\n"
+        "## Invariants\nRead XOR network must hold for every grounded seat.\n\n"
+        "## Risks\nPrompt injection from a poisoned repo could drive a seat to "
+        "run code.\n\n"
+        "## Evidence\nSee references/data-handling.md for the rule.\n\n"
+        "## Challenge other seats\nWhat virtualization boundary is sufficient?"
+    )
+    # What codex echoes to stderr when it reads registry.py during self-review.
+    SIGNAL_ECHO = (
+        'reading scripts/_conductor/registry.py\n'
+        '_MODEL_NOT_FOUND_SIGNALS = ("modelnotfound", "model not found",\n'
+        '    "no such model", "unknown model")'
+    )
+
+    def _r(self, **kw):
+        base = dict(exit_code=0, stdout=self.REVIEW, stderr=self.SIGNAL_ECHO,
+                    elapsed_s=180.0, timed_out=False)
+        base.update(kw)
+        return rb.SpawnResult(**base)
+
+    def test_round1_healthy_review_not_dropped_despite_signal_on_stderr(self):
+        # the bug dropped this as ModelNotFound; the fix keeps it as 'ran'.
+        self.assertTrue(rb.check_round1_shape(self.REVIEW)[0])
+        self.assertEqual(rb.classify_round1(self._r(), rb.REGISTRY["codex"]),
+                         ("ran", None))
+
+    def test_round1_healthy_review_nonzero_exit_degrades_not_drops(self):
+        self.assertEqual(
+            rb.classify_round1(self._r(exit_code=1), rb.REGISTRY["codex"])[0],
+            "degraded")
+
+    def test_round1_genuine_model_not_found_still_drops(self):
+        # no usable review (empty stdout) + a real signal on stderr -> drop.
+        r = self._r(exit_code=1, stdout="",
+                    stderr="stream error: requested entity was not found")
+        self.assertEqual(rb.classify_round1(r, rb.REGISTRY["codex"]),
+                         ("dropped", rb.FAILURE_MODEL))
+
+    def test_round1_genuine_auth_failure_still_drops(self):
+        r = self._r(exit_code=1, stdout="", stderr="Error: please sign in (401)")
+        self.assertEqual(rb.classify_round1(r, rb.REGISTRY["codex"]),
+                         ("dropped", rb.FAILURE_AUTH))
+
+    def test_synthesizer_usable_output_not_dropped_despite_signal(self):
+        from _conductor.synthesizer import _classify_synthesizer_shape
+        r = rb.SpawnResult(exit_code=0, stdout='{"verdict": "caution"}',
+                           stderr=self.SIGNAL_ECHO, elapsed_s=60.0, timed_out=False)
+        self.assertEqual(_classify_synthesizer_shape(r, rb.REGISTRY["claude"]),
+                         ("ran", None))
+
+    def test_synthesizer_genuine_model_not_found_still_drops(self):
+        from _conductor.synthesizer import _classify_synthesizer_shape
+        r = rb.SpawnResult(exit_code=1, stdout="", stderr="model not found",
+                           elapsed_s=2.0, timed_out=False)
+        self.assertEqual(_classify_synthesizer_shape(r, rb.REGISTRY["claude"]),
+                         ("dropped", rb.FAILURE_MODEL))
+
+
 # --------------------------------------------------------------------------- #
 # Preflight (against mock CLIs)
 # --------------------------------------------------------------------------- #

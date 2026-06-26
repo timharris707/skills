@@ -636,6 +636,13 @@ def _classify_synthesizer_shape(result, adapter) -> tuple:
     should be JSON, not a seven-section review). InvalidOutput here means an
     empty stdout, which would otherwise pass classify_round1 with stdout='' as
     NoOutput — keep that semantic intact.
+
+    Like classify_round1, the model-not-found / auth screens fire ONLY when no
+    usable output came back (empty stdout). A genuine model/auth failure yields
+    nothing; when the synthesizer DID produce output, a model-not-found / auth
+    signal on stderr is echoed material — the packet under synthesis can quote
+    the skill's own model-error strings (e.g. a board deliberating this very
+    classifier) — not a real failure.
     """
     from _conductor.constants import (
         FAILURE_AUTH, FAILURE_MODEL, FAILURE_NOOUTPUT, FAILURE_TIMEOUT,
@@ -647,9 +654,10 @@ def _classify_synthesizer_shape(result, adapter) -> tuple:
         return "dropped", FAILURE_NOOUTPUT
     if result.timed_out:
         return "dropped", FAILURE_TIMEOUT
-    if model_not_found(result):
-        return "dropped", FAILURE_MODEL
     if not result.stdout.strip():
+        # No usable output: NOW the stderr signals are trustworthy failure modes.
+        if model_not_found(result):
+            return "dropped", FAILURE_MODEL
         if auth_failed(result.stderr):
             return "dropped", FAILURE_AUTH
         return "dropped", FAILURE_NOOUTPUT
