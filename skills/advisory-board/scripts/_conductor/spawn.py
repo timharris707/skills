@@ -190,21 +190,34 @@ def classify_round1(result: SpawnResult, adapter: SeatAdapter) -> tuple:
     Stricter than the preflight classify(): the captured artifact must pass the
     shape/length check (check_round1_shape), which is how a short plan-mode reply
     or an "I saved it to a file" stub is caught (the {{CLAUDE_OUTPUT_OVERRIDE}}
-    detection half). Ordering matters — timeout, then model-not-found, then the
-    empty/auth split, then shape, then the usable-but-nonzero degrade.
+    detection half). Ordering matters — timeout, then the SHAPE GATE, then (only
+    when no usable review came back) the model-not-found / empty-auth split, then
+    the usable-but-nonzero degrade.
+
+    The shape gate comes BEFORE the model-not-found / auth screens on purpose. A
+    genuine ModelNotFound or auth failure yields NO usable review — the model
+    never answered. So a complete, well-formed review on stdout is itself proof
+    the model resolved and ran; a model-not-found / auth SIGNAL on stderr is then
+    echoed MATERIAL UNDER REVIEW, not a real failure. The acute case: a seat
+    reviewing this skill's own source — codex's file-read trace echoes
+    registry.py's literal `_MODEL_NOT_FOUND_SIGNALS` list to stderr, which would
+    otherwise drop a healthy seat. (PR #27 stopped scanning stdout for exactly
+    this; the same echo also lands on stderr — still scanned — so screening only
+    when the review is absent/stub-shaped is what actually closes it.)
     """
     if result.timed_out:
         return "dropped", FAILURE_TIMEOUT
-    if model_not_found(result):
-        return "dropped", FAILURE_MODEL
-    if not result.stdout.strip():
-        # No usable stdout: distinguish an actionable auth failure (look only at
-        # stderr) from a bare empty run.
-        if auth_failed(result.stderr):
-            return "dropped", FAILURE_AUTH
-        return "dropped", FAILURE_NOOUTPUT
     shape_ok, _reason = check_round1_shape(result.stdout)
     if not shape_ok:
+        # No usable review: NOW the stderr signals are trustworthy failure modes.
+        if model_not_found(result):
+            return "dropped", FAILURE_MODEL
+        if not result.stdout.strip():
+            # No usable stdout: distinguish an actionable auth failure (look only
+            # at stderr) from a bare empty run.
+            if auth_failed(result.stderr):
+                return "dropped", FAILURE_AUTH
+            return "dropped", FAILURE_NOOUTPUT
         return "dropped", FAILURE_INVALID   # retryable once
     if result.exit_code != 0:
         return "degraded", None             # usable review despite a non-zero exit
