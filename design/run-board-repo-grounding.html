@@ -429,21 +429,21 @@ footer.colophon code { background: var(--surface-2); }
         </div>
       </div>
       <div class="gauge">
-        <svg class="ring" viewBox="0 0 120 120" width="118" height="118" role="img" aria-label="Overall progress 88%">
+        <svg class="ring" viewBox="0 0 120 120" width="118" height="118" role="img" aria-label="Overall progress 100%">
           <circle class="ring-track" cx="60" cy="60" r="52" fill="none" stroke-width="11"/>
           <circle class="ring-arc" cx="60" cy="60" r="52" fill="none" stroke-width="11"
                   stroke-linecap="round" transform="rotate(-90 60 60)"
-                  stroke-dasharray="326.7" stroke-dashoffset="39.2"/>
-          <text class="ring-pct" x="60" y="57" text-anchor="middle" dominant-baseline="middle">88%</text>
+                  stroke-dasharray="326.7" stroke-dashoffset="0.0"/>
+          <text class="ring-pct" x="60" y="57" text-anchor="middle" dominant-baseline="middle">100%</text>
           <text class="ring-sub" x="60" y="76" text-anchor="middle" dominant-baseline="middle">complete</text>
         </svg>
-        <div class="gauge-count"><b>29</b> / 33 tasks done</div>
+        <div class="gauge-count"><b>33</b> / 33 tasks done</div>
       </div>
     </div>
 
     <div class="rail">
       
-      <span class="rail-item todo"><i class="dot"></i>M1</span>
+      <span class="rail-item done"><i class="dot"></i>M1</span>
       
     </div>
     <div class="legend">
@@ -468,16 +468,16 @@ footer.colophon code { background: var(--surface-2); }
     <div class="section-head"><h2 class="section-title">Milestones</h2><span class="rule"></span></div>
 
     
-    <article class="milestone todo">
+    <article class="milestone done">
       <div class="ms-head">
         <div class="ms-num">1</div>
         <div class="ms-head-main">
           <h3 class="ms-title">Repo-grounded review (<code>--repo</code>)</h3>
           <div class="ms-meta">
-            <span class="badge todo"><span class="dot"></span>To do</span>
+            <span class="badge done"><span class="dot"></span>Done</span>
             <span class="ms-progress">
-              <span class="ms-bar"><span style="width:88%"></span></span>
-              29/33
+              <span class="ms-bar"><span style="width:100%"></span></span>
+              33/33
             </span>
           </div>
         </div>
@@ -488,11 +488,11 @@ footer.colophon code { background: var(--surface-2); }
       
 
       
-      <div class="phase todo">
+      <div class="phase done">
         <div class="phase-head">
           <span class="phase-dot"></span>
           <h4 class="phase-title">Phase 1 — Scope &amp; read-only snapshot</h4>
-          <span class="phase-state">To do</span>
+          <span class="phase-state">Done</span>
         </div>
         <ul class="checklist">
           
@@ -502,7 +502,7 @@ footer.colophon code { background: var(--surface-2); }
           
           <li class="done"><span class="tick">✓</span><span class="task-text">Scope resolver: walk <code>PATH</code>, <strong>respect <code>.gitignore</code></strong> (<code>git ls-files</code>, os.walk fallback), always exclude <code>.git/</code>, apply a <strong>secret/denylist</strong> (<code>.env*</code>, <code>*.pem</code>, <code>id_*</code>, <code>*.key</code>, secrets/creds/tokens) per path segment, and <code>realpath</code>-confine to the root (drop symlinks pointing outside). <code>--repo-include</code>/<code>--repo-exclude</code> globs narrow it. — <code>grounding.resolve_scope</code>.</span></li>
           
-          <li class="wip"><span class="tick">●</span><span class="task-text">Run the advisory secret-scan over the in-scope tree and <strong>surface findings before approval</strong> — <code>grounding.scan_secrets</code> built + tested (never echoes the full secret); surfacing it in the consent flow lands in P2.</span></li>
+          <li class="done"><span class="tick">✓</span><span class="task-text">Run the advisory secret-scan over the in-scope tree and <strong>surface findings before approval</strong> — <code>grounding.scan_secrets</code> built + tested (never echoes the full secret); surfaced in the consent flow in P2 (<code>test_secret_scan_printed_at_gate_without_echoing</code>).</span></li>
           
           <li class="done"><span class="tick">✓</span><span class="task-text">Build the <strong>scope manifest</strong>: sorted <code>path + size + sha256</code> per in-scope file + totals (N files, M bytes) + a single <strong>scope hash</strong> — <code>grounding.build_scope_manifest</code>/<code>scope_hash</code> (stable + content-sensitive). (Persisting to the run dir lands with the consent wiring in P2.)</span></li>
           
@@ -663,19 +663,19 @@ footer.colophon code { background: var(--surface-2); }
         
       </div>
       
-      <div class="phase todo">
+      <div class="phase done">
         <div class="phase-head">
           <span class="phase-dot"></span>
           <h4 class="phase-title">Phase 6 — Adversarial + security review (two rounds)</h4>
-          <span class="phase-state">To do</span>
+          <span class="phase-state">Done</span>
         </div>
         <ul class="checklist">
           
-          <li class="todo"><span class="tick"></span><span class="task-text">Round 1: parallel finders (consent-leak, symlink/scope-escape, secret-egress, read+network exfil, prompt-injection-via-repo, hash-drift) → skeptic-verify each finding.</span></li>
+          <li class="done"><span class="tick">✓</span><span class="task-text">Round 1: parallel finders (consent-leak, symlink/scope-escape, secret-egress, read+network exfil, prompt-injection-via-repo, hash-drift) → skeptic-verify each finding. <strong>Result:</strong> 10 confirmed (all medium/low/info — no critical/high); the load-bearing controls (D4, fence-scrub, ungrounded byte-identity) held under attack.</span></li>
           
-          <li class="todo"><span class="tick"></span><span class="task-text">Fix all confirmed findings; <strong>Round 2</strong> focused pass on the fix set (the convention that caught fix-introduced regressions in M1/M2/M3).</span></li>
+          <li class="done"><span class="tick">✓</span><span class="task-text">Fix all confirmed findings; <strong>Round 2</strong> focused pass on the fix set (the convention that caught fix-introduced regressions in M1/M2/M3). <strong>Fixed:</strong> TOCTOU symlink-escape (O_NOFOLLOW fd-copy), <code>.gitignore</code> disclosure over-claim (resolution-mode-aware wording), D4 fail-closed on <code>grounded</code>, snapshot drift re-hash every round + labeled missing-snapshot, in-scope file-list disclosure, <code>parse_verdict</code> quoted-token rejection. Round 2: all 3 lenses clean.</span></li>
           
-          <li class="todo"><span class="tick"></span><span class="task-text">Confirm: no path lets gate+repo run with an un-isolatable seat; no secret-class file is in-scope by default; no symlink escapes the snapshot; the manifest never understates egress.</span></li>
+          <li class="done"><span class="tick">✓</span><span class="task-text">Confirm: no path lets gate+repo run with an un-isolatable seat; no secret-class file is in-scope by default; no symlink escapes the snapshot; the manifest never understates egress. <strong>Checklist PASS</strong> — each invariant backed by a named passing test.</span></li>
           
         </ul>
         
@@ -856,7 +856,7 @@ footer.colophon code { background: var(--surface-2); }
 
   <!-- ===================== COLOPHON ===================== -->
   <footer class="colophon">
-    Rendered from <code>run-board-repo-grounding.md</code> &middot; 1 milestones &middot; 29/33 tasks complete. The markdown plan is the source of truth &mdash; regenerate with <code>render_plan.py</code>; never hand-edit this file.
+    Rendered from <code>run-board-repo-grounding.md</code> &middot; 1 milestones &middot; 33/33 tasks complete. The markdown plan is the source of truth &mdash; regenerate with <code>render_plan.py</code>; never hand-edit this file.
   </footer>
 
 </div>

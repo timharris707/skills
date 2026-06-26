@@ -35,6 +35,7 @@ from typing import Optional
 __all__ = [
     "SECRET_DENYLIST",
     "resolve_scope",
+    "resolve_scope_with_method",
     "scan_secrets",
     "build_scope_manifest",
     "scope_hash",
@@ -141,6 +142,47 @@ def _matches_any(relpath: str, globs) -> bool:
         if fnmatch.fnmatch(rp, g) or fnmatch.fnmatch(base, g):
             return True
     return False
+
+
+def resolve_scope_with_method(root: str, include=None, exclude=None) -> tuple:
+    """Like resolve_scope but also reports HOW the candidate set was produced:
+    ('git', scope) when `git ls-files` drove it (so .gitignore was applied), or
+    ('walk', scope) when the os.walk fallback drove it (a non-git tree — .gitignore
+    is NOT applied there). The consent disclosure (render_repo_scope_lines) uses this
+    so it can't claim '.gitignore'd paths excluded' for a tree where git never ran."""
+    if not os.path.isdir(root):
+        raise ValueError(f"--repo is not a directory: {root}")
+    root_real = os.path.realpath(root)
+    candidates = _git_candidates(root)
+    if candidates is None:
+        method = "walk"
+        candidates = _walk_candidates(root)
+    else:
+        method = "git"
+
+    include = list(include or [])
+    exclude = list(exclude or [])
+    scope = []
+    seen = set()
+    for rel in candidates:
+        rel = rel.replace("\\", "/").lstrip("/")
+        if not rel or rel in seen:
+            continue
+        if _denied(rel):
+            continue
+        if not _within_root(root_real, rel):
+            continue
+        full = os.path.join(root_real, rel)
+        # must be (or resolve to) a real regular file under the root
+        if not os.path.isfile(full):
+            continue
+        if include and not _matches_any(rel, include):
+            continue
+        if exclude and _matches_any(rel, exclude):
+            continue
+        seen.add(rel)
+        scope.append(rel)
+    return method, sorted(scope)
 
 
 def resolve_scope(root: str, include=None, exclude=None) -> list:
@@ -273,19 +315,44 @@ def snapshot_scope(root: str, relpaths, dest: Optional[str] = None) -> str:
             src = os.path.join(root, rel)
             # Re-assert the resolve-time gate AT COPY TIME (TOCTOU defense): a file that
             # was a clean in-scope regular file when resolve_scope ran can be swapped for
-            # a symlink-out before we copy. Drop symlinks outright (don't dereference) and
-            # re-confine the realpath under the repo root, so copyfile can never pull an
-            # out-of-root file's bytes (e.g. a private key) into the snapshot seats read.
+            # a symlink-out before we copy. The realpath-confinement below is a cheap
+            # PRE-FILTER only; the load-bearing defense is opening the source with
+            # O_NOFOLLOW and copying from the HELD descriptor (never re-resolving the
+            # path), so a symlink swapped in after this point cannot redirect the copy.
             if os.path.islink(src):
                 continue
             src_real = os.path.realpath(src)
             if not (src_real == root_real or src_real.startswith(root_prefix)):
                 continue
-            if not os.path.isfile(src_real):
-                continue
-            target = os.path.join(dest, rel)
-            os.makedirs(os.path.dirname(target) or dest, exist_ok=True)
-            shutil.copyfile(src, target)   # src is now a confirmed non-symlink regular file under root
+            # Close the TOCTOU window: open by path with O_NOFOLLOW (raises OSError/ELOOP
+            # if `src` is a symlink at open time), confirm via fstat that the OPEN fd is a
+            # regular file, then stream the bytes of THAT fd into the target. Because the
+            # check (fstat) and the use (os.read) are the same already-open object, a
+            # later swap of `src` to an out-of-root symlink can never be followed — the
+            # descriptor still points at the original regular file.
+            try:
+                src_fd = os.open(src, os.O_RDONLY | os.O_NOFOLLOW)
+            except OSError:
+                continue   # a symlink swapped in (ELOOP) or vanished file — drop it
+            try:
+                st = os.fstat(src_fd)
+                if not stat.S_ISREG(st.st_mode):
+                    continue   # not a regular file (a fifo/dir/device snuck in) — drop it
+                target = os.path.join(dest, rel)
+                os.makedirs(os.path.dirname(target) or dest, exist_ok=True)
+                # O_EXCL: the target must not pre-exist (a fresh mkdtemp dest), so we never
+                # clobber/append; copy from the held fd, not the re-resolved source path.
+                dst_fd = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+                try:
+                    while True:
+                        chunk = os.read(src_fd, 65536)
+                        if not chunk:
+                            break
+                        os.write(dst_fd, chunk)
+                finally:
+                    os.close(dst_fd)
+            finally:
+                os.close(src_fd)
             try:
                 os.chmod(target, 0o444)
             except OSError:
@@ -347,6 +414,12 @@ class GroundingContext:
     include: Optional[list] = None
     exclude: Optional[list] = None
     content_lines: frozenset = frozenset()
+    # How the ORIGINAL --repo tree's scope was resolved: 'git' (git ls-files drove
+    # it, so .gitignore was applied to untracked files) or 'walk' (a non-git tree —
+    # .gitignore is NOT applied). render_repo_scope_lines renders an HONEST exclusion
+    # disclosure conditioned on this (a non-git tree must not claim gitignored paths
+    # are excluded; the git path must not imply tracked-but-ignored files are excluded).
+    resolution_path: str = "git"
 
     @property
     def scope_hash(self) -> str:
@@ -383,7 +456,11 @@ def prepare_grounding(config, *, snapshot: bool = True) -> GroundingContext:
     repo = config.repo
     include = list(config.repo_include) if config.repo_include else None
     exclude = list(config.repo_exclude) if config.repo_exclude else None
-    relpaths = resolve_scope(repo, include=include, exclude=exclude)
+    # Resolve the ORIGINAL --repo tree and record whether git or the os.walk fallback
+    # drove it — this is the user-facing fact the exclusion disclosure must be honest
+    # about. (The snapshot is re-resolved below, but a snapshot has no .git, so its
+    # method is always 'walk' and would be the wrong thing to disclose.)
+    resolution_path, relpaths = resolve_scope_with_method(repo, include=include, exclude=exclude)
     if snapshot:
         snap = snapshot_scope(repo, relpaths)
         # Everything after the snapshot is created must clean it up on ANY failure
@@ -414,7 +491,8 @@ def prepare_grounding(config, *, snapshot: bool = True) -> GroundingContext:
     manifest["root"] = os.path.abspath(repo)
     return GroundingContext(repo_root=os.path.abspath(repo), snapshot_dir=snapshot_dir,
                             manifest=manifest, secret_hits=hits,
-                            include=include, exclude=exclude, content_lines=content)
+                            include=include, exclude=exclude, content_lines=content,
+                            resolution_path=resolution_path)
 
 
 def rehash_snapshot(snapshot_dir: str) -> str:
@@ -433,6 +511,22 @@ def render_repo_scope_lines(grounding: "GroundingContext") -> list:
     the symlink policy, and any advisory secret-scan hits."""
     inc = ", ".join(grounding.include) if grounding.include else "(all in-scope files)"
     exc = ", ".join(grounding.exclude) if grounding.exclude else "(none)"
+    # HONEST exclusion disclosure (R: false ".gitignore'd excluded" claim). The git
+    # path uses `git ls-files --cached`, so a file that is TRACKED but later gitignored
+    # stays in scope — only UNTRACKED gitignored paths are excluded. The os.walk
+    # fallback (a non-git tree) never reads .gitignore at all, so claiming gitignored
+    # paths are excluded there would be a false promise; only the secret denylist
+    # excludes files in that case.
+    if grounding.resolution_path == "walk":
+        excluded_line = (
+            "Excluded always : .git/ and the secret denylist (.env*, keys, credentials, "
+            "tokens); symlinks resolving outside the root are dropped. NOTE: .gitignore is "
+            "NOT applied (non-git tree) — only the secret denylist excludes files.")
+    else:
+        excluded_line = (
+            "Excluded always : .git/, untracked .gitignore'd paths, and the secret denylist "
+            "(.env*, keys, credentials, tokens); symlinks resolving outside the root are "
+            "dropped. NOTE: a TRACKED file later added to .gitignore stays in scope.")
     lines = [
         f"Repository root : {grounding.repo_root}",
         f"Readable files  : {grounding.n_files} file(s), {grounding.n_bytes} bytes "
@@ -440,9 +534,18 @@ def render_repo_scope_lines(grounding: "GroundingContext") -> list:
         f"Scope hash      : sha256:{grounding.scope_hash}",
         f"Include globs   : {inc}",
         f"Exclude globs   : {exc}",
-        "Excluded always : .git/, .gitignore'd paths, and the secret denylist "
-        "(.env*, keys, credentials, tokens); symlinks resolving outside the root are dropped.",
+        excluded_line,
     ]
+    # Per-file visibility (R: the consent surface showed only totals, never the in-scope
+    # paths — leaving the secret-scan as the only per-file signal). Point the user at the
+    # persisted full list AND inline the first paths so an unexpected secret-bearing file
+    # can be spotted by name even when the content scan misses it.
+    paths = grounding.scope_paths
+    if paths:
+        lines.append(f"Full readable file list: repo-scope-manifest.json ({len(paths)} file(s))")
+        preview = paths[:10]
+        lines.append("In-scope files  : " + ", ".join(preview)
+                     + (f", … (+{len(paths) - len(preview)} more)" if len(paths) > len(preview) else ""))
     if grounding.secret_hits:
         lines.append(
             f"⚠ Secret-scan   : {len(grounding.secret_hits)} in-scope file(s) matched a "

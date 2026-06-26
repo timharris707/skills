@@ -282,7 +282,16 @@ def enforce_egress_gate(config: RunConfig, blobs: list, *, assume_yes: bool,
     # labeled NO-GO, never silently dropped. Advisory + --repo is intentionally NOT
     # blocked here (you own your repo's risk; the unenforced_network_note warns) —
     # unenforced_network_seats is empty in advisory mode, so this never fires there.
-    if config.gate_mode and config.grounding is not None:
+    # Gate on the REPO FLAG (config.grounded), not on whether grounding happens to be
+    # populated, so a future path that leaves config.grounding=None on a grounded run
+    # FAILS CLOSED here instead of falling through to approval (R: D4 keyed on
+    # grounding-is-not-None). If a grounded gate run reaches the egress gate with no
+    # resolved grounding, that is an internal invariant break — refuse, never approve.
+    if config.gate_mode and config.grounded:
+        if config.grounding is None:
+            return decide(False, "refused",
+                          "internal: grounded gate run reached the egress gate without resolved "
+                          "repo grounding — refusing (fail-closed)")
         offending = config.unenforced_network_seats
         if offending:
             return decide(False, "refused", _d4_refusal_detail(offending))

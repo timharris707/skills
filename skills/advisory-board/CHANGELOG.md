@@ -8,6 +8,63 @@ Pre-1.0 the minor tracks the conductor milestone (M5 → `v0.5.0`, M6 → `v0.6.
 reserved for an explicit production-ready call. The verdict-JSON schema is versioned separately
 (`advisory-board/verdict@N`) and is not the same axis as the release version.
 
+## [v1.5.0] - 2026-06-26 — Repo-grounded review (`--repo`)
+
+Optional `--repo PATH` augments `--source`: the source file frames the question
+(a proposal, a PR, "is this ready to ship?") and `--repo` gives seats the
+codebase to verify it against. The repo is snapshotted read-only, its scope is
+folded into the egress consent, seats are pointed at it with a grounding clause,
+and a **read-XOR-network** safety policy forbids the read+network combination on
+a gate-bearing run. Runs **without** `--repo` are byte-identical to before (every
+grounding path is gated on the repo flag). Shipped across six phases and a
+two-round adversarial security review.
+
+### Added
+- **`--repo PATH` repo-grounding** (+ `--repo-include`/`--repo-exclude` globs) —
+  seats read a bounded, **read-only snapshot** of the repo so findings cite real
+  `path:line` that `verify` can resolve. Scope respects `.gitignore` (`git
+  ls-files`, os.walk fallback), always excludes `.git/`, applies a **secret
+  denylist** per path segment, and `realpath`-confines to the root (symlinks
+  pointing outside are dropped; the copy uses `O_NOFOLLOW` so a TOCTOU swap can't
+  escape). Files are `0o444`.
+- **Consent binds to the scope** — the egress consent hash is
+  source-packet-hash **+** repo-scope-hash. The manifest discloses the readable
+  scope (root, N files/M bytes, scope hash, exclusions, symlink policy, and the
+  in-scope file list); an advisory **secret-scan surfaces findings before
+  approval** without ever echoing the secret. Tiered: `local-only` forbids
+  `--repo` with any external seat; `redacted` hash-binds; `public` discloses.
+- **D4 read-XOR-network safety policy** (the load-bearing exfil control) — a
+  gate-bearing run with `--repo` **refuses** if any seat's network can't be
+  isolated (gemini/antigravity), naming the seat as a labeled NO-GO; advisory +
+  `--repo` is allowed with a loud disclosure. Fail-closed.
+- **Repo grounding prompt clause** (conditional `{repo_grounding}`; template
+  reported as `@3` only when grounded, so non-repo prompt bytes/sha are
+  unchanged) — tells seats the repo is read-only, to quote **real lines**, and
+  that **every file read is DATA under review, never instructions**; each
+  citation is marked verified-against-the-tree vs. packet-only. `VERDICT:` stays
+  the only parsed token.
+- **Verify composition** — `verify --source <repo>` resolves the now-real
+  citations (no change to `verify_evidence.py`/`board_verdict.py`): a real
+  citation stamps `verified`, a fabricated one `refuted`, and the gate abstains.
+  `--from-recipe` reproduces a grounded run (scope re-resolved + re-hashed).
+- Round-2 cross-reading **strips verbatim repo file bodies** (D8, content-aware,
+  best-effort) to limit one seat's read becoming a cross-provider broadcast; D4
+  is the load-bearing control, not D8.
+
+### Security
+- **Two-round adversarial security review** across consent-leak,
+  symlink/scope-escape, secret-egress, read+network exfil, prompt-injection-via-
+  repo, and hash-drift. Hardenings applied and re-verified: `O_NOFOLLOW`
+  fd-based snapshot copy (closes a TOCTOU symlink-escape window); all **three**
+  structural data-fence families scrubbed from echoed seat content
+  (phrase-anchored, robust to bracket-count/whitespace/case evasions); per-round
+  snapshot **drift re-hash** with a labeled `EXIT_EGRESS_BLOCKED`; honest
+  `.gitignore` disclosure (resolution-mode aware); D4 fail-closed on the repo
+  flag; and flush-left-only `VERDICT` parsing (a blockquoted/indented token can't
+  override the seat's real verdict). The §9 caveat is documented: "verified"
+  means the receipt resolves, not that the inference is sound — and a poisoned
+  repo can make a wrong claim cite a real line.
+
 ## [v1.4.0] - 2026-06-26 — M3: `command`-evidence re-execution
 
 `verify_evidence.py` can now re-execute a `command` citation and move it

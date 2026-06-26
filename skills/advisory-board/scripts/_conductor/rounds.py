@@ -145,12 +145,21 @@ def run_round(config: RunConfig, blobs: list, approval: EgressApproval, *,
     if round_no == 1 and round_packet_hash != approval.content_hash:
         die("egress hash drift: the packet no longer matches the approved content "
             "hash — refusing to spawn the board", EXIT_EGRESS_BLOCKED)
-    # The same hard stop for the repo scope (R7): on a grounded round-1, re-hash the
-    # snapshot and refuse if a file was added/removed/mutated between approval and
-    # spawn — the seats must read exactly the bytes consent was bound to.
-    if round_no == 1 and config.grounding is not None and config.grounding.snapshot_dir:
+    # The same hard stop for the repo scope (R7) — but on EVERY grounded round, not just
+    # round 1. The snapshot is a single frozen tree shared as the seat cwd across all
+    # rounds, so the round-1 rationale ('seats must read exactly the bytes consent was
+    # bound to') applies verbatim at every later spawn boundary. (The packet-hash guard
+    # above stays round-1-only: round 2+ packets are legitimate derivatives.) A snapshot
+    # that vanished or became unreadable is mapped to the same labeled NO-GO with the
+    # EXIT_EGRESS_BLOCKED code, never an uncaught traceback.
+    if config.grounding is not None and config.grounding.snapshot_dir:
         from _conductor.grounding import rehash_snapshot
-        if rehash_snapshot(config.grounding.snapshot_dir) != approval.scope_hash:
+        try:
+            current_scope_hash = rehash_snapshot(config.grounding.snapshot_dir)
+        except (ValueError, OSError):
+            die("repo scope snapshot is missing or unreadable — refusing to spawn the board",
+                EXIT_EGRESS_BLOCKED)
+        if current_scope_hash != approval.scope_hash:
             die("repo scope hash drift: the snapshot no longer matches the approved scope "
                 "hash — refusing to spawn the board", EXIT_EGRESS_BLOCKED)
     by_seat = {b.seat: b for b in blobs}

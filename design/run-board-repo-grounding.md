@@ -21,16 +21,16 @@ Three findings from the investigation shape the whole design:
 This plan is the **source of truth** for the work. The markdown is reviewed line-by-line; the HTML view is rendered from it (`render_plan.py`) so the two never drift. Because this is an **execution/egress surface**, it gets the security-sensitive convention: **two adversarial-review rounds** before merge, and a security-review pass.
 
 ## Milestone: Repo-grounded review (`--repo`)
-status: todo
+status: done
 An opt-in `--repo PATH` that augments `--source`: the source file still frames the question (a proposal, a PR description, "is this ready to ship?"), and `--repo` gives seats the **codebase to verify it against**. The repo is snapshotted read-only, its scope is folded into the egress consent, seats are pointed at it with a grounding clause, and the safety policy forbids the read+network combination on a gate-bearing run.
 
 ### Phase 1 — Scope & read-only snapshot
-status: todo
+status: done
 The thing seats read must be a **bounded, stable, secret-free** view of the repo — not the live tree (which can drift between approval and spawn, contains `.git`/`.env`/secrets, and can symlink out). Resolve a scope, snapshot it read-only, and produce a hashable file-list manifest that the consent surface and `verify` both bind to.
 - [x] DECISION: `--repo PATH` **augments** `--source` (repo = evidence base; source = the question). Both may be present; `--repo` alone uses a minimal "review this repo for X" source. *(Alt rejected: overload `--source` to accept a dir — conflates the question with the evidence and muddies the egress story.)* — `--repo`/`--repo-include`/`--repo-exclude` flags + `RunConfig.repo*` + `grounded` property.
 - [x] DECISION: ground seats on a **read-only snapshot copy** in a temp dir, not the live tree — gives a stable hash, lets `realpath`-confinement close symlink escape, and means `verify` resolves the exact bytes the seats saw. — `grounding.snapshot_scope` (0o444 files) + `cleanup_snapshot`.
 - [x] Scope resolver: walk `PATH`, **respect `.gitignore`** (`git ls-files`, os.walk fallback), always exclude `.git/`, apply a **secret/denylist** (`.env*`, `*.pem`, `id_*`, `*.key`, secrets/creds/tokens) per path segment, and `realpath`-confine to the root (drop symlinks pointing outside). `--repo-include`/`--repo-exclude` globs narrow it. — `grounding.resolve_scope`.
-- [wip] Run the advisory secret-scan over the in-scope tree and **surface findings before approval** — `grounding.scan_secrets` built + tested (never echoes the full secret); surfacing it in the consent flow lands in P2.
+- [x] Run the advisory secret-scan over the in-scope tree and **surface findings before approval** — `grounding.scan_secrets` built + tested (never echoes the full secret); surfaced in the consent flow in P2 (`test_secret_scan_printed_at_gate_without_echoing`).
 - [x] Build the **scope manifest**: sorted `path + size + sha256` per in-scope file + totals (N files, M bytes) + a single **scope hash** — `grounding.build_scope_manifest`/`scope_hash` (stable + content-sensitive). (Persisting to the run dir lands with the consent wiring in P2.)
 - [x] Snapshot the in-scope files into a read-only temp dir (`0o444` files); becomes the shared seat workdir in Phase 3 — `grounding.snapshot_scope`.
 Testing: unit tests for `.gitignore` honoring, `.git`/denylist exclusion, symlink-out refusal, include/exclude globs, scope-hash stability (same tree → same hash; one byte changes → different hash), and a planted-`.env` that the secret-scan surfaces.
@@ -85,11 +85,11 @@ Testing: e2e mock run with `--repo`; a fabricated-citation fixture trips abstain
 Gate: `python3 -m unittest discover -s tests -t tests`
 
 ### Phase 6 — Adversarial + security review (two rounds)
-status: todo
+status: done
 This adds an execution/egress surface — it gets the same scrutiny M3 did.
-- [ ] Round 1: parallel finders (consent-leak, symlink/scope-escape, secret-egress, read+network exfil, prompt-injection-via-repo, hash-drift) → skeptic-verify each finding.
-- [ ] Fix all confirmed findings; **Round 2** focused pass on the fix set (the convention that caught fix-introduced regressions in M1/M2/M3).
-- [ ] Confirm: no path lets gate+repo run with an un-isolatable seat; no secret-class file is in-scope by default; no symlink escapes the snapshot; the manifest never understates egress.
+- [x] Round 1: parallel finders (consent-leak, symlink/scope-escape, secret-egress, read+network exfil, prompt-injection-via-repo, hash-drift) → skeptic-verify each finding. **Result:** 10 confirmed (all medium/low/info — no critical/high); the load-bearing controls (D4, fence-scrub, ungrounded byte-identity) held under attack.
+- [x] Fix all confirmed findings; **Round 2** focused pass on the fix set (the convention that caught fix-introduced regressions in M1/M2/M3). **Fixed:** TOCTOU symlink-escape (O_NOFOLLOW fd-copy), `.gitignore` disclosure over-claim (resolution-mode-aware wording), D4 fail-closed on `grounded`, snapshot drift re-hash every round + labeled missing-snapshot, in-scope file-list disclosure, `parse_verdict` quoted-token rejection. Round 2: all 3 lenses clean.
+- [x] Confirm: no path lets gate+repo run with an un-isolatable seat; no secret-class file is in-scope by default; no symlink escapes the snapshot; the manifest never understates egress. **Checklist PASS** — each invariant backed by a named passing test.
 Testing: the full suite green; the security checklist above each verified by a test or a documented manual check.
 Gate: `python3 -m unittest discover -s tests -t tests` + a clean second-round review
 
