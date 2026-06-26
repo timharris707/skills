@@ -8,6 +8,31 @@ Pre-1.0 the minor tracks the conductor milestone (M5 → `v0.5.0`, M6 → `v0.6.
 reserved for an explicit production-ready call. The verdict-JSON schema is versioned separately
 (`advisory-board/verdict@N`) and is not the same axis as the release version.
 
+## [v1.7.0] - 2026-06-26 — Panely Advisory Board brand
+
+The human-facing artifact is now a branded **Panely Advisory Board** deliverable — the
+review's strongest marketing surface. The body stays light and readable, bookended by
+dark masthead and footer bands carrying the Panely "decision core" mark, the *Panely
+Advisory Board* lockup, the "use your own subscriptions to Claude, Codex, and Gemini"
+line, and a **panely.ai** call-to-action. The verdict-JSON contract, the section
+structure, the honesty sections, and the lens-aware label/disclaimer are all unchanged.
+
+### Changed
+- **`references/handoff-template.html`** — re-skinned into the Panely identity: a dual
+  theme (light "Boardroom" body + dark "Signal" masthead/footer bands), cobalt `#2347FF`
+  signature accent, gold `#E2B658` lead-seat secondary, muted verdict colors, Signal
+  font stacks, and an inline self-contained glowing avatar in the masthead with a flat
+  favicon in the footer. Every `{{TOKEN}}`/block and the renderer-contract shapes (the
+  `verdict {{VERDICT_CLASS}}` class, the `disclaimer`/`seat-status`/`highlight`/`conf`
+  spans, the `.review-body` list-indent rule) are preserved — the suite stays green.
+
+### Fixed
+- **Two developer strings no longer leak onto the page** (`scripts/render_verdict.py`):
+  the masthead **subtitle** now describes what was reviewed (was "Rendered from the
+  canonical verdict.json."), and the footer **provenance** reads in human terms —
+  "Board: … · N rounds · date" (was "Rendered from verdict.json by
+  scripts/render_verdict.py.").
+
 ## [v1.6.0] - 2026-06-26 — Plain-language, lens-aware verdict label
 
 The machine token `verdict: ship|caution|block` stays byte-identical (the gate
