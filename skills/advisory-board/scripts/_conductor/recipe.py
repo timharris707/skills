@@ -213,7 +213,7 @@ def config_to_recipe(config: RunConfig) -> dict:
         network = "partial"   # gate mode, but at least one seat cannot be network-isolated
     else:
         network = "off"
-    return {
+    recipe = {
         "schema": RECIPE_SCHEMA,
         "title": config.title,
         "date": config.date,
@@ -254,6 +254,15 @@ def config_to_recipe(config: RunConfig) -> dict:
         "isolation_network_unenforced": unenforced,
         "isolation_filesystem": "scoped" if config.fs_scoped else "open",
     }
+    # Repo-grounding: persist the scope so `--from-recipe` reproduces a grounded run.
+    # Only added when grounding is on, so ungrounded recipes stay byte-identical.
+    if config.repo:
+        recipe["repo"] = config.repo
+        if config.repo_include:
+            recipe["repo_include"] = list(config.repo_include)
+        if config.repo_exclude:
+            recipe["repo_exclude"] = list(config.repo_exclude)
+    return recipe
 
 
 _RECIPE_ENUMS = {
@@ -305,6 +314,14 @@ def validate_recipe(recipe: dict) -> None:
             die(f"recipe: 'synthesizer_seat' {ss!r} is not in this recipe's board "
                 f"({pretty}); the synthesizer egresses to that seat's provider, which "
                 "the run's disclosure only covers for board seats")
+    # Repo-grounding fields (optional; present only for a grounded recipe).
+    if "repo" in recipe and not (isinstance(recipe["repo"], str) and recipe["repo"].strip()):
+        die(f"recipe: 'repo' must be a non-empty string path; got {recipe['repo']!r}")
+    for key in ("repo_include", "repo_exclude"):
+        if key in recipe:
+            val = recipe[key]
+            if not isinstance(val, list) or not all(isinstance(x, str) for x in val):
+                die(f"recipe: '{key}' must be a list of glob strings; got {val!r}")
 
 
 def recipe_to_config(path: str) -> dict:

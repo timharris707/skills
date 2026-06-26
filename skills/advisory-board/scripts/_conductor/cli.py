@@ -531,6 +531,20 @@ def add_run_options(parser: argparse.ArgumentParser) -> None:
                              "in the board, else the first board seat). Must be one of the run's "
                              "board seats — the synthesizer egresses to that provider, covered by "
                              "the run's existing disclosure (a fresh provider would need its own).")
+    parser.add_argument("--repo", metavar="PATH",
+                        help="REPO-GROUNDING: a local repository the board may READ (read-only) "
+                             "while reviewing, so findings cite real path:line. Augments --source "
+                             "(source frames the question; the repo is the evidence base). The scope "
+                             "is .gitignore-respecting, secret-denylisted, and symlink-confined; its "
+                             "contents become part of the egress disclosure. In gate mode this "
+                             "requires every seat to be network-isolatable (gemini/antigravity are "
+                             "refused — read+network is an exfil channel); advisory mode allows it.")
+    parser.add_argument("--repo-include", dest="repo_include", action="append", metavar="GLOB",
+                        help="narrow the --repo grounding scope to files matching this fnmatch glob "
+                             "(repeatable).")
+    parser.add_argument("--repo-exclude", dest="repo_exclude", action="append", metavar="GLOB",
+                        help="remove files matching this fnmatch glob from the --repo grounding "
+                             "scope (repeatable).")
 
 
 def build_parser() -> argparse.ArgumentParser:

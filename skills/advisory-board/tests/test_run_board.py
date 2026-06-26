@@ -35,6 +35,8 @@ import run_board as rb  # noqa: E402
 import board_verdict as bv  # noqa: E402  (M5: schema @2 + abstain gate)
 import verify_evidence as ve  # noqa: E402  (M5: evidence resolution)
 import render_verdict as rv  # noqa: E402  (M5: consensus render)
+from _conductor import grounding as grd  # noqa: E402  (repo-grounding: scope/snapshot/manifest)
+from _conductor.config import resolve_config as resolve_config  # noqa: E402
 
 SRC_FIXTURE = os.path.join(FIXTURES, "src")
 PACKET_FIXTURE = os.path.join(FIXTURES, "packet.txt")
@@ -3603,6 +3605,217 @@ class TestSynthesizerMissingTokens(EnvMixin):
         self.assertEqual(sr.failure_class, "missing-verdict-token")
         self.assertIsNone(sr.verdict_data)
         self.assertEqual(sr.attempts, 0)
+
+
+import argparse as _argparse  # noqa: E402
+import stat as _stat  # noqa: E402
+import subprocess as _subprocess  # noqa: E402
+
+
+def _git_repo(files: dict, gitignore=None):
+    """Make a temp git repo with `files` (relpath -> text); return its path."""
+    root = tempfile.mkdtemp(prefix="grd-git-")
+    if gitignore is not None:
+        files = {**files, ".gitignore": gitignore}
+    for rel, text in files.items():
+        full = os.path.join(root, rel)
+        os.makedirs(os.path.dirname(full) or root, exist_ok=True)
+        with open(full, "w", encoding="utf-8") as fh:
+            fh.write(text)
+    _subprocess.run(["git", "-C", root, "init", "-q"], check=True)
+    _subprocess.run(["git", "-C", root, "add", "-A"], capture_output=True)
+    _subprocess.run(["git", "-C", root, "-c", "user.email=t@t", "-c", "user.name=t",
+                     "commit", "-qm", "init"], capture_output=True)
+    return root
+
+
+def _run_args(**over):
+    """A minimal argparse.Namespace for resolve_config, overridable per test."""
+    base = dict(source=None, repo=None, repo_include=None, repo_exclude=None,
+                mode="advisory", sensitivity="public", rounds="2", max_rounds=None,
+                cross_reading="summaries", lens=None, board="claude,codex", model=None,
+                output=None, out=None, title=None, from_recipe=None,
+                synthesize=False, synthesizer_seat=None)
+    base.update(over)
+    return _argparse.Namespace(**base)
+
+
+class TestRepoGroundingScope(unittest.TestCase):
+    """P1 — scope resolution, secret-scan, manifest, and read-only snapshot."""
+
+    def test_scope_respects_gitignore_and_denylist(self):
+        root = _git_repo(
+            {"src/app.py": "x=1\n", "README.md": "# hi\n", ".env": "K=v\n",
+             "ignored.log": "noise\n"},
+            gitignore="ignored.log\n",
+        )
+        scope = grd.resolve_scope(root)
+        self.assertIn("src/app.py", scope)
+        self.assertIn("README.md", scope)
+        self.assertNotIn(".env", scope, "secret denylist must drop .env even if committed")
+        self.assertNotIn("ignored.log", scope, ".gitignore'd file must be out of scope")
+
+    def test_scope_confines_symlink_escape(self):
+        root = _git_repo({"keep.py": "x=1\n"})
+        outside = tempfile.mkdtemp(prefix="grd-out-")
+        with open(os.path.join(outside, "secret.txt"), "w") as fh:
+            fh.write("oops\n")
+        os.symlink(os.path.join(outside, "secret.txt"), os.path.join(root, "escape.txt"))
+        scope = grd.resolve_scope(root)
+        self.assertIn("keep.py", scope)
+        self.assertNotIn("escape.txt", scope, "a symlink resolving outside the root must be dropped")
+
+    def test_scope_walk_fallback_for_non_git_dir(self):
+        root = tempfile.mkdtemp(prefix="grd-nogit-")
+        os.makedirs(os.path.join(root, "pkg"))
+        with open(os.path.join(root, "pkg", "a.py"), "w") as fh:
+            fh.write("x=1\n")
+        with open(os.path.join(root, ".env"), "w") as fh:
+            fh.write("K=v\n")
+        scope = grd.resolve_scope(root)
+        self.assertIn("pkg/a.py", scope)
+        self.assertNotIn(".env", scope, "denylist applies in the non-git walk fallback too")
+
+    def test_scope_include_exclude_globs(self):
+        root = _git_repo({"a.py": "1\n", "b.py": "2\n", "test_a.py": "3\n", "notes.md": "x\n"})
+        only_py = grd.resolve_scope(root, include=["*.py"])
+        self.assertEqual(set(only_py), {"a.py", "b.py", "test_a.py"})
+        no_tests = grd.resolve_scope(root, include=["*.py"], exclude=["test_*"])
+        self.assertEqual(set(no_tests), {"a.py", "b.py"})
+
+    def test_scan_secrets_surfaces_without_echoing(self):
+        root = _git_repo({"cfg.py": "AWS = 'AKIAABCDEFGHIJKLMNOP'\n", "ok.py": "x=1\n"})
+        scope = grd.resolve_scope(root)
+        hits = grd.scan_secrets(root, scope)
+        self.assertTrue(any(rel == "cfg.py" for rel, _ in hits))
+        self.assertFalse(any(rel == "ok.py" for rel, _ in hits))
+        for _, label in hits:
+            self.assertNotIn("AKIAABCDEFGHIJKLMNOP", label, "the full secret must never be echoed")
+
+    def test_manifest_hash_stable_and_content_sensitive(self):
+        root = _git_repo({"a.py": "1\n", "b.py": "2\n"})
+        scope = grd.resolve_scope(root)
+        m1 = grd.build_scope_manifest(root, scope)
+        self.assertEqual(m1["n_files"], 2)
+        self.assertEqual(m1["scope_hash"], grd.build_scope_manifest(root, scope)["scope_hash"])
+        with open(os.path.join(root, "a.py"), "w") as fh:
+            fh.write("999\n")
+        self.assertNotEqual(m1["scope_hash"], grd.build_scope_manifest(root, scope)["scope_hash"])
+
+    def test_snapshot_is_readonly_excludes_and_cleans_up(self):
+        root = _git_repo({"src/app.py": "x=1\n", ".env": "K=v\n"})
+        scope = grd.resolve_scope(root)
+        snap = grd.snapshot_scope(root, scope)
+        try:
+            self.assertTrue(os.path.isfile(os.path.join(snap, "src", "app.py")))
+            self.assertFalse(os.path.exists(os.path.join(snap, ".env")),
+                             "snapshot must contain only in-scope files")
+            mode = _stat.S_IMODE(os.stat(os.path.join(snap, "src", "app.py")).st_mode)
+            self.assertEqual(mode, 0o444, "snapshot files must be read-only")
+        finally:
+            grd.cleanup_snapshot(snap)
+        self.assertFalse(os.path.exists(snap), "cleanup must remove the read-only snapshot")
+
+
+class TestRepoGroundingConfig(unittest.TestCase):
+    """P1 — --repo / --repo-include / --repo-exclude flow into RunConfig."""
+
+    def test_config_captures_repo_fields(self):
+        root = tempfile.mkdtemp(prefix="grd-cfg-")
+        src = os.path.join(root, "q.md")
+        with open(src, "w") as fh:
+            fh.write("review\n")
+        cfg = resolve_config(_run_args(source=src, repo=root,
+                                       repo_include=["*.py"], repo_exclude=["test_*"]))
+        self.assertEqual(cfg.repo, os.path.abspath(root))
+        self.assertEqual(cfg.repo_include, ["*.py"])
+        self.assertEqual(cfg.repo_exclude, ["test_*"])
+        self.assertTrue(cfg.grounded)
+
+    def test_config_ungrounded_by_default(self):
+        root = tempfile.mkdtemp(prefix="grd-cfg2-")
+        src = os.path.join(root, "q.md")
+        with open(src, "w") as fh:
+            fh.write("review\n")
+        cfg = resolve_config(_run_args(source=src))
+        self.assertIsNone(cfg.repo)
+        self.assertFalse(cfg.grounded)
+
+    def test_config_rejects_nonexistent_repo(self):
+        root = tempfile.mkdtemp(prefix="grd-cfg3-")
+        src = os.path.join(root, "q.md")
+        with open(src, "w") as fh:
+            fh.write("review\n")
+        with self.assertRaises(SystemExit):
+            resolve_config(_run_args(source=src, repo="/no/such/dir/xyzzy"))
+
+
+class TestRepoGroundingHardening(unittest.TestCase):
+    """P1 review fixes — TOCTOU, traversal, scan coverage, recipe round-trip."""
+
+    def test_snapshot_drops_swapped_symlink_toctou(self):
+        # clean at resolve time, then swapped for a symlink-out before snapshot copies it
+        root = _git_repo({"app.py": "x=1\n"})
+        scope = grd.resolve_scope(root)
+        self.assertIn("app.py", scope)
+        outside = tempfile.mkdtemp(prefix="grd-leak-")
+        leak = os.path.join(outside, "key")
+        with open(leak, "w") as fh:
+            fh.write("-----BEGIN OPENSSH PRIVATE KEY-----\nLEAKED\n")
+        os.remove(os.path.join(root, "app.py"))
+        os.symlink(leak, os.path.join(root, "app.py"))
+        snap = grd.snapshot_scope(root, scope)
+        try:
+            self.assertFalse(
+                os.path.exists(os.path.join(snap, "app.py")),
+                "a file swapped to a symlink-out must be dropped at copy time, not dereferenced",
+            )
+        finally:
+            grd.cleanup_snapshot(snap)
+
+    def test_snapshot_rejects_dotdot_rel(self):
+        root = _git_repo({"a.py": "1\n"})
+        # isolated parent so the assertion can't be confused by a stray $TMPDIR file
+        sandbox = tempfile.mkdtemp(prefix="grd-sandbox-")
+        dest = os.path.join(sandbox, "snap")
+        os.makedirs(dest)
+        grd.snapshot_scope(root, ["../escaped.py", "a.py"], dest=dest)
+        self.assertFalse(
+            os.path.exists(os.path.join(sandbox, "escaped.py")),
+            "a '..' rel must not write outside the snapshot dir",
+        )
+        self.assertTrue(os.path.isfile(os.path.join(dest, "a.py")))
+        grd.cleanup_snapshot(sandbox)
+
+    def test_scan_secrets_marks_unscanned_large_file(self):
+        big = "x\n" * 600_000  # ~1.2 MB
+        root = _git_repo({"big.log": big + "AKIAIOSFODNN7EXAMPLE\n", "ok.py": "x=1\n"})
+        hits = dict(grd.scan_secrets(root, grd.resolve_scope(root)))
+        self.assertIn("big.log", hits, "an oversized in-scope file must not be silently 'clean'")
+        self.assertIn("unscanned", hits["big.log"].lower())
+
+    def test_scan_secrets_catches_modern_token_shapes(self):
+        root = _git_repo({"a.py": "T = 'github_pat_" + "A" * 60 + "'\n", "b.py": "x=1\n"})
+        hits = dict(grd.scan_secrets(root, grd.resolve_scope(root)))
+        self.assertIn("a.py", hits)
+        self.assertNotIn("b.py", hits)
+
+    def test_recipe_roundtrips_repo_fields(self):
+        from _conductor import recipe as rcp
+        root = tempfile.mkdtemp(prefix="grd-rt-")
+        src = os.path.join(root, "q.md")
+        with open(src, "w") as fh:
+            fh.write("review\n")
+        cfg = resolve_config(_run_args(source=src, repo=root,
+                                       repo_include=["*.py"], repo_exclude=["t_*"]))
+        rec = rcp.config_to_recipe(cfg)
+        self.assertEqual(rec["repo"], os.path.abspath(root))
+        self.assertEqual(rec["repo_include"], ["*.py"])
+        self.assertEqual(rec["repo_exclude"], ["t_*"])
+        rcp.validate_recipe(rec)  # must not raise
+        # an ungrounded config must NOT add a repo key (ungrounded recipes stay byte-identical)
+        cfg2 = resolve_config(_run_args(source=src))
+        self.assertNotIn("repo", rcp.config_to_recipe(cfg2))
 
 
 if __name__ == "__main__":
