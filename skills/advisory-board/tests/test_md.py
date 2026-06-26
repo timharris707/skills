@@ -82,6 +82,56 @@ class Blocks(unittest.TestCase):
         self.assertEqual(out, "<p>para one</p>\n<p>para two</p>")
 
 
+class NestedLists(unittest.TestCase):
+    """Indented sub-bullets/steps must nest INSIDE their parent <li> so the rendered
+    handoff indents them under the parent (the artifact-formatting bug: a deeper run of
+    items was emitted as a flat sibling list at the left margin)."""
+
+    def test_indented_bullets_nest_inside_parent_item(self):
+        # a numbered step with three indented sub-bullets, as models actually emit
+        src = ("1. First step\n"
+               "2. Second step:\n"
+               "    - sub a\n"
+               "    - sub b\n"
+               "3. Third step")
+        out = md_to_html(src)
+        # ONE ordered list (not split by the sub-bullets), with a child <ul> nested
+        # inside the second <li> — never a sibling list after a closed </ol>.
+        self.assertEqual(out.count("<ol>"), 1)
+        self.assertEqual(out.count("</ol>"), 1)
+        self.assertIn("Second step:<ul><li>sub a</li><li>sub b</li></ul></li>", out)
+        # numbering is NOT broken: no spurious start= reset for the resumed top level
+        self.assertNotIn("start=", out)
+
+    def test_nested_list_keeps_a_single_outer_list(self):
+        # the exact shape from the real run (gemini round-1): the nested <ul> closes
+        # inside the parent <li>, so '</ul></li>' appears and the <ol> stays whole.
+        src = ("1. a\n2. b:\n    * x\n    * y\n3. c")
+        out = md_to_html(src)
+        self.assertIn("</ul></li>", out)
+        self.assertEqual(out.count("<ol"), 1)
+
+    def test_unordered_nesting(self):
+        src = ("- top one\n- top two\n  - child of two\n- top three")
+        out = md_to_html(src)
+        self.assertIn("top two<ul><li>child of two</li></ul></li>", out)
+        # exactly one nested <ul> inside an <li>; the outer list is still one <ul>
+        self.assertEqual(out.count("<li>top three</li>"), 1)
+
+    def test_same_level_marker_switch_stays_a_sibling_list(self):
+        # an OL followed by a UL at the SAME indent must remain two sibling lists
+        # (unchanged behavior), not get nested into the last item.
+        out = md_to_html("1. one\n2. two\n- bullet\n- bullet2")
+        self.assertNotIn("two<ul>", out)
+        self.assertIn("</ol>", out)
+        self.assertIn("<ul><li>bullet</li>", out)
+
+    def test_deep_three_levels(self):
+        src = ("- a\n  - b\n    - c")
+        out = md_to_html(src)
+        self.assertIn("a<ul><li>b<ul><li>c</li></ul></li></ul></li>", out)
+
+
 class Robustness(unittest.TestCase):
     def test_empty(self):
         self.assertEqual(md_to_html(""), "")

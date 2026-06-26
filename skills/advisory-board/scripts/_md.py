@@ -8,9 +8,10 @@ the data author to hand-build HTML — the fragile step that previously left lit
 `##` and `**` in the published artifact.
 
 Scope is deliberately the subset models actually produce in a review: ATX headings,
-bold/italic, inline code, fenced code, ordered/unordered lists, blockquotes, links,
-and blank-line-separated paragraphs. Not a CommonMark engine; no nested lists, no
-tables, no reference links. Standard library only.
+bold/italic, inline code, fenced code, ordered/unordered lists (including indented
+sub-lists, which nest inside their parent <li> so the handoff indents them under the
+parent), blockquotes, links, and blank-line-separated paragraphs. Not a CommonMark
+engine; no tables, no reference links. Standard library only.
 
 Safety: all text is HTML-escaped BEFORE markup tags are inserted, so a review that
 contains `<script>` or `&` renders as literal text, never live HTML. Inline code is
@@ -38,6 +39,10 @@ _UL_ITEM = re.compile(r"^\s*[-*+]\s+")
 # unbounded run would feed int() a 4300+-digit string (Python's int-from-str limit) and
 # raise — a pathological line just falls through to a paragraph instead.
 _OL_ITEM = re.compile(r"^\s*(\d{1,9})[.)]\s+")
+# Indentation-capturing variants used by the nesting walker: group 1 is the leading
+# whitespace (its visual width keys nesting depth), group 2 the ordered number (ul: none).
+_UL_INDENT = re.compile(r"^([ \t]*)[-*+]\s+")
+_OL_INDENT = re.compile(r"^([ \t]*)(\d{1,9})[.)]\s+")
 # Link schemes that are safe in an href. Anything else (javascript:, data:, vbscript:,
 # protocol-relative //host, …) collapses to '#' so a review cannot plant a
 # code-execution or off-site-phishing link. A single leading '/' (site-relative) is
@@ -97,27 +102,76 @@ def _inline(text: str) -> str:
     return text
 
 
-def _emit_list(lines, i, n, item_re, tag, out):
-    """Collect a (possibly loose) list of one type into a single <ul>/<ol>, absorbing
-    a single blank line between items so blank-separated points render as ONE list
-    with correct numbering — and return the index past the list. For an ordered list
-    the first item's number becomes `start=`, so a list that begins at N (or a lone
-    "N. ..." line) never silently loses its number."""
+def _indent_width(ws: str) -> int:
+    """Visual width of a list item's leading whitespace, so a tab and a run of spaces
+    compare sensibly when deciding nesting depth (tab = next multiple of 4)."""
+    width = 0
+    for ch in ws:
+        width = width + (4 - width % 4) if ch == "\t" else width + 1
+    return width
+
+
+def _list_item(line: str):
+    """If `line` is a list item, return (indent_width, tag, number, body); else None.
+    `tag` is 'ul'/'ol'; `number` is the ordered start (or None); `body` is the text
+    after the marker, with the marker and its indentation removed."""
+    m = _OL_INDENT.match(line)
+    if m:
+        return _indent_width(m.group(1)), "ol", int(m.group(2)), line[m.end():].strip()
+    m = _UL_INDENT.match(line)
+    if m:
+        return _indent_width(m.group(1)), "ul", None, line[m.end():].strip()
+    return None
+
+
+def _emit_list(lines, i, n, out, base_indent=None):
+    """Render a (possibly nested, possibly loose) Markdown list to nested <ul>/<ol>,
+    returning the index past it.
+
+    A deeper-indented run of items becomes a child list spliced INSIDE the preceding
+    <li> (so sub-bullets visibly sit under their parent, not at the left margin); a
+    same-indent marker switch (e.g. `1.` then `-`) ends this list and lets the caller
+    start a sibling one, matching the prior flat behavior at a single level. A single
+    blank line between two items of this list is absorbed so blank-separated points
+    stay ONE list with correct numbering. The first ordered item's number becomes
+    `start=`, so a list beginning at N (or a lone "N. ..." line) keeps its number."""
+    first = _list_item(lines[i])
+    indent, tag, start = first[0], first[1], first[2]
+    if base_indent is None:
+        base_indent = indent
     items: list = []
-    start = None
     while i < n:
-        m = item_re.match(lines[i])
-        if m:
-            if tag == "ol" and start is None:
-                start = int(m.group(1))
-            items.append(item_re.sub("", lines[i]).strip())
-            i += 1
-        elif lines[i].strip() == "" and i + 1 < n and item_re.match(lines[i + 1]):
-            i += 1   # blank line between two items of the same kind — stay in the list
-        else:
-            break
+        info = _list_item(lines[i])
+        if info is not None:
+            it_indent, it_tag, _, body = info
+            if it_indent < base_indent:
+                break                       # belongs to an outer list — let it close
+            if it_indent <= base_indent + 1:
+                if it_tag != tag:
+                    break                   # marker switched at this level -> sibling list
+                items.append([body, ""])    # [text, rendered-children]
+                i += 1
+                continue
+            # deeper indent -> a child list nested in the current item
+            if not items:
+                items.append(["", ""])      # defensive: a child with no parent line
+            child: list = []
+            i = _emit_list(lines, i, n, child, base_indent=it_indent)
+            items[-1][1] += "".join(child)
+            continue
+        if lines[i].strip() == "":
+            nxt = lines[i + 1] if i + 1 < n else ""
+            ni = _list_item(nxt)
+            if ni is not None and ni[0] >= base_indent:
+                i += 1                       # blank line within the list — stay in it
+                continue
+        break
     attr = f' start="{start}"' if (tag == "ol" and start not in (None, 1)) else ""
-    out.append(f"<{tag}{attr}>" + "".join(f"<li>{_inline(it)}</li>" for it in items) + f"</{tag}>")
+    out.append(
+        f"<{tag}{attr}>"
+        + "".join(f"<li>{_inline(text)}{children}</li>" for text, children in items)
+        + f"</{tag}>"
+    )
     return i
 
 
@@ -189,14 +243,9 @@ def md_to_html(text: str) -> str:
             out.append("<blockquote>" + _inline(" ".join(quoted).strip()) + "</blockquote>")
             continue
 
-        if _UL_ITEM.match(line):
+        if _UL_ITEM.match(line) or _OL_ITEM.match(line):
             flush_para()
-            i = _emit_list(lines, i, n, _UL_ITEM, "ul", out)
-            continue
-
-        if _OL_ITEM.match(line):
-            flush_para()
-            i = _emit_list(lines, i, n, _OL_ITEM, "ol", out)
+            i = _emit_list(lines, i, n, out)
             continue
 
         para.append(stripped)
