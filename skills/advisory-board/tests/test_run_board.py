@@ -3923,6 +3923,35 @@ class TestQuickVerdictShape(unittest.TestCase):
         self.assertNotIn("Board reviews — round by round", slim_html)
         self.assertIn("Board reviews — round by round", full_html)
 
+    def test_html_only_writes_no_stray_markdown(self):
+        # Rendering just the brief (--html, no -o) must NOT litter a default
+        # final-consensus.md — you get only the HTML you asked for.
+        d = tempfile.mkdtemp()
+        self.addCleanup(lambda: __import__("shutil").rmtree(d, ignore_errors=True))
+        vpath = os.path.join(d, "verdict.json")
+        with open(vpath, "w") as fh:
+            json.dump(self._caution(), fh)
+        slim = os.path.join(d, "quick-verdict.html")
+        with contextlib.redirect_stdout(io.StringIO()):
+            rv.main([vpath, "--html", slim, "--shape", "quick-verdict"])
+        self.assertTrue(os.path.exists(slim))
+        self.assertFalse(os.path.exists(os.path.join(d, "final-consensus.md")))
+
+    def test_markdown_is_default_deliverable_when_no_other_output(self):
+        # With no --html/--handoff-data and no -o, the Markdown still lands at the
+        # default path (the implicit default deliverable is preserved).
+        d = tempfile.mkdtemp()
+        self.addCleanup(lambda: __import__("shutil").rmtree(d, ignore_errors=True))
+        vpath = os.path.join(d, "verdict.json")
+        with open(vpath, "w") as fh:
+            json.dump(self._caution(), fh)
+        cwd = os.getcwd()
+        os.chdir(d)
+        self.addCleanup(lambda: os.chdir(cwd))
+        with contextlib.redirect_stdout(io.StringIO()):
+            rv.main([vpath])
+        self.assertTrue(os.path.exists(os.path.join(d, "final-consensus.md")))
+
     # --- brace safety ------------------------------------------------------- #
 
     def test_qv_brace_safe_blocker_title(self):
