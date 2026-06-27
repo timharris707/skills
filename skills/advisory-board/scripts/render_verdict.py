@@ -299,6 +299,11 @@ def build_handoff_data(data: dict, run_dir=None) -> dict:
     headline = f"{lead} · {_stance(data)}" if lead else f"{label} — {_stance(data)}"
     # An explicit verdict_note (authored) wins; else the plain lens note.
     verdict_note = data.get("verdict_note") or note
+    # Board confidence rides on the verdict banner as a pill (D11: confidence is prominent
+    # in every artifact tier, not just the Markdown verdict line). The raw token
+    # (high|medium|low) is preserved verbatim inside a plain "<level> confidence" string;
+    # empty when the board didn't track it, so the pill is dropped (render_handoff).
+    confidence = str(data.get("confidence") or "").strip()
     # The subtle, lens-aware professional-advice caveat (None for a software lens and
     # the absent-preset default). Empty string when absent so the template slot resolves
     # to nothing and the footer line is dropped.
@@ -325,6 +330,7 @@ def build_handoff_data(data: dict, run_dir=None) -> dict:
         "verdict": _plain(headline),
         "verdict_class": _VERDICT_CLASS.get(verdict, ""),
         "verdict_note": _raw(verdict_note) if verdict_note else "",
+        "confidence": _plain(f"{confidence} confidence") if confidence else "",
         # Lens-aware section header for the consensus must-resolve items.
         "blockers_heading": _plain(blockers_heading(lens_preset, "html")),
         "disclaimer": _raw(disclaimer) if disclaimer else "",

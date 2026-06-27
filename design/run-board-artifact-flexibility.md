@@ -99,6 +99,7 @@ status: todo
 - [ ] The brief and the record render blockers + minority dissent PROMINENTLY (D11) — never confined to the atlas/transcript, never smoothed away by the plain-language/reading-level layer (D2/D10).
 - [ ] Every serious artifact renders dropped/degraded seats visibly (from the per-seat `dropped` field) — a 3→2 board never renders as a clean unanimous board.
 Testing: golden renders of all core artifacts from one fixture. Golden assertion that dissent, blockers, and confidence are INVARIANT (D11) — the same minority report, blockers, and confidence string appear in the brief and the record across every audience and reading level, not merely present in one of them; and that the dropped seat in the ragged fixture surfaces in the brief and record bodies.
+  - PARTIAL (2026-06-27): the **confidence** half of this invariant has landed for the artifacts that exist today — the board confidence now renders as a verdict-banner pill in the HTML record (`build_handoff_data` → `references/handoff-template.html` `.vconf`), and `TestConfidenceIsProminentInEveryTier` (tests/test_run_board.py) pins it across lenses + the Markdown record + the short formats (tldr/pr/slack). The skim-brief / quick-verdict tier does NOT exist yet, so this box stays open: when that tier is built it MUST carry the same confidence/dissent/blockers golden assertion (the test note flags this).
 Gate: `python3 -m unittest discover -s tests -t tests`
 
 ### Phase 7 — Derived share formats (after the core)

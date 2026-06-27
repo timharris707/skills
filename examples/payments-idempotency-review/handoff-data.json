@@ -7,6 +7,7 @@
   "verdict": "DO NOT SHIP YET — unanimous",
   "verdict_class": "block",
   "verdict_note": "",
+  "confidence": "high confidence",
   "blockers_heading": "Consensus blockers — must fix before ship",
   "disclaimer": "",
   "plan": "Payments API idempotency keys",

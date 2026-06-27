@@ -50,6 +50,10 @@
                      unanimous"), or the board's authored decision verbatim.
   {{VERDICT_CLASS}}  One of: ship | caution | block  (colors the banner).
   {{VERDICT_NOTE}}   One-line explanation under the verdict headline.
+  {{CONFIDENCE}}     Board confidence in the call, e.g. "high confidence" — shown as a
+                     pill on the verdict-banner eyebrow row (D11: confidence is prominent
+                     in every tier). OPTIONAL: empty when confidence wasn't tracked, and
+                     the pill is dropped.
   {{BLOCKERS_HEADING}}  Consensus-section header, lens-aware: "Consensus blockers —
                      must fix before ship" (software) or "What to resolve first" (else).
   {{DISCLAIMER}}     OPTIONAL lens-aware professional-advice caveat (subtle footer
@@ -136,9 +140,21 @@
     border-radius: 12px; padding: 22px 24px; margin: 4px 0 32px;
     border: 1px solid transparent; border-left-width: 6px;
   }
+  .verdict .verdict-top {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; margin: 0 0 6px;
+  }
   .verdict .label {
     font-size: 12px; letter-spacing: 0.09em; text-transform: uppercase;
-    font-weight: 700; margin: 0 0 6px; opacity: 0.85;
+    font-weight: 700; margin: 0; opacity: 0.85;
+  }
+  /* Board confidence pill — inherits the banner's ink via currentColor so it reads
+     ship/caution/block alongside the verdict. */
+  .verdict .vconf {
+    flex: 0 0 auto; font-size: 11px; font-weight: 700;
+    letter-spacing: 0.06em; text-transform: uppercase;
+    border: 1px solid currentColor; border-radius: 999px;
+    padding: 2px 10px; opacity: 0.8; white-space: nowrap;
   }
   .verdict .headline { font-size: 23px; font-weight: 700; margin: 0; line-height: 1.25; }
   .verdict .note { margin: 10px 0 0; font-size: 15.5px; line-height: 1.55; }
@@ -345,7 +361,11 @@
   <!-- ===================== VERDICT BANNER ===================== -->
   <!-- {{VERDICT_CLASS}} = ship | caution | block  (controls color) -->
   <div class="verdict {{VERDICT_CLASS}}">
-    <p class="label">Final verdict</p>
+    <div class="verdict-top">
+      <p class="label">Final verdict</p>
+      <!-- OPTIONAL board-confidence pill (D11). Dropped when {{CONFIDENCE}} is empty. -->
+      <span class="vconf">{{CONFIDENCE}}</span>
+    </div>
     <p class="headline">{{VERDICT}}</p>
     <p class="note">{{VERDICT_NOTE}}</p>
   </div>

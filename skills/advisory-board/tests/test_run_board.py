@@ -3672,6 +3672,63 @@ class TestLensAwareFraming(unittest.TestCase):
         self.assertEqual(sw["blockers_heading"], "Consensus blockers — must fix before ship")
 
 
+class TestConfidenceIsProminentInEveryTier(unittest.TestCase):
+    """D11 invariant: the board's confidence renders PROMINENTLY in every artifact tier,
+    regardless of audience/lens, and is never smoothed away by the plain-language layer.
+
+    The verdict.json `confidence` was already surfaced in the Markdown verdict line, but
+    `build_handoff_data` used to drop it before the HTML — so the full-handoff *record*
+    showed no board-level confidence at all. These golden assertions pin it back in.
+
+    NOTE: the full handoff is currently the only rendered HTML tier. When a skim-brief /
+    quick-verdict tier is added, it MUST carry the same golden assertion — D11 line 101:
+    "the same minority report, blockers, and confidence string appear in the brief and
+    the record." The brief cannot satisfy that until the record does (here)."""
+
+    def _html(self, data):
+        import render_handoff as rh
+        with open(rh.default_template()) as fh:
+            template = fh.read()
+        return rh.render(rv.build_handoff_data(data), template)
+
+    def test_build_handoff_data_threads_confidence(self):
+        # The raw token (high|medium|low) is preserved verbatim inside a plain
+        # "<level> confidence" string — D11's machine token is not smoothed away.
+        for level in ("high", "medium", "low"):
+            hd = rv.build_handoff_data(_verdict("ship", "ship", "ship", confidence=level))
+            self.assertEqual(hd["confidence"], f"{level} confidence")
+
+    def test_full_handoff_html_shows_confidence_for_every_lens(self):
+        # The confidence string survives into the rendered record under a software, a
+        # non-software, a legal, and an absent lens — the invariant is audience-independent.
+        for lens in ("software-architecture", "business-decision", "legal-contract", None):
+            data = _verdict("caution", "caution", "caution", title="T",
+                            lens_preset=lens, confidence="medium")
+            html_out = self._html(data)
+            self.assertIn('class="vconf"', html_out)         # the prominent banner pill
+            self.assertIn("medium confidence", html_out)     # the human string
+
+    def test_confidence_string_is_invariant_across_tiers(self):
+        # D11 line 101: "the same … confidence string appear[s] in the brief and the
+        # record." The skim/quick-verdict tier doesn't exist yet, but the de-facto skim
+        # surfaces today are the short formats (tldr/pr/slack) — pin that they, the
+        # Markdown record, and the HTML record all carry the SAME "low confidence" string.
+        data = _verdict("block", "block", "block", confidence="low")
+        self.assertIn("(low confidence)", rv.render_markdown(data))   # Markdown record
+        self.assertIn("low confidence", self._html(data))             # HTML record (pill)
+        for short in (fo.as_tldr(data), fo.as_pr(data), fo.as_slack(data)):
+            self.assertIn("low confidence", short)                    # skim surfaces
+
+    def test_confidence_pill_dropped_when_untracked(self):
+        # A verdict.json with no confidence renders no empty pill (clean drop, not blank) —
+        # the eyebrow itself is untouched, preserving the software byte-for-byte path.
+        data = {"verdict": "ship", "title": "Legacy", "board": [{"seat": "Claude"}], "rounds": 1}
+        self.assertEqual(rv.build_handoff_data(data)["confidence"], "")
+        html_out = self._html(data)
+        self.assertNotIn('<span class="vconf">', html_out)
+        self.assertIn('<p class="label">Final verdict</p>', html_out)
+
+
 class TestM5ChainDelegation(EnvMixin):
     def _stage(self):
         d = tempfile.mkdtemp()

@@ -18,8 +18,8 @@ Standard library only; no third-party dependencies.
 handoff-data.json shape (keys mirror the template's {{TOKENS}}, lowercased):
 
   Top level (scalars):  title, subtitle, date, board, rounds, verdict,
-                        verdict_class, verdict_note, blockers_heading, disclaimer,
-                        plan, metadata, dissent_flag
+                        verdict_class, verdict_note, confidence, blockers_heading,
+                        disclaimer, plan, metadata, dissent_flag
   Lists of objects:     seats[], blockers[], dissents[], caveats[],
                         questions[], actions[]
     seats[]:   seat_name, seat_lens, seat_model, seat_status, seat_status_class,
@@ -85,6 +85,7 @@ def drop_empty_optionals(out: str) -> str:
     out = re.sub(r'\s*<span class="seat-status\s*">\s*</span>', "", out)
     out = re.sub(r'\s*<div class="highlight">\s*</div>', "", out)
     out = re.sub(r'\s*<span class="conf">confidence:\s*</span>', "", out)
+    out = re.sub(r'\s*<span class="vconf">\s*</span>', "", out)
     out = re.sub(r'\s*<span class="disclaimer">\s*</span>', "", out)
     return out
 
