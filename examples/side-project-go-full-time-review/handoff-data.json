@@ -1,14 +1,15 @@
 {
   "title": "Should I go full-time on my side project?",
-  "subtitle": "Rendered from the canonical verdict.json.",
+  "subtitle": "An independent multi-model review.",
   "date": "2026-06-26",
   "board": "Claude · Codex · Gemini",
   "rounds": "2",
   "verdict": "Proceed with care — unanimous",
   "verdict_class": "caution",
   "verdict_note": "Workable, but address the flagged concerns before you go ahead.",
+  "disclaimer": "An advisory board sharpens your judgment; it doesn&#x27;t replace professional advice where your decision warrants it.",
   "plan": "Should I go full-time on my side project?",
-  "metadata": "Rendered from <code>verdict.json</code> by <code>scripts/render_verdict.py</code>.",
+  "metadata": "Board: Claude · Codex · Gemini · 2 rounds · 2026-06-26",
   "dissent_flag": "Dissent on the record",
   "seats": [
     {

@@ -8,19 +8,36 @@
 <style>
   :root {
     --maxw: 820px;
-    --ink: #1c1d22;
-    --ink-soft: #4a4d57;
-    --ink-faint: #74777f;
-    --line: #e4e3dd;
-    --line-strong: #d2d1c9;
+    /* light "Boardroom" body */
+    --page: #faf8f3;
     --surface: #ffffff;
-    --page: #f6f5f1;
-    --surface-soft: #faf9f5;
-    --accent: #4f46b8;
-    /* verdict palettes */
-    --ship-bg: #e9f5ec;     --ship-edge: #2f7d46;   --ship-ink: #1d5e31;
-    --caution-bg: #fdf2dd;  --caution-edge: #b9791b; --caution-ink: #7a4d09;
-    --block-bg: #fbe9e9;    --block-edge: #b23535;  --block-ink: #7e1f1f;
+    --surface-soft: #faf7f0;
+    --vellum: #f3eee3;
+    --ink: #11192b;
+    --ink-soft: #3a4459;
+    --ink-faint: #6e768a;
+    --line: #e4ddce;
+    --line-strong: #d8cfb8;
+    /* brand accents (both themes) */
+    --accent: #2347ff;          /* cobalt — signature */
+    --accent-deep: #0f2bc2;
+    --accent-tint: #eaedff;
+    --gold: #a8843c;            /* secondary — the lead seat */
+    /* dark "Signal" bands */
+    --dark: #0a0e1a;
+    --dark-2: #111726;
+    --dark-line: #232b3e;
+    --on-dark: #fbfaf7;
+    --on-dark-soft: #b9c0d0;
+    --on-dark-faint: #8a93a8;
+    --accent-bright: #5b8cff;
+    --gold-bright: #e2b658;
+    /* verdict palettes (muted — counsel, not error toasts) */
+    --ship-bg: #e9f1ec;     --ship-edge: #2f6f57;   --ship-ink: #235540;
+    --caution-bg: #fbf1de;  --caution-edge: #b07a1e; --caution-ink: #7a5410;
+    --block-bg: #f7e9e9;    --block-edge: #9e3636;  --block-ink: #7a2525;
+    --font-sans: "Panely Grotesk","Söhne","Inter","Helvetica Neue",Helvetica,Arial,"Segoe UI",system-ui,sans-serif;
+    --font-mono: "Berkeley Mono","JetBrains Mono",ui-monospace,"Menlo","Consolas",monospace;
   }
   * { box-sizing: border-box; }
   html { -webkit-text-size-adjust: 100%; }
@@ -28,32 +45,36 @@
     margin: 0;
     background: var(--page);
     color: var(--ink);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-                 Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji", sans-serif;
+    font-family: var(--font-sans);
     font-size: 17px;
     line-height: 1.65;
   }
-  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 32px 20px 72px; }
 
-  /* ---- header ---- */
-  header.masthead { margin-bottom: 24px; }
-  .eyebrow {
-    font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase;
-    color: var(--ink-faint); font-weight: 600; margin: 0 0 8px;
-  }
-  h1 { font-size: 30px; line-height: 1.2; font-weight: 700; margin: 0 0 8px; letter-spacing: -0.01em; }
-  .subtitle { font-size: 17px; color: var(--ink-soft); margin: 0 0 18px; }
+  /* ---- dark masthead band ---- */
+  header.masthead { background: var(--dark); color: var(--on-dark); padding: 30px 20px 28px; }
+  .band-inner { max-width: var(--maxw); margin: 0 auto; }
+  .brand-lockup { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+  .brand-mark { width: 46px; height: 46px; border-radius: 11px; overflow: hidden; flex: 0 0 auto; }
+  .brand-mark svg { display: block; width: 100%; height: 100%; }
+  .brand-name { display: flex; flex-direction: column; line-height: 1.1; }
+  .brand-name .p { font-size: 18px; font-weight: 700; letter-spacing: -0.01em; color: var(--on-dark); }
+  .brand-name .ab { font-size: 10.5px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--accent-bright); margin-top: 4px; }
+  header.masthead h1 { font-size: 29px; line-height: 1.18; font-weight: 700; margin: 0 0 8px; letter-spacing: -0.01em; color: var(--on-dark); }
+  .subtitle { font-size: 16px; color: var(--on-dark-soft); margin: 0 0 18px; max-width: 60ch; }
   .meta-row { display: flex; flex-wrap: wrap; gap: 8px; }
   .chip {
     display: inline-flex; align-items: center; gap: 6px;
-    background: var(--surface); border: 1px solid var(--line-strong);
-    border-radius: 999px; padding: 5px 13px; font-size: 13.5px; color: var(--ink-soft);
+    background: rgba(255,255,255,0.05); border: 1px solid var(--dark-line);
+    border-radius: 999px; padding: 5px 13px; font-size: 13px; color: var(--on-dark-soft);
   }
-  .chip b { font-weight: 600; color: var(--ink); }
+  .chip b { font-weight: 600; color: var(--on-dark); }
+
+  /* ---- body column ---- */
+  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 30px 20px 56px; }
 
   /* ---- verdict banner ---- */
   .verdict {
-    border-radius: 14px; padding: 22px 24px; margin: 8px 0 32px;
+    border-radius: 12px; padding: 22px 24px; margin: 4px 0 32px;
     border: 1px solid transparent; border-left-width: 6px;
   }
   .verdict .label {
@@ -85,20 +106,20 @@
   /* ---- seat cards ---- */
   .seat {
     background: var(--surface); border: 1px solid var(--line-strong);
-    border-radius: 14px; padding: 20px 22px; margin: 0 0 18px;
+    border-radius: 12px; padding: 20px 22px; margin: 0 0 18px;
   }
   .seat-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 12px; margin-bottom: 4px; }
   .seat-name { font-size: 19px; font-weight: 700; margin: 0; }
   .seat-lens {
     font-size: 12.5px; font-weight: 600; color: var(--accent);
-    background: #efeefb; border-radius: 999px; padding: 3px 11px;
+    background: var(--accent-tint); border-radius: 999px; padding: 3px 11px;
   }
-  .seat-model { font-size: 13px; color: var(--ink-faint); }
+  .seat-model { font-size: 13px; color: var(--ink-faint); font-family: var(--font-mono); }
   .seat-status {
     font-size: 11.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
     border-radius: 999px; padding: 3px 10px;
   }
-  .seat-status.ran      { background: #efeee8;           color: var(--ink-faint); }
+  .seat-status.ran      { background: var(--vellum);     color: var(--ink-faint); }
   .seat-status.degraded { background: var(--caution-bg); color: var(--caution-ink); }
   .seat-status.dropped  { background: var(--block-bg);   color: var(--block-ink); }
   .round { margin-top: 16px; padding-top: 16px; border-top: 1px dashed var(--line); }
@@ -136,14 +157,14 @@
   }
   .review-body pre code { background: none; border: 0; padding: 0; font-size: inherit; }
   code {
-    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
-    font-size: 0.86em; background: #f0efe9; border: 1px solid var(--line);
+    font-family: var(--font-mono);
+    font-size: 0.86em; background: var(--vellum); border: 1px solid var(--line);
     border-radius: 5px; padding: 1px 5px;
   }
 
   /* highlight callout (e.g. a seat that changed its verdict) */
   .highlight {
-    background: #fff8e8; border: 1px solid #ecd9a3; border-radius: 10px;
+    background: #fff6e3; border: 1px solid #ecd9a3; border-radius: 10px;
     padding: 12px 16px; margin: 14px 0 0; font-size: 14.5px; color: #6f5212;
   }
   .highlight b { color: #5a4209; }
@@ -199,47 +220,68 @@
   .actions ol { margin: 0; padding-left: 20px; }
   .actions li { margin: 6px 0; }
 
-  /* ---- footer ---- */
-  footer.meta {
-    margin-top: 40px; padding-top: 18px; border-top: 1px solid var(--line);
-    font-size: 13px; color: var(--ink-faint); line-height: 1.7;
+  /* ---- dark footer / colophon band ---- */
+  footer.colophon { background: var(--dark); color: var(--on-dark-soft); padding: 26px 20px 32px; }
+  footer.colophon .disclaimer {
+    display: block; margin: 0 0 16px; font-style: italic;
+    color: var(--on-dark-faint); font-size: 13.5px;
   }
-  footer.meta code { background: #efeee8; }
-  footer.meta .prov { display: block; margin-top: 6px; }
+  .colophon-grid { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; justify-content: space-between; }
+  .colophon-about { flex: 1 1 320px; }
+  .footer-lockup { display: flex; align-items: center; gap: 9px; font-weight: 700; color: var(--on-dark); font-size: 14px; margin-bottom: 9px; }
+  .footer-lockup svg { width: 26px; height: 26px; display: block; }
+  .colophon-about p { margin: 0; font-size: 13.5px; line-height: 1.6; color: var(--on-dark-soft); max-width: 54ch; }
+  .colophon-cta { flex: 0 0 auto; }
+  .cta {
+    display: inline-block; background: var(--accent); color: #ffffff;
+    font-weight: 600; font-size: 14.5px; text-decoration: none;
+    padding: 10px 20px; border-radius: 9px;
+  }
+  .cta::after { content: " →"; }
+  footer.colophon .prov { display: block; margin-top: 12px; font-size: 11.5px; color: var(--on-dark-faint); font-family: var(--font-mono); }
 
   /* ---- responsive ---- */
   @media (max-width: 560px) {
     body { font-size: 16px; }
-    .wrap { padding: 22px 15px 56px; }
-    h1 { font-size: 25px; }
+    .wrap { padding: 22px 15px 44px; }
+    header.masthead, footer.colophon { padding-left: 15px; padding-right: 15px; }
+    header.masthead h1 { font-size: 25px; }
     .verdict .headline { font-size: 20px; }
     .seat, ol.blockers > li { padding-left: 16px; padding-right: 16px; }
     ol.blockers > li { padding-left: 50px; }
+    .colophon-cta { width: 100%; }
   }
 
   /* ---- print / PDF (Print -> Save as PDF) ---- */
   @media print {
     body { background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    .wrap { max-width: none; padding: 8px 0 0; }
+    header.masthead, footer.colophon { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .wrap { max-width: none; }
     .verdict, .plan, .seat, .round, ol.blockers > li, .dissent, .actions { break-inside: avoid; }
     a { color: inherit; text-decoration: none; }
   }
 </style>
 </head>
 <body>
-<div class="wrap">
 
-  <!-- ===================== HEADER ===================== -->
+  <!-- ===================== MASTHEAD (Panely / dark band) ===================== -->
   <header class="masthead">
-    <p class="eyebrow">Advisory Board · Multi-model review</p>
-    <h1>Payments API idempotency keys</h1>
-    <p class="subtitle">Rendered from the canonical verdict.json.</p>
-    <div class="meta-row">
-      <span class="chip"><b>Date</b> 2026-06-25</span>
-      <span class="chip"><b>Rounds</b> 2</span>
-      <span class="chip"><b>Board</b> Claude · Codex · Gemini</span>
+    <div class="band-inner">
+      <div class="brand-lockup">
+        <span class="brand-mark"><svg viewBox="0 0 1000 1000" xmlns="http://www.w3.org/2000/svg"><defs><radialGradient id="bg" cx="50%" cy="38%" r="74%"><stop offset="0%" stop-color="#122046"/><stop offset="55%" stop-color="#0a1024"/><stop offset="100%" stop-color="#05070f"/></radialGradient><radialGradient id="vig" cx="50%" cy="50%" r="62%"><stop offset="60%" stop-color="#000000" stop-opacity="0"/><stop offset="100%" stop-color="#000000" stop-opacity="0.5"/></radialGradient><linearGradient id="cobalt" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#a9c2ff"/><stop offset="52%" stop-color="#5b8cff"/><stop offset="100%" stop-color="#2347ff"/></linearGradient><linearGradient id="gold" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#ffe6a3"/><stop offset="55%" stop-color="#e2b658"/><stop offset="100%" stop-color="#b9842e"/></linearGradient><radialGradient id="core" cx="50%" cy="42%" r="62%"><stop offset="0%" stop-color="#ffffff"/><stop offset="34%" stop-color="#dbe6ff"/><stop offset="70%" stop-color="#6f93ff"/><stop offset="100%" stop-color="#2347ff"/></radialGradient><radialGradient id="spark" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#eaf1ff"/><stop offset="100%" stop-color="#5b8cff"/></radialGradient><filter id="gM" x="-180%" y="-180%" width="460%" height="460%"><feGaussianBlur stdDeviation="14"/></filter><filter id="gL" x="-220%" y="-220%" width="540%" height="540%"><feGaussianBlur stdDeviation="32"/></filter></defs><rect width="1000" height="1000" fill="#05070f"/><rect width="1000" height="1000" fill="url(#bg)"/><circle cx="500" cy="500" r="220" fill="#3a5fff" opacity="0.12" filter="url(#gL)"/><circle cx="500" cy="500" r="312" fill="none" stroke="url(#cobalt)" stroke-width="3" opacity="0.7"/><circle cx="500" cy="500" r="210" fill="none" stroke="#4f7bff" stroke-width="2" opacity="0.32"/><circle cx="500" cy="500" r="120" fill="none" stroke="#4f7bff" stroke-width="2" opacity="0.22"/><g stroke="#4f7bff" stroke-width="2"><line x1="830" y1="500" x2="850" y2="500" opacity="0.4"/><line x1="500" y1="830" x2="500" y2="850" opacity="0.4"/><line x1="170" y1="500" x2="150" y2="500" opacity="0.4"/><line x1="500" y1="170" x2="500" y2="150" opacity="0.4"/><line x1="733.3" y1="733.3" x2="743.2" y2="743.2" opacity="0.16"/><line x1="266.7" y1="733.3" x2="256.8" y2="743.2" opacity="0.16"/><line x1="266.7" y1="266.7" x2="256.8" y2="256.8" opacity="0.16"/><line x1="733.3" y1="266.7" x2="743.2" y2="256.8" opacity="0.16"/></g><line x1="500" y1="250" x2="500" y2="188" stroke="#f7b500" stroke-width="3" opacity="0.45"/><circle cx="500" cy="188" r="46" fill="#e2b658" opacity="0.30" filter="url(#gM)"/><circle cx="500" cy="188" r="34" fill="#0a1430" stroke="url(#gold)" stroke-width="5"/><circle cx="500" cy="188" r="15" fill="url(#gold)"/><circle cx="770.2" cy="344" r="46" fill="#2f54e6" opacity="0.30" filter="url(#gM)"/><circle cx="770.2" cy="344" r="34" fill="#0a1430" stroke="url(#cobalt)" stroke-width="5"/><circle cx="770.2" cy="344" r="15" fill="url(#spark)"/><circle cx="770.2" cy="656" r="46" fill="#2f54e6" opacity="0.30" filter="url(#gM)"/><circle cx="770.2" cy="656" r="34" fill="#0a1430" stroke="url(#cobalt)" stroke-width="5"/><circle cx="770.2" cy="656" r="15" fill="url(#spark)"/><circle cx="500" cy="812" r="46" fill="#2f54e6" opacity="0.30" filter="url(#gM)"/><circle cx="500" cy="812" r="34" fill="#0a1430" stroke="url(#cobalt)" stroke-width="5"/><circle cx="500" cy="812" r="15" fill="url(#spark)"/><circle cx="229.8" cy="656" r="46" fill="#2f54e6" opacity="0.30" filter="url(#gM)"/><circle cx="229.8" cy="656" r="34" fill="#0a1430" stroke="url(#cobalt)" stroke-width="5"/><circle cx="229.8" cy="656" r="15" fill="url(#spark)"/><circle cx="229.8" cy="344" r="46" fill="#2f54e6" opacity="0.30" filter="url(#gM)"/><circle cx="229.8" cy="344" r="34" fill="#0a1430" stroke="url(#cobalt)" stroke-width="5"/><circle cx="229.8" cy="344" r="15" fill="url(#spark)"/><circle cx="500" cy="500" r="74" fill="none" stroke="#4f7bff" stroke-width="2" opacity="0.5"/><circle cx="500" cy="500" r="144" fill="#3a5fff" opacity="0.16" filter="url(#gL)"/><circle cx="500" cy="500" r="77" fill="url(#core)" opacity="0.5" filter="url(#gM)"/><circle cx="500" cy="500" r="48" fill="url(#core)" stroke="#ffffff" stroke-width="3"/><circle cx="500" cy="489" r="13" fill="#ffffff" opacity="0.92"/><rect width="1000" height="1000" fill="url(#vig)"/></svg></span>
+        <span class="brand-name"><span class="p">Advisory Board</span><span class="ab" style="text-transform:none; letter-spacing:0.03em; font-weight:600; margin-top:3px;">powered by Panely</span></span>
+      </div>
+      <h1>Payments API idempotency keys</h1>
+      <p class="subtitle">An independent multi-model review.</p>
+      <div class="meta-row">
+        <span class="chip"><b>Date</b> 2026-06-25</span>
+        <span class="chip"><b>Rounds</b> 2</span>
+        <span class="chip"><b>Board</b> Claude · Codex · Gemini</span>
+      </div>
     </div>
   </header>
+
+  <main class="wrap">
 
   <!-- ===================== VERDICT BANNER ===================== -->
   
@@ -251,7 +293,7 @@
 
   <!-- ===================== PLAN UNDER REVIEW ===================== -->
   <section>
-    <h2>Plan under review</h2>
+    <h2>What was reviewed</h2>
     <div class="plan">
       Payments API idempotency keys
     </div>
@@ -287,7 +329,7 @@
 <p>The intent is correct and the storage primitive (keyed response cache with TTL) is industry-standard. But as written the design does not actually guarantee idempotency on the money path: it has an unhandled concurrency window, no key→payload binding, no per-client scoping, and relies on a non-durable store as the source of truth. Each of these can produce a double charge or a cross-tenant data leak — the exact failures the feature exists to prevent.</p>
 <p><strong>What would change the verdict to APPROVE:</strong> a revised design that (a) atomically <em>reserves</em> the key before processing, (b) binds the key to a request fingerprint, (c) scopes keys per account/API credential, (d) treats a durable store (not Redis alone) as the system of record, (e) defines partial-failure and Redis-down behavior, and (f) replaces the big-bang rollout with a staged one.</p>
 <p class="r-title">2. Strongest objections</p>
-<p><strong>A. Concurrency window → double charge (critical).</strong> "stores the key-to-response mapping in Redis ... on a duplicate key it returns the cached response." This only protects against duplicates that arrive <em>after</em> the first request completes and writes its response. Two requests with the same key arriving concurrently (the common retry-storm / double-click / client-timeout-and-retry case) both miss the cache, both execute the charge. The plan has no reservation/lock step. You must atomically claim the key <em>before</em> doing the work (e.g. <code>SET key  NX</code>), and the loser must block-and-poll or return <code>409 Conflict</code>.</p>
+<p><strong>A. Concurrency window → double charge (critical).</strong> "stores the key-to-response mapping in Redis ... on a duplicate key it returns the cached response." This only protects against duplicates that arrive <em>after</em> the first request completes and writes its response. Two requests with the same key arriving concurrently (the common retry-storm / double-click / client-timeout-and-retry case) both miss the cache, both execute the charge. The plan has no reservation/lock step. You must atomically claim the key <em>before</em> doing the work (e.g. <code>SET key &lt;in-flight&gt; NX</code>), and the loser must block-and-poll or return <code>409 Conflict</code>.</p>
 <p><strong>B. No key→request binding (critical).</strong> Nothing stops a client from reusing a key with a <em>different</em> body (different amount, currency, recipient). The current rule "return the cached response" would silently swallow the second, semantically-different charge — or, depending on implementation, return a response for the wrong operation. The record must store a hash of the canonical request; a same-key/different-payload request must be rejected (<code>422</code>/<code>409</code>), not served from cache.</p>
 <p><strong>C. Keys not scoped per client → cross-tenant leak (critical).</strong> Keys are client-supplied strings. "enable it for all clients at once" with a single shared keyspace means Client B sending a key Client A already used gets Client A's cached charge response back — another tenant's data, and confusion about whether a charge occurred. Keys must be namespaced by account / API credential: the lookup key is <code>(account_id, idempotency_key)</code>, never the raw header.</p>
 <p><strong>D. Redis as system of record for money (high).</strong> Redis is not durable by default. Failover, restart without AOF, or <code>maxmemory</code> eviction can drop idempotency records early — after which a retry re-charges. For a payments correctness guarantee, the durable store (your transactional DB) should be the source of truth; Redis, if used, is a fast-path cache in front of it. At minimum: AOF on, replication, and an eviction policy that cannot evict these keys.</p>
@@ -295,7 +337,7 @@
 <p><strong>F. Caching of failures (medium).</strong> "returns the cached response" — does this include errors? Caching a transient <code>500</code> pins every retry to that <code>500</code> forever, even if the charge state is actually unknown or recoverable. You must distinguish <em>completed</em> (cache and replay) from <em>in-flight</em> and <em>failed-indeterminate</em> (do not cache a terminal failure; allow re-processing with the same key).</p>
 <p><strong>G. Big-bang rollout on the money path (medium).</strong> "enable it for all clients at once next sprint." A correctness-critical change to the charge path should ship staged: shadow/dual-write, then canary, then percentage ramp, watching double-charge and conflict metrics — not flipped globally in one step.</p>
 <p class="r-title">3. Recommended execution sequence</p>
-<ol><li><strong>Specify the contract first</strong> (write it down before code): key scope = <code>(account_id, key)</code>; max key length and charset; retention window = 24h and what expiry <em>means</em> to clients; behavior for same-key/different-payload; behavior when Redis is unavailable (fail-open vs fail-closed); which response statuses are cached.</li><li><strong>Schema</strong>: durable idempotency record <code>{​​account_id, key, request_fingerprint, status(in_flight|completed|failed), response_blob, created_at, expires_at}</code> with a unique constraint on <code>(account_id, key)</code>.</li><li><strong>Reserve-then-process</strong>: atomic insert/<code>SETNX</code> of an <code>in_flight</code> record <em>before</em> charging; lose → poll/return 409. This is the core correctness step.</li><li><strong>Propagate the key downstream</strong> to the payment processor so money movement is itself idempotent.</li><li><strong>Finalize</strong>: write <code>completed</code> + response transactionally with (or immediately tied to) the charge result; on indeterminate failure leave it retryable.</li><li><strong>Observability</strong>: metrics for hit rate, in-flight conflicts, fingerprint-mismatch rejections, and a reconciliation job that detects duplicate charges per key.</li><li><strong>Rollout</strong>: shadow → canary → ramp, with a kill switch.</li></ol>
+<ol><li><strong>Specify the contract first</strong> (write it down before code): key scope = <code>(account_id, key)</code>; max key length and charset; retention window = 24h and what expiry <em>means</em> to clients; behavior for same-key/different-payload; behavior when Redis is unavailable (fail-open vs fail-closed); which response statuses are cached.</li><li><strong>Schema</strong>: durable idempotency record <code>{​account_id, key, request_fingerprint, status(in_flight|completed|failed), response_blob, created_at, expires_at}</code> with a unique constraint on <code>(account_id, key)</code>.</li><li><strong>Reserve-then-process</strong>: atomic insert/<code>SETNX</code> of an <code>in_flight</code> record <em>before</em> charging; lose → poll/return 409. This is the core correctness step.</li><li><strong>Propagate the key downstream</strong> to the payment processor so money movement is itself idempotent.</li><li><strong>Finalize</strong>: write <code>completed</code> + response transactionally with (or immediately tied to) the charge result; on indeterminate failure leave it retryable.</li><li><strong>Observability</strong>: metrics for hit rate, in-flight conflicts, fingerprint-mismatch rejections, and a reconciliation job that detects duplicate charges per key.</li><li><strong>Rollout</strong>: shadow → canary → ramp, with a kill switch.</li></ol>
 <p>Note steps 3–5 are the load-bearing ones; the original plan effectively jumps to a simplified version of step 5 only.</p>
 <p class="r-title">4. Invariants and guardrails</p>
 <ul><li><strong>I1 — Exactly-once effect:</strong> for a given <code>(account_id, key)</code> within the retention window, at most one charge side effect occurs.</li><li><strong>I2 — Stable mapping:</strong> a key maps to exactly one request fingerprint; a conflicting payload is rejected, never served stale.</li><li><strong>I3 — Concurrency safety:</strong> concurrent same-key requests → at most one executes the side effect; others wait or get a deterministic conflict.</li><li><strong>I4 — Tenant isolation:</strong> a cached response is only ever returned to the same account that created the key.</li><li><strong>I5 — Only deterministic outcomes are replayed:</strong> in-flight and indeterminate failures are never cached as terminal.</li><li><strong>I6 — Durability:</strong> an acknowledged charge implies a durable idempotency record (no record loss that re-opens the double-charge window).</li><li>Guardrails: input validation on key length/charset; explicit Redis-down policy; double-charge detector/alert; documented client-facing semantics for 409 and for expiry.</li></ul>
@@ -333,7 +375,7 @@
 <p>In priority order:</p>
 <ul><li><strong>A. Indeterminate downstream outcome (critical, under-addressed by all three seats).</strong> Processor timeout leaves the reservation <code>in_flight</code> with money state <em>unknown</em>. Required behavior: on the retry, query the processor by the propagated idempotency key and reconcile; never cache-replay a fabricated success, never blind-recharge. API-layer idempotency cannot deliver exactly-once unless the key reaches the money movement itself.</li><li><strong>B. Concurrency window → double charge (critical).</strong> No reserve-before-process step. Atomic claim (<code>INSERT ... ON CONFLICT</code> durable, or <code>SET NX</code>) before charging; loser blocks-and-polls for the original result, returning 409 <em>only</em> for payload mismatch (see C), not for an honest retry.</li><li><strong>C. No key→payload binding (critical).</strong> Same key + different body must be rejected (<code>422</code>/<code>409</code>), not served stale. Fingerprint over a <em>canonicalized</em> body (stable field ordering; exclude volatile fields like client timestamps).</li><li><strong>D. No per-tenant scoping → cross-tenant leak (critical).</strong> Lookup key is <code>(account_id, key)</code>, never the raw client-supplied header.</li><li><strong>E. Durability / source of truth (high).</strong> Redis alone is non-durable; failover/restart/eviction drops records and re-opens the double-charge window. Durable store is the system of record; Redis is the cache.</li><li><strong>F. Caching of failures (medium, with a nuance the seats split on).</strong> gemini says "never cache 5xx" — agreed for indeterminate/transient errors. But <em>do</em> cache deterministic, pre-side-effect terminal errors (e.g. a <code>422</code> validation failure), or retries of a malformed request slip through inconsistently. The discriminator is not the status class — it's whether the side-effect's terminal state is <em>known</em>.</li><li><strong>G. Big-bang rollout (medium).</strong> Shadow → canary → ramp, kill switch, with the <code>idempotency.payload.mismatch</code> / <code>lock.conflict</code> / <code>redis.error</code> metrics gemini listed wired up <em>before</em> the canary.</li></ul>
 <p class="r-title">4. Recommended execution sequence</p>
-<ol><li><strong>Contract first (written):</strong> scope <code>(account_id, key)</code>; key length/charset limits; TTL=24h and what expiry <em>means</em> to clients (post-expiry replays re-charge — state it); same-key/different-payload → deterministic conflict; Redis-down policy; which outcomes are cached.</li><li><strong>Durable schema:</strong> <code>{​​account_id, key, request_fingerprint, status(in_flight|completed|failed_terminal), response_blob, created_at, expires_at}</code>, unique constraint on <code>(account_id, key)</code>.</li><li><strong>Reserve-then-process:</strong> atomic durable insert of <code>in_flight</code> <em>before</em> charging; loser polls for the terminal result or, on fingerprint mismatch, returns conflict.</li><li><strong>Propagate the key to the processor</strong> so money movement dedupes at the source.</li><li><strong>Finalize on terminal outcome only;</strong> on indeterminate processor result, run a <strong>reconciliation/recovery path</strong> (query processor by key) — do not finalize as success or re-charge blindly.</li><li><strong>Observability + reconciliation job:</strong> hit rate, in-flight conflicts, fingerprint mismatches, and a standing duplicate-charge-per-key detector/alert.</li><li><strong>Rollout:</strong> shadow → canary → ramp, kill switch.</li></ol>
+<ol><li><strong>Contract first (written):</strong> scope <code>(account_id, key)</code>; key length/charset limits; TTL=24h and what expiry <em>means</em> to clients (post-expiry replays re-charge — state it); same-key/different-payload → deterministic conflict; Redis-down policy; which outcomes are cached.</li><li><strong>Durable schema:</strong> <code>{​account_id, key, request_fingerprint, status(in_flight|completed|failed_terminal), response_blob, created_at, expires_at}</code>, unique constraint on <code>(account_id, key)</code>.</li><li><strong>Reserve-then-process:</strong> atomic durable insert of <code>in_flight</code> <em>before</em> charging; loser polls for the terminal result or, on fingerprint mismatch, returns conflict.</li><li><strong>Propagate the key to the processor</strong> so money movement dedupes at the source.</li><li><strong>Finalize on terminal outcome only;</strong> on indeterminate processor result, run a <strong>reconciliation/recovery path</strong> (query processor by key) — do not finalize as success or re-charge blindly.</li><li><strong>Observability + reconciliation job:</strong> hit rate, in-flight conflicts, fingerprint mismatches, and a standing duplicate-charge-per-key detector/alert.</li><li><strong>Rollout:</strong> shadow → canary → ramp, kill switch.</li></ol>
 <p>Steps 3–5 are load-bearing; the original plan jumps to a simplified step-5-only.</p>
 <p class="r-title">5. Invariants and guardrails</p>
 <ul><li><strong>I1 — Exactly-once effect:</strong> for <code>(account_id, key)</code> within retention, at most one charge side effect.</li><li><strong>I2 — Stable mapping:</strong> a key binds to one fingerprint; conflicting payload rejected, never served stale.</li><li><strong>I3 — Concurrency safety:</strong> concurrent same-key → at most one executes; others wait or get deterministic conflict; the reservation must not auto-expire into a re-charge window while the side effect is in flight.</li><li><strong>I4 — Tenant isolation:</strong> cached response returned only to the account that created the key.</li><li><strong>I5 — Only known-terminal outcomes are replayed:</strong> in-flight and indeterminate-failure states are never cached as terminal; indeterminate states route to reconciliation.</li><li><strong>I6 — Durability:</strong> an acknowledged charge implies a durable idempotency record.</li><li>Guardrails: key length/charset validation; explicit (and DB-backed, not Redis-dependent) availability story; reconciliation against processor by key; documented client semantics for conflict and for expiry.</li></ul>
@@ -458,38 +500,23 @@
 <ul><li><strong>The Issue:</strong> Enabling a core payment interceptor middleware for all clients simultaneously next sprint is highly volatile. We have no telemetry on existing client behavior (e.g., are some clients already sending random or static <code>Idempotency-Key</code> headers?), nor do we have data on Redis memory consumption or latency overhead under production load.</li></ul>
 <p>---</p>
 <p class="r-title">3. Recommended Execution Sequence</p>
-<pre><code>
- ┌────────────────────────┐      ┌────────────────────────┐      ┌────────────────────────┐      ┌────────────────────────┐
-
+<pre><code> ┌────────────────────────┐      ┌────────────────────────┐      ┌────────────────────────┐      ┌────────────────────────┐
  │ Phase 1: Architecture  │ ────&gt;│  Phase 2: Resiliency  │ ────&gt;│   Phase 3: Dry-Run     │ ────&gt;│ Phase 4: Canary Rollout│
-
  │  Namespacing &amp; Locks   │      │   &amp; Fail-Safe Modes    │      │ (Telemetry &amp; Shadow)   │      │   (1% -&gt; 10% -&gt; 100%)  │
-
- └────────────────────────┘      └────────────────────────┘      └────────────────────────┘      └────────────────────────┘
-</code></pre>
-<ol><li><strong>Phase 1: Secure Architecture &amp; Validation Design</strong></li></ol>
-<ul><li>Prepend tenant/client identifiers to all keys in Redis: <code>idempotency:{​​client_id}:{​​idempotency_key}</code>.</li><li>Implement request payload hashing (e.g., SHA-256 of the sorted request body) and store it with the response cache. If a duplicate key arrives but the hash does not match, return <code>409 Conflict</code> (or <code>400 Bad Request</code>).</li><li>Implement an "in-flight" locking mechanism. When a request starts, write a temporary lock state with a short TTL (e.g., 60 seconds). If a duplicate request hits an in-flight lock, return <code>409 Conflict</code> or poll/wait.</li></ul>
-<ol start="2"><li><strong>Phase 2: Redis Resiliency &amp; Monitoring Strategy</strong></li></ol>
-<ul><li>Configure the Redis instance dedicated to idempotency with <code>noeviction</code> policy to prevent premature memory eviction of keys (which would cause double-charges).</li><li>Define fallback behavior: If Redis is unavailable, does the API fail-closed (reject payments) or fail-open (risk double-spending)? <em>Recommendation:</em> Fail-closed with an explicit, retryable HTTP 503 error.</li><li>Instrument metrics: <code>idempotency.hit</code>, <code>idempotency.miss</code>, <code>idempotency.lock.conflict</code>, <code>idempotency.payload.mismatch</code>, and <code>idempotency.redis.error</code>.</li></ul>
-<ol start="3"><li><strong>Phase 3: Dry-Run Deployment (Shadow Mode)</strong></li></ol>
-<ul><li>Deploy the middleware to production but with active interception disabled.</li><li>Log matching keys, check for payload mismatches, and monitor Redis latency overhead without returning cached responses. This validates client behavior and performance under actual load.</li></ul>
-<ol start="4"><li><strong>Phase 4: Gradual Canary &amp; Opt-In Rollout</strong></li></ol>
-<ul><li>Enable active enforcement for a 1% canary group (or internal test accounts).</li><li>Monitor error rates and latency degradation.</li><li>Progressively scale up: 1% -&gt; 10% -&gt; 50% -&gt; 100%.</li></ul>
+ └────────────────────────┘      └────────────────────────┘      └────────────────────────┘      └────────────────────────┘</code></pre>
+<ol><li><strong>Phase 1: Secure Architecture &amp; Validation Design</strong><ul><li>Prepend tenant/client identifiers to all keys in Redis: <code>idempotency:{​client_id}:{​idempotency_key}</code>.</li><li>Implement request payload hashing (e.g., SHA-256 of the sorted request body) and store it with the response cache. If a duplicate key arrives but the hash does not match, return <code>409 Conflict</code> (or <code>400 Bad Request</code>).</li><li>Implement an "in-flight" locking mechanism. When a request starts, write a temporary lock state with a short TTL (e.g., 60 seconds). If a duplicate request hits an in-flight lock, return <code>409 Conflict</code> or poll/wait.</li></ul></li><li><strong>Phase 2: Redis Resiliency &amp; Monitoring Strategy</strong><ul><li>Configure the Redis instance dedicated to idempotency with <code>noeviction</code> policy to prevent premature memory eviction of keys (which would cause double-charges).</li><li>Define fallback behavior: If Redis is unavailable, does the API fail-closed (reject payments) or fail-open (risk double-spending)? <em>Recommendation:</em> Fail-closed with an explicit, retryable HTTP 503 error.</li><li>Instrument metrics: <code>idempotency.hit</code>, <code>idempotency.miss</code>, <code>idempotency.lock.conflict</code>, <code>idempotency.payload.mismatch</code>, and <code>idempotency.redis.error</code>.</li></ul></li><li><strong>Phase 3: Dry-Run Deployment (Shadow Mode)</strong><ul><li>Deploy the middleware to production but with active interception disabled.</li><li>Log matching keys, check for payload mismatches, and monitor Redis latency overhead without returning cached responses. This validates client behavior and performance under actual load.</li></ul></li><li><strong>Phase 4: Gradual Canary &amp; Opt-In Rollout</strong><ul><li>Enable active enforcement for a 1% canary group (or internal test accounts).</li><li>Monitor error rates and latency degradation.</li><li>Progressively scale up: 1% -&gt; 10% -&gt; 50% -&gt; 100%.</li></ul></li></ol>
 <p>---</p>
 <p class="r-title">4. Invariants and Guardrails</p>
-<ul><li><strong>The Scope Invariant:</strong> <code>RedisKey</code> must always equal <code>f&quot;idempotency:{​​client_id}:{​​header_key}&quot;</code>.</li><li><strong>The Integrity Invariant:</strong> <code>CachedResponse</code> must only be returned if <code>Hash(IncomingPayload) == CachedPayloadHash</code>.</li><li><strong>The Error Filter Invariant:</strong> Response status codes matching <code>5xx</code> or retryable <code>429</code> must <em>never</em> be cached.</li><li><strong>The Expiry Guardrail:</strong> The 24-hour TTL must be strictly enforced on Redis write to prevent runaway memory costs.</li></ul>
+<ul><li><strong>The Scope Invariant:</strong> <code>RedisKey</code> must always equal <code>f&quot;idempotency:{​client_id}:{​header_key}&quot;</code>.</li><li><strong>The Integrity Invariant:</strong> <code>CachedResponse</code> must only be returned if <code>Hash(IncomingPayload) == CachedPayloadHash</code>.</li><li><strong>The Error Filter Invariant:</strong> Response status codes matching <code>5xx</code> or retryable <code>429</code> must <em>never</em> be cached.</li><li><strong>The Expiry Guardrail:</strong> The 24-hour TTL must be strictly enforced on Redis write to prevent runaway memory costs.</li></ul>
 <p>---</p>
 <p class="r-title">5. Risks, Stale Assumptions, and Missing Evidence</p>
-<ul><li><strong>Unbounded Memory Consumption:</strong> The plan assumes Redis can store all response bodies for 24 hours. If the transaction volume is high and payloads contain verbose JSON metadata, this could exhaust Redis memory.</li><li><em>Missing Evidence:</em> We need a calculation of: <code>(Estimated daily POST /charges volume) * (Average response size + overhead) * 2</code> (for buffer) to size the Redis cluster appropriately.</li><li><strong>Network Latency Overhead:</strong> Adding a Redis check-then-write on every payment request introduces a synchronous network hop.</li><li><em>Missing Evidence:</em> What is the baseline network latency between the API servers and the Redis cluster? Is Redis colocated in the same VPC?</li><li><strong>Downstream Alignment:</strong> The plan assumes our internal API is the sole gatekeeper.</li><li><em>Missing Evidence:</em> Does our downstream payment gateway (e.g., Stripe, Adyen) support idempotency? If yes, are we propagating our idempotency keys to them to provide a secondary layer of protection?</li></ul>
+<ul><li><strong>Unbounded Memory Consumption:</strong> The plan assumes Redis can store all response bodies for 24 hours. If the transaction volume is high and payloads contain verbose JSON metadata, this could exhaust Redis memory.<ul><li><em>Missing Evidence:</em> We need a calculation of: <code>(Estimated daily POST /charges volume) * (Average response size + overhead) * 2</code> (for buffer) to size the Redis cluster appropriately.</li></ul></li><li><strong>Network Latency Overhead:</strong> Adding a Redis check-then-write on every payment request introduces a synchronous network hop.<ul><li><em>Missing Evidence:</em> What is the baseline network latency between the API servers and the Redis cluster? Is Redis colocated in the same VPC?</li></ul></li><li><strong>Downstream Alignment:</strong> The plan assumes our internal API is the sole gatekeeper.<ul><li><em>Missing Evidence:</em> Does our downstream payment gateway (e.g., Stripe, Adyen) support idempotency? If yes, are we propagating our idempotency keys to them to provide a secondary layer of protection?</li></ul></li></ul>
 <p>---</p>
 <p class="r-title">6. Concrete Evidence from the Source Material</p>
 <ul><li><strong>"POST /charges"</strong>: Confirms this is a highly sensitive financial write path where duplicate executions have direct monetary consequences.</li><li><strong>"stores the key-to-response mapping in Redis"</strong>: Indicates a raw, unscoped lookup design that lacks payload hashing and client-isolation namespaces.</li><li><strong>"on a duplicate key it returns the cached response"</strong>: Highlights the absence of in-flight lock handling and payload matching before serving cached responses.</li><li><strong>"We will enable it for all clients at once next sprint"</strong>: Explicitly outlines a highly volatile, instant rollout of a major payment modification.</li></ul>
 <p>---</p>
 <p class="r-title">7. Challenges for Other Board Seats</p>
-<ol><li><strong>To the Security Seat:</strong></li></ol>
-<ul><li><em>Data-at-Rest in Cache:</em> Since we are caching the raw response payload of <code>POST /charges</code> in Redis, which contains sensitive financial information, should we encrypt the cached payloads in Redis using an application-level key, or is raw transport encryption (TLS) sufficient?</li><li><em>Key Exhaustion/Hashing:</em> What is the risk of an attacker brute-forcing short or non-random <code>Idempotency-Key</code> headers to trigger cache-poisoning or DOS attacks on other customers?</li></ul>
-<ol start="2"><li><strong>To the Systems Architecture Seat:</strong></li></ol>
-<ul><li><em>Distributed Lock Implementation:</em> How should the concurrent "in-flight" locking be safely modeled to avoid race conditions? Is a simple Redis <code>SETNX</code> with a short TTL sufficient, or do we require a robust distributed lock library?</li><li><em>Eviction Policy:</em> Can we guarantee that the Redis cluster configuration has eviction disabled (<code>noeviction</code>), and how will we trigger alerts when memory consumption crosses critical thresholds?</li></ul>
+<ol><li><strong>To the Security Seat:</strong><ul><li><em>Data-at-Rest in Cache:</em> Since we are caching the raw response payload of <code>POST /charges</code> in Redis, which contains sensitive financial information, should we encrypt the cached payloads in Redis using an application-level key, or is raw transport encryption (TLS) sufficient?</li><li><em>Key Exhaustion/Hashing:</em> What is the risk of an attacker brute-forcing short or non-random <code>Idempotency-Key</code> headers to trigger cache-poisoning or DOS attacks on other customers?</li></ul></li><li><strong>To the Systems Architecture Seat:</strong><ul><li><em>Distributed Lock Implementation:</em> How should the concurrent "in-flight" locking be safely modeled to avoid race conditions? Is a simple Redis <code>SETNX</code> with a short TTL sufficient, or do we require a robust distributed lock library?</li><li><em>Eviction Policy:</em> Can we guarantee that the Redis cluster configuration has eviction disabled (<code>noeviction</code>), and how will we trigger alerts when memory consumption crosses critical thresholds?</li></ul></li></ol>
         </div>
       </div>
       
@@ -512,12 +539,14 @@
 <p class="r-title">Where We Changed Our Mind (Refining Our Round-1 Stance)</p>
 <ul><li><strong>Against Our Own Round-1 "Fail-Closed" Recommendation on Redis Outages:</strong></li></ul>
 <p>In Round 1, we advocated that if Redis goes down, the API should fail-closed (reject payments with a <code>503 Service Unavailable</code>) to prevent double charges.</p>
-<ul><li><em>Reconsideration:</em> Looking at this from a <strong>Product &amp; User-Workflow Risk</strong> perspective, failing closed on a cache infrastructure outage would completely halt credit card processing, devastating merchant conversion rates. We now align with <strong>Claude</strong> and <strong>Codex</strong> that Redis must not be the sole system of record. Instead of a blunt fail-closed posture, the primary transactional database (SQL/NoSQL) must act as the ultimate source of truth. If Redis is down, the system must fallback to checking the primary database for an idempotency record. If both are down, only then do we fail-closed with a high-severity SRE alert.</li><li><strong>Storage Optimization (Redis Memory Management):</strong></li></ul>
+<ul><li><em>Reconsideration:</em> Looking at this from a <strong>Product &amp; User-Workflow Risk</strong> perspective, failing closed on a cache infrastructure outage would completely halt credit card processing, devastating merchant conversion rates. We now align with <strong>Claude</strong> and <strong>Codex</strong> that Redis must not be the sole system of record. Instead of a blunt fail-closed posture, the primary transactional database (SQL/NoSQL) must act as the ultimate source of truth. If Redis is down, the system must fallback to checking the primary database for an idempotency record. If both are down, only then do we fail-closed with a high-severity SRE alert.</li></ul>
+<ul><li><strong>Storage Optimization (Redis Memory Management):</strong></li></ul>
 <p>We initially assumed caching full response bodies in Redis was acceptable. However, from an operational efficiency standpoint, storing verbose JSON responses for high-volume transactions in RAM is expensive and risks eviction. We now recommend <strong>storing only the <code>charge_id</code> and the request payload hash in Redis</strong>. On a cache hit, the server can retrieve the full response from the primary database. This drastically reduces Redis memory usage and keeps RAM footprint minimal.</p>
 <p class="r-title">Where We Still Dissent (Challenging the Other Seats)</p>
 <ul><li><strong>Dissent with Claude &amp; Codex on Concurrency Resolution (<code>409 Conflict</code> vs. User-Workflow Risk):</strong></li></ul>
 <p>Both Claude and our previous review suggest returning an immediate <code>409 Conflict</code> when a duplicate request arrives while the first is still processing.</p>
-<ul><li><em>Reason for Dissent:</em> From a user-experience standpoint, returning a raw <code>409</code> to naive client integrations during a client-side timeout retry is highly dangerous. If a client SDK receives a <code>409</code>, the client app will likely display "Payment Failed" to the consumer. The consumer might then try another card or click purchase again, while the original payment actually succeeds moments later.</li><li><em>Resolution:</em> For concurrent duplicate requests, the server should <strong>block-and-poll</strong> (up to a brief threshold, e.g., 3-5 seconds) waiting for the active process to finish, or return a specialized <code>202 Accepted</code> status with a <code>Retry-After</code> header. We must provide a standardized Client Retry Integration Guide.</li><li><strong>Dissent with the "Optional Keys" Assumption:</strong></li></ul>
+<ul><li><em>Reason for Dissent:</em> From a user-experience standpoint, returning a raw <code>409</code> to naive client integrations during a client-side timeout retry is highly dangerous. If a client SDK receives a <code>409</code>, the client app will likely display "Payment Failed" to the consumer. The consumer might then try another card or click purchase again, while the original payment actually succeeds moments later.</li><li><em>Resolution:</em> For concurrent duplicate requests, the server should <strong>block-and-poll</strong> (up to a brief threshold, e.g., 3-5 seconds) waiting for the active process to finish, or return a specialized <code>202 Accepted</code> status with a <code>Retry-After</code> header. We must provide a standardized Client Retry Integration Guide.</li></ul>
+<ul><li><strong>Dissent with the "Optional Keys" Assumption:</strong></li></ul>
 <p>The original proposal and Codex treat "optional keys" as a permanent API state.</p>
 <ul><li><em>Reason for Dissent:</em> Making keys permanently optional means the clients who are most prone to buggy retry behavior will never adopt them, failing to solve the core double-charge problem. We must mandate a product roadmap where <code>Idempotency-Key</code> is initially optional but transitions to <strong>mandatory</strong> for all high-volume integrations and all new API versions after a defined migration window.</li></ul>
 <p>---</p>
@@ -525,71 +554,37 @@
 <ol><li><strong>Blind "Big-Bang" Rollout of Payment Middleware:</strong> Enabling this globally next sprint is highly volatile. If external clients are already sending malformed, static, or placeholder <code>Idempotency-Key</code> headers (e.g., <code>&quot;null&quot;</code>, <code>&quot;12345&quot;</code>, or <code>&quot;undefined&quot;</code>), active enforcement will instantly break their checkout funnels.</li><li><strong>Missing Latency SLOs on the Critical Path:</strong> <code>POST /charges</code> is our most latency-sensitive route. Adding synchronous network hops to Redis/DB on every charge request adds overhead. Without a strict budget (e.g., &lt;5ms p95 overhead) and VPC-colocated Redis clustering, this change could degrade checkout conversion rates.</li><li><strong>Lack of Operational Audit Trail (Support Visibility):</strong> Redis keys expire in 24 hours. If a merchant disputes a duplicate charge 3 days later, support agents and finance operators have zero visibility into whether a charge was a legitimate secondary transaction or a deduplicated API call. We must store the <code>idempotency_key</code> and <code>request_hash</code> directly on the durable <code>charges</code> table.</li><li><strong>Failure to Profile Key Entropy &amp; Mismatches:</strong> If a client reuses an idempotency key with a <em>different</em> transaction body (e.g., changing the amount from $10 to $100), returning the cached $10 success response (as the original plan implies) is a silent under-charging bug. We must enforce strict SHA-256 payload hashing and return a clear client error on payload mismatch.</li></ol>
 <p>---</p>
 <p class="r-title">4. Recommended Execution Sequence</p>
-<pre><code>
- ┌────────────────────────────────────────────────────────┐
-
+<pre><code> ┌────────────────────────────────────────────────────────┐
  │ Phase 1: Telemetry &amp; Baseline Evaluation (Sprint N)     │
-
  │ - Measure current header usage and collision rates     │
-
  └───────────────────────────┬────────────────────────────┘
-
                              ▼
-
  ┌────────────────────────────────────────────────────────┐
-
  │ Phase 2: Schema Implementation &amp; Lock Handling (N+1)   │
-
  │ - Store keys in DB, use Redis as fast-path cache      │
-
  └───────────────────────────┬────────────────────────────┘
-
                              ▼
-
  ┌────────────────────────────────────────────────────────┐
-
  │ Phase 3: Shadow Execution &amp; Latency Profiling (N+2)    │
-
  │ - Run validation in dry-run, log matches/overhead      │
-
  └───────────────────────────┬────────────────────────────┘
-
                              ▼
-
  ┌────────────────────────────────────────────────────────┐
-
  │ Phase 4: Phased Canary Rollout (N+3)                  │
-
  │ - Scale enforcement: Internal -&gt; 1% -&gt; 10% -&gt; 100%     │
-
  └───────────────────────────┬────────────────────────────┘
-
                              ▼
-
  ┌────────────────────────────────────────────────────────┐
-
  │ Phase 5: Post-Rollout Evaluation &amp; Migration Roadmap   │
-
  │ - Compare double-charge rates; enforce mandatory keys  │
-
- └────────────────────────────────────────────────────────┘
-</code></pre>
-<ol><li><strong>Phase 1: Telemetry &amp; Baseline Evaluation (Sprint N)</strong></li></ol>
-<ul><li>Deploy silent instrumentation to log all incoming <code>Idempotency-Key</code> headers.</li><li>Analyze the logs to check for existing collisions (clients sending static/broken headers) and establish baseline network latency.</li><li>Run a query on historical transaction tables to calculate the baseline duplicate charge rate (e.g., same card, amount, and account within 5 minutes) to evaluate the success of this feature post-rollout.</li></ul>
-<ol start="2"><li><strong>Phase 2: Schema Implementation &amp; Client Contract Definition (Sprint N+1)</strong></li></ol>
-<ul><li>Add <code>idempotency_key</code> and <code>request_hash</code> columns to the primary <code>charges</code> database table with a unique index on <code>(account_id, idempotency_key)</code>.</li><li>Implement a block-and-poll locking mechanism in Redis (<code>SET lock_key NX PX 10000</code>) for concurrent duplicate requests.</li><li>Publish client documentation outlining the key retention contract (24h), required UUIDv4 format, and error schemas.</li></ul>
-<ol start="3"><li><strong>Phase 3: Shadow Execution (Sprint N+2)</strong></li></ol>
-<ul><li>Run the full middleware checks (payload hashing, collision detection, and DB fallbacks) in <strong>Shadow Mode</strong>.</li><li>Log discrepancies and latency overhead without altering the API's response behavior. Ensure Redis is configured with <code>noeviction</code> and set up alerts for high memory utilization.</li></ul>
-<ol start="4"><li><strong>Phase 4: Phased Canary Rollout (Sprint N+3)</strong></li></ol>
-<ul><li>Roll out active enforcement behind a feature flag: starting with internal test accounts, scaling to a 1% canary group, then progressively to 10%, 50%, and 100% over a two-week period.</li><li>Monitor metrics: <code>idempotency.hit</code>, <code>idempotency.miss</code>, <code>idempotency.payload_mismatch</code>, and <code>idempotency.redis.latency</code>.</li></ul>
-<ol start="5"><li><strong>Phase 5: Post-Rollout Evaluation &amp; Mandatory Transition</strong></li></ol>
-<ul><li>Compare post-rollout duplicate charge rates against Phase 1 baselines.</li><li>Begin a deprecation timeline to make <code>Idempotency-Key</code> mandatory for all new API integrations.</li></ul>
+ └────────────────────────────────────────────────────────┘</code></pre>
+<ol><li><strong>Phase 1: Telemetry &amp; Baseline Evaluation (Sprint N)</strong><ul><li>Deploy silent instrumentation to log all incoming <code>Idempotency-Key</code> headers.</li><li>Analyze the logs to check for existing collisions (clients sending static/broken headers) and establish baseline network latency.</li><li>Run a query on historical transaction tables to calculate the baseline duplicate charge rate (e.g., same card, amount, and account within 5 minutes) to evaluate the success of this feature post-rollout.</li></ul></li><li><strong>Phase 2: Schema Implementation &amp; Client Contract Definition (Sprint N+1)</strong><ul><li>Add <code>idempotency_key</code> and <code>request_hash</code> columns to the primary <code>charges</code> database table with a unique index on <code>(account_id, idempotency_key)</code>.</li><li>Implement a block-and-poll locking mechanism in Redis (<code>SET lock_key NX PX 10000</code>) for concurrent duplicate requests.</li><li>Publish client documentation outlining the key retention contract (24h), required UUIDv4 format, and error schemas.</li></ul></li><li><strong>Phase 3: Shadow Execution (Sprint N+2)</strong><ul><li>Run the full middleware checks (payload hashing, collision detection, and DB fallbacks) in <strong>Shadow Mode</strong>.</li><li>Log discrepancies and latency overhead without altering the API's response behavior. Ensure Redis is configured with <code>noeviction</code> and set up alerts for high memory utilization.</li></ul></li><li><strong>Phase 4: Phased Canary Rollout (Sprint N+3)</strong><ul><li>Roll out active enforcement behind a feature flag: starting with internal test accounts, scaling to a 1% canary group, then progressively to 10%, 50%, and 100% over a two-week period.</li><li>Monitor metrics: <code>idempotency.hit</code>, <code>idempotency.miss</code>, <code>idempotency.payload_mismatch</code>, and <code>idempotency.redis.latency</code>.</li></ul></li><li><strong>Phase 5: Post-Rollout Evaluation &amp; Mandatory Transition</strong><ul><li>Compare post-rollout duplicate charge rates against Phase 1 baselines.</li><li>Begin a deprecation timeline to make <code>Idempotency-Key</code> mandatory for all new API integrations.</li></ul></li></ol>
 <p>---</p>
 <p class="r-title">5. Invariants and Guardrails</p>
-<ul><li><strong>Tenant Isolation Invariant:</strong> The cache lookup namespace must be strongly sandboxed to prevent cross-tenant data leaks: <code>LookupKey = f&quot;idempotency:{​​account_id}:{​​idempotency_key}&quot;</code>.</li><li><strong>Payload Integrity Invariant:</strong> A cached response is only returned if <code>SHA256(IncomingPayload) == CachedPayloadHash</code>. If the key matches but the payload does not, return <code>409 Conflict</code> or <code>422 Unprocessable Entity</code> immediately.</li><li><strong>Transient Error Exclusion Invariant:</strong> Do <em>never</em> cache transient system errors (<code>5xx</code>, <code>429</code>). The key must remain retryable if the system was unable to safely process the transaction downstream.</li><li><strong>Redis Fail-Safe Fallback Guardrail:</strong> If Redis is down, look up the transaction state directly in the primary database. Do not fail-closed unless both storage layers are unavailable.</li><li><strong>Support Traceability Guardrail:</strong> The database record of the charge must permanently store the <code>idempotency_key</code> used to create it, ensuring auditability beyond the 24-hour Redis cache TTL.</li></ul>
+<ul><li><strong>Tenant Isolation Invariant:</strong> The cache lookup namespace must be strongly sandboxed to prevent cross-tenant data leaks: <code>LookupKey = f&quot;idempotency:{​account_id}:{​idempotency_key}&quot;</code>.</li><li><strong>Payload Integrity Invariant:</strong> A cached response is only returned if <code>SHA256(IncomingPayload) == CachedPayloadHash</code>. If the key matches but the payload does not, return <code>409 Conflict</code> or <code>422 Unprocessable Entity</code> immediately.</li><li><strong>Transient Error Exclusion Invariant:</strong> Do <em>never</em> cache transient system errors (<code>5xx</code>, <code>429</code>). The key must remain retryable if the system was unable to safely process the transaction downstream.</li><li><strong>Redis Fail-Safe Fallback Guardrail:</strong> If Redis is down, look up the transaction state directly in the primary database. Do not fail-closed unless both storage layers are unavailable.</li><li><strong>Support Traceability Guardrail:</strong> The database record of the charge must permanently store the <code>idempotency_key</code> used to create it, ensuring auditability beyond the 24-hour Redis cache TTL.</li></ul>
 <p>---</p>
 <p class="r-title">6. Risks, Stale Assumptions, and Missing Evidence</p>
-<ul><li><strong>Risk of Memory Exhaustion in Redis:</strong> Storing verbose JSON responses in Redis will trigger memory issues at scale.</li><li><em>Missing Evidence:</em> We need a projection of <code>Daily Charges Volume * Average Response Size</code> to size the Redis cluster. <em>(Mitigation: Store only <code>charge_id</code> and payload hash in Redis; pull response from primary DB on cache hit).</em></li><li><strong>Stale Assumption on Client Timeout Resilience:</strong> Assuming client applications will wait for long payment processing times or handle raw <code>409</code> conflict responses gracefully is highly risky.</li><li><em>Missing Evidence:</em> What is the default timeout on our official client SDKs? If it is shorter than our payment processor's worst-case processing time, client-side timeouts will trigger duplicate storms.</li><li><strong>Downstream Alignment Risk:</strong> If our API is idempotent but our payment processor (e.g., Stripe, Adyen) is not, we still risk double charges if a network partition occurs between our API and the processor.</li><li><em>Missing Evidence:</em> Do we propagate the client's <code>Idempotency-Key</code> downstream to our gateway? If not, our API-level idempotency is incomplete.</li></ul>
+<ul><li><strong>Risk of Memory Exhaustion in Redis:</strong> Storing verbose JSON responses in Redis will trigger memory issues at scale.<ul><li><em>Missing Evidence:</em> We need a projection of <code>Daily Charges Volume * Average Response Size</code> to size the Redis cluster. <em>(Mitigation: Store only <code>charge_id</code> and payload hash in Redis; pull response from primary DB on cache hit).</em></li></ul></li><li><strong>Stale Assumption on Client Timeout Resilience:</strong> Assuming client applications will wait for long payment processing times or handle raw <code>409</code> conflict responses gracefully is highly risky.<ul><li><em>Missing Evidence:</em> What is the default timeout on our official client SDKs? If it is shorter than our payment processor's worst-case processing time, client-side timeouts will trigger duplicate storms.</li></ul></li><li><strong>Downstream Alignment Risk:</strong> If our API is idempotent but our payment processor (e.g., Stripe, Adyen) is not, we still risk double charges if a network partition occurs between our API and the processor.<ul><li><em>Missing Evidence:</em> Do we propagate the client's <code>Idempotency-Key</code> downstream to our gateway? If not, our API-level idempotency is incomplete.</li></ul></li></ul>
 <p>---</p>
 <p class="r-title">7. Concrete Evidence from the Source Material</p>
 <ul><li><strong>"POST /charges"</strong>: Confirms this is our critical revenue path where latency, operational stability, and conversion rates are paramount.</li><li><strong>"stores the key-to-response mapping in Redis"</strong>: Proves the plan relies on an ephemeral, non-durable store as the sole system of record, presenting a severe risk of early key eviction or failover loss.</li><li><strong>"on a duplicate key it returns the cached response"</strong>: Highlights the lack of request payload fingerprint validation (creating potential under-charging risks) and lack of concurrent in-flight locking (creating double-charge risks).</li><li><strong>"Keys are optional."</strong>: Underlines that buggy clients will not adopt the safety benefits of this feature without an operational plan to eventually mandate its use.</li><li><strong>"We will enable it for all clients at once next sprint."</strong>: Confirms a highly volatile, instant release model on our critical payment path, lacking shadow-mode or canarying stages.</li></ul>
@@ -720,11 +715,27 @@
     </div>
   </section>
 
-  <!-- ===================== FOOTER / PROVENANCE ===================== -->
-  <footer class="meta">
-    Rendered from <code>verdict.json</code> by <code>scripts/render_verdict.py</code>.
+  </main>
+
+  <!-- ===================== FOOTER / COLOPHON (Panely / dark band) ===================== -->
+  
+  <footer class="colophon">
+    <div class="band-inner">
+      <div class="colophon-grid">
+        <div class="colophon-about">
+          <div class="footer-lockup">
+            <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect x="2" y="2" width="96" height="96" rx="22" fill="#0a0e1a"/><circle cx="50" cy="50" r="30" fill="none" stroke="#3a5fd9" stroke-width="3" opacity="0.55"/><circle cx="50" cy="20" r="10" fill="#0a0e1a" stroke="#e2b658" stroke-width="4"/><circle cx="50" cy="20" r="4" fill="#e2b658"/><circle cx="76" cy="65" r="10" fill="#0a0e1a" stroke="#3d6bff" stroke-width="4"/><circle cx="76" cy="65" r="4" fill="#3d6bff"/><circle cx="24" cy="65" r="10" fill="#0a0e1a" stroke="#3d6bff" stroke-width="4"/><circle cx="24" cy="65" r="4" fill="#3d6bff"/><circle cx="50" cy="50" r="13" fill="#5b8cff"/><circle cx="50" cy="50" r="5.5" fill="#ffffff"/></svg>
+            <span>Advisory Board <span style="font-weight:400; color:var(--on-dark-soft); font-size:11.5px; letter-spacing:0.02em;">powered by Panely</span></span>
+          </div>
+          <p>Convene Claude, Codex, and Gemini on your own subscriptions — the ones you already pay for, no new accounts and no API keys — to review the same material and reach one clear verdict.</p>
+        </div>
+        <div class="colophon-cta">
+          <a class="cta" href="https://panely.ai">panely.ai</a>
+        </div>
+      </div>
+      <span class="prov">Board: Claude · Codex · Gemini · 2 rounds · 2026-06-25</span>
+    </div>
   </footer>
 
-</div>
 </body>
 </html>

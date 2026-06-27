@@ -50,3 +50,6 @@ Workable, but address the flagged concerns before you go ahead.
 
 ---
 _Evidence status is a resolution check — it confirms the cited line exists or the quote is present in the captured material. It does not prove the inference drawn from it is sound (design §9)._
+
+---
+_An advisory board sharpens your judgment; it doesn't replace professional advice where your decision warrants it._
