@@ -3689,6 +3689,57 @@ class TestLensAwareFraming(unittest.TestCase):
         self.assertEqual(rv.build_handoff_data(data)["confidence"], "")
 
 
+class TestConfidenceIsProminentInEveryTier(unittest.TestCase):
+    """Plan invariant: the board confidence is shown wherever a tier carries a verdict
+    line — and when it is *untracked* every tier drops the clause cleanly, never emitting
+    a literal "? confidence" (the HTML handoff already drops its pill cleanly; this keeps
+    Markdown and the short formats consistent with it)."""
+
+    def _tracked(self, **extra):
+        return _verdict("caution", "caution", "caution", title="Should I do X?",
+                        lens_preset="business-decision",
+                        blockers=[{"title": "Money", "body": "Numbers don't close."}],
+                        **extra)
+
+    def _untracked(self, **extra):
+        data = self._tracked(**extra)
+        del data["confidence"]  # _verdict seeds confidence="high"; model the absent case
+        return data
+
+    # --- tracked: confidence rides every tier ------------------------------ #
+
+    def test_markdown_shows_confidence_when_tracked(self):
+        self.assertIn("(high confidence)", rv.render_markdown(self._tracked()))
+
+    def test_short_formats_show_confidence_when_tracked(self):
+        line = fo.verdict_line(self._tracked())
+        self.assertIn("high confidence", line)
+        self.assertIn("split board", line)  # stance still rides alongside
+        for text in (fo.as_tldr(self._tracked()), fo.as_pr(self._tracked()),
+                     fo.as_slack(self._tracked())):
+            self.assertIn("high confidence", text)
+
+    # --- untracked: the clause is dropped cleanly in every tier ------------ #
+
+    def test_markdown_drops_confidence_clause_when_untracked(self):
+        md = rv.render_markdown(self._untracked())
+        self.assertNotIn("confidence", md)
+        self.assertNotIn("? confidence", md)
+        verdict_line = next(ln for ln in md.splitlines() if ln.startswith("## Verdict:"))
+        self.assertNotIn("(", verdict_line)  # no trailing "(... confidence)" parenthetical
+
+    def test_short_formats_drop_confidence_clause_when_untracked(self):
+        line = fo.verdict_line(self._untracked())
+        self.assertNotIn("confidence", line)
+        self.assertNotIn("?", line)
+        self.assertIn("split board", line)        # stance survives the drop
+        self.assertEqual(line.count("("), 1)      # only the (stance) parenthetical remains
+        for text in (fo.as_tldr(self._untracked()), fo.as_pr(self._untracked()),
+                     fo.as_slack(self._untracked())):
+            self.assertNotIn("confidence", text)
+            self.assertNotIn("? confidence", text)
+
+
 class TestQuickVerdictShape(unittest.TestCase):
     """v1.8.x: the "quick-verdict" (skim-brief) HTML shape — the verdict banner, the
     must-resolve items as one-liners, a one-line dissent flag, and the next steps. Same
