@@ -45,7 +45,11 @@ def verdict_line(data: dict) -> str:
     # doesn't become a shouted "STOP AND RETHINK".
     if data.get("decision") or is_software_lens(lens_preset):
         label = label.upper()
-    return f"{label} ({data.get('confidence', '?')} confidence, {stance})"
+    # Drop the confidence clause when untracked (matching the HTML clean-drop), keeping the
+    # stance — never emit a literal "? confidence".
+    confidence = data.get("confidence")
+    inner = f"{confidence} confidence, {stance}" if confidence else stance
+    return f"{label} ({inner})"
 
 
 def _disclaimer(data: dict):

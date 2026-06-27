@@ -131,7 +131,11 @@ def render_markdown(data: dict) -> str:
     out.append("")
 
     label, note = human_label(data.get("verdict"), data.get("lens_preset"), data.get("decision"))
-    out.append(f"## Verdict: {label} — {_stance(data)} ({data.get('confidence', '?')} confidence)")
+    # The confidence clause is dropped entirely when confidence is untracked — matching the
+    # HTML handoff's clean-drop of the pill — rather than emitting a literal "? confidence".
+    confidence = data.get("confidence")
+    conf_clause = f" ({confidence} confidence)" if confidence else ""
+    out.append(f"## Verdict: {label} — {_stance(data)}{conf_clause}")
     # Lead with the plain should-I/shouldn't-I answer on a non-software lens. The heading
     # keeps the calibrated label (the machine-friendly anchor); this bold line answers
     # the reader's actual question. Suppressed when the board authored its own
