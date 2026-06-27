@@ -3413,7 +3413,10 @@ class TestVerdictLabels(unittest.TestCase):
 
     def test_handoff_plain_label_note_and_class(self):
         hd = rv.build_handoff_data(self._plain_verdict())
-        self.assertIn("Stop and rethink", hd["verdict"])
+        # The non-software banner headline now LEADS with the plain directive; the
+        # calibrated label ("Stop and rethink") still anchors the Markdown heading and
+        # the per-round pills, not the banner headline.
+        self.assertIn(vl.CALL_LEADS["block"], hd["verdict"])
         # verdict_note is a RAW (HTML-escaped) slot, so match the escaped form.
         self.assertIn("The board found serious problems", hd["verdict_note"])
         # The banner color stays keyed on the RAW token, not the lens label.
@@ -3544,6 +3547,129 @@ class TestVerdictLabels(unittest.TestCase):
     def test_lens_preset_must_be_string(self):
         with self.assertRaises(SystemExit):
             bv.validate(_verdict("ship", "ship", "ship", lens_preset=42))
+
+
+class TestLensAwareFraming(unittest.TestCase):
+    """v1.7.x: the verdict banner leads with a plain "here's the call" answer and the
+    consensus section drops the "ship" metaphor — for non-software lenses only. A
+    software board (and the absent/None default) stays byte-identical."""
+
+    # --- the shared module: directive lead / section heading --------------- #
+    # (The "Final verdict" eyebrow is hardcoded in the template, same for every lens.)
+
+    def test_lead_software_and_absent_are_none(self):
+        # A software board's SHIP/… label is already a directive — no extra lead.
+        for token in ("ship", "caution", "block"):
+            self.assertIsNone(vl.verdict_lead(token, "software-architecture"))
+            self.assertIsNone(vl.verdict_lead(token, None))
+
+    def test_lead_non_software_keys_on_token(self):
+        for token in ("ship", "caution", "block"):
+            self.assertEqual(vl.verdict_lead(token, "business-decision"),
+                             vl.CALL_LEADS[token])
+        # No trailing period, so a caller can append the stance cleanly.
+        self.assertFalse(vl.CALL_LEADS["caution"].endswith("."))
+
+    def test_lead_authored_decision_wins_verbatim(self):
+        # The board's own call beats the generic token lead, under any non-software lens.
+        self.assertEqual(vl.verdict_lead("block", "legal-contract", decision="walk away"),
+                         "walk away")
+
+    def test_lead_unknown_token_is_stringified(self):
+        self.assertEqual(vl.verdict_lead("weird", "business-decision"), "weird")
+
+    def test_ship_lead_makes_no_consensus_claim(self):
+        # A ship verdict can be a SPLIT board, and the banner headline appends the stance
+        # ("· split board"); the lead must not assert unanimity or it self-contradicts.
+        self.assertNotIn("behind", vl.CALL_LEADS["ship"])
+        split = _verdict("ship", "ship", "ship", "caution", title="Launch now?",
+                         lens_preset="business-decision")
+        hd = rv.build_handoff_data(split)
+        self.assertEqual(hd["verdict"], "Go ahead · split board")  # no consensus claim
+        self.assertNotIn("behind", hd["verdict"])
+
+    def test_blockers_heading_software_keeps_legacy_per_surface(self):
+        self.assertEqual(vl.blockers_heading("software-architecture", "md"),
+                         "Consensus blockers (must fix before ship)")
+        self.assertEqual(vl.blockers_heading("software-architecture", "html"),
+                         "Consensus blockers — must fix before ship")
+        self.assertEqual(vl.blockers_heading("software-architecture", "short"), "Blockers")
+        # Absent preset maps to software (backward compat).
+        self.assertEqual(vl.blockers_heading(None, "md"),
+                         "Consensus blockers (must fix before ship)")
+
+    def test_blockers_heading_non_software_is_plain_for_every_style(self):
+        for style in ("md", "html", "short"):
+            self.assertEqual(vl.blockers_heading("business-decision", style),
+                             "What to resolve first")
+
+    def test_blockers_heading_unknown_style_raises(self):
+        for lens in ("software-architecture", "business-decision"):
+            with self.assertRaises(ValueError):
+                vl.blockers_heading(lens, "bogus")
+
+    # --- render_verdict.py: Markdown --------------------------------------- #
+
+    def _caution(self, **extra):
+        return _verdict("caution", "caution", "caution", title="Should I do X?",
+                        lens_preset="business-decision",
+                        blockers=[{"title": "Money", "body": "Numbers don't close."}],
+                        **extra)
+
+    def test_md_non_software_leads_with_directive_and_plain_heading(self):
+        md = rv.render_markdown(self._caution())
+        self.assertIn("## Verdict: Proceed with care", md)         # calibrated anchor kept
+        self.assertIn("**Go ahead, with conditions.**", md)        # plain directive lead
+        self.assertIn("## What to resolve first", md)              # lens-aware heading
+        self.assertNotIn("must fix before ship", md)               # no software jargon
+        self.assertNotIn("Consensus blockers", md)
+
+    def test_md_authored_decision_suppresses_the_directive_line(self):
+        # The heading already leads with the board's own call; no duplicate bold line.
+        md = rv.render_markdown(self._caution(decision="renegotiate the offer"))
+        self.assertIn("## Verdict: renegotiate the offer", md)
+        self.assertNotIn("**", md)  # no standalone bold directive line
+
+    def test_md_software_unchanged(self):
+        data = _verdict("block", "block", "block", title="Cache layer",
+                        lens_preset="software-architecture",
+                        blockers=[{"title": "x", "body": "y"}])
+        md = rv.render_markdown(data)
+        self.assertIn("## Verdict: DO NOT SHIP YET", md)
+        self.assertIn("## Consensus blockers (must fix before ship)", md)
+        self.assertNotIn("**", md)                # no directive lead on a software lens
+        self.assertNotIn("What to resolve first", md)
+
+    # --- render_verdict.py -> render_handoff.py: HTML ---------------------- #
+
+    def _html(self, data):
+        import render_handoff as rh
+        return rh.render(rv.build_handoff_data(data), open(rh.default_template()).read())
+
+    def test_html_non_software_banner_and_heading(self):
+        html_out = self._html(self._caution())
+        self.assertIn('<p class="label">Final verdict</p>', html_out)   # eyebrow unchanged
+        self.assertIn("Go ahead, with conditions ·", html_out)          # directive headline
+        self.assertIn("<h2>What to resolve first</h2>", html_out)       # lens-aware section
+        self.assertNotIn("must fix before ship", html_out)
+        self.assertEqual(rv.build_handoff_data(self._caution())["verdict_class"], "caution")
+
+    def test_html_software_banner_and_heading_unchanged(self):
+        data = _verdict("block", "block", "block", title="Cache layer",
+                        lens_preset="software-architecture",
+                        blockers=[{"title": "x", "body": "y"}])
+        html_out = self._html(data)
+        self.assertIn('<p class="label">Final verdict</p>', html_out)
+        self.assertIn("DO NOT SHIP YET — unanimous", html_out)
+        self.assertIn("<h2>Consensus blockers — must fix before ship</h2>", html_out)
+        self.assertNotIn("What to resolve first", html_out)
+
+    def test_handoff_data_carries_lens_aware_heading(self):
+        hd = rv.build_handoff_data(self._caution())
+        self.assertEqual(hd["blockers_heading"], "What to resolve first")
+        sw = rv.build_handoff_data(_verdict("block", "block", "block",
+                                            lens_preset="software-architecture"))
+        self.assertEqual(sw["blockers_heading"], "Consensus blockers — must fix before ship")
 
 
 class TestM5ChainDelegation(EnvMixin):

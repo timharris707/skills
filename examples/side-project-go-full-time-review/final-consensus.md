@@ -3,9 +3,10 @@ Should I go full-time on my side project?
 Board: Claude (First principles & economics/claude-opus-4-8) · Codex (Execution & feasibility/gpt-5.5) · Gemini (Second-order & downside/gemini-3-pro-preview). Rounds: 2.
 
 ## Verdict: Proceed with care — unanimous (high confidence)
+**Go ahead, with conditions.**
 Workable, but address the flagged concerns before you go ahead.
 
-## Consensus blockers (must fix before ship)
+## What to resolve first
 1. Income case never closes: $12k MRR ≠ replacing a $165k salary — All three seats converged in the final round that the financial model is a gating item, not background. Claude quantified that $12k MRR = ~$144k/yr gross revenue, and once payment fees, self-employment tax, lost 401k match, forgone equity, and especially self-paid family health insurance are stripped out, net personal economic value at the target is ~$100–110k versus ~$200k+ current total comp — a trade down to ~50% even if the plan fully succeeds. Codex now treats the same point as a gating item; Gemini conceded the health-insurance omission is catastrophic and pegs the true savings draw closer to ~$4,800/mo, roughly halving runway.
    - evidence: proposal — “stable job paying $165k/year” (source) — unchecked
    - evidence: proposal — “$4,200 MRR across ~280 paying customers (a $15/mo plan)” (source) — unchecked

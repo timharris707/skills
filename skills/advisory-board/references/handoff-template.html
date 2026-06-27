@@ -44,9 +44,14 @@
   {{DATE}}           Review date, e.g. "2026-06-24".
   {{BOARD}}          Board roster: models + lenses (HTML allowed).
   {{ROUNDS}}         Number of rounds, e.g. "2".
-  {{VERDICT}}        Final verdict text, plain-language (e.g. "Negotiate before signing").
+  {{VERDICT}}        Final verdict headline. Software: "<label> — <stance>" (e.g.
+                     "DO NOT SHIP YET — unanimous"). Other lenses lead with a plain
+                     should-I/shouldn't-I directive (e.g. "Go ahead, with conditions ·
+                     unanimous"), or the board's authored decision verbatim.
   {{VERDICT_CLASS}}  One of: ship | caution | block  (colors the banner).
   {{VERDICT_NOTE}}   One-line explanation under the verdict headline.
+  {{BLOCKERS_HEADING}}  Consensus-section header, lens-aware: "Consensus blockers —
+                     must fix before ship" (software) or "What to resolve first" (else).
   {{DISCLAIMER}}     OPTIONAL lens-aware professional-advice caveat (subtle footer
                      line). Empty for a software-lens board — leave blank and the
                      line is dropped.
@@ -395,7 +400,7 @@
 
   <!-- ===================== CONSENSUS BLOCKERS ===================== -->
   <section>
-    <h2>Consensus blockers — must fix before ship</h2>
+    <h2>{{BLOCKERS_HEADING}}</h2>
     <ol class="blockers">
       <!-- BEGIN BLOCKER (duplicate per blocker; the number is added automatically) -->
       <li>
