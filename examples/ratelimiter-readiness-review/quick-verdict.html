@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>review packet</title>
+<style>
+  :root {
+    --maxw: 820px;
+    /* light "Boardroom" body */
+    --page: #faf8f3;
+    --surface: #ffffff;
+    --surface-soft: #faf7f0;
+    --vellum: #f3eee3;
+    --ink: #11192b;
+    --ink-soft: #3a4459;
+    --ink-faint: #6e768a;
+    --line: #e4ddce;
+    --line-strong: #d8cfb8;
+    /* brand accents (both themes) */
+    --accent: #2347ff;          /* cobalt — signature */
+    --accent-deep: #0f2bc2;
+    --accent-tint: #eaedff;
+    --gold: #a8843c;            /* secondary — the lead seat */
+    /* dark "Signal" bands */
+    --dark: #0a0e1a;
+    --dark-2: #111726;
+    --dark-line: #232b3e;
+    --on-dark: #fbfaf7;
+    --on-dark-soft: #b9c0d0;
+    --on-dark-faint: #8a93a8;
+    --accent-bright: #5b8cff;
+    --gold-bright: #e2b658;
+    /* verdict palettes (muted — counsel, not error toasts) */
+    --ship-bg: #e9f1ec;     --ship-edge: #2f6f57;   --ship-ink: #235540;
+    --caution-bg: #fbf1de;  --caution-edge: #b07a1e; --caution-ink: #7a5410;
+    --block-bg: #f7e9e9;    --block-edge: #9e3636;  --block-ink: #7a2525;
+    --font-sans: "Panely Grotesk","Söhne","Inter","Helvetica Neue",Helvetica,Arial,"Segoe UI",system-ui,sans-serif;
+    --font-mono: "Berkeley Mono","JetBrains Mono",ui-monospace,"Menlo","Consolas",monospace;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--page);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: 17px;
+    line-height: 1.65;
+  }
+
+  /* ---- dark masthead band ---- */
+  header.masthead { background: var(--dark); color: var(--on-dark); padding: 30px 20px 28px; }
+  .band-inner { max-width: var(--maxw); margin: 0 auto; }
+  .brand-lockup { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+  .brand-mark { width: 46px; height: 46px; border-radius: 11px; overflow: hidden; flex: 0 0 auto; }
+  .brand-mark svg { display: block; width: 100%; height: 100%; }
+  .brand-name { display: flex; flex-direction: column; line-height: 1.1; }
+  .brand-name .p { font-size: 18px; font-weight: 700; letter-spacing: -0.01em; color: var(--on-dark); }
+  .brand-name .ab { font-size: 10.5px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--accent-bright); margin-top: 4px; }
+  header.masthead h1 { font-size: 29px; line-height: 1.18; font-weight: 700; margin: 0 0 8px; letter-spacing: -0.01em; color: var(--on-dark); }
+  .subtitle { font-size: 16px; color: var(--on-dark-soft); margin: 0 0 18px; max-width: 60ch; }
+  .meta-row { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(255,255,255,0.05); border: 1px solid var(--dark-line);
+    border-radius: 999px; padding: 5px 13px; font-size: 13px; color: var(--on-dark-soft);
+  }
+  .chip b { font-weight: 600; color: var(--on-dark); }
+
+  /* ---- body column ---- */
+  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 30px 20px 56px; }
+
+  /* ---- verdict banner ---- */
+  .verdict {
+    border-radius: 12px; padding: 22px 24px; margin: 4px 0 32px;
+    border: 1px solid transparent; border-left-width: 6px;
+  }
+  .verdict .label {
+    font-size: 12px; letter-spacing: 0.09em; text-transform: uppercase;
+    font-weight: 700; margin: 0 0 6px; opacity: 0.85;
+  }
+  .verdict .conf-badge {
+    display: inline-block; margin-left: 9px; font-size: 10.5px; letter-spacing: 0.05em;
+    font-weight: 700; padding: 1px 8px; border-radius: 999px;
+    background: rgba(0,0,0,0.07); vertical-align: 1.5px;
+  }
+  .verdict .headline { font-size: 23px; font-weight: 700; margin: 0; line-height: 1.25; }
+  .verdict .note { margin: 10px 0 0; font-size: 15.5px; line-height: 1.55; }
+  .verdict.ship    { background: var(--ship-bg);    border-color: var(--ship-edge);    color: var(--ship-ink); }
+  .verdict.caution { background: var(--caution-bg); border-color: var(--caution-edge); color: var(--caution-ink); }
+  .verdict.block   { background: var(--block-bg);   border-color: var(--block-edge);   color: var(--block-ink); }
+
+  /* ---- sections ---- */
+  .qv-sec { margin: 0 0 30px; }
+  h2 {
+    font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase;
+    font-weight: 700; color: var(--ink-faint); margin: 0 0 14px;
+    padding-bottom: 8px; border-bottom: 1px solid var(--line);
+  }
+
+  /* ---- compact blocker list (one line per item) ---- */
+  ol.qv-blockers { list-style: none; counter-reset: blk; margin: 0; padding: 0; }
+  ol.qv-blockers > li {
+    counter-increment: blk; position: relative;
+    background: var(--surface); border: 1px solid var(--line-strong);
+    border-radius: 11px; padding: 14px 18px 14px 56px; margin: 0 0 10px;
+  }
+  ol.qv-blockers > li::before {
+    content: counter(blk); position: absolute; left: 14px; top: 13px;
+    width: 28px; height: 28px; border-radius: 50%;
+    background: var(--block-bg); color: var(--block-ink);
+    font-size: 14px; font-weight: 700; display: flex; align-items: center; justify-content: center;
+  }
+  ol.qv-blockers .b-title { font-weight: 600; }
+  ol.qv-blockers .b-sub { font-size: 15px; color: var(--ink-soft); margin-top: 2px; }
+
+  /* ---- dissent line ---- */
+  .qv-dissent {
+    background: #fbf3ec; border: 1px dashed var(--caution-edge);
+    border-radius: 12px; padding: 14px 20px; margin: 0 0 30px;
+  }
+  .qv-dflag {
+    display: inline-block; font-size: 11.5px; font-weight: 700;
+    letter-spacing: 0.07em; text-transform: uppercase; color: var(--caution-ink);
+    background: var(--caution-bg); border-radius: 999px; padding: 3px 10px; margin-bottom: 8px;
+  }
+  .qv-d { margin: 6px 0; font-size: 15.5px; color: #5e4a31; }
+  .qv-d .who { font-weight: 700; color: var(--caution-ink); }
+  .qv-more { color: var(--ink-faint, #6b665c); font-size: 0.92em; }
+
+  /* ---- next steps ---- */
+  .qv-actions {
+    background: var(--surface-soft); border: 1px solid var(--line);
+    border-radius: 12px; padding: 14px 20px 14px 38px; margin: 0; font-size: 15.5px;
+  }
+  ol.qv-actions li { margin: 6px 0; }
+  .qv-more-li { color: var(--ink-faint, #6b665c); list-style: none; font-size: 0.92em; }
+
+  /* ---- dark footer / colophon band ---- */
+  footer.colophon { background: var(--dark); color: var(--on-dark-soft); padding: 26px 20px 32px; }
+  footer.colophon .disclaimer {
+    display: block; margin: 0 0 16px; font-style: italic;
+    color: var(--on-dark-faint); font-size: 13.5px;
+  }
+  .colophon-grid { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; justify-content: space-between; }
+  .colophon-about { flex: 1 1 320px; }
+  .footer-lockup { display: flex; align-items: center; gap: 9px; font-weight: 700; color: var(--on-dark); font-size: 14px; margin-bottom: 9px; }
+  .footer-lockup svg { width: 26px; height: 26px; display: block; }
+  .colophon-about p { margin: 0; font-size: 13.5px; line-height: 1.6; color: var(--on-dark-soft); max-width: 54ch; }
+  .colophon-cta { flex: 0 0 auto; }
+  .cta {
+    display: inline-block; background: var(--accent); color: #ffffff;
+    font-weight: 600; font-size: 14.5px; text-decoration: none;
+    padding: 10px 20px; border-radius: 9px;
+  }
+  .cta::after { content: " →"; }
+  footer.colophon .prov { display: block; margin-top: 12px; font-size: 11.5px; color: var(--on-dark-faint); font-family: var(--font-mono); }
+
+  /* ---- responsive ---- */
+  @media (max-width: 560px) {
+    body { font-size: 16px; }
+    .wrap { padding: 22px 15px 44px; }
+    header.masthead, footer.colophon { padding-left: 15px; padding-right: 15px; }
+    header.masthead h1 { font-size: 25px; }
+    .verdict .headline { font-size: 20px; }
+    ol.qv-blockers > li { padding-left: 50px; padding-right: 16px; }
+    .colophon-cta { width: 100%; }
+  }
+
+  /* ---- print / PDF (Print -> Save as PDF) ---- */
+  @media print {
+    body { background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    header.masthead, footer.colophon { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .wrap { max-width: none; }
+    .verdict, ol.qv-blockers > li, .qv-dissent, .qv-actions { break-inside: avoid; }
+    a { color: inherit; text-decoration: none; }
+  }
+</style>
+</head>
+<body>
+
+  <!-- ===================== MASTHEAD (Panely / dark band) ===================== -->
+  <header class="masthead">
+    <div class="band-inner">
+      <div class="brand-lockup">
+        <span class="brand-mark"><svg viewBox="0 0 1000 1000" xmlns="http://www.w3.org/2000/svg"><defs><radialGradient id="bg" cx="50%" cy="38%" r="74%"><stop offset="0%" stop-color="#122046"/><stop offset="55%" stop-color="#0a1024"/><stop offset="100%" stop-color="#05070f"/></radialGradient><radialGradient id="vig" cx="50%" cy="50%" r="62%"><stop offset="60%" stop-color="#000000" stop-opacity="0"/><stop offset="100%" stop-color="#000000" stop-opacity="0.5"/></radialGradient><linearGradient id="cobalt" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#a9c2ff"/><stop offset="52%" stop-color="#5b8cff"/><stop offset="100%" stop-color="#2347ff"/></linearGradient><linearGradient id="gold" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#ffe6a3"/><stop offset="55%" stop-color="#e2b658"/><stop offset="100%" stop-color="#b9842e"/></linearGradient><radialGradient id="core" cx="50%" cy="42%" r="62%"><stop offset="0%" stop-color="#ffffff"/><stop offset="34%" stop-color="#dbe6ff"/><stop offset="70%" stop-color="#6f93ff"/><stop offset="100%" stop-color="#2347ff"/></radialGradient><radialGradient id="spark" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#eaf1ff"/><stop offset="100%" stop-color="#5b8cff"/></radialGradient><filter id="gM" x="-180%" y="-180%" width="460%" height="460%"><feGaussianBlur stdDeviation="14"/></filter><filter id="gL" x="-220%" y="-220%" width="540%" height="540%"><feGaussianBlur stdDeviation="32"/></filter></defs><rect width="1000" height="1000" fill="#05070f"/><rect width="1000" height="1000" fill="url(#bg)"/><circle cx="500" cy="500" r="220" fill="#3a5fff" opacity="0.12" filter="url(#gL)"/><circle cx="500" cy="500" r="312" fill="none" stroke="url(#cobalt)" stroke-width="3" opacity="0.7"/><circle cx="500" cy="500" r="210" fill="none" stroke="#4f7bff" stroke-width="2" opacity="0.32"/><circle cx="500" cy="500" r="120" fill="none" stroke="#4f7bff" stroke-width="2" opacity="0.22"/><g stroke="#4f7bff" stroke-width="2"><line x1="830" y1="500" x2="850" y2="500" opacity="0.4"/><line x1="500" y1="830" x2="500" y2="850" opacity="0.4"/><line x1="170" y1="500" x2="150" y2="500" opacity="0.4"/><line x1="500" y1="170" x2="500" y2="150" opacity="0.4"/><line x1="733.3" y1="733.3" x2="743.2" y2="743.2" opacity="0.16"/><line x1="266.7" y1="733.3" x2="256.8" y2="743.2" opacity="0.16"/><line x1="266.7" y1="266.7" x2="256.8" y2="256.8" opacity="0.16"/><line x1="733.3" y1="266.7" x2="743.2" y2="256.8" opacity="0.16"/></g><line x1="500" y1="250" x2="500" y2="188" stroke="#f7b500" stroke-width="3" opacity="0.45"/><circle cx="500" cy="188" r="46" fill="#e2b658" opacity="0.30" filter="url(#gM)"/><circle cx="500" cy="188" r="34" fill="#0a1430" stroke="url(#gold)" stroke-width="5"/><circle cx="500" cy="188" r="15" fill="url(#gold)"/><circle cx="770.2" cy="344" r="46" fill="#2f54e6" opacity="0.30" filter="url(#gM)"/><circle cx="770.2" cy="344" r="34" fill="#0a1430" stroke="url(#cobalt)" stroke-width="5"/><circle cx="770.2" cy="344" r="15" fill="url(#spark)"/><circle cx="770.2" cy="656" r="46" fill="#2f54e6" opacity="0.30" filter="url(#gM)"/><circle cx="770.2" cy="656" r="34" fill="#0a1430" stroke="url(#cobalt)" stroke-width="5"/><circle cx="770.2" cy="656" r="15" fill="url(#spark)"/><circle cx="500" cy="812" r="46" fill="#2f54e6" opacity="0.30" filter="url(#gM)"/><circle cx="500" cy="812" r="34" fill="#0a1430" stroke="url(#cobalt)" stroke-width="5"/><circle cx="500" cy="812" r="15" fill="url(#spark)"/><circle cx="229.8" cy="656" r="46" fill="#2f54e6" opacity="0.30" filter="url(#gM)"/><circle cx="229.8" cy="656" r="34" fill="#0a1430" stroke="url(#cobalt)" stroke-width="5"/><circle cx="229.8" cy="656" r="15" fill="url(#spark)"/><circle cx="229.8" cy="344" r="46" fill="#2f54e6" opacity="0.30" filter="url(#gM)"/><circle cx="229.8" cy="344" r="34" fill="#0a1430" stroke="url(#cobalt)" stroke-width="5"/><circle cx="229.8" cy="344" r="15" fill="url(#spark)"/><circle cx="500" cy="500" r="74" fill="none" stroke="#4f7bff" stroke-width="2" opacity="0.5"/><circle cx="500" cy="500" r="144" fill="#3a5fff" opacity="0.16" filter="url(#gL)"/><circle cx="500" cy="500" r="77" fill="url(#core)" opacity="0.5" filter="url(#gM)"/><circle cx="500" cy="500" r="48" fill="url(#core)" stroke="#ffffff" stroke-width="3"/><circle cx="500" cy="489" r="13" fill="#ffffff" opacity="0.92"/><rect width="1000" height="1000" fill="url(#vig)"/></svg></span>
+        <span class="brand-name"><span class="p">Advisory Board</span><span class="ab" style="text-transform:none; letter-spacing:0.03em; font-weight:600; margin-top:3px;">powered by Panely</span></span>
+      </div>
+      <h1>review packet</h1>
+      <p class="subtitle">An independent multi-model review.</p>
+      <div class="meta-row">
+        <span class="chip"><b>Date</b> 2026-06-25</span>
+        <span class="chip"><b>Rounds</b> 3</span>
+        <span class="chip"><b>Board</b> Claude · Codex · Gemini</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+
+  <!-- ===================== VERDICT BANNER ===================== -->
+  
+  <div class="verdict caution">
+    <p class="label">Final verdict<span class="conf-badge">high confidence</span></p>
+    <p class="headline">SHIP WITH CHANGES — unanimous</p>
+    <p class="note"></p>
+  </div>
+
+  <!-- ===================== MUST-RESOLVE (one line each) ===================== -->
+  <section class="qv-sec qv-blockers-sec">
+    <h2>Consensus blockers — must fix before ship</h2>
+    <ol class="qv-blockers">
+      
+      <li>
+        <span class="b-title">Wall-clock source on the refill hot path</span>
+        <div class="b-sub">All three seats agree the use of time.time() on the refill path is a correctness bug under the stated operating context: a backward clock step makes elapsed negative, so…</div>
+      </li>
+      
+      <li>
+        <span class="b-title">allow(n) accepts invalid request costs</span>
+        <div class="b-sub">All three seats flag that allow(n) performs no validation on n. A negative n (e.g. allow(-5)) executes self._tokens -= n, which mints tokens and returns True — a caller can refill…</div>
+      </li>
+      
+      <li>
+        <span class="b-title">Per-process / deployment enforcement semantics unresolved</span>
+        <div class="b-sub">Claude and Codex flag that one bucket per worker process means the globally enforced rate is roughly rate × worker_count, so advertised limit ≠ enforced limit. Claude treats this…</div>
+      </li>
+      
+      <li>
+        <span class="b-title">Tests are timing-dependent and prove none of the failure modes</span>
+        <div class="b-sub">Claude and Codex find the tests use time.sleep() and real wall-clock, making them flaky on loaded CI. No test injects a clock, exercises a backward clock jump, asserts the 0 ≤…</div>
+      </li>
+      
+    </ol>
+  </section>
+
+  <!-- ===================== DISSENT (one line) ===================== -->
+  <div class="qv-dissent">
+    <span class="qv-dflag">Dissent on the record</span>
+    
+    <p class="qv-d"><span class="who">Claude</span> — Dissents from Gemini on two named points: (1) &#x27;migrate to an API Gateway / centralized store instead&#x27; is a recommendation to build a different system, not a defect in the artifact… <span class="qv-more">(+2 more in the full handoff)</span></p>
+    
+  </div>
+
+  <!-- ===================== NEXT STEPS ===================== -->
+  <section class="qv-sec qv-actions-sec">
+    <h2>Next steps</h2>
+    <ol class="qv-actions">
+      
+      <li>Replace time.time() with an injectable clock defaulting to time.monotonic() in __init__ and allow().</li>
+      
+      <li>Clamp elapsed = max(0.0, now - self._last) so refill math never goes negative; never move _last backward.</li>
+      
+      <li>Validate n in allow(): require finite, positive values and define behavior for n &gt; capacity.</li>
+      
+      <li class="qv-more-li">…5 more in the full handoff</li>
+    </ol>
+  </section>
+
+  </main>
+
+  <!-- ===================== FOOTER / COLOPHON (Panely / dark band) ===================== -->
+  
+  <footer class="colophon">
+    <div class="band-inner">
+      <div class="colophon-grid">
+        <div class="colophon-about">
+          <div class="footer-lockup">
+            <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect x="2" y="2" width="96" height="96" rx="22" fill="#0a0e1a"/><circle cx="50" cy="50" r="30" fill="none" stroke="#3a5fd9" stroke-width="3" opacity="0.55"/><circle cx="50" cy="20" r="10" fill="#0a0e1a" stroke="#e2b658" stroke-width="4"/><circle cx="50" cy="20" r="4" fill="#e2b658"/><circle cx="76" cy="65" r="10" fill="#0a0e1a" stroke="#3d6bff" stroke-width="4"/><circle cx="76" cy="65" r="4" fill="#3d6bff"/><circle cx="24" cy="65" r="10" fill="#0a0e1a" stroke="#3d6bff" stroke-width="4"/><circle cx="24" cy="65" r="4" fill="#3d6bff"/><circle cx="50" cy="50" r="13" fill="#5b8cff"/><circle cx="50" cy="50" r="5.5" fill="#ffffff"/></svg>
+            <span>Advisory Board <span style="font-weight:400; color:var(--on-dark-soft); font-size:11.5px; letter-spacing:0.02em;">powered by Panely</span></span>
+          </div>
+          <p>Convene Claude, Codex, and Gemini on your own subscriptions — the ones you already pay for, no new accounts and no API keys — to review the same material and reach one clear verdict.</p>
+        </div>
+        <div class="colophon-cta">
+          <a class="cta" href="https://panely.ai">panely.ai</a>
+        </div>
+      </div>
+      <span class="prov">Board: Claude · Codex · Gemini · 3 rounds · 2026-06-25</span>
+    </div>
+  </footer>
+
+</body>
+</html>

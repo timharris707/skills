@@ -7,6 +7,7 @@
   "verdict": "SHIP WITH CHANGES — unanimous",
   "verdict_class": "caution",
   "verdict_note": "",
+  "confidence": "high confidence",
   "blockers_heading": "Consensus blockers — must fix before ship",
   "disclaimer": "",
   "plan": "review packet",
@@ -110,33 +111,40 @@
   "blockers": [
     {
       "blocker_title": "Wall-clock source on the refill hot path",
-      "blocker_body": "All three seats agree the use of time.time() on the refill path is a correctness bug under the stated operating context: a backward clock step makes elapsed negative, so self._tokens + elapsed*rate subtracts tokens and the min() clamp only bounds the top, never zero. Result is spurious denials / a multi-second denial window after an NTP or operator clock correction — exactly the traffic conditions the limiter exists to handle. Fix: switch to time.monotonic() (injectable), and clamp elapsed = max(0.0, now - self._last)."
+      "blocker_body": "All three seats agree the use of time.time() on the refill path is a correctness bug under the stated operating context: a backward clock step makes elapsed negative, so self._tokens + elapsed*rate subtracts tokens and the min() clamp only bounds the top, never zero. Result is spurious denials / a multi-second denial window after an NTP or operator clock correction — exactly the traffic conditions the limiter exists to handle. Fix: switch to time.monotonic() (injectable), and clamp elapsed = max(0.0, now - self._last).",
+      "blocker_summary": "All three seats agree the use of time.time() on the refill path is a correctness bug under the stated operating context: a backward clock step makes elapsed negative, so…"
     },
     {
       "blocker_title": "allow(n) accepts invalid request costs",
-      "blocker_body": "All three seats flag that allow(n) performs no validation on n. A negative n (e.g. allow(-5)) executes self._tokens -= n, which mints tokens and returns True — a caller can refill the bucket by asking. Non-finite values have undefined behavior and n is never bounded against capacity. Fix: require finite, positive n and define behavior for n &gt; capacity."
+      "blocker_body": "All three seats flag that allow(n) performs no validation on n. A negative n (e.g. allow(-5)) executes self._tokens -= n, which mints tokens and returns True — a caller can refill the bucket by asking. Non-finite values have undefined behavior and n is never bounded against capacity. Fix: require finite, positive n and define behavior for n &gt; capacity.",
+      "blocker_summary": "All three seats flag that allow(n) performs no validation on n. A negative n (e.g. allow(-5)) executes self._tokens -= n, which mints tokens and returns True — a caller can refill…"
     },
     {
       "blocker_title": "Per-process / deployment enforcement semantics unresolved",
-      "blocker_body": "Claude and Codex flag that one bucket per worker process means the globally enforced rate is roughly rate × worker_count, so advertised limit ≠ enforced limit. Claude treats this as a must-decide operational caveat (acceptable as a soft abuse cap, not as a hard ceiling) rather than a code fix; Codex states that if a fixed per-client RPS must be enforced globally across processes/hosts this becomes a block unless moved to a shared limiter or upstream gateway. The seats did not settle whether &#x27;per-client&#x27; is global or local. Requires an explicit, recorded operator decision."
+      "blocker_body": "Claude and Codex flag that one bucket per worker process means the globally enforced rate is roughly rate × worker_count, so advertised limit ≠ enforced limit. Claude treats this as a must-decide operational caveat (acceptable as a soft abuse cap, not as a hard ceiling) rather than a code fix; Codex states that if a fixed per-client RPS must be enforced globally across processes/hosts this becomes a block unless moved to a shared limiter or upstream gateway. The seats did not settle whether &#x27;per-client&#x27; is global or local. Requires an explicit, recorded operator decision.",
+      "blocker_summary": "Claude and Codex flag that one bucket per worker process means the globally enforced rate is roughly rate × worker_count, so advertised limit ≠ enforced limit. Claude treats this…"
     },
     {
       "blocker_title": "Tests are timing-dependent and prove none of the failure modes",
-      "blocker_body": "Claude and Codex find the tests use time.sleep() and real wall-clock, making them flaky on loaded CI. No test injects a clock, exercises a backward clock jump, asserts the 0 ≤ _tokens ≤ capacity invariant, covers n ≤ 0, or exercises concurrent access — so they cannot deterministically reproduce the primary failure mode. The suite does pass clean — the command citation below re-runs it (exit 0, `OK`) — which is exactly the point: a green suite is a verified receipt that the tests pass, not evidence that the failure modes are covered. Fix: rewrite around a fake/injected clock and add the missing cases."
+      "blocker_body": "Claude and Codex find the tests use time.sleep() and real wall-clock, making them flaky on loaded CI. No test injects a clock, exercises a backward clock jump, asserts the 0 ≤ _tokens ≤ capacity invariant, covers n ≤ 0, or exercises concurrent access — so they cannot deterministically reproduce the primary failure mode. The suite does pass clean — the command citation below re-runs it (exit 0, `OK`) — which is exactly the point: a green suite is a verified receipt that the tests pass, not evidence that the failure modes are covered. Fix: rewrite around a fake/injected clock and add the missing cases.",
+      "blocker_summary": "Claude and Codex find the tests use time.sleep() and real wall-clock, making them flaky on loaded CI. No test injects a clock, exercises a backward clock jump, asserts the 0 ≤…"
     }
   ],
   "dissents": [
     {
       "dissent_who": "Claude",
-      "dissent_body": "Dissents from Gemini on two named points: (1) &#x27;migrate to an API Gateway / centralized store instead&#x27; is a recommendation to build a different system, not a defect in the artifact under review — per-process and centralized limiting are both legitimate, and a block must rest on an unfixable in-scope defect; (2) the GIL/lock-contention latency-spike rationale is overstated to the point of being wrong as a blocking reason — the critical section is ~four arithmetic ops with no I/O or allocation, sub-microsecond, and the GIL already serializes the workers, so the lock adds negligible marginal contention. If contention ever mattered, the fix is sharding buckets, not abandoning the design."
+      "dissent_body": "Dissents from Gemini on two named points: (1) &#x27;migrate to an API Gateway / centralized store instead&#x27; is a recommendation to build a different system, not a defect in the artifact under review — per-process and centralized limiting are both legitimate, and a block must rest on an unfixable in-scope defect; (2) the GIL/lock-contention latency-spike rationale is overstated to the point of being wrong as a blocking reason — the critical section is ~four arithmetic ops with no I/O or allocation, sub-microsecond, and the GIL already serializes the workers, so the lock adds negligible marginal contention. If contention ever mattered, the fix is sharding buckets, not abandoning the design.",
+      "dissent_summary": "Dissents from Gemini on two named points: (1) 'migrate to an API Gateway / centralized store instead' is a recommendation to build a different system, not a defect in the artifact…"
     },
     {
       "dissent_who": "Codex",
-      "dissent_body": "Dissents from Gemini: Python lock contention alone does not justify an unconditional block on the provided evidence. It is a real risk needing load testing, but the packet gives no peak RPS, thread count, latency SLO, or contention benchmark."
+      "dissent_body": "Dissents from Gemini: Python lock contention alone does not justify an unconditional block on the provided evidence. It is a real risk needing load testing, but the packet gives no peak RPS, thread count, latency SLO, or contention benchmark.",
+      "dissent_summary": "Dissents from Gemini: Python lock contention alone does not justify an unconditional block on the provided evidence. It is a real risk needing load testing, but the packet gives…"
     },
     {
       "dissent_who": "Gemini",
-      "dissent_body": "Dissents from Codex for focusing narrowly on code correctness while ignoring operational risk: deploying to the hot path of every public request without built-in observability, dry-run/shadow mode, and a fail-open circuit breaker is a critical operational risk regardless of clock correctness. Also dissents from Claude&#x27;s structural acceptance of per-process limits without operational remediation, insisting on explicit configuration scaling guidelines (e.g. dividing limits by active worker count) to prevent SLA drift."
+      "dissent_body": "Dissents from Codex for focusing narrowly on code correctness while ignoring operational risk: deploying to the hot path of every public request without built-in observability, dry-run/shadow mode, and a fail-open circuit breaker is a critical operational risk regardless of clock correctness. Also dissents from Claude&#x27;s structural acceptance of per-process limits without operational remediation, insisting on explicit configuration scaling guidelines (e.g. dividing limits by active worker count) to prevent SLA drift.",
+      "dissent_summary": "Dissents from Codex for focusing narrowly on code correctness while ignoring operational risk: deploying to the hot path of every public request without built-in observability,…"
     }
   ],
   "caveats": [
@@ -193,5 +201,24 @@
     {
       "action": "(Gemini) Add operational safeguards: dry-run/shadow mode emitting metrics while returning True, allow/reject telemetry tagged by client ID, a fail-open try/except around allow() in the caller, and a canary rollout via feature flag."
     }
-  ]
+  ],
+  "dissents_brief": [
+    {
+      "dissent_who": "Claude",
+      "dissent_summary": "Dissents from Gemini on two named points: (1) 'migrate to an API Gateway / centralized store instead' is a recommendation to build a different system, not a defect in the artifact…",
+      "dissent_more": "(+2 more in the full handoff)"
+    }
+  ],
+  "actions_brief": [
+    {
+      "action": "Replace time.time() with an injectable clock defaulting to time.monotonic() in __init__ and allow()."
+    },
+    {
+      "action": "Clamp elapsed = max(0.0, now - self._last) so refill math never goes negative; never move _last backward."
+    },
+    {
+      "action": "Validate n in allow(): require finite, positive values and define behavior for n &gt; capacity."
+    }
+  ],
+  "actions_more": "…5 more in the full handoff"
 }

@@ -81,6 +81,11 @@
     font-size: 12px; letter-spacing: 0.09em; text-transform: uppercase;
     font-weight: 700; margin: 0 0 6px; opacity: 0.85;
   }
+  .verdict .conf-badge {
+    display: inline-block; margin-left: 9px; font-size: 10.5px; letter-spacing: 0.05em;
+    font-weight: 700; padding: 1px 8px; border-radius: 999px;
+    background: rgba(0,0,0,0.07); vertical-align: 1.5px;
+  }
   .verdict .headline { font-size: 23px; font-weight: 700; margin: 0; line-height: 1.25; }
   .verdict .note { margin: 10px 0 0; font-size: 15.5px; line-height: 1.55; }
   .verdict.ship    { background: var(--ship-bg);    border-color: var(--ship-edge);    color: var(--ship-ink); }
@@ -286,7 +291,7 @@
   <!-- ===================== VERDICT BANNER ===================== -->
   
   <div class="verdict caution">
-    <p class="label">Final verdict</p>
+    <p class="label">Final verdict<span class="conf-badge">high confidence</span></p>
     <p class="headline">SHIP WITH CHANGES — unanimous</p>
     <p class="note"></p>
   </div>
