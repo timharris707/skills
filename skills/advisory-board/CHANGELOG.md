@@ -8,6 +8,13 @@ Pre-1.0 the minor tracks the conductor milestone (M5 → `v0.5.0`, M6 → `v0.6.
 reserved for an explicit production-ready call. The verdict-JSON schema is versioned separately
 (`advisory-board/verdict@N`) and is not the same axis as the release version.
 
+## [v1.7.1] - 2026-06-27 — Artifact lockup: "Advisory Board, powered by Panely"
+
+The artifact masthead and footer now lead with **Advisory Board** as the product, with
+**powered by Panely** as a maker attribution beneath it — previously the lockup bundled
+"Panely Advisory Board". This keeps the skill and the Panely app cleanly distinct, while
+still crediting the maker. Template-only: no behavior, renderer, or schema change.
+
 ## [v1.7.0] - 2026-06-26 — Panely Advisory Board brand
 
 The human-facing artifact is now a branded **Panely Advisory Board** deliverable — the
