@@ -67,9 +67,11 @@ BLOCK_KEYS = {
     "ROUND": "rounds",
     "BLOCKER": "blockers",
     "DISSENT": "dissents",
+    "DISSENT BRIEF": "dissents_brief",
     "CAVEAT": "caveats",
     "QUESTION": "questions",
     "ACTION": "actions",
+    "ACTION BRIEF": "actions_brief",
 }
 
 # Tokens whose values are authored HTML fragments and pass through unescaped.
@@ -86,6 +88,31 @@ def drop_empty_optionals(out: str) -> str:
     out = re.sub(r'\s*<div class="highlight">\s*</div>', "", out)
     out = re.sub(r'\s*<span class="conf">confidence:\s*</span>', "", out)
     out = re.sub(r'\s*<span class="disclaimer">\s*</span>', "", out)
+    # Drop the verdict-banner confidence pill when there's no confidence. Shared by both
+    # the full handoff and the brief (same banner markup); no-op when the pill is filled.
+    out = re.sub(r'<span class="conf-badge">\s*</span>', "", out)
+    # --- quick-verdict (qv-*) drops. All scoped to qv-* classes, so they are NO-OPS
+    #     for the full handoff template (which has no qv-* markup). After render_item,
+    #     an empty repeatable block leaves its <ol>…</ol>/<span>…</span> empty — that
+    #     is the shape these match. ---
+    # Drop the brief's "+N more" / "…N more" pointers when they rendered empty. The
+    # qv-more-li drop MUST run BEFORE the empty-actions-section drop below, so a zero-
+    # action brief leaves a truly empty <ol> for that rule to match (and the whole
+    # section drops). qv-more is the inline dissent pointer span.
+    out = re.sub(r'\s*<li class="qv-more-li">\s*</li>', "", out)
+    out = re.sub(r'\s*<span class="qv-more">\s*</span>', "", out)
+    # Drop an empty dissent block: only an empty qv-dflag and no qv-d items left.
+    out = re.sub(
+        r'\s*<div class="qv-dissent">\s*<span class="qv-dflag">\s*</span>\s*</div>',
+        "", out, flags=re.DOTALL)
+    # Drop an empty blockers section (the qv-blockers <ol> rendered empty).
+    out = re.sub(
+        r'\s*<section class="qv-sec qv-blockers-sec">.*?<ol class="qv-blockers">\s*</ol>.*?</section>',
+        "", out, flags=re.DOTALL)
+    # Drop an empty actions section (the qv-actions <ol> rendered empty).
+    out = re.sub(
+        r'\s*<section class="qv-sec qv-actions-sec">.*?<ol class="qv-actions">\s*</ol>.*?</section>',
+        "", out, flags=re.DOTALL)
     return out
 
 
@@ -135,6 +162,14 @@ def default_template() -> str:
     return os.path.join(
         os.path.dirname(os.path.abspath(__file__)),
         "..", "references", "handoff-template.html",
+    )
+
+
+def quick_verdict_template() -> str:
+    """The slim "quick-verdict" (skim-brief) template — same handoff-data, fewer slots."""
+    return os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        "..", "references", "quick-verdict-template.html",
     )
 
 

@@ -269,6 +269,32 @@ def _plain(text: str) -> str:
     return _nb(text)
 
 
+def _oneliner(text: str, limit: int = 180) -> str:
+    """Collapse a blocker/dissent body to ONE plain-text line for the quick-verdict brief.
+
+    Strips leading list markers and inline markdown (per-line leading "-"/"•" bullets, and
+    the `* ` backtick `#` `>` characters), collapses all whitespace/newlines to single
+    spaces, and trims. If the result is longer than `limit`, it is cut at the last word
+    boundary <= limit and an ellipsis is appended. Returns "" for empty/whitespace input."""
+    if not text or not str(text).strip():
+        return ""
+    lines = []
+    for line in str(text).splitlines():
+        # Drop a leading bullet marker ("-", "•", "*") and surrounding space per line.
+        line = re.sub(r"^\s*[-•*]\s+", "", line)
+        lines.append(line)
+    joined = " ".join(lines)
+    # Strip the remaining inline-markdown punctuation (emphasis, code, headings, quotes).
+    joined = re.sub(r"[*`#>]", "", joined)
+    collapsed = re.sub(r"\s+", " ", joined).strip()
+    if len(collapsed) <= limit:
+        return collapsed
+    cut = collapsed[:limit]
+    if " " in cut:
+        cut = cut[:cut.rfind(" ")]
+    return cut.rstrip() + "…"
+
+
 def _round_review(run_dir, seat_name: str, round_no: int, verdict: str) -> str:
     """The seat's round review as raw MARKDOWN. render_handoff.py owns the single
     Markdown->HTML conversion (its _md_review), so this must NOT pre-render HTML — a
@@ -303,8 +329,16 @@ def build_handoff_data(data: dict, run_dir=None) -> dict:
     # the absent-preset default). Empty string when absent so the template slot resolves
     # to nothing and the footer line is dropped.
     disclaimer = lens_disclaimer(lens_preset)
+    # The board's confidence, rendered as a small banner pill ("high confidence"). Empty
+    # when absent so the pill is dropped. Same value feeds both the full and brief banners.
+    confidence = data.get("confidence")
+    confidence_str = f"{confidence} confidence" if confidence else ""
     board_str = " · ".join(s.get("seat", "?") for s in data.get("board", []))
     rounds_str = str(data.get("rounds", ""))
+    # The brief trims dissent to the first dissenter + a "+N more" pointer, and caps next
+    # steps at the top 3 + a "…N more" pointer; the full handoff keeps the complete lists.
+    dissent = data.get("dissent") or []
+    actions = data.get("next_actions") or []
     # Footer provenance, in human terms — no internal file/script names. (The old
     # "Rendered from verdict.json by scripts/render_verdict.py" was a developer string
     # that leaked onto the page; same for the subtitle below.)
@@ -325,6 +359,7 @@ def build_handoff_data(data: dict, run_dir=None) -> dict:
         "verdict": _plain(headline),
         "verdict_class": _VERDICT_CLASS.get(verdict, ""),
         "verdict_note": _raw(verdict_note) if verdict_note else "",
+        "confidence": _plain(confidence_str),
         # Lens-aware section header for the consensus must-resolve items.
         "blockers_heading": _plain(blockers_heading(lens_preset, "html")),
         "disclaimer": _raw(disclaimer) if disclaimer else "",
@@ -332,14 +367,32 @@ def build_handoff_data(data: dict, run_dir=None) -> dict:
         "metadata": _raw(metadata),
         "dissent_flag": "Dissent on the record" if data.get("dissent") else "",
         "seats": [],
+        # blocker_summary / dissent_summary are the one-line plain-text forms the
+        # quick-verdict brief renders; the full handoff keeps using blocker_body /
+        # dissent_body (the full prose). Both are non-RAW (the renderer escapes them).
         "blockers": [{"blocker_title": _plain(b.get("title", "blocker")),
-                      "blocker_body": _raw(b.get("body", ""))} for b in data.get("blockers", [])],
+                      "blocker_body": _raw(b.get("body", "")),
+                      "blocker_summary": _plain(_oneliner(b.get("body", "")))}
+                     for b in data.get("blockers", [])],
         "dissents": [{"dissent_who": _plain(d.get("who", "-")),
-                      "dissent_body": _raw(d.get("body", ""))} for d in data.get("dissent", [])],
+                      "dissent_body": _raw(d.get("body", "")),
+                      "dissent_summary": _plain(_oneliner(d.get("body", "")))}
+                     for d in data.get("dissent", [])],
         "caveats": [{"caveat_claim": _raw(line), "caveat_impact": ""}
                     for line in _couldnt_verify_lines(data)],
         "questions": [{"question": _raw(q)} for q in data.get("open_questions", [])],
         "actions": [{"action": _raw(a)} for a in data.get("next_actions", [])],
+        # Brief-only trims. The full handoff uses dissents[]/actions[] (complete); the
+        # quick-verdict template uses these capped variants + their "more" pointers.
+        "dissents_brief": ([{
+            "dissent_who": _plain(dissent[0].get("who", "-")),
+            "dissent_summary": _plain(_oneliner(dissent[0].get("body", ""))),
+            "dissent_more": _plain(f"(+{len(dissent) - 1} more in the full handoff)")
+                            if len(dissent) > 1 else "",
+        }] if dissent else []),
+        "actions_brief": [{"action": _raw(a)} for a in actions[:3]],
+        "actions_more": _plain(f"…{len(actions) - 3} more in the full handoff")
+                        if len(actions) > 3 else "",
     }
     for seat in data.get("board", []):
         name = seat.get("seat", "?")
@@ -369,10 +422,16 @@ def build_handoff_data(data: dict, run_dir=None) -> dict:
     return hd
 
 
-def _render_html(hd: dict) -> str:
+def _render_html(hd: dict, shape: str = "full-handoff") -> str:
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     import render_handoff  # sibling script
-    with open(render_handoff.default_template(), encoding="utf-8") as handle:
+    # Same handoff-data dict feeds both views; only the template differs. The
+    # quick-verdict template uses the slim subset of tokens/blocks (verdict banner,
+    # one-line blockers, dissent line, actions) — no seats/rounds/caveats/questions.
+    template_path = (render_handoff.quick_verdict_template()
+                     if shape == "quick-verdict"
+                     else render_handoff.default_template())
+    with open(template_path, encoding="utf-8") as handle:
         template = handle.read()
     return render_handoff.render(hd, template)
 
@@ -384,6 +443,8 @@ def main(argv=None) -> int:
     parser.add_argument("--check", action="store_true", help="print Markdown to stdout; write nothing")
     parser.add_argument("--handoff-data", dest="handoff_data", help="also write a derived handoff-data.json here")
     parser.add_argument("--html", help="also write final-consensus.html here (via render_handoff.py)")
+    parser.add_argument("--shape", choices=("full-handoff", "quick-verdict"), default="full-handoff",
+                        help="HTML shape for --html: the full handoff (default) or the slim quick-verdict brief")
     parser.add_argument("--run", dest="run_dir", help="a run dir; pulls per-round prose from its round-N/<seat>.md")
     args = parser.parse_args(argv)
 
@@ -405,7 +466,7 @@ def main(argv=None) -> int:
                 handle.write("\n")
             print(f"wrote {args.handoff_data}")
         if args.html:
-            out_html = _render_html(hd)
+            out_html = _render_html(hd, args.shape)
             with open(args.html, "w", encoding="utf-8") as handle:
                 handle.write(out_html)
             print(f"wrote {args.html} ({len(out_html)} bytes)")

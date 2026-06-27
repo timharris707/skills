@@ -3555,7 +3555,8 @@ class TestLensAwareFraming(unittest.TestCase):
     software board (and the absent/None default) stays byte-identical."""
 
     # --- the shared module: directive lead / section heading --------------- #
-    # (The "Final verdict" eyebrow is hardcoded in the template, same for every lens.)
+    # (The "Final verdict" eyebrow is hardcoded in the template, same for every lens;
+    #  it now also carries an optional confidence pill — see TestConfidencePill.)
 
     def test_lead_software_and_absent_are_none(self):
         # A software board's SHIP/… label is already a directive — no extra lead.
@@ -3648,7 +3649,7 @@ class TestLensAwareFraming(unittest.TestCase):
 
     def test_html_non_software_banner_and_heading(self):
         html_out = self._html(self._caution())
-        self.assertIn('<p class="label">Final verdict</p>', html_out)   # eyebrow unchanged
+        self.assertIn('<p class="label">Final verdict', html_out)       # eyebrow (now carries the conf pill)
         self.assertIn("Go ahead, with conditions ·", html_out)          # directive headline
         self.assertIn("<h2>What to resolve first</h2>", html_out)       # lens-aware section
         self.assertNotIn("must fix before ship", html_out)
@@ -3659,7 +3660,7 @@ class TestLensAwareFraming(unittest.TestCase):
                         lens_preset="software-architecture",
                         blockers=[{"title": "x", "body": "y"}])
         html_out = self._html(data)
-        self.assertIn('<p class="label">Final verdict</p>', html_out)
+        self.assertIn('<p class="label">Final verdict', html_out)
         self.assertIn("DO NOT SHIP YET — unanimous", html_out)
         self.assertIn("<h2>Consensus blockers — must fix before ship</h2>", html_out)
         self.assertNotIn("What to resolve first", html_out)
@@ -3670,6 +3671,215 @@ class TestLensAwareFraming(unittest.TestCase):
         sw = rv.build_handoff_data(_verdict("block", "block", "block",
                                             lens_preset="software-architecture"))
         self.assertEqual(sw["blockers_heading"], "Consensus blockers — must fix before ship")
+
+    # --- confidence pill in the full-handoff banner ------------------------- #
+
+    def test_full_handoff_banner_shows_confidence_pill(self):
+        # _verdict sets confidence="high"; the pill rides the eyebrow on the full handoff.
+        html_out = self._html(self._caution())
+        self.assertIn('<span class="conf-badge">high confidence</span>', html_out)
+        self.assertEqual(rv.build_handoff_data(self._caution())["confidence"], "high confidence")
+
+    def test_full_handoff_drops_pill_without_confidence(self):
+        data = self._caution()
+        del data["confidence"]
+        html_out = self._html(data)
+        self.assertNotIn('<span class="conf-badge">', html_out)
+        self.assertIn('<p class="label">Final verdict</p>', html_out)
+        self.assertEqual(rv.build_handoff_data(data)["confidence"], "")
+
+
+class TestQuickVerdictShape(unittest.TestCase):
+    """v1.8.x: the "quick-verdict" (skim-brief) HTML shape — the verdict banner, the
+    must-resolve items as one-liners, a one-line dissent flag, and the next steps. Same
+    handoff-data feeds it as the full handoff; it just carries less (no round-by-round
+    board reviews, no couldn't-verify bucket, no open questions). Mirrors
+    TestLensAwareFraming: render via render_handoff against the quick-verdict template."""
+
+    def _qv(self, data):
+        import render_handoff as rh
+        return rh.render(rv.build_handoff_data(data),
+                         open(rh.quick_verdict_template()).read())
+
+    def _caution(self, **extra):
+        return _verdict("caution", "caution", "caution", title="Should I do X?",
+                        lens_preset="business-decision",
+                        blockers=[{"title": "Runway", "body": "The numbers don't close."}],
+                        dissent=[{"who": "Codex", "body": "I'd wait another quarter."}],
+                        next_actions=["Build 6 months of runway", "Land 2 anchor clients"],
+                        **extra)
+
+    # --- _oneliner ---------------------------------------------------------- #
+
+    def test_oneliner_empty(self):
+        self.assertEqual(rv._oneliner(""), "")
+        self.assertEqual(rv._oneliner("   \n  "), "")
+
+    def test_oneliner_strips_markdown_and_collapses(self):
+        out = rv._oneliner("- The numbers do **not**\n  close at current `burn`. # heading\n> quote")
+        self.assertEqual(out, "The numbers do not close at current burn. heading quote")
+
+    def test_oneliner_truncates_at_word_boundary(self):
+        out = rv._oneliner("alpha beta gamma delta epsilon", limit=12)
+        self.assertTrue(out.endswith("…"))
+        self.assertLessEqual(len(out) - 1, 12)   # the cut text (sans ellipsis) is within the limit
+        self.assertNotIn("gamma", out)           # cut mid-stream, not at a partial word
+
+    # --- renders + KEEPS ---------------------------------------------------- #
+
+    def test_qv_renders_clean(self):
+        # No SystemExit (assert_fully_resolved) and no leftover token.
+        out = self._qv(self._caution())
+        self.assertNotIn("{{", out)
+
+    def test_qv_keeps_lens_aware_banner_heading_blocker_dissent_action(self):
+        out = self._qv(self._caution())
+        self.assertIn("Go ahead, with conditions ·", out)        # lens-aware headline
+        self.assertIn("<h2>What to resolve first</h2>", out)      # lens-aware must-resolve heading
+        self.assertIn("Runway", out)                             # a blocker title
+        self.assertIn("Dissent on the record", out)              # the dissent flag
+        self.assertIn("Build 6 months of runway", out)           # an action line
+        self.assertIn('<p class="label">Final verdict', out)      # brand eyebrow (carries the conf pill)
+
+    # --- DROPS the heavy full-handoff sections ------------------------------ #
+
+    def test_qv_drops_heavy_sections(self):
+        out = self._qv(self._caution())
+        self.assertNotIn("Board reviews — round by round", out)
+        self.assertNotIn("Round 1 verdict", out)                 # no seat round_review prose
+        self.assertNotIn("What the board couldn't verify", out)
+        self.assertNotIn("Open questions", out)
+
+    # --- lens-aware software fixture ---------------------------------------- #
+
+    def test_qv_software_banner_and_heading(self):
+        data = _verdict("block", "block", "block", title="Cache layer",
+                        lens_preset="software-architecture",
+                        blockers=[{"title": "x", "body": "y"}])
+        out = self._qv(data)
+        self.assertIn("DO NOT SHIP YET", out)
+        self.assertIn("<h2>Consensus blockers — must fix before ship</h2>", out)
+
+    # --- empty handling ----------------------------------------------------- #
+
+    def test_qv_ship_with_no_blockers_drops_blockers_section(self):
+        data = _verdict("ship", "ship", "ship", title="Launch?",
+                        lens_preset="business-decision",
+                        next_actions=["Ship it"])
+        out = self._qv(data)
+        self.assertNotIn('<ol class="qv-blockers"></ol>', out)
+        self.assertNotIn('qv-blockers-sec', out)
+
+    def test_qv_no_dissent_drops_dissent_div(self):
+        data = _verdict("ship", "ship", "ship", title="Launch?",
+                        lens_preset="business-decision",
+                        blockers=[{"title": "B", "body": "b"}],
+                        next_actions=["Ship it"])
+        out = self._qv(data)
+        self.assertNotIn('<div class="qv-dissent">', out)
+        self.assertNotIn('<span class="qv-dflag">', out)
+
+    # --- dissent trim (brief only) ------------------------------------------ #
+
+    def _trim_fixture(self, *, dissent, next_actions):
+        # A business-decision caution fixture with caller-set dissent / next_actions counts
+        # (the _caution helper hardcodes both, so the trim/cap tests build directly).
+        return _verdict("caution", "caution", "caution", title="Should I do X?",
+                        lens_preset="business-decision",
+                        blockers=[{"title": "Runway", "body": "The numbers don't close."}],
+                        dissent=dissent, next_actions=next_actions)
+
+    def test_qv_dissent_trims_to_first_plus_more(self):
+        data = self._trim_fixture(dissent=[
+            {"who": "Claude", "body": "First dissenter view."},
+            {"who": "Codex", "body": "ZZ-second-dissenter-body."},
+            {"who": "Gemini", "body": "Third one too."}],
+            next_actions=["a1"])
+        out = self._qv(data)
+        # the rendered dissent block (not the CSS) — slice on the markup div.
+        i = out.index('<div class="qv-dissent">')
+        block = out[i:out.index("</div>", i)]
+        self.assertIn("Claude", block)                       # first dissenter present
+        self.assertIn("First dissenter view.", block)
+        self.assertNotIn("ZZ-second-dissenter-body.", out)   # a LATER dissenter's body absent
+        self.assertNotIn("Gemini", block)                    # a LATER dissenter absent
+        self.assertIn("(+2 more in the full handoff)", out)  # the "+N more" pointer
+
+    def test_qv_single_dissent_has_no_more_pointer(self):
+        out = self._qv(self._caution())  # exactly one dissenter
+        self.assertIn("Codex", out)
+        self.assertNotIn("more in the full handoff", out)
+
+    # --- next-steps cap at 3 (brief only) ----------------------------------- #
+
+    def test_qv_actions_cap_at_three_plus_more(self):
+        data = self._trim_fixture(dissent=[{"who": "Codex", "body": "d"}], next_actions=[
+            "Step one", "Step two", "Step three", "ZZ-fourth-step", "Step five"])
+        out = self._qv(data)
+        sec = out[out.index('qv-actions-sec'):]
+        self.assertIn("Step one", out)
+        self.assertIn("Step three", out)
+        self.assertNotIn("ZZ-fourth-step", out)              # the 4th action is absent
+        self.assertEqual(sec.count("<li"), 4)                # exactly 3 actions + the more-li
+        self.assertIn("…2 more in the full handoff", out)    # the "…N more" pointer
+
+    def test_qv_three_or_fewer_actions_has_no_more_li(self):
+        data = self._trim_fixture(dissent=[{"who": "Codex", "body": "d"}],
+                                  next_actions=["Only one", "Only two"])
+        out = self._qv(data)
+        self.assertNotIn('<li class="qv-more-li">', out)     # the markup li, not the CSS class
+        self.assertNotIn("more in the full handoff", out)
+
+    def test_qv_zero_actions_drops_actions_section(self):
+        data = _verdict("ship", "ship", "ship", title="Launch?",
+                        lens_preset="business-decision",
+                        blockers=[{"title": "B", "body": "b"}])  # no next_actions
+        out = self._qv(data)
+        self.assertNotIn("qv-actions-sec", out)
+        self.assertNotIn('<ol class="qv-actions">', out)
+
+    # --- confidence pill (both templates) ----------------------------------- #
+
+    def test_qv_confidence_pill_present_and_dropped(self):
+        out = self._qv(self._caution())  # _verdict sets confidence="high"
+        self.assertIn('<span class="conf-badge">high confidence</span>', out)
+        # a no-confidence fixture drops the pill (leaving the bare eyebrow).
+        nc = self._caution()
+        del nc["confidence"]
+        out = self._qv(nc)
+        self.assertNotIn('<span class="conf-badge">', out)
+        self.assertIn('<p class="label">Final verdict</p>', out)
+
+    # --- --shape flag ------------------------------------------------------- #
+
+    def test_shape_flag_writes_slim_vs_full(self):
+        d = tempfile.mkdtemp()
+        self.addCleanup(lambda: __import__("shutil").rmtree(d, ignore_errors=True))
+        vpath = os.path.join(d, "verdict.json")
+        with open(vpath, "w") as fh:
+            json.dump(self._caution(), fh)
+        slim = os.path.join(d, "quick-verdict.html")
+        full = os.path.join(d, "final-consensus.html")
+        md = os.path.join(d, "out.md")
+
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            rv.main([vpath, "-o", md, "--html", slim, "--shape", "quick-verdict"])
+            rv.main([vpath, "-o", md, "--html", full])  # default shape = full-handoff
+
+        slim_html = open(slim).read()
+        full_html = open(full).read()
+        self.assertNotIn("Board reviews — round by round", slim_html)
+        self.assertIn("Board reviews — round by round", full_html)
+
+    # --- brace safety ------------------------------------------------------- #
+
+    def test_qv_brace_safe_blocker_title(self):
+        data = _verdict("caution", "caution", title="Plan",
+                        lens_preset="business-decision",
+                        blockers=[{"title": "use {{X}} here", "body": "b"}])
+        out = self._qv(data)  # must not raise SystemExit on a literal {{X}}
+        self.assertNotIn("{{X}}", out)
 
 
 class TestM5ChainDelegation(EnvMixin):
