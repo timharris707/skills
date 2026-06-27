@@ -8,19 +8,36 @@
 <style>
   :root {
     --maxw: 820px;
-    --ink: #1c1d22;
-    --ink-soft: #4a4d57;
-    --ink-faint: #74777f;
-    --line: #e4e3dd;
-    --line-strong: #d2d1c9;
+    /* light "Boardroom" body */
+    --page: #faf8f3;
     --surface: #ffffff;
-    --page: #f6f5f1;
-    --surface-soft: #faf9f5;
-    --accent: #4f46b8;
-    /* verdict palettes */
-    --ship-bg: #e9f5ec;     --ship-edge: #2f7d46;   --ship-ink: #1d5e31;
-    --caution-bg: #fdf2dd;  --caution-edge: #b9791b; --caution-ink: #7a4d09;
-    --block-bg: #fbe9e9;    --block-edge: #b23535;  --block-ink: #7e1f1f;
+    --surface-soft: #faf7f0;
+    --vellum: #f3eee3;
+    --ink: #11192b;
+    --ink-soft: #3a4459;
+    --ink-faint: #6e768a;
+    --line: #e4ddce;
+    --line-strong: #d8cfb8;
+    /* brand accents (both themes) */
+    --accent: #2347ff;          /* cobalt — signature */
+    --accent-deep: #0f2bc2;
+    --accent-tint: #eaedff;
+    --gold: #a8843c;            /* secondary — the lead seat */
+    /* dark "Signal" bands */
+    --dark: #0a0e1a;
+    --dark-2: #111726;
+    --dark-line: #232b3e;
+    --on-dark: #fbfaf7;
+    --on-dark-soft: #b9c0d0;
+    --on-dark-faint: #8a93a8;
+    --accent-bright: #5b8cff;
+    --gold-bright: #e2b658;
+    /* verdict palettes (muted — counsel, not error toasts) */
+    --ship-bg: #e9f1ec;     --ship-edge: #2f6f57;   --ship-ink: #235540;
+    --caution-bg: #fbf1de;  --caution-edge: #b07a1e; --caution-ink: #7a5410;
+    --block-bg: #f7e9e9;    --block-edge: #9e3636;  --block-ink: #7a2525;
+    --font-sans: "Panely Grotesk","Söhne","Inter","Helvetica Neue",Helvetica,Arial,"Segoe UI",system-ui,sans-serif;
+    --font-mono: "Berkeley Mono","JetBrains Mono",ui-monospace,"Menlo","Consolas",monospace;
   }
   * { box-sizing: border-box; }
   html { -webkit-text-size-adjust: 100%; }
@@ -28,32 +45,36 @@
     margin: 0;
     background: var(--page);
     color: var(--ink);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-                 Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji", sans-serif;
+    font-family: var(--font-sans);
     font-size: 17px;
     line-height: 1.65;
   }
-  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 32px 20px 72px; }
 
-  /* ---- header ---- */
-  header.masthead { margin-bottom: 24px; }
-  .eyebrow {
-    font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase;
-    color: var(--ink-faint); font-weight: 600; margin: 0 0 8px;
-  }
-  h1 { font-size: 30px; line-height: 1.2; font-weight: 700; margin: 0 0 8px; letter-spacing: -0.01em; }
-  .subtitle { font-size: 17px; color: var(--ink-soft); margin: 0 0 18px; }
+  /* ---- dark masthead band ---- */
+  header.masthead { background: var(--dark); color: var(--on-dark); padding: 30px 20px 28px; }
+  .band-inner { max-width: var(--maxw); margin: 0 auto; }
+  .brand-lockup { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+  .brand-mark { width: 46px; height: 46px; border-radius: 11px; overflow: hidden; flex: 0 0 auto; }
+  .brand-mark svg { display: block; width: 100%; height: 100%; }
+  .brand-name { display: flex; flex-direction: column; line-height: 1.1; }
+  .brand-name .p { font-size: 18px; font-weight: 700; letter-spacing: -0.01em; color: var(--on-dark); }
+  .brand-name .ab { font-size: 10.5px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--accent-bright); margin-top: 4px; }
+  header.masthead h1 { font-size: 29px; line-height: 1.18; font-weight: 700; margin: 0 0 8px; letter-spacing: -0.01em; color: var(--on-dark); }
+  .subtitle { font-size: 16px; color: var(--on-dark-soft); margin: 0 0 18px; max-width: 60ch; }
   .meta-row { display: flex; flex-wrap: wrap; gap: 8px; }
   .chip {
     display: inline-flex; align-items: center; gap: 6px;
-    background: var(--surface); border: 1px solid var(--line-strong);
-    border-radius: 999px; padding: 5px 13px; font-size: 13.5px; color: var(--ink-soft);
+    background: rgba(255,255,255,0.05); border: 1px solid var(--dark-line);
+    border-radius: 999px; padding: 5px 13px; font-size: 13px; color: var(--on-dark-soft);
   }
-  .chip b { font-weight: 600; color: var(--ink); }
+  .chip b { font-weight: 600; color: var(--on-dark); }
+
+  /* ---- body column ---- */
+  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 30px 20px 56px; }
 
   /* ---- verdict banner ---- */
   .verdict {
-    border-radius: 14px; padding: 22px 24px; margin: 8px 0 32px;
+    border-radius: 12px; padding: 22px 24px; margin: 4px 0 32px;
     border: 1px solid transparent; border-left-width: 6px;
   }
   .verdict .label {
@@ -85,20 +106,20 @@
   /* ---- seat cards ---- */
   .seat {
     background: var(--surface); border: 1px solid var(--line-strong);
-    border-radius: 14px; padding: 20px 22px; margin: 0 0 18px;
+    border-radius: 12px; padding: 20px 22px; margin: 0 0 18px;
   }
   .seat-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 12px; margin-bottom: 4px; }
   .seat-name { font-size: 19px; font-weight: 700; margin: 0; }
   .seat-lens {
     font-size: 12.5px; font-weight: 600; color: var(--accent);
-    background: #efeefb; border-radius: 999px; padding: 3px 11px;
+    background: var(--accent-tint); border-radius: 999px; padding: 3px 11px;
   }
-  .seat-model { font-size: 13px; color: var(--ink-faint); }
+  .seat-model { font-size: 13px; color: var(--ink-faint); font-family: var(--font-mono); }
   .seat-status {
     font-size: 11.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
     border-radius: 999px; padding: 3px 10px;
   }
-  .seat-status.ran      { background: #efeee8;           color: var(--ink-faint); }
+  .seat-status.ran      { background: var(--vellum);     color: var(--ink-faint); }
   .seat-status.degraded { background: var(--caution-bg); color: var(--caution-ink); }
   .seat-status.dropped  { background: var(--block-bg);   color: var(--block-ink); }
   .round { margin-top: 16px; padding-top: 16px; border-top: 1px dashed var(--line); }
@@ -136,14 +157,14 @@
   }
   .review-body pre code { background: none; border: 0; padding: 0; font-size: inherit; }
   code {
-    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
-    font-size: 0.86em; background: #f0efe9; border: 1px solid var(--line);
+    font-family: var(--font-mono);
+    font-size: 0.86em; background: var(--vellum); border: 1px solid var(--line);
     border-radius: 5px; padding: 1px 5px;
   }
 
   /* highlight callout (e.g. a seat that changed its verdict) */
   .highlight {
-    background: #fff8e8; border: 1px solid #ecd9a3; border-radius: 10px;
+    background: #fff6e3; border: 1px solid #ecd9a3; border-radius: 10px;
     padding: 12px 16px; margin: 14px 0 0; font-size: 14.5px; color: #6f5212;
   }
   .highlight b { color: #5a4209; }
@@ -199,47 +220,68 @@
   .actions ol { margin: 0; padding-left: 20px; }
   .actions li { margin: 6px 0; }
 
-  /* ---- footer ---- */
-  footer.meta {
-    margin-top: 40px; padding-top: 18px; border-top: 1px solid var(--line);
-    font-size: 13px; color: var(--ink-faint); line-height: 1.7;
+  /* ---- dark footer / colophon band ---- */
+  footer.colophon { background: var(--dark); color: var(--on-dark-soft); padding: 26px 20px 32px; }
+  footer.colophon .disclaimer {
+    display: block; margin: 0 0 16px; font-style: italic;
+    color: var(--on-dark-faint); font-size: 13.5px;
   }
-  footer.meta code { background: #efeee8; }
-  footer.meta .prov { display: block; margin-top: 6px; }
+  .colophon-grid { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; justify-content: space-between; }
+  .colophon-about { flex: 1 1 320px; }
+  .footer-lockup { display: flex; align-items: center; gap: 9px; font-weight: 700; color: var(--on-dark); font-size: 14px; margin-bottom: 9px; }
+  .footer-lockup svg { width: 26px; height: 26px; display: block; }
+  .colophon-about p { margin: 0; font-size: 13.5px; line-height: 1.6; color: var(--on-dark-soft); max-width: 54ch; }
+  .colophon-cta { flex: 0 0 auto; }
+  .cta {
+    display: inline-block; background: var(--accent); color: #ffffff;
+    font-weight: 600; font-size: 14.5px; text-decoration: none;
+    padding: 10px 20px; border-radius: 9px;
+  }
+  .cta::after { content: " →"; }
+  footer.colophon .prov { display: block; margin-top: 12px; font-size: 11.5px; color: var(--on-dark-faint); font-family: var(--font-mono); }
 
   /* ---- responsive ---- */
   @media (max-width: 560px) {
     body { font-size: 16px; }
-    .wrap { padding: 22px 15px 56px; }
-    h1 { font-size: 25px; }
+    .wrap { padding: 22px 15px 44px; }
+    header.masthead, footer.colophon { padding-left: 15px; padding-right: 15px; }
+    header.masthead h1 { font-size: 25px; }
     .verdict .headline { font-size: 20px; }
     .seat, ol.blockers > li { padding-left: 16px; padding-right: 16px; }
     ol.blockers > li { padding-left: 50px; }
+    .colophon-cta { width: 100%; }
   }
 
   /* ---- print / PDF (Print -> Save as PDF) ---- */
   @media print {
     body { background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    .wrap { max-width: none; padding: 8px 0 0; }
+    header.masthead, footer.colophon { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .wrap { max-width: none; }
     .verdict, .plan, .seat, .round, ol.blockers > li, .dissent, .actions { break-inside: avoid; }
     a { color: inherit; text-decoration: none; }
   }
 </style>
 </head>
 <body>
-<div class="wrap">
 
-  <!-- ===================== HEADER ===================== -->
+  <!-- ===================== MASTHEAD (Panely / dark band) ===================== -->
   <header class="masthead">
-    <p class="eyebrow">Advisory Board · Multi-model review</p>
-    <h1>Should I go full-time on my side project?</h1>
-    <p class="subtitle">Rendered from the canonical verdict.json.</p>
-    <div class="meta-row">
-      <span class="chip"><b>Date</b> 2026-06-26</span>
-      <span class="chip"><b>Rounds</b> 2</span>
-      <span class="chip"><b>Board</b> Claude · Codex · Gemini</span>
+    <div class="band-inner">
+      <div class="brand-lockup">
+        <span class="brand-mark"><svg viewBox="0 0 1000 1000" xmlns="http://www.w3.org/2000/svg"><defs><radialGradient id="bg" cx="50%" cy="38%" r="74%"><stop offset="0%" stop-color="#122046"/><stop offset="55%" stop-color="#0a1024"/><stop offset="100%" stop-color="#05070f"/></radialGradient><radialGradient id="vig" cx="50%" cy="50%" r="62%"><stop offset="60%" stop-color="#000000" stop-opacity="0"/><stop offset="100%" stop-color="#000000" stop-opacity="0.5"/></radialGradient><linearGradient id="cobalt" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#a9c2ff"/><stop offset="52%" stop-color="#5b8cff"/><stop offset="100%" stop-color="#2347ff"/></linearGradient><linearGradient id="gold" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#ffe6a3"/><stop offset="55%" stop-color="#e2b658"/><stop offset="100%" stop-color="#b9842e"/></linearGradient><radialGradient id="core" cx="50%" cy="42%" r="62%"><stop offset="0%" stop-color="#ffffff"/><stop offset="34%" stop-color="#dbe6ff"/><stop offset="70%" stop-color="#6f93ff"/><stop offset="100%" stop-color="#2347ff"/></radialGradient><radialGradient id="spark" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#eaf1ff"/><stop offset="100%" stop-color="#5b8cff"/></radialGradient><filter id="gM" x="-180%" y="-180%" width="460%" height="460%"><feGaussianBlur stdDeviation="14"/></filter><filter id="gL" x="-220%" y="-220%" width="540%" height="540%"><feGaussianBlur stdDeviation="32"/></filter></defs><rect width="1000" height="1000" fill="#05070f"/><rect width="1000" height="1000" fill="url(#bg)"/><circle cx="500" cy="500" r="220" fill="#3a5fff" opacity="0.12" filter="url(#gL)"/><circle cx="500" cy="500" r="312" fill="none" stroke="url(#cobalt)" stroke-width="3" opacity="0.7"/><circle cx="500" cy="500" r="210" fill="none" stroke="#4f7bff" stroke-width="2" opacity="0.32"/><circle cx="500" cy="500" r="120" fill="none" stroke="#4f7bff" stroke-width="2" opacity="0.22"/><g stroke="#4f7bff" stroke-width="2"><line x1="830" y1="500" x2="850" y2="500" opacity="0.4"/><line x1="500" y1="830" x2="500" y2="850" opacity="0.4"/><line x1="170" y1="500" x2="150" y2="500" opacity="0.4"/><line x1="500" y1="170" x2="500" y2="150" opacity="0.4"/><line x1="733.3" y1="733.3" x2="743.2" y2="743.2" opacity="0.16"/><line x1="266.7" y1="733.3" x2="256.8" y2="743.2" opacity="0.16"/><line x1="266.7" y1="266.7" x2="256.8" y2="256.8" opacity="0.16"/><line x1="733.3" y1="266.7" x2="743.2" y2="256.8" opacity="0.16"/></g><line x1="500" y1="250" x2="500" y2="188" stroke="#f7b500" stroke-width="3" opacity="0.45"/><circle cx="500" cy="188" r="46" fill="#e2b658" opacity="0.30" filter="url(#gM)"/><circle cx="500" cy="188" r="34" fill="#0a1430" stroke="url(#gold)" stroke-width="5"/><circle cx="500" cy="188" r="15" fill="url(#gold)"/><circle cx="770.2" cy="344" r="46" fill="#2f54e6" opacity="0.30" filter="url(#gM)"/><circle cx="770.2" cy="344" r="34" fill="#0a1430" stroke="url(#cobalt)" stroke-width="5"/><circle cx="770.2" cy="344" r="15" fill="url(#spark)"/><circle cx="770.2" cy="656" r="46" fill="#2f54e6" opacity="0.30" filter="url(#gM)"/><circle cx="770.2" cy="656" r="34" fill="#0a1430" stroke="url(#cobalt)" stroke-width="5"/><circle cx="770.2" cy="656" r="15" fill="url(#spark)"/><circle cx="500" cy="812" r="46" fill="#2f54e6" opacity="0.30" filter="url(#gM)"/><circle cx="500" cy="812" r="34" fill="#0a1430" stroke="url(#cobalt)" stroke-width="5"/><circle cx="500" cy="812" r="15" fill="url(#spark)"/><circle cx="229.8" cy="656" r="46" fill="#2f54e6" opacity="0.30" filter="url(#gM)"/><circle cx="229.8" cy="656" r="34" fill="#0a1430" stroke="url(#cobalt)" stroke-width="5"/><circle cx="229.8" cy="656" r="15" fill="url(#spark)"/><circle cx="229.8" cy="344" r="46" fill="#2f54e6" opacity="0.30" filter="url(#gM)"/><circle cx="229.8" cy="344" r="34" fill="#0a1430" stroke="url(#cobalt)" stroke-width="5"/><circle cx="229.8" cy="344" r="15" fill="url(#spark)"/><circle cx="500" cy="500" r="74" fill="none" stroke="#4f7bff" stroke-width="2" opacity="0.5"/><circle cx="500" cy="500" r="144" fill="#3a5fff" opacity="0.16" filter="url(#gL)"/><circle cx="500" cy="500" r="77" fill="url(#core)" opacity="0.5" filter="url(#gM)"/><circle cx="500" cy="500" r="48" fill="url(#core)" stroke="#ffffff" stroke-width="3"/><circle cx="500" cy="489" r="13" fill="#ffffff" opacity="0.92"/><rect width="1000" height="1000" fill="url(#vig)"/></svg></span>
+        <span class="brand-name"><span class="p">Advisory Board</span><span class="ab" style="text-transform:none; letter-spacing:0.03em; font-weight:600; margin-top:3px;">powered by Panely</span></span>
+      </div>
+      <h1>Should I go full-time on my side project?</h1>
+      <p class="subtitle">An independent multi-model review.</p>
+      <div class="meta-row">
+        <span class="chip"><b>Date</b> 2026-06-26</span>
+        <span class="chip"><b>Rounds</b> 2</span>
+        <span class="chip"><b>Board</b> Claude · Codex · Gemini</span>
+      </div>
     </div>
   </header>
+
+  <main class="wrap">
 
   <!-- ===================== VERDICT BANNER ===================== -->
   
@@ -251,7 +293,7 @@
 
   <!-- ===================== PLAN UNDER REVIEW ===================== -->
   <section>
-    <h2>Plan under review</h2>
+    <h2>What was reviewed</h2>
     <div class="plan">
       Should I go full-time on my side project?
     </div>
@@ -293,9 +335,7 @@
 <ul><li>At sustained 8% MoM: $4,200 × 1.08⁹ = <strong>~$8,400 at month 9</strong> — <em>not</em> the $12k target. Hitting $12k in 9 months needs <strong>~12.4% MoM</strong>, i.e. growth must <em>accelerate ~50%</em> the moment he goes full-time. Possible, but it's an assumption dressed as a plan.</li><li>The $8k floor: $4,200 × 1.08¹² = <strong>~$10,600 at month 12</strong>, and $8k is crossed around <strong>month 8–9</strong> at current 8%. Even a degraded ~5.5% MoM clears $8k by month 12. <strong>So the hard-stop gate is met by roughly the hobby trajectory</strong> — it tests "did Tally keep limping forward," not "did quitting accelerate it." A floor that the no-quit baseline already clears is not a real decision gate.</li></ul>
 <p><strong>(D) 8% MoM gets harder, not easier, as the base grows.</strong> That 8% <em>net</em> number was earned at a small base (≤$4.2k) off SEO + a couple of one-time Reddit/IH spikes. Net 8% at 5% churn means <strong>~13% of base in gross new MRR every month</strong> — and the absolute dollars of new MRR must roughly double as the base doubles. SEO can compound; Reddit/IH posts are non-repeatable spikes. The historical rate is not safely extrapolable to a 2–3x larger base.</p>
 <p class="r-title">3. Recommended execution sequence (what I'd change before pulling the trigger)</p>
-<ol><li><strong>Re-cost the burn with health insurance.</strong> Leaving the job almost certainly ends employer health coverage. A family marketplace/COBRA plan with a kid is realistically <strong>$1,500–2,200/mo</strong> unsubsidized. If the $6,500 household burn doesn't include this, true gap = ($6,500 + ~$1,800) − $4,000 partner = <strong>~$4,300/mo before any Tally contribution</strong>, not the $2,500 implied. Recompute runway honestly: $70k against a $4,300 gap (net of partner, before Tally profit) ≈ 16 months; Tally's net profit extends that, but paid-acquisition spend shortens it. Get the real number on paper.</li><li><strong>Use the 3 pre-quit months to attack the two unproven planks — not just to bank vesting.</strong> This is the highest-leverage change. Both crux risks are testable <em>while still employed</em>:</li></ol>
-<ul><li><strong>Ship the Team plan and an annual plan now, nights/weekends.</strong> The thin $15 ARPU is his own #1 stated worry and it's the cheapest thing to de-risk. If a Team tier and annual prepay don't lift blended ARPU, the entire thesis weakens — better to learn that with a paycheck.</li><li><strong>Run one small paid-acquisition test (a few hundred dollars).</strong> Measure real CAC and payback. If CAC payback is &gt;12 months on $15 ARPU, kill paid as a plank <em>before</em> it's load-bearing.</li></ul>
-<ol start="3"><li><strong>Reset the gates to test the actual hypothesis.</strong> Replace "$8k MRR by month 12" (baseline-clearing, soft) with a <em>trajectory + composition</em> gate: e.g. <strong>sustained ≥10% MoM net for 3 consecutive months AND blended ARPU up ≥30% AND ≥1 channel with payback &lt;6 months by month 6.</strong> That tests whether <em>quitting bought acceleration</em>, which is the only thing that justifies the opportunity cost.</li><li><strong>Keep the re-entry option explicit and dated.</strong> A 12-month gap is easily explained for a senior engineer, but bake in a month-9 "start interviewing if month-6 gate missed" trigger so the hard stop isn't a cliff.</li></ol>
+<ol><li><strong>Re-cost the burn with health insurance.</strong> Leaving the job almost certainly ends employer health coverage. A family marketplace/COBRA plan with a kid is realistically <strong>$1,500–2,200/mo</strong> unsubsidized. If the $6,500 household burn doesn't include this, true gap = ($6,500 + ~$1,800) − $4,000 partner = <strong>~$4,300/mo before any Tally contribution</strong>, not the $2,500 implied. Recompute runway honestly: $70k against a $4,300 gap (net of partner, before Tally profit) ≈ 16 months; Tally's net profit extends that, but paid-acquisition spend shortens it. Get the real number on paper.</li><li><strong>Use the 3 pre-quit months to attack the two unproven planks — not just to bank vesting.</strong> This is the highest-leverage change. Both crux risks are testable <em>while still employed</em>:<ul><li><strong>Ship the Team plan and an annual plan now, nights/weekends.</strong> The thin $15 ARPU is his own #1 stated worry and it's the cheapest thing to de-risk. If a Team tier and annual prepay don't lift blended ARPU, the entire thesis weakens — better to learn that with a paycheck.</li><li><strong>Run one small paid-acquisition test (a few hundred dollars).</strong> Measure real CAC and payback. If CAC payback is &gt;12 months on $15 ARPU, kill paid as a plank <em>before</em> it's load-bearing.</li></ul></li><li><strong>Reset the gates to test the actual hypothesis.</strong> Replace "$8k MRR by month 12" (baseline-clearing, soft) with a <em>trajectory + composition</em> gate: e.g. <strong>sustained ≥10% MoM net for 3 consecutive months AND blended ARPU up ≥30% AND ≥1 channel with payback &lt;6 months by month 6.</strong> That tests whether <em>quitting bought acceleration</em>, which is the only thing that justifies the opportunity cost.</li><li><strong>Keep the re-entry option explicit and dated.</strong> A 12-month gap is easily explained for a senior engineer, but bake in a month-9 "start interviewing if month-6 gate missed" trigger so the hard stop isn't a cliff.</li></ol>
 <p class="r-title">4. Invariants and guardrails</p>
 <ul><li><strong>Never let savings fall below a hard floor</strong> (e.g. 4 months of true burn, ~$17k) — that's the re-entry buffer, not spendable runway.</li><li><strong>Paid acquisition is gated on proven payback.</strong> No scaling spend until a test shows CAC payback &lt; ~6 months. Cap monthly paid spend until then.</li><li><strong>Health insurance funded from day one</strong> — non-negotiable line item, not an afterthought.</li><li><strong>ARPU is the north-star metric, not MRR.</strong> A $15 product growing logos is more fragile than a rising-ARPU product. Track blended ARPU and net revenue retention monthly.</li><li><strong>The month-6 gate is a real decision, pre-committed in writing</strong> so it isn't renegotiated under sunk-cost pressure.</li></ul>
 <p class="r-title">5. Risks, stale assumptions, missing evidence</p>
@@ -612,11 +652,28 @@
     </div>
   </section>
 
-  <!-- ===================== FOOTER / PROVENANCE ===================== -->
-  <footer class="meta">
-    Rendered from <code>verdict.json</code> by <code>scripts/render_verdict.py</code>.
+  </main>
+
+  <!-- ===================== FOOTER / COLOPHON (Panely / dark band) ===================== -->
+  
+  <footer class="colophon">
+    <div class="band-inner">
+      <span class="disclaimer">An advisory board sharpens your judgment; it doesn&#x27;t replace professional advice where your decision warrants it.</span>
+      <div class="colophon-grid">
+        <div class="colophon-about">
+          <div class="footer-lockup">
+            <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect x="2" y="2" width="96" height="96" rx="22" fill="#0a0e1a"/><circle cx="50" cy="50" r="30" fill="none" stroke="#3a5fd9" stroke-width="3" opacity="0.55"/><circle cx="50" cy="20" r="10" fill="#0a0e1a" stroke="#e2b658" stroke-width="4"/><circle cx="50" cy="20" r="4" fill="#e2b658"/><circle cx="76" cy="65" r="10" fill="#0a0e1a" stroke="#3d6bff" stroke-width="4"/><circle cx="76" cy="65" r="4" fill="#3d6bff"/><circle cx="24" cy="65" r="10" fill="#0a0e1a" stroke="#3d6bff" stroke-width="4"/><circle cx="24" cy="65" r="4" fill="#3d6bff"/><circle cx="50" cy="50" r="13" fill="#5b8cff"/><circle cx="50" cy="50" r="5.5" fill="#ffffff"/></svg>
+            <span>Advisory Board <span style="font-weight:400; color:var(--on-dark-soft); font-size:11.5px; letter-spacing:0.02em;">powered by Panely</span></span>
+          </div>
+          <p>Convene Claude, Codex, and Gemini on your own subscriptions — the ones you already pay for, no new accounts and no API keys — to review the same material and reach one clear verdict.</p>
+        </div>
+        <div class="colophon-cta">
+          <a class="cta" href="https://panely.ai">panely.ai</a>
+        </div>
+      </div>
+      <span class="prov">Board: Claude · Codex · Gemini · 2 rounds · 2026-06-26</span>
+    </div>
   </footer>
 
-</div>
 </body>
 </html>

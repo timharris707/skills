@@ -8,19 +8,36 @@
 <style>
   :root {
     --maxw: 820px;
-    --ink: #1c1d22;
-    --ink-soft: #4a4d57;
-    --ink-faint: #74777f;
-    --line: #e4e3dd;
-    --line-strong: #d2d1c9;
+    /* light "Boardroom" body */
+    --page: #faf8f3;
     --surface: #ffffff;
-    --page: #f6f5f1;
-    --surface-soft: #faf9f5;
-    --accent: #4f46b8;
-    /* verdict palettes */
-    --ship-bg: #e9f5ec;     --ship-edge: #2f7d46;   --ship-ink: #1d5e31;
-    --caution-bg: #fdf2dd;  --caution-edge: #b9791b; --caution-ink: #7a4d09;
-    --block-bg: #fbe9e9;    --block-edge: #b23535;  --block-ink: #7e1f1f;
+    --surface-soft: #faf7f0;
+    --vellum: #f3eee3;
+    --ink: #11192b;
+    --ink-soft: #3a4459;
+    --ink-faint: #6e768a;
+    --line: #e4ddce;
+    --line-strong: #d8cfb8;
+    /* brand accents (both themes) */
+    --accent: #2347ff;          /* cobalt — signature */
+    --accent-deep: #0f2bc2;
+    --accent-tint: #eaedff;
+    --gold: #a8843c;            /* secondary — the lead seat */
+    /* dark "Signal" bands */
+    --dark: #0a0e1a;
+    --dark-2: #111726;
+    --dark-line: #232b3e;
+    --on-dark: #fbfaf7;
+    --on-dark-soft: #b9c0d0;
+    --on-dark-faint: #8a93a8;
+    --accent-bright: #5b8cff;
+    --gold-bright: #e2b658;
+    /* verdict palettes (muted — counsel, not error toasts) */
+    --ship-bg: #e9f1ec;     --ship-edge: #2f6f57;   --ship-ink: #235540;
+    --caution-bg: #fbf1de;  --caution-edge: #b07a1e; --caution-ink: #7a5410;
+    --block-bg: #f7e9e9;    --block-edge: #9e3636;  --block-ink: #7a2525;
+    --font-sans: "Panely Grotesk","Söhne","Inter","Helvetica Neue",Helvetica,Arial,"Segoe UI",system-ui,sans-serif;
+    --font-mono: "Berkeley Mono","JetBrains Mono",ui-monospace,"Menlo","Consolas",monospace;
   }
   * { box-sizing: border-box; }
   html { -webkit-text-size-adjust: 100%; }
@@ -28,32 +45,36 @@
     margin: 0;
     background: var(--page);
     color: var(--ink);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-                 Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji", sans-serif;
+    font-family: var(--font-sans);
     font-size: 17px;
     line-height: 1.65;
   }
-  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 32px 20px 72px; }
 
-  /* ---- header ---- */
-  header.masthead { margin-bottom: 24px; }
-  .eyebrow {
-    font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase;
-    color: var(--ink-faint); font-weight: 600; margin: 0 0 8px;
-  }
-  h1 { font-size: 30px; line-height: 1.2; font-weight: 700; margin: 0 0 8px; letter-spacing: -0.01em; }
-  .subtitle { font-size: 17px; color: var(--ink-soft); margin: 0 0 18px; }
+  /* ---- dark masthead band ---- */
+  header.masthead { background: var(--dark); color: var(--on-dark); padding: 30px 20px 28px; }
+  .band-inner { max-width: var(--maxw); margin: 0 auto; }
+  .brand-lockup { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+  .brand-mark { width: 46px; height: 46px; border-radius: 11px; overflow: hidden; flex: 0 0 auto; }
+  .brand-mark svg { display: block; width: 100%; height: 100%; }
+  .brand-name { display: flex; flex-direction: column; line-height: 1.1; }
+  .brand-name .p { font-size: 18px; font-weight: 700; letter-spacing: -0.01em; color: var(--on-dark); }
+  .brand-name .ab { font-size: 10.5px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--accent-bright); margin-top: 4px; }
+  header.masthead h1 { font-size: 29px; line-height: 1.18; font-weight: 700; margin: 0 0 8px; letter-spacing: -0.01em; color: var(--on-dark); }
+  .subtitle { font-size: 16px; color: var(--on-dark-soft); margin: 0 0 18px; max-width: 60ch; }
   .meta-row { display: flex; flex-wrap: wrap; gap: 8px; }
   .chip {
     display: inline-flex; align-items: center; gap: 6px;
-    background: var(--surface); border: 1px solid var(--line-strong);
-    border-radius: 999px; padding: 5px 13px; font-size: 13.5px; color: var(--ink-soft);
+    background: rgba(255,255,255,0.05); border: 1px solid var(--dark-line);
+    border-radius: 999px; padding: 5px 13px; font-size: 13px; color: var(--on-dark-soft);
   }
-  .chip b { font-weight: 600; color: var(--ink); }
+  .chip b { font-weight: 600; color: var(--on-dark); }
+
+  /* ---- body column ---- */
+  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 30px 20px 56px; }
 
   /* ---- verdict banner ---- */
   .verdict {
-    border-radius: 14px; padding: 22px 24px; margin: 8px 0 32px;
+    border-radius: 12px; padding: 22px 24px; margin: 4px 0 32px;
     border: 1px solid transparent; border-left-width: 6px;
   }
   .verdict .label {
@@ -85,20 +106,20 @@
   /* ---- seat cards ---- */
   .seat {
     background: var(--surface); border: 1px solid var(--line-strong);
-    border-radius: 14px; padding: 20px 22px; margin: 0 0 18px;
+    border-radius: 12px; padding: 20px 22px; margin: 0 0 18px;
   }
   .seat-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 12px; margin-bottom: 4px; }
   .seat-name { font-size: 19px; font-weight: 700; margin: 0; }
   .seat-lens {
     font-size: 12.5px; font-weight: 600; color: var(--accent);
-    background: #efeefb; border-radius: 999px; padding: 3px 11px;
+    background: var(--accent-tint); border-radius: 999px; padding: 3px 11px;
   }
-  .seat-model { font-size: 13px; color: var(--ink-faint); }
+  .seat-model { font-size: 13px; color: var(--ink-faint); font-family: var(--font-mono); }
   .seat-status {
     font-size: 11.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
     border-radius: 999px; padding: 3px 10px;
   }
-  .seat-status.ran      { background: #efeee8;           color: var(--ink-faint); }
+  .seat-status.ran      { background: var(--vellum);     color: var(--ink-faint); }
   .seat-status.degraded { background: var(--caution-bg); color: var(--caution-ink); }
   .seat-status.dropped  { background: var(--block-bg);   color: var(--block-ink); }
   .round { margin-top: 16px; padding-top: 16px; border-top: 1px dashed var(--line); }
@@ -136,14 +157,14 @@
   }
   .review-body pre code { background: none; border: 0; padding: 0; font-size: inherit; }
   code {
-    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
-    font-size: 0.86em; background: #f0efe9; border: 1px solid var(--line);
+    font-family: var(--font-mono);
+    font-size: 0.86em; background: var(--vellum); border: 1px solid var(--line);
     border-radius: 5px; padding: 1px 5px;
   }
 
   /* highlight callout (e.g. a seat that changed its verdict) */
   .highlight {
-    background: #fff8e8; border: 1px solid #ecd9a3; border-radius: 10px;
+    background: #fff6e3; border: 1px solid #ecd9a3; border-radius: 10px;
     padding: 12px 16px; margin: 14px 0 0; font-size: 14.5px; color: #6f5212;
   }
   .highlight b { color: #5a4209; }
@@ -199,47 +220,68 @@
   .actions ol { margin: 0; padding-left: 20px; }
   .actions li { margin: 6px 0; }
 
-  /* ---- footer ---- */
-  footer.meta {
-    margin-top: 40px; padding-top: 18px; border-top: 1px solid var(--line);
-    font-size: 13px; color: var(--ink-faint); line-height: 1.7;
+  /* ---- dark footer / colophon band ---- */
+  footer.colophon { background: var(--dark); color: var(--on-dark-soft); padding: 26px 20px 32px; }
+  footer.colophon .disclaimer {
+    display: block; margin: 0 0 16px; font-style: italic;
+    color: var(--on-dark-faint); font-size: 13.5px;
   }
-  footer.meta code { background: #efeee8; }
-  footer.meta .prov { display: block; margin-top: 6px; }
+  .colophon-grid { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; justify-content: space-between; }
+  .colophon-about { flex: 1 1 320px; }
+  .footer-lockup { display: flex; align-items: center; gap: 9px; font-weight: 700; color: var(--on-dark); font-size: 14px; margin-bottom: 9px; }
+  .footer-lockup svg { width: 26px; height: 26px; display: block; }
+  .colophon-about p { margin: 0; font-size: 13.5px; line-height: 1.6; color: var(--on-dark-soft); max-width: 54ch; }
+  .colophon-cta { flex: 0 0 auto; }
+  .cta {
+    display: inline-block; background: var(--accent); color: #ffffff;
+    font-weight: 600; font-size: 14.5px; text-decoration: none;
+    padding: 10px 20px; border-radius: 9px;
+  }
+  .cta::after { content: " →"; }
+  footer.colophon .prov { display: block; margin-top: 12px; font-size: 11.5px; color: var(--on-dark-faint); font-family: var(--font-mono); }
 
   /* ---- responsive ---- */
   @media (max-width: 560px) {
     body { font-size: 16px; }
-    .wrap { padding: 22px 15px 56px; }
-    h1 { font-size: 25px; }
+    .wrap { padding: 22px 15px 44px; }
+    header.masthead, footer.colophon { padding-left: 15px; padding-right: 15px; }
+    header.masthead h1 { font-size: 25px; }
     .verdict .headline { font-size: 20px; }
     .seat, ol.blockers > li { padding-left: 16px; padding-right: 16px; }
     ol.blockers > li { padding-left: 50px; }
+    .colophon-cta { width: 100%; }
   }
 
   /* ---- print / PDF (Print -> Save as PDF) ---- */
   @media print {
     body { background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    .wrap { max-width: none; padding: 8px 0 0; }
+    header.masthead, footer.colophon { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .wrap { max-width: none; }
     .verdict, .plan, .seat, .round, ol.blockers > li, .dissent, .actions { break-inside: avoid; }
     a { color: inherit; text-decoration: none; }
   }
 </style>
 </head>
 <body>
-<div class="wrap">
 
-  <!-- ===================== HEADER ===================== -->
+  <!-- ===================== MASTHEAD (Panely / dark band) ===================== -->
   <header class="masthead">
-    <p class="eyebrow">Advisory Board · Multi-model review</p>
-    <h1>review packet</h1>
-    <p class="subtitle">Rendered from the canonical verdict.json.</p>
-    <div class="meta-row">
-      <span class="chip"><b>Date</b> 2026-06-25</span>
-      <span class="chip"><b>Rounds</b> 3</span>
-      <span class="chip"><b>Board</b> Claude · Codex · Gemini</span>
+    <div class="band-inner">
+      <div class="brand-lockup">
+        <span class="brand-mark"><svg viewBox="0 0 1000 1000" xmlns="http://www.w3.org/2000/svg"><defs><radialGradient id="bg" cx="50%" cy="38%" r="74%"><stop offset="0%" stop-color="#122046"/><stop offset="55%" stop-color="#0a1024"/><stop offset="100%" stop-color="#05070f"/></radialGradient><radialGradient id="vig" cx="50%" cy="50%" r="62%"><stop offset="60%" stop-color="#000000" stop-opacity="0"/><stop offset="100%" stop-color="#000000" stop-opacity="0.5"/></radialGradient><linearGradient id="cobalt" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#a9c2ff"/><stop offset="52%" stop-color="#5b8cff"/><stop offset="100%" stop-color="#2347ff"/></linearGradient><linearGradient id="gold" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#ffe6a3"/><stop offset="55%" stop-color="#e2b658"/><stop offset="100%" stop-color="#b9842e"/></linearGradient><radialGradient id="core" cx="50%" cy="42%" r="62%"><stop offset="0%" stop-color="#ffffff"/><stop offset="34%" stop-color="#dbe6ff"/><stop offset="70%" stop-color="#6f93ff"/><stop offset="100%" stop-color="#2347ff"/></radialGradient><radialGradient id="spark" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#eaf1ff"/><stop offset="100%" stop-color="#5b8cff"/></radialGradient><filter id="gM" x="-180%" y="-180%" width="460%" height="460%"><feGaussianBlur stdDeviation="14"/></filter><filter id="gL" x="-220%" y="-220%" width="540%" height="540%"><feGaussianBlur stdDeviation="32"/></filter></defs><rect width="1000" height="1000" fill="#05070f"/><rect width="1000" height="1000" fill="url(#bg)"/><circle cx="500" cy="500" r="220" fill="#3a5fff" opacity="0.12" filter="url(#gL)"/><circle cx="500" cy="500" r="312" fill="none" stroke="url(#cobalt)" stroke-width="3" opacity="0.7"/><circle cx="500" cy="500" r="210" fill="none" stroke="#4f7bff" stroke-width="2" opacity="0.32"/><circle cx="500" cy="500" r="120" fill="none" stroke="#4f7bff" stroke-width="2" opacity="0.22"/><g stroke="#4f7bff" stroke-width="2"><line x1="830" y1="500" x2="850" y2="500" opacity="0.4"/><line x1="500" y1="830" x2="500" y2="850" opacity="0.4"/><line x1="170" y1="500" x2="150" y2="500" opacity="0.4"/><line x1="500" y1="170" x2="500" y2="150" opacity="0.4"/><line x1="733.3" y1="733.3" x2="743.2" y2="743.2" opacity="0.16"/><line x1="266.7" y1="733.3" x2="256.8" y2="743.2" opacity="0.16"/><line x1="266.7" y1="266.7" x2="256.8" y2="256.8" opacity="0.16"/><line x1="733.3" y1="266.7" x2="743.2" y2="256.8" opacity="0.16"/></g><line x1="500" y1="250" x2="500" y2="188" stroke="#f7b500" stroke-width="3" opacity="0.45"/><circle cx="500" cy="188" r="46" fill="#e2b658" opacity="0.30" filter="url(#gM)"/><circle cx="500" cy="188" r="34" fill="#0a1430" stroke="url(#gold)" stroke-width="5"/><circle cx="500" cy="188" r="15" fill="url(#gold)"/><circle cx="770.2" cy="344" r="46" fill="#2f54e6" opacity="0.30" filter="url(#gM)"/><circle cx="770.2" cy="344" r="34" fill="#0a1430" stroke="url(#cobalt)" stroke-width="5"/><circle cx="770.2" cy="344" r="15" fill="url(#spark)"/><circle cx="770.2" cy="656" r="46" fill="#2f54e6" opacity="0.30" filter="url(#gM)"/><circle cx="770.2" cy="656" r="34" fill="#0a1430" stroke="url(#cobalt)" stroke-width="5"/><circle cx="770.2" cy="656" r="15" fill="url(#spark)"/><circle cx="500" cy="812" r="46" fill="#2f54e6" opacity="0.30" filter="url(#gM)"/><circle cx="500" cy="812" r="34" fill="#0a1430" stroke="url(#cobalt)" stroke-width="5"/><circle cx="500" cy="812" r="15" fill="url(#spark)"/><circle cx="229.8" cy="656" r="46" fill="#2f54e6" opacity="0.30" filter="url(#gM)"/><circle cx="229.8" cy="656" r="34" fill="#0a1430" stroke="url(#cobalt)" stroke-width="5"/><circle cx="229.8" cy="656" r="15" fill="url(#spark)"/><circle cx="229.8" cy="344" r="46" fill="#2f54e6" opacity="0.30" filter="url(#gM)"/><circle cx="229.8" cy="344" r="34" fill="#0a1430" stroke="url(#cobalt)" stroke-width="5"/><circle cx="229.8" cy="344" r="15" fill="url(#spark)"/><circle cx="500" cy="500" r="74" fill="none" stroke="#4f7bff" stroke-width="2" opacity="0.5"/><circle cx="500" cy="500" r="144" fill="#3a5fff" opacity="0.16" filter="url(#gL)"/><circle cx="500" cy="500" r="77" fill="url(#core)" opacity="0.5" filter="url(#gM)"/><circle cx="500" cy="500" r="48" fill="url(#core)" stroke="#ffffff" stroke-width="3"/><circle cx="500" cy="489" r="13" fill="#ffffff" opacity="0.92"/><rect width="1000" height="1000" fill="url(#vig)"/></svg></span>
+        <span class="brand-name"><span class="p">Advisory Board</span><span class="ab" style="text-transform:none; letter-spacing:0.03em; font-weight:600; margin-top:3px;">powered by Panely</span></span>
+      </div>
+      <h1>review packet</h1>
+      <p class="subtitle">An independent multi-model review.</p>
+      <div class="meta-row">
+        <span class="chip"><b>Date</b> 2026-06-25</span>
+        <span class="chip"><b>Rounds</b> 3</span>
+        <span class="chip"><b>Board</b> Claude · Codex · Gemini</span>
+      </div>
     </div>
   </header>
+
+  <main class="wrap">
 
   <!-- ===================== VERDICT BANNER ===================== -->
   
@@ -251,7 +293,7 @@
 
   <!-- ===================== PLAN UNDER REVIEW ===================== -->
   <section>
-    <h2>Plan under review</h2>
+    <h2>What was reviewed</h2>
     <div class="plan">
       review packet
     </div>
@@ -299,8 +341,13 @@
 <p class="r-title">E. Tests can't exercise the failure modes that matter, and are timing-fragile.</p>
 <p><code>time</code> is not injectable, so there is no way to deterministically test backward/forward clock jumps, and <code>test_refills_over_time</code> / <code>test_caps_at_capacity</code> depend on real <code>time.sleep</code> (flaky under CI load). There is <strong>no concurrency test</strong> despite thread-safety being the headline claim, and no test for negative/zero <code>n</code>. Inject a <code>time_fn</code> (default <code>time.monotonic</code>) to make all of this testable.</p>
 <p class="r-title">3. Recommended execution sequence</p>
-<ol><li><strong>Swap <code>time.time()</code> → <code>time.monotonic()</code></strong> in <code>__init__</code> and <code>allow()</code>. (Gate; one line each.)</li><li><strong>Validate <code>n</code></strong> at the top of <code>allow()</code>: <code>if n  capacity</code>.</li><li><strong>Inject the clock</strong>: constructor arg <code>time_fn=time.monotonic</code>, store and call it, so tests are deterministic.</li><li><strong>Define the client registry</strong> (separate from this file but in scope): bounded size + LRU/TTL eviction, its own lock, documented memory ceiling.</li><li><strong>Decide and document the enforcement scope</strong>: per-worker vs global. If global is required, design the shared-state coordination before shipping.</li><li><strong>Add tests</strong>: backward-jump (tokens must not go negative / not over-grant), forward-jump cap, <code>n= n: self._tokens -= n</code> — negative <code>n</code> increases <code>_tokens</code> past <code>capacity</code>.</li></ol>
-<ul><li>Lock scope is correct: <code>with self._lock:</code> wraps the entire refill-and-consume — matches the docstring claim <em>"a single lock guards the refill-and-consume step."</em></li><li>Operating context, quoted: <em>"Hosts run <code>ntpd</code>; wall-clock corrections (and operator clock changes) do happen in production"</em> and <em>"<code>allow()</code> runs once per inbound request, in every API worker process."</em></li><li>Tests bind real time: <code>time.sleep(0.05)</code> / <code>time.sleep(0.02)</code> with no injectable clock; no concurrency or clock-jump test exists in <code>test_tokenbucket.py</code>.</li></ul>
+<ol><li><strong>Swap <code>time.time()</code> → <code>time.monotonic()</code></strong> in <code>__init__</code> and <code>allow()</code>. (Gate; one line each.)</li><li><strong>Validate <code>n</code></strong> at the top of <code>allow()</code>: <code>if n &lt;= 0: raise ValueError</code>. Decide policy on <code>n &gt; capacity</code>.</li><li><strong>Inject the clock</strong>: constructor arg <code>time_fn=time.monotonic</code>, store and call it, so tests are deterministic.</li><li><strong>Define the client registry</strong> (separate from this file but in scope): bounded size + LRU/TTL eviction, its own lock, documented memory ceiling.</li><li><strong>Decide and document the enforcement scope</strong>: per-worker vs global. If global is required, design the shared-state coordination before shipping.</li><li><strong>Add tests</strong>: backward-jump (tokens must not go negative / not over-grant), forward-jump cap, <code>n&lt;=0</code> rejection, and a concurrency test asserting no over-spend under N threads.</li></ol>
+<p class="r-title">4. Invariants and guardrails</p>
+<ul><li><strong><code>0 ≤ _tokens ≤ capacity</code> at all times.</strong> Currently violated by backward clock jumps (can go &lt; 0) and by negative <code>n</code> (can exceed capacity). After fixes, assert/clamp <code>elapsed = max(0, now - self._last)</code> as defense-in-depth even with monotonic time.</li><li><strong>Monotonic non-decreasing time source</strong> — guaranteed by <code>time.monotonic()</code>, not by <code>time.time()</code>.</li><li><strong>No token is spent twice under concurrency</strong> — the single lock around refill-and-consume holds; this is correct as written.</li><li><strong>Bounded memory</strong> for the (missing) registry — hard cap on live buckets.</li><li><strong>At-most <code>capacity</code> burst, then ≤ <code>rate</code> sustained</strong> per bucket — holds once the clock is fixed.</li></ul>
+<p class="r-title">5. Risks, stale assumptions, missing evidence</p>
+<ul><li><strong>Stale assumption:</strong> that <code>time.time()</code> is monotonic. It isn't, and the packet itself supplies the counter-evidence (ntpd in prod).</li><li><strong>Risk:</strong> per-process semantics mean published/configured limits won't match observed behavior — an operational footgun during incident response.</li><li><strong>Missing evidence:</strong> no benchmark of lock contention on the hot path. For a per-client bucket, contention is scoped to threads hitting the same client, so likely fine — but unmeasured, and it's a named concern ("behavior under concurrency").</li><li><strong>Missing:</strong> registry lifecycle, eviction policy, and the global-vs-per-worker decision — all declared in scope, none present.</li><li><strong>Minor:</strong> float accumulation drift is bounded by the <code>min(capacity, …)</code> cap; acceptable, no action needed.</li><li><strong>Note (not a bug):</strong> starting full (<code>_tokens = capacity</code>) permits an initial burst up to <code>capacity</code>. Standard token-bucket behavior; just make sure <code>capacity</code> is chosen as the intended max burst, not equal to <code>rate</code> by reflex.</li></ul>
+<p class="r-title">6. Concrete evidence from the source</p>
+<ul><li>Wall clock source: <code>self._last = time.time()</code> (<code>__init__</code>) and <code>now = time.time()</code> (<code>allow</code>).</li><li>No lower clamp on refill: <code>self._tokens = min(self.capacity, self._tokens + elapsed * self.rate)</code> — bounds the top only; negative <code>elapsed</code> drives tokens down with no floor.</li><li>No <code>n</code> validation: <code>def allow(self, n: float = 1)</code> proceeds directly to <code>if self._tokens &gt;= n: self._tokens -= n</code> — negative <code>n</code> increases <code>_tokens</code> past <code>capacity</code>.</li><li>Lock scope is correct: <code>with self._lock:</code> wraps the entire refill-and-consume — matches the docstring claim <em>"a single lock guards the refill-and-consume step."</em></li><li>Operating context, quoted: <em>"Hosts run <code>ntpd</code>; wall-clock corrections (and operator clock changes) do happen in production"</em> and <em>"<code>allow()</code> runs once per inbound request, in every API worker process."</em></li><li>Tests bind real time: <code>time.sleep(0.05)</code> / <code>time.sleep(0.02)</code> with no injectable clock; no concurrency or clock-jump test exists in <code>test_tokenbucket.py</code>.</li></ul>
 <p class="r-title">7. What I'd ask the other board seats to challenge</p>
 <ul><li><strong>Concurrency/runtime seat:</strong> Is per-bucket lock contention acceptable at peak RPS for the hottest clients, or do we need lock-free/sharded buckets? Does the GIL make the lock cost negligible here, or not under free-threaded builds?</li><li><strong>Reliability/SRE seat:</strong> Is per-worker enforcement (effective limit <code>rate × W</code>) acceptable, or is a true global cap a hard requirement that mandates shared state? What's the blast radius of the backward-clock self-throttle in a real incident?</li><li><strong>Security seat:</strong> Confirm the unbounded client-registry growth is the primary DoS vector and pressure-test the eviction policy against IP/key rotation.</li><li><strong>Testing seat:</strong> Push for a deterministic, injected-clock test matrix (jumps, concurrency, boundary <code>n</code>) as a merge gate — the current suite passing "clean" is not evidence the failure modes are handled.</li></ul>
 <p>VERDICT: caution</p>
@@ -323,9 +370,9 @@
 <p class="r-title">2. Where I changed my mind / where I still dissent</p>
 <ul><li><strong>Changed (toward codex):</strong> In round 1 I treated per-process semantics as a secondary note. I now elevate it to a <strong>co-equal gate</strong> with the clock bug. Reason (codex, exactly): <em>"Missing evidence that per-worker rate limiting is acceptable versus global per-client enforcement."</em> This is not a code bug — it's a contract bug. With N workers each holding an independent bucket, a client's enforced rate is N× the configured rate. The number you publish is not the number you enforce. A one-line clock fix does nothing for this.</li><li><strong>Still dissent from codex on the <em>label</em>:</strong> codex says <strong>block</strong>; I say <strong>caution</strong>. Codex's own "what would change it" is <em>"switch to an injectable monotonic clock"</em> — a fix list, not "abandon the approach." Block and caution here name the same conditions; caution communicates "the primitive is right, these changes are required" more accurately than block, which reads as "wrong approach."</li><li><strong>Still dissent from gemini on lock contention/GIL:</strong> gemini lists <em>"GIL-related latency overhead"</em> from <code>threading.Lock</code> on the hot path as a risk. Overstated. The critical section is ~5 arithmetic ops; under CPython the GIL already serializes bytecode, so the marginal cost of this lock is negligible and contention is bounded by that tiny section. The lock is not the bottleneck and is not a reason to shard or go lock-free. (The real contention risk lives one level up, in the <em>registry</em> lock — see below — not in this bucket.)</li><li><strong>Agree with gemini (and adopt):</strong> the <strong>unbounded registry / OOM</strong> point. A <code>client_id → TokenBucket</code> map with no TTL/LRU eviction is an attacker-controlled memory-growth primitive (spray unique client IDs → OOM the worker). This is in-scope for the proposal even though it's absent from the code.</li></ul>
 <p class="r-title">3. Strongest remaining objections</p>
-<ol><li><strong>Wall-clock source on the hot path (unanimous, must-fix).</strong> <code>self._last = time.time()</code> (<code>__init__</code>) and <code>now = time.time()</code> (<code>allow</code>). A backward NTP/operator step makes <code>elapsed  capacity</code> is a <strong>permanent denial</strong> (tokens are capped at <code>capacity</code>, can never reach <code>n</code>). Needs validation and a defined policy.</li></ol>
+<ol><li><strong>Wall-clock source on the hot path (unanimous, must-fix).</strong> <code>self._last = time.time()</code> (<code>__init__</code>) and <code>now = time.time()</code> (<code>allow</code>). A backward NTP/operator step makes <code>elapsed &lt; 0</code>, and <code>self._tokens + elapsed * self.rate</code> <em>reduces</em> tokens → a spurious <strong>denial window</strong> for legitimate traffic, proportional to the step size (operator steps can be large). Forward steps over-refill but are capped at <code>capacity</code>, so that side is benign.</li><li><strong>Per-process enforcement ≠ per-client enforcement (contract bug, not fixable in-class).</strong> The implementation is a single shared bucket per process; the proposal asks for per-client limiting across a fleet of multi-threaded workers. Enforced limit = configured × worker-count. Must be an explicit, accepted decision or moved to a shared store (Redis/gateway).</li><li><strong>The reviewed artifact is a component, not the rate limiter.</strong> The per-client registry — where eviction, the get-or-create race, client-id cardinality attacks, and the real lock contention all live — is simply not present. We cannot certify "per-client rate limiting" production-ready from a single-bucket class. The most dangerous failure modes are in the code that wasn't submitted.</li><li><strong><code>n</code> is unvalidated.</strong> <code>allow(n)</code> with <code>n &lt;= 0</code>: negative <code>n</code> <em>adds</em> tokens (<code>self._tokens -= n</code>) and always returns <code>True</code> — a bucket-inflation path; <code>n == 0</code> always passes. And <code>n &gt; capacity</code> is a <strong>permanent denial</strong> (tokens are capped at <code>capacity</code>, can never reach <code>n</code>). Needs validation and a defined policy.</li></ol>
 <p class="r-title">4. Recommended execution sequence</p>
-<ol><li><strong>Clock:</strong> <code>time.time()</code> → <code>time.monotonic()</code> in <code>__init__</code> and <code>allow()</code>. (Gate.)</li><li><strong>Clamp defensively:</strong> <code>elapsed = max(0.0, now - self._last)</code> even with monotonic — defense-in-depth, and documents the invariant. (Gate.)</li><li><strong>Validate <code>n</code>:</strong> <code>if n  capacity</code> policy (reject at config time, or clamp). (Gate.)</li><li><strong>Decide enforcement semantics explicitly:</strong> accept per-worker (and adjust the published/configured number accordingly), or adopt a shared store. Write it down. (Gate — this is a decision, not code.)</li><li><strong>Design + review the registry separately:</strong> size-bounded TTL/LRU eviction, thread-safe atomic get-or-create (avoid the double-create token-loss race), client-id normalization/cardinality cap. (Gate for "per-client.")</li><li><strong>Define spike behavior:</strong> fail-open vs fail-closed on bad config / unexpected clock, and document burst semantics (capacity = max burst).</li><li>Inject the clock for testability; add tests for backward-step (no denial), <code>ncapacity</code>, and concurrent get-or-create.</li></ol>
+<ol><li><strong>Clock:</strong> <code>time.time()</code> → <code>time.monotonic()</code> in <code>__init__</code> and <code>allow()</code>. (Gate.)</li><li><strong>Clamp defensively:</strong> <code>elapsed = max(0.0, now - self._last)</code> even with monotonic — defense-in-depth, and documents the invariant. (Gate.)</li><li><strong>Validate <code>n</code>:</strong> <code>if n &lt;= 0: raise ValueError</code>; decide and document <code>n &gt; capacity</code> policy (reject at config time, or clamp). (Gate.)</li><li><strong>Decide enforcement semantics explicitly:</strong> accept per-worker (and adjust the published/configured number accordingly), or adopt a shared store. Write it down. (Gate — this is a decision, not code.)</li><li><strong>Design + review the registry separately:</strong> size-bounded TTL/LRU eviction, thread-safe atomic get-or-create (avoid the double-create token-loss race), client-id normalization/cardinality cap. (Gate for "per-client.")</li><li><strong>Define spike behavior:</strong> fail-open vs fail-closed on bad config / unexpected clock, and document burst semantics (capacity = max burst).</li><li>Inject the clock for testability; add tests for backward-step (no denial), <code>n&lt;=0</code>, <code>n&gt;capacity</code>, and concurrent get-or-create.</li></ol>
 <p class="r-title">5. Invariants and guardrails</p>
 <ul><li><strong><code>0 ≤ _tokens ≤ capacity</code> after every <code>allow()</code>.</strong> Currently violable below zero by backward clock steps and above-by-design via negative <code>n</code>. After fixes #2/#3 this holds; add an assertion in tests.</li><li><strong>Time is non-decreasing as seen by the bucket:</strong> <code>elapsed ≥ 0</code> always. Guaranteed by monotonic + clamp.</li><li><strong>Tokens increase only by <code>elapsed * rate</code>, never by a clock anomaly or a negative <code>n</code>.</strong></li><li><strong>Lock invariant (already correct):</strong> refill-and-consume is atomic under <code>self._lock</code>; <code>_last</code> is updated before the consume check — no double-spend. Preserve this; do not split the lock.</li><li><strong>Registry invariants (to be added):</strong> bounded entry count; at most one bucket per live client id; eviction must not reset an active client's bucket to full (eviction = burst-grant gift to attackers if mistimed).</li></ul>
 <p class="r-title">6. Risks, stale assumptions, missing evidence</p>
@@ -352,18 +399,17 @@
 <p class="r-title">Caution — ship only with the changes below. Confidence: high.</p>
 <p>What would flip it to <strong>block</strong>: evidence that the deployment runs many workers/processes per host <em>and</em> that the advertised per-client limit is a hard contractual/security ceiling (not a soft abuse cap) — i.e., that per-process multiplication of the limit is unacceptable rather than merely accounted-for in config. What would flip it to <strong>ship</strong>: the clock/validation fixes landing <em>and</em> a one-line statement that the operator sizes <code>rate</code> per-process knowing N workers.</p>
 <p class="r-title">2. Where I changed my mind / where I still dissent</p>
-<ul><li><strong>Unchanged toward codex (agree):</strong> The clock source is a real defect, not a style nit. The packet supplies its own counter-evidence — <em>"Hosts run <code>ntpd</code>; wall-clock corrections (and operator clock changes) do happen in production."</em> <code>time.time()</code> on the refill path is a correctness bug under the stated operating context. Co-equal gate with input validation.</li><li><strong>Still dissent from gemini — two reasons, named exactly:</strong></li></ul>
-<ol><li>gemini's <strong>"BLOCK … Migrating rate limiting upstream to an API Gateway (Envoy, Nginx) or a centralized non-blocking caching layer"</strong> is a <em>recommendation to build a different system</em>, not a defect in the artifact under review. The board's question is whether <em>this</em> token bucket is production-ready after fixes. Per-process limiting and centralized limiting are both legitimate architectures; "use a gateway instead" does not demonstrate that a corrected in-process bucket is unfit. A block must rest on an unfixable defect in scope, and gemini hasn't shown one — it has shown a preference for a different scope.</li><li>gemini's <strong>"GIL &amp; Lock Contention Latency Spike … thousands of requests will contend for <code>self._lock</code>"</strong> is overstated to the point of being wrong as a blocking rationale. The critical section is four arithmetic operations and a comparison — sub-microsecond, no I/O, no allocation under the lock. Under the GIL, a thread already cannot execute Python bytecode concurrently <em>regardless of this lock</em>; the lock adds negligible marginal contention over the GIL that already serializes the workers. This is not a credible reason to block. If contention ever did matter, the fix is sharding buckets, not abandoning the design.</li></ol>
-<ul><li><strong>Agree with codex/me, against gemini's framing:</strong> the genuine architectural caveat is <strong>per-process semantics</strong> (advertised limit × N workers = enforced limit). But that is a <em>known, documentable property</em>, resolvable by config or by an explicit decision — it argues for caution, not block.</li></ul>
+<ul><li><strong>Unchanged toward codex (agree):</strong> The clock source is a real defect, not a style nit. The packet supplies its own counter-evidence — <em>"Hosts run <code>ntpd</code>; wall-clock corrections (and operator clock changes) do happen in production."</em> <code>time.time()</code> on the refill path is a correctness bug under the stated operating context. Co-equal gate with input validation.</li><li><strong>Still dissent from gemini — two reasons, named exactly:</strong><ol><li>gemini's <strong>"BLOCK … Migrating rate limiting upstream to an API Gateway (Envoy, Nginx) or a centralized non-blocking caching layer"</strong> is a <em>recommendation to build a different system</em>, not a defect in the artifact under review. The board's question is whether <em>this</em> token bucket is production-ready after fixes. Per-process limiting and centralized limiting are both legitimate architectures; "use a gateway instead" does not demonstrate that a corrected in-process bucket is unfit. A block must rest on an unfixable defect in scope, and gemini hasn't shown one — it has shown a preference for a different scope.</li><li>gemini's <strong>"GIL &amp; Lock Contention Latency Spike … thousands of requests will contend for <code>self._lock</code>"</strong> is overstated to the point of being wrong as a blocking rationale. The critical section is four arithmetic operations and a comparison — sub-microsecond, no I/O, no allocation under the lock. Under the GIL, a thread already cannot execute Python bytecode concurrently <em>regardless of this lock</em>; the lock adds negligible marginal contention over the GIL that already serializes the workers. This is not a credible reason to block. If contention ever did matter, the fix is sharding buckets, not abandoning the design.</li></ol></li><li><strong>Agree with codex/me, against gemini's framing:</strong> the genuine architectural caveat is <strong>per-process semantics</strong> (advertised limit × N workers = enforced limit). But that is a <em>known, documentable property</em>, resolvable by config or by an explicit decision — it argues for caution, not block.</li></ul>
 <p class="r-title">3. Strongest remaining objections</p>
-<ol><li><strong>Wall-clock on the hot path (must-fix, gate).</strong> <code>self._last = time.time()</code> (<code>__init__</code>); <code>now = time.time()</code> (<code>allow</code>). A backward step makes <code>elapsed  0</code> and finite.</li><li><strong>Per-process multiplication (must-decide, not must-fix-in-code).</strong> One bucket per worker process means the global enforced rate is <code>rate × processes</code>. Acceptable for a soft abuse cap; not acceptable if the number is a hard ceiling. Needs an explicit operator decision, recorded.</li><li><strong>Tests are timing-dependent and prove none of the above.</strong> <code>test_refills_over_time</code> / <code>test_caps_at_capacity</code> use <code>time.sleep</code> and wall-clock; they're flaky on loaded CI and cannot exercise backward-clock or concurrency. No test injects a clock; no test asserts the <code>0 ≤ _tokens ≤ capacity</code> invariant; no test covers <code>n ≤ 0</code>.</li></ol>
+<ol><li><strong>Wall-clock on the hot path (must-fix, gate).</strong> <code>self._last = time.time()</code> (<code>__init__</code>); <code>now = time.time()</code> (<code>allow</code>). A backward step makes <code>elapsed &lt; 0</code>; <code>self._tokens + elapsed * self.rate</code> <em>subtracts</em> tokens, and <code>min(capacity, …)</code> only clamps the top — nothing clamps the bottom. Result: spurious denials, potentially a multi-second denial window after an NTP correction, exactly during the traffic conditions this exists to handle.</li><li><strong><code>allow(n)</code> is unvalidated (must-fix, gate).</strong> <code>n &lt;= 0</code> violates the invariant: <code>allow(-5)</code> <em>adds</em> 5 tokens and returns <code>True</code> — a caller (or a parameter-controlled path) can refill the bucket by asking. <code>n</code> is also never bounded against <code>capacity</code>; <code>allow(10**9)</code> always denies, which may or may not be intended. Validate <code>n &gt; 0</code> and finite.</li><li><strong>Per-process multiplication (must-decide, not must-fix-in-code).</strong> One bucket per worker process means the global enforced rate is <code>rate × processes</code>. Acceptable for a soft abuse cap; not acceptable if the number is a hard ceiling. Needs an explicit operator decision, recorded.</li><li><strong>Tests are timing-dependent and prove none of the above.</strong> <code>test_refills_over_time</code> / <code>test_caps_at_capacity</code> use <code>time.sleep</code> and wall-clock; they're flaky on loaded CI and cannot exercise backward-clock or concurrency. No test injects a clock; no test asserts the <code>0 ≤ _tokens ≤ capacity</code> invariant; no test covers <code>n ≤ 0</code>.</li></ol>
 <p class="r-title">4. Recommended execution sequence</p>
-<ol><li><strong>Clock:</strong> <code>time.time()</code> → <code>time.monotonic()</code> in <code>__init__</code> and <code>allow()</code>. (Gate.)</li><li><strong>Inject the clock:</strong> constructor takes <code>clock=time.monotonic</code> so tests are deterministic. (Gate — also unblocks #6.)</li><li><strong>Clamp defensively:</strong> <code>elapsed = max(0.0, now - self._last)</code> even with monotonic — documents the invariant and survives a future refactor that reintroduces a wall clock. (Gate.)</li><li><strong>Validate <code>n</code>:</strong> reject non-positive / non-finite <code>n</code> in <code>allow()</code>. (Gate.)</li><li><strong>Record the per-process decision:</strong> one line in the proposal — "limit is per worker process; operator sizes <code>rate</code> for N workers" — or escalate to a shared store if a hard ceiling is required. (Gate on the <em>decision</em>, not on code.)</li><li><strong>Tests:</strong> add (a) injected-clock backward-jump test asserting no token loss and no denial-storm; (b) <code>allow(n= n</code> branch) — preserve it; add a regression test.</li></ol>
-<ul><li><strong>Tokens decrease only by a finite positive <code>n</code>.</strong> Enforced by #4.</li><li><strong>Stated limit ≈ enforced limit.</strong> <em>Not</em> an in-code invariant; an operational one. Make it explicit so it isn't silently violated by autoscaling worker count.</li></ul>
+<ol><li><strong>Clock:</strong> <code>time.time()</code> → <code>time.monotonic()</code> in <code>__init__</code> and <code>allow()</code>. (Gate.)</li><li><strong>Inject the clock:</strong> constructor takes <code>clock=time.monotonic</code> so tests are deterministic. (Gate — also unblocks #6.)</li><li><strong>Clamp defensively:</strong> <code>elapsed = max(0.0, now - self._last)</code> even with monotonic — documents the invariant and survives a future refactor that reintroduces a wall clock. (Gate.)</li><li><strong>Validate <code>n</code>:</strong> reject non-positive / non-finite <code>n</code> in <code>allow()</code>. (Gate.)</li><li><strong>Record the per-process decision:</strong> one line in the proposal — "limit is per worker process; operator sizes <code>rate</code> for N workers" — or escalate to a shared store if a hard ceiling is required. (Gate on the <em>decision</em>, not on code.)</li><li><strong>Tests:</strong> add (a) injected-clock backward-jump test asserting no token loss and no denial-storm; (b) <code>allow(n&lt;=0)</code> rejection; (c) an invariant assertion <code>0 ≤ _tokens ≤ capacity</code> after every call; (d) replace <code>sleep</code>-based tests with injected-clock advances. (Strong recommend.)</li></ol>
+<p class="r-title">5. Invariants and guardrails</p>
+<ul><li><strong><code>0 ≤ _tokens ≤ capacity</code> after every <code>allow()</code>.</strong> Today violable below zero (backward clock) and above-by-intent via negative <code>n</code>. Holds after fixes #3/#4. Assert in tests.</li><li><strong>Refill elapsed ≥ 0 always.</strong> Enforced by #3.</li><li><strong>Denied requests consume nothing.</strong> Already true (the <code>-= n</code> is inside the <code>&gt;= n</code> branch) — preserve it; add a regression test.</li><li><strong>Tokens decrease only by a finite positive <code>n</code>.</strong> Enforced by #4.</li><li><strong>Stated limit ≈ enforced limit.</strong> <em>Not</em> an in-code invariant; an operational one. Make it explicit so it isn't silently violated by autoscaling worker count.</li></ul>
 <p class="r-title">6. Risks, stale assumptions, missing evidence</p>
 <ul><li><strong>Stale assumption:</strong> that <code>time.time()</code> is monotonic. The packet itself refutes this.</li><li><strong>Risk:</strong> advertised ≠ enforced limit under multi-process deployment (and it drifts when worker count autoscales).</li><li><strong>Overstated risk to discount:</strong> lock contention / GIL latency spike (gemini) — not credible for a sub-microsecond, allocation-free critical section already serialized by the GIL.</li><li><strong>Missing evidence:</strong> peak RPS and worker/process count per host (needed to judge whether per-process multiplication is tolerable); whether "per-client" means per-process or global; whether the limit is a soft abuse cap or a hard ceiling. The verdict hinges on these and they're absent from the packet.</li></ul>
 <p class="r-title">7. Concrete evidence</p>
-<ul><li>Wall clock: <code>self._last = time.time()</code> (<code>__init__</code>); <code>now = time.time()</code> (<code>allow</code>).</li><li>No lower bound: <code>self._tokens = min(self.capacity, self._tokens + elapsed * self.rate)</code> — clamps top only; <code>elapsed = now - self._last</code> can be negative.</li><li>Negative-<code>n</code> refill: signature <code>def allow(self, n: float = 1)</code> with no validation; the <code>self._tokens -= n</code> branch adds tokens when <code>n = n: self._tokens -= n; return True</code> / <code>return False</code> — no consumption on denial.</li><li>Packet operating context: <em>"Hosts run <code>ntpd</code>; wall-clock corrections (and operator clock changes) do happen in production."</em></li><li>Tests use real time: <code>time.sleep(0.05)</code> / <code>time.sleep(0.02)</code> with no injected clock; no backward-jump, concurrency, invariant, or <code>n ≤ 0</code> coverage.</li></ul>
+<ul><li>Wall clock: <code>self._last = time.time()</code> (<code>__init__</code>); <code>now = time.time()</code> (<code>allow</code>).</li><li>No lower bound: <code>self._tokens = min(self.capacity, self._tokens + elapsed * self.rate)</code> — clamps top only; <code>elapsed = now - self._last</code> can be negative.</li><li>Negative-<code>n</code> refill: signature <code>def allow(self, n: float = 1)</code> with no validation; the <code>self._tokens -= n</code> branch adds tokens when <code>n &lt; 0</code> and returns <code>True</code>.</li><li>Denied path is clean: <code>if self._tokens &gt;= n: self._tokens -= n; return True</code> / <code>return False</code> — no consumption on denial.</li><li>Packet operating context: <em>"Hosts run <code>ntpd</code>; wall-clock corrections (and operator clock changes) do happen in production."</em></li><li>Tests use real time: <code>time.sleep(0.05)</code> / <code>time.sleep(0.02)</code> with no injected clock; no backward-jump, concurrency, invariant, or <code>n ≤ 0</code> coverage.</li></ul>
 <p><strong>Bottom line:</strong> small, salvageable artifact with two real must-fix correctness bugs (clock, <code>n</code> validation) and one must-decide operational caveat (per-process limit). None require abandoning the design or migrating to a gateway. Caution, not block.</p>
 <p>VERDICT: caution</p>
         </div>
@@ -396,8 +442,15 @@
 <p>Block, high confidence. Current implementation is not production-ready for the stated environment because it uses wall-clock time on a hot path where clock corrections are explicitly in scope.</p>
 <p>What would change it: switch to an injectable monotonic clock, validate token/request/config inputs as finite positive values, and add deterministic tests for backward/forward clock movement plus threaded contention.</p>
 <p class="r-title">2. Strongest Objections</p>
-<ol><li><code>time.time()</code> is the wrong clock source. The proposal says hosts run <code>ntpd</code> and operator clock changes happen. In <code>tokenbucket.py</code>, <code>_last = time.time()</code> and <code>now = time.time()</code> mean backward wall-clock jumps produce negative elapsed time, which subtracts tokens and can drive <code>_tokens</code> below zero. That can incorrectly deny traffic until wall time catches back up.</li><li><code>allow(n)</code> accepts invalid token costs. A negative <code>n</code> always passes and increases the bucket because <code>self._tokens -= n</code> adds tokens. <code>n=0</code> always passes. <code>NaN</code> and infinities are not rejected. For public API hot-path code, this should not expose foot-guns.</li><li>Config validation is incomplete. <code>rate = n: self._tokens -= n</code>. With <code>n=-1</code>, the condition is true and subtracting <code>-1</code> adds one token.</li></ol>
-<ul><li>Tests only cover starts-full, refill over time, cap at capacity, and nonpositive config. There is no test for clock rollback, concurrent callers, invalid <code>n</code>, or non-finite config.</li></ul>
+<ol><li><code>time.time()</code> is the wrong clock source. The proposal says hosts run <code>ntpd</code> and operator clock changes happen. In <code>tokenbucket.py</code>, <code>_last = time.time()</code> and <code>now = time.time()</code> mean backward wall-clock jumps produce negative elapsed time, which subtracts tokens and can drive <code>_tokens</code> below zero. That can incorrectly deny traffic until wall time catches back up.</li><li><code>allow(n)</code> accepts invalid token costs. A negative <code>n</code> always passes and increases the bucket because <code>self._tokens -= n</code> adds tokens. <code>n=0</code> always passes. <code>NaN</code> and infinities are not rejected. For public API hot-path code, this should not expose foot-guns.</li><li>Config validation is incomplete. <code>rate &lt;= 0 or capacity &lt;= 0</code> does not reject <code>float(&quot;nan&quot;)</code>; non-finite values can create buckets that fail closed, fail open, or behave unpredictably.</li><li>Tests are too weak for the operating context. They use real <code>time.sleep</code>, do not inject clocks, do not simulate clock rollback, do not test concurrency, and do not test invalid <code>n</code>.</li><li>Process-level semantics are unclear. The packet says per-client limiting for a public API and also says one instance is shared across a worker’s threads. If there are multiple worker processes, this implementation only enforces per-process buckets unless an external coordinator or routing invariant exists.</li></ol>
+<p class="r-title">3. Recommended Execution Sequence</p>
+<ol><li>Replace <code>time.time()</code> with <code>time.monotonic()</code> or an injectable monotonic clock dependency.</li><li>Clamp elapsed defensively or ensure monotonicity through the clock abstraction; no negative refill should ever reduce tokens.</li><li>Validate <code>rate</code>, <code>capacity</code>, and <code>n</code> with <code>math.isfinite(...)</code> and strict positivity.</li><li>Decide whether <code>n</code> and <code>capacity</code> are floats or integer request units; document and test that choice.</li><li>Add deterministic unit tests with a fake clock for refill, capacity cap, backward/forward clock behavior, fractional refill, and invalid input.</li><li>Add a threaded stress test asserting no over-admission beyond initial capacity plus elapsed refill budget.</li><li>Confirm whether limits are intended per process or service-wide across workers. If service-wide, move state to a shared limiter or sticky routing design.</li></ol>
+<p class="r-title">4. Invariants And Guardrails</p>
+<ul><li>Tokens must never increase except by monotonic elapsed time times rate.</li><li>Tokens must stay within <code>[0, capacity]</code> after every <code>allow()</code> call.</li><li>Time moving backward must not reduce available tokens or create long denial windows.</li><li><code>allow(n)</code> must reject non-finite, zero, and negative costs.</li><li>Under concurrent calls, successful admissions must not exceed <code>capacity + elapsed * rate</code>, allowing only a tiny numerical tolerance.</li><li>Configuration must fail fast for non-finite or non-positive <code>rate</code> and <code>capacity</code>.</li><li>Tests should not depend on wall-clock sleeps for core correctness.</li></ul>
+<p class="r-title">5. Risks, Stale Assumptions, Missing Evidence</p>
+<ul><li>Missing evidence that per-worker rate limiting is acceptable versus global per-client enforcement.</li><li>Missing benchmark or contention profile for one lock per shared bucket under abusive traffic.</li><li>Missing behavior definition for burst size, fractional requests, and whether <code>capacity</code> may be non-integer.</li><li>Missing failure-mode policy: fail open or fail closed on bad config, bad clock, or state corruption.</li><li>Current tests passing with <code>python3 -m unittest</code> is weak evidence because they avoid the stated production hazards.</li></ul>
+<p class="r-title">6. Concrete Evidence</p>
+<ul><li>Wall clock use: <code>self._last = time.time()</code> in <code>__init__</code>; <code>now = time.time()</code> in <code>allow()</code>.</li><li>Negative elapsed is possible by construction: <code>elapsed = now - self._last</code>, followed by <code>self._tokens = min(self.capacity, self._tokens + elapsed * self.rate)</code>.</li><li>Invalid <code>n</code> can mint tokens: <code>if self._tokens &gt;= n: self._tokens -= n</code>. With <code>n=-1</code>, the condition is true and subtracting <code>-1</code> adds one token.</li><li>Tests only cover starts-full, refill over time, cap at capacity, and nonpositive config. There is no test for clock rollback, concurrent callers, invalid <code>n</code>, or non-finite config.</li></ul>
 <p class="r-title">7. Ask Other Seats To Challenge</p>
 <ul><li>Should this be service-wide per-client limiting, or is per-process enforcement acceptable?</li><li>Is fail-closed behavior acceptable if config is invalid or the clock behaves unexpectedly?</li><li>Should the API support weighted requests via <code>n</code>, or should <code>allow()</code> consume exactly one request token?</li><li>What contention and latency budget is acceptable for a lock on every public request?</li></ul>
 <p>VERDICT: block</p>
@@ -423,10 +476,14 @@
 <p>Still dissent with any clock-only fix from Claude/Gemini: <code>allow(n)</code> validation and deterministic tests are also required. Negative <code>n</code> can increase tokens beyond capacity.</p>
 <p class="r-title">3. Strongest Remaining Objections</p>
 <p>The implementation uses wall-clock time despite the proposal explicitly saying wall-clock corrections happen in production. Backward jumps can make <code>elapsed</code> negative, reduce <code>_tokens</code> below zero, and create long denial windows.</p>
-<p><code>allow(n)</code> accepts invalid values. <code>n  capacity</code> behavior; I would return <code>False</code> without mutation unless the API treats it as programmer error.</p>
-<ol start="5"><li>Rewrite tests around a fake clock; remove <code>time.sleep</code>.</li><li>Add tests for backward clock movement, capacity cap, invalid <code>n</code>, NaN/infinite config, and multi-threaded consumption.</li><li>Add or specify the per-client bucket registry: TTL/LRU eviction, max size, client-ID normalization, and whether limits are per-process or global.</li><li>Load-test lock contention for hot clients before rollout.</li></ol>
+<p><code>allow(n)</code> accepts invalid values. <code>n &lt;= 0</code> is not rejected; negative <code>n</code> can mint tokens.</p>
+<p>The tests are sleep-based and do not simulate clock rollback, invalid <code>n</code>, NaN/infinite config, or concurrent callers.</p>
+<p>The deployment boundary is unresolved: in-memory per-process buckets do not necessarily enforce a fixed per-client RPS across all API workers.</p>
+<p class="r-title">4. Recommended Execution Sequence</p>
+<ol><li>Replace <code>time.time()</code> with an injectable monotonic clock, defaulting to <code>time.monotonic</code>.</li><li>Clamp or ignore time regressions: elapsed must never be negative, and <code>_last</code> should not move backward.</li><li>Validate <code>rate</code>, <code>capacity</code>, and <code>n</code> as finite positive numbers.</li><li>Define <code>n &gt; capacity</code> behavior; I would return <code>False</code> without mutation unless the API treats it as programmer error.</li><li>Rewrite tests around a fake clock; remove <code>time.sleep</code>.</li><li>Add tests for backward clock movement, capacity cap, invalid <code>n</code>, NaN/infinite config, and multi-threaded consumption.</li><li>Add or specify the per-client bucket registry: TTL/LRU eviction, max size, client-ID normalization, and whether limits are per-process or global.</li><li>Load-test lock contention for hot clients before rollout.</li></ol>
 <p class="r-title">5. Invariants And Guardrails</p>
-<p><code>0 = 0</code>.</p>
+<p><code>0 &lt;= _tokens &lt;= capacity</code> after every <code>allow()</code> call.</p>
+<p>Elapsed time used for refill is always <code>&gt;= 0</code>.</p>
 <p>Tokens only increase through refill and only decrease after consuming a finite positive <code>n</code>.</p>
 <p>Denied requests must not consume tokens.</p>
 <p>Invalid configuration should fail at construction/startup.</p>
@@ -470,8 +527,25 @@
 <p><code>allow(n)</code> accepts invalid costs. Negative <code>n</code> mints tokens; non-finite values have undefined policy behavior; oversized costs are not documented.</p>
 <p>The tests are not production-grade. They use <code>time.sleep()</code>, do not test clock regression, invariants, invalid <code>n</code>, or threaded access, and cannot deterministically reproduce the main failure mode.</p>
 <p>The deployment boundary is unresolved. A bucket shared only inside one worker process does not enforce a fixed per-client rate across multiple worker processes or hosts.</p>
-<ol start="4"><li><strong>Recommended Execution Sequence</strong></li><li>Replace <code>time.time()</code> with an injectable clock defaulting to <code>time.monotonic</code>.</li><li>Ensure elapsed time is never negative; do not move <code>_last</code> backward.</li><li>Validate <code>n</code>: require finite positive values, and define behavior for <code>n &gt; capacity</code>.</li><li>Preserve the invariant <code>0 = 0</code> for refill math.</li></ol>
-<p><code>0 = n: self._tokens -= n</code>; no validation prevents negative or non-finite <code>n</code>.</p>
+<ol start="4"><li><strong>Recommended Execution Sequence</strong></li><li>Replace <code>time.time()</code> with an injectable clock defaulting to <code>time.monotonic</code>.</li><li>Ensure elapsed time is never negative; do not move <code>_last</code> backward.</li><li>Validate <code>n</code>: require finite positive values, and define behavior for <code>n &gt; capacity</code>.</li><li>Preserve the invariant <code>0 &lt;= _tokens &lt;= capacity</code> after every call.</li><li>Rewrite tests around a fake clock; add tests for backward time, invalid <code>n</code>, capacity caps, denied requests, and concurrent callers.</li><li>Decide and document enforcement semantics: per-worker, per-host, or global per-client. Use a gateway/shared store/sticky routing if global enforcement is required.</li><li>Add stress/load testing for abusive single-client traffic and normal multi-client traffic before hot-path rollout.</li><li><strong>Invariants And Guardrails</strong></li></ol>
+<p><code>elapsed &gt;= 0</code> for refill math.</p>
+<p><code>0 &lt;= _tokens &lt;= capacity</code> after every <code>allow()</code>.</p>
+<p>Tokens only increase via elapsed monotonic time and only decrease by a finite positive request cost.</p>
+<p>Denied requests do not consume tokens.</p>
+<p>One request cannot mint tokens by passing <code>n &lt;= 0</code>.</p>
+<p>The configured public limit must match deployment semantics; if there are <code>W</code> independent workers, a local bucket may allow up to roughly <code>W * rate</code>.</p>
+<ol start="6"><li><strong>Risks, Stale Assumptions, Missing Evidence</strong></li></ol>
+<p>Stale assumption: wall-clock time is suitable for elapsed-time accounting. The proposal explicitly says clock corrections and operator changes happen.</p>
+<p>Missing evidence: whether “per-client” means globally across the API fleet or locally within a worker.</p>
+<p>Missing evidence: expected worker count, thread count, abusive-client RPS, latency SLO, and benchmark results under contention.</p>
+<p>Risk: worker restarts reset buckets to full capacity, creating extra burst allowance.</p>
+<p>Risk: absent per-client registry details, eviction, and client identity normalization can cause memory growth or bypasses.</p>
+<ol start="7"><li><strong>Concrete Evidence</strong></li></ol>
+<p><code>tokenbucket.py</code>: <code>self._last = time.time()</code> in <code>__init__</code>.</p>
+<p><code>tokenbucket.py</code>: <code>now = time.time()</code> in <code>allow()</code>.</p>
+<p><code>tokenbucket.py</code>: <code>elapsed = now - self._last</code>; no lower bound prevents negative elapsed.</p>
+<p><code>tokenbucket.py</code>: <code>self._tokens = min(self.capacity, self._tokens + elapsed * self.rate)</code> caps only the upper bound, not below zero.</p>
+<p><code>tokenbucket.py</code>: <code>if self._tokens &gt;= n: self._tokens -= n</code>; no validation prevents negative or non-finite <code>n</code>.</p>
 <p>Proposal: “Workers are multi-threaded; a single <code>TokenBucket</code> instance is shared across a worker's threads.”</p>
 <p>Proposal: “Hosts run <code>ntpd</code>; wall-clock corrections (and operator clock changes) do happen in production.”</p>
 <p>VERDICT: caution</p>
@@ -511,7 +585,7 @@
 <ol><li><strong>Clock Source Migration:</strong> Replace <code>time.time()</code> with <code>time.monotonic()</code> to guarantee non-decreasing time intervals.</li><li><strong>Registry and Eviction Integration:</strong> Wrap <code>TokenBucket</code> instantiation in a thread-safe, size-bounded LRU/TTL cache to prevent memory exhaustion.</li><li><strong>Enrich API Contract:</strong> Modify <code>allow()</code> to return a tuple <code>(allowed: bool, retry_after: float)</code> so upstream handlers can populate the <code>Retry-After</code> HTTP header.</li><li><strong>Defensive Guardrails:</strong> Add a <code>max(0.0, elapsed)</code> check on the calculated time diff to ensure safety even under unexpected runtime conditions.</li><li><strong>Add Telemetry:</strong> Emit StatsD/Prometheus metrics for cache hits, cache evictions, allowed requests, and rate-limited blocks.</li></ol>
 <p>---</p>
 <p class="r-title">4. Invariants and Guardrails</p>
-<ul><li><strong>Monotonicity:</strong> $\Delta t \ge 0$ must always hold. Ensure <code>elapsed = max(0.0, now - self._last)</code>.</li><li><strong>Token Bounds:</strong> $0 \le \text{​​tokens} \le \text{​​capacity}$ must hold true at the end of every <code>allow()</code> execution.</li><li><strong>Registry Limits:</strong> The map tracking client buckets must have a hard maximum size limit ($N_{​​\text{​​max\_clients}}$).</li></ul>
+<ul><li><strong>Monotonicity:</strong> $\Delta t \ge 0$ must always hold. Ensure <code>elapsed = max(0.0, now - self._last)</code>.</li><li><strong>Token Bounds:</strong> $0 \le \text{​tokens} \le \text{​capacity}$ must hold true at the end of every <code>allow()</code> execution.</li><li><strong>Registry Limits:</strong> The map tracking client buckets must have a hard maximum size limit ($N_{​\text{​max\_clients}}$).</li></ul>
 <p>---</p>
 <p class="r-title">5. Risks, Stale Assumptions, and Missing Evidence</p>
 <ul><li><strong>Risk (GIL and Lock Contention):</strong> Although the lock is fine-grained, running <code>threading.Lock</code> on the hot path of every request in a multi-threaded Python worker introduces GIL-related latency overhead under heavy concurrency.</li><li><strong>Stale Assumption:</strong> Assumes client identity (IP or Auth Token) is static and secure. If an attacker can rotate client identifiers easily, this in-memory scheme fails to protect the downstream service.</li><li><strong>Missing Evidence:</strong> No benchmarks are provided showing latency impact or lock contention overhead under simulated high-concurrency spikes (e.g., &gt;10,000 RPS).</li></ul>
@@ -538,23 +612,23 @@
 <ul><li><strong>Verdict:</strong> BLOCK (do not proceed).</li><li><strong>Confidence Level:</strong> High.</li><li><strong>One line on what would change it:</strong> Migrating rate limiting upstream to an API Gateway (e.g., Envoy, Nginx) or a centralized, non-blocking caching layer (e.g., Redis), or adding explicit dry-run execution, structured telemetry emission, and a memory-bounded registry with eviction.</li></ul>
 <p>---</p>
 <p class="r-title">2. Where you CHANGED YOUR MIND and where you STILL DISSENT</p>
-<ul><li><strong>Where I Changed My Mind (relative to Round 1 Gemini &amp; Round 1 Claude):</strong></li><li>We are shifting our verdict from <strong>CAUTION</strong> to <strong>BLOCK</strong>. In Round 1, we suggested localized code patches (monotonic clocks, eviction registries). However, from a <strong>Product &amp; Operations</strong> perspective, local in-memory patching is an operational trap. Locking on the Python hot path under the GIL during an abusive traffic spike creates a massive latency blast radius for legitimate traffic. Additionally, because API workers run across multiple independent processes, a local in-memory token bucket cannot enforce a global "fixed requests-per-second per client" limit—it leaks limits by a factor of $M$ (where $M$ is the number of worker processes). The implementation is both architecturally ineffective and operationally dangerous. We now fully align with <strong>Codex's</strong> verdict to <strong>BLOCK</strong>.</li><li><strong>Where I Still Dissent (relative to Claude's CAUTION):</strong></li><li>We dissent from <strong>Claude's</strong> recommendation to proceed with changes. Claude assumes clock-source and clamping changes are sufficient. We contend that the complete lack of dry-run capabilities (essential for safe rollouts), zero observability metrics (critical for SRE monitoring), and multi-process rate-limiting leakage are absolute operational showstoppers that cannot be resolved with minor local code edits.</li></ul>
+<ul><li><strong>Where I Changed My Mind (relative to Round 1 Gemini &amp; Round 1 Claude):</strong><ul><li>We are shifting our verdict from <strong>CAUTION</strong> to <strong>BLOCK</strong>. In Round 1, we suggested localized code patches (monotonic clocks, eviction registries). However, from a <strong>Product &amp; Operations</strong> perspective, local in-memory patching is an operational trap. Locking on the Python hot path under the GIL during an abusive traffic spike creates a massive latency blast radius for legitimate traffic. Additionally, because API workers run across multiple independent processes, a local in-memory token bucket cannot enforce a global "fixed requests-per-second per client" limit—it leaks limits by a factor of $M$ (where $M$ is the number of worker processes). The implementation is both architecturally ineffective and operationally dangerous. We now fully align with <strong>Codex's</strong> verdict to <strong>BLOCK</strong>.</li></ul></li><li><strong>Where I Still Dissent (relative to Claude's CAUTION):</strong><ul><li>We dissent from <strong>Claude's</strong> recommendation to proceed with changes. Claude assumes clock-source and clamping changes are sufficient. We contend that the complete lack of dry-run capabilities (essential for safe rollouts), zero observability metrics (critical for SRE monitoring), and multi-process rate-limiting leakage are absolute operational showstoppers that cannot be resolved with minor local code edits.</li></ul></li></ul>
 <p>---</p>
 <p class="r-title">3. Strongest Remaining Objections</p>
-<ul><li><strong>GIL &amp; Lock Contention Latency Spike (Latency Risk):</strong> Under heavy concurrent abusive traffic, thousands of requests will contend for <code>self._lock</code> in Python. Under the GIL, thread lock acquisition overhead and context switching will severely spike latency for all requests (allowed and denied alike), leading to a self-inflicted Denial of Service (DoS).</li><li><strong>Multi-Process Limit Leakage (Rollout &amp; Product Policy):</strong> Modern production web servers run multiple independent worker processes. Each process maintains its own independent <code>TokenBucket</code> registry. A client can bypass their rate limit by up to $M$ times, defeating the core product requirement.</li><li><strong>Observability Zero-Point (Operations Risk):</strong> The implementation has zero metrics, zero logging, and zero trace spans. Operations cannot monitor block rates, lock wait times, client-specific usage, or system health, making production triage impossible.</li><li><strong>No Dry-Run / Evaluation Strategy (Rollout Risk):</strong> There is no "shadow mode" to evaluate limits against real-world traffic. Deploying this directly to block traffic creates an extreme risk of blocking legitimate user workflows due to misconfigured rate limits.</li><li><strong>Blackholing Large Requests (User-Workflow Risk):</strong> If a client requests more tokens than the bucket's capacity ($n &gt; \text{​​capacity}$), they are permanently blocked, even if the bucket is fully refilled. This is a severe failure mode for legitimate batch requests.</li></ul>
+<ul><li><strong>GIL &amp; Lock Contention Latency Spike (Latency Risk):</strong> Under heavy concurrent abusive traffic, thousands of requests will contend for <code>self._lock</code> in Python. Under the GIL, thread lock acquisition overhead and context switching will severely spike latency for all requests (allowed and denied alike), leading to a self-inflicted Denial of Service (DoS).</li><li><strong>Multi-Process Limit Leakage (Rollout &amp; Product Policy):</strong> Modern production web servers run multiple independent worker processes. Each process maintains its own independent <code>TokenBucket</code> registry. A client can bypass their rate limit by up to $M$ times, defeating the core product requirement.</li><li><strong>Observability Zero-Point (Operations Risk):</strong> The implementation has zero metrics, zero logging, and zero trace spans. Operations cannot monitor block rates, lock wait times, client-specific usage, or system health, making production triage impossible.</li><li><strong>No Dry-Run / Evaluation Strategy (Rollout Risk):</strong> There is no "shadow mode" to evaluate limits against real-world traffic. Deploying this directly to block traffic creates an extreme risk of blocking legitimate user workflows due to misconfigured rate limits.</li><li><strong>Blackholing Large Requests (User-Workflow Risk):</strong> If a client requests more tokens than the bucket's capacity ($n &gt; \text{​capacity}$), they are permanently blocked, even if the bucket is fully refilled. This is a severe failure mode for legitimate batch requests.</li></ul>
 <p>---</p>
 <p class="r-title">4. Recommended Execution Sequence</p>
 <p>If the team insists on an in-application rate limiter (against our recommendation to move upstream), the following sequence is required before any code can touch the production hot path:</p>
-<ol><li><strong>Clock &amp; Math Safety:</strong> Swap <code>time.time()</code> to <code>time.monotonic()</code> and apply safety clamping: <code>elapsed = max(0.0, now - self._last)</code>.</li><li><strong>Input Validation:</strong> Fail fast if $n \le 0$, and implement a safe handling policy for $n &gt; \text{​​capacity}$ (either cap the request cost or reject with a clear error).</li><li><strong>Telemetry &amp; Instrumentation:</strong> Add Prometheus/StatsD metrics for <code>rate_limit.allowed</code> (counter), <code>rate_limit.blocked</code> (counter), <code>rate_limit.lock_wait_time_ms</code> (histogram), and <code>rate_limit.tokens_remaining</code> (gauge). Add debug logging for blocked requests.</li><li><strong>Dry-Run/Shadow Mode:</strong> Add a <code>dry_run: bool</code> config parameter. When <code>True</code>, evaluate the bucket, log/emit metrics, but always return <code>True</code> to allow traffic.</li><li><strong>Memory-Bounded Registry:</strong> Wrap bucket instantiation in a thread-safe registry with a strict LRU/TTL eviction policy to bound memory growth and prevent OOM under DDoS.</li></ol>
+<ol><li><strong>Clock &amp; Math Safety:</strong> Swap <code>time.time()</code> to <code>time.monotonic()</code> and apply safety clamping: <code>elapsed = max(0.0, now - self._last)</code>.</li><li><strong>Input Validation:</strong> Fail fast if $n \le 0$, and implement a safe handling policy for $n &gt; \text{​capacity}$ (either cap the request cost or reject with a clear error).</li><li><strong>Telemetry &amp; Instrumentation:</strong> Add Prometheus/StatsD metrics for <code>rate_limit.allowed</code> (counter), <code>rate_limit.blocked</code> (counter), <code>rate_limit.lock_wait_time_ms</code> (histogram), and <code>rate_limit.tokens_remaining</code> (gauge). Add debug logging for blocked requests.</li><li><strong>Dry-Run/Shadow Mode:</strong> Add a <code>dry_run: bool</code> config parameter. When <code>True</code>, evaluate the bucket, log/emit metrics, but always return <code>True</code> to allow traffic.</li><li><strong>Memory-Bounded Registry:</strong> Wrap bucket instantiation in a thread-safe registry with a strict LRU/TTL eviction policy to bound memory growth and prevent OOM under DDoS.</li></ol>
 <p>---</p>
 <p class="r-title">5. Invariants and Guardrails</p>
-<ul><li><strong>Time Monotonicity:</strong> $\Delta t = \text{​​now} - \text{​​last} \ge 0$ must always hold.</li><li><strong>Token Range Conservation:</strong> $0.0 \le \text{​​tokens} \le \text{​​capacity}$ at the end of every execution.</li><li><strong>Request Cost Bound:</strong> No request cost $n$ may exceed <code>capacity</code> without triggering safety fallback logic.</li><li><strong>Memory Boundary:</strong> Registry memory consumption must be hard-capped (e.g., maximum of $K$ client buckets).</li><li><strong>Fail-Open Policy:</strong> If the rate limiter encounters registry errors or lock acquisition timeouts, it must fail-open to preserve API availability, while raising high-priority operational alerts.</li></ul>
+<ul><li><strong>Time Monotonicity:</strong> $\Delta t = \text{​now} - \text{​last} \ge 0$ must always hold.</li><li><strong>Token Range Conservation:</strong> $0.0 \le \text{​tokens} \le \text{​capacity}$ at the end of every execution.</li><li><strong>Request Cost Bound:</strong> No request cost $n$ may exceed <code>capacity</code> without triggering safety fallback logic.</li><li><strong>Memory Boundary:</strong> Registry memory consumption must be hard-capped (e.g., maximum of $K$ client buckets).</li><li><strong>Fail-Open Policy:</strong> If the rate limiter encounters registry errors or lock acquisition timeouts, it must fail-open to preserve API availability, while raising high-priority operational alerts.</li></ul>
 <p>---</p>
 <p class="r-title">6. Risks, Stale Assumptions, and Missing Evidence</p>
 <ul><li><strong>Stale Assumption (Process Isolation):</strong> The proposal assumes a single shared memory space, ignoring the multi-process nature of production Python WSGI/ASGI servers.</li><li><strong>Missing Evidence (Performance under Stress):</strong> There is no load-test data or profiling demonstrating the latency impact of lock contention on the hot path under a 10x-100x traffic spike.</li><li><strong>Risk (DDoS Amplification):</strong> A CPU-heavy or lock-heavy rate limiter on the hot path acts as an amplification vector for DDoS attacks by consuming local CPU and worker thread pools.</li></ul>
 <p>---</p>
 <p class="r-title">7. Concrete Evidence</p>
-<ul><li><strong>Wall-clock time source:</strong></li><li><code>self._last = time.time()</code> in <code>TokenBucket.__init__</code> (line 27)</li><li><code>now = time.time()</code> in <code>TokenBucket.allow</code> (line 32)</li><li><strong>Uncapped refill calculation (vulnerable to negative elapsed):</strong></li><li><code>self._tokens = min(self.capacity, self._tokens + elapsed * self.rate)</code> in <code>TokenBucket.allow</code> (line 35)</li><li><strong>Hard-coded thread lock on hot path:</strong></li><li><code>with self._lock:</code> in <code>TokenBucket.allow</code> (line 31)</li><li><strong>No telemetry/observability:</strong></li><li>Code contains zero imports or references to logging, metrics, or trace packages in <code>tokenbucket.py</code>.</li><li><strong>Undefined behavior for large requests ($n &gt; \text{​​capacity}$):</strong></li><li><code>if self._tokens &gt;= n:</code> (line 36) in <code>TokenBucket.allow</code> will always return <code>False</code> if $n &gt; \text{​​capacity}$, with no error raised or warning logged.</li></ul>
+<ul><li><strong>Wall-clock time source:</strong><ul><li><code>self._last = time.time()</code> in <code>TokenBucket.__init__</code> (line 27)</li><li><code>now = time.time()</code> in <code>TokenBucket.allow</code> (line 32)</li></ul></li><li><strong>Uncapped refill calculation (vulnerable to negative elapsed):</strong><ul><li><code>self._tokens = min(self.capacity, self._tokens + elapsed * self.rate)</code> in <code>TokenBucket.allow</code> (line 35)</li></ul></li><li><strong>Hard-coded thread lock on hot path:</strong><ul><li><code>with self._lock:</code> in <code>TokenBucket.allow</code> (line 31)</li></ul></li><li><strong>No telemetry/observability:</strong><ul><li>Code contains zero imports or references to logging, metrics, or trace packages in <code>tokenbucket.py</code>.</li></ul></li><li><strong>Undefined behavior for large requests ($n &gt; \text{​capacity}$):</strong><ul><li><code>if self._tokens &gt;= n:</code> (line 36) in <code>TokenBucket.allow</code> will always return <code>False</code> if $n &gt; \text{​capacity}$, with no error raised or warning logged.</li></ul></li></ul>
 <p>VERDICT: block</p>
         </div>
       </div>
@@ -572,29 +646,22 @@
 <ul><li><strong>Verdict:</strong> CAUTION (proceed only with the changes below).</li><li><strong>Confidence Level:</strong> High.</li><li><strong>One line on what would change it:</strong> If high-concurrency synthetic load testing (e.g., 10,000 RPS across 32 threads under the Python GIL) reveals that <code>self._lock</code> acquisition latency degrades p99 API response times by &gt;5ms, we would revert to BLOCK.</li></ul>
 <p>---</p>
 <p class="r-title">2. Changed Mind &amp; Remaining Dissent</p>
-<ul><li><strong>Where we CHANGED OUR MIND:</strong></li><li><strong>From BLOCK (Round 2) to CAUTION:</strong> We previously took an absolute stance that an in-memory, per-process Python rate limiter was fundamentally unviable and should be blocked in favor of an upstream gateway (e.g., Envoy/Redis). While upstream rate limiting is the correct long-term architecture, blocking this change outright leaves our public API completely exposed <em>today</em> while a complex infrastructure migration is planned. A local, corrected, highly observable, and conservatively configured in-app shield is a pragmatic, low-friction immediate improvement.</li><li>We now align with <strong>Claude and Codex</strong> that local code-level bugs (monotonic clock, input clamping) can be patched safely to make the class itself correct.</li><li><strong>Where we STILL DISSENT:</strong></li><li><strong>Dissent from Codex's lack of operational scope:</strong> Codex primarily focused on code correctness (monotonic clocks, injectable time). We argue that deploying a rate limiter directly to the hot path of every public request without built-in observability, dry-run capabilities, and a fail-safe circuit breaker is a critical operational risk, regardless of clock correctness.</li><li><strong>Dissent from Claude's structural acceptance of per-process limits:</strong> Claude notes per-process multiplication as a risk but accepts it without operational remediation. We insist on explicit configuration scaling guidelines (e.g., dividing limits by active worker processes) to prevent major SLA drift.</li></ul>
+<ul><li><strong>Where we CHANGED OUR MIND:</strong><ul><li><strong>From BLOCK (Round 2) to CAUTION:</strong> We previously took an absolute stance that an in-memory, per-process Python rate limiter was fundamentally unviable and should be blocked in favor of an upstream gateway (e.g., Envoy/Redis). While upstream rate limiting is the correct long-term architecture, blocking this change outright leaves our public API completely exposed <em>today</em> while a complex infrastructure migration is planned. A local, corrected, highly observable, and conservatively configured in-app shield is a pragmatic, low-friction immediate improvement.</li><li>We now align with <strong>Claude and Codex</strong> that local code-level bugs (monotonic clock, input clamping) can be patched safely to make the class itself correct.</li></ul></li><li><strong>Where we STILL DISSENT:</strong><ul><li><strong>Dissent from Codex's lack of operational scope:</strong> Codex primarily focused on code correctness (monotonic clocks, injectable time). We argue that deploying a rate limiter directly to the hot path of every public request without built-in observability, dry-run capabilities, and a fail-safe circuit breaker is a critical operational risk, regardless of clock correctness.</li><li><strong>Dissent from Claude's structural acceptance of per-process limits:</strong> Claude notes per-process multiplication as a risk but accepts it without operational remediation. We insist on explicit configuration scaling guidelines (e.g., dividing limits by active worker processes) to prevent major SLA drift.</li></ul></li></ul>
 <p>---</p>
 <p class="r-title">3. Strongest Remaining Objections</p>
 <ol><li><strong>Lock Contention on the Hot Path:</strong> Under massive traffic spikes or DDoS, thousands of concurrent threads will contend for <code>self._lock</code>. This serialization occurs <em>before</em> evaluating if the request should be blocked, making the rate limiter itself a high-overhead latency vector.</li><li><strong>Lack of Shadow-Mode/Dry-Run Support:</strong> Rolling this out directly to active blocking mode introduces extreme user-workflow risk. If client traffic profiles are misunderstood, we will block legitimate traffic with zero pre-production validation.</li><li><strong>Absence of Observability and Telemetry:</strong> There are no metrics (counters for allows/denials), no alerts, and no logging. Operators will have no visibility into which clients are being blocked or whether rate limiting is active.</li><li><strong>No Fail-Safe/Fail-Open Protection:</strong> If a bug, lock starvation, or extreme thread latency occurs inside <code>allow()</code>, the inbound API request will block or raise an uncaught exception, taking down the entire worker.</li></ol>
 <p>---</p>
 <p class="r-title">4. Recommended Execution Sequence</p>
-<ol><li><strong>Correctness Patches (Clock &amp; Math Safety):</strong></li></ol>
-<ul><li>Replace <code>time.time()</code> with <code>time.monotonic()</code> to guarantee non-decreasing time delta.</li><li>Clamp elapsed calculation: <code>elapsed = max(0.0, now - self._last)</code> as defense-in-depth.</li><li>Add validation to <code>__init__</code> and <code>allow(n)</code> to enforce <code>rate &gt; 0</code>, <code>capacity &gt; 0</code>, and <code>n &gt; 0</code>.</li></ul>
-<ol start="2"><li><strong>Operations &amp; Observability Enhancements:</strong></li></ol>
-<ul><li><strong>Shadow Mode:</strong> Introduce a <code>dry_run: bool</code> configuration. When <code>True</code>, evaluate the limit and emit metrics/logs, but always return <code>True</code>.</li><li><strong>Telemetry:</strong> Instrument the class to emit real-time counters for <code>rate_limiter.allow</code> and <code>rate_limiter.reject</code> tagged by client ID.</li></ul>
-<ol start="3"><li><strong>Resilience &amp; Fail-Safe Routing:</strong></li></ol>
-<ul><li>In the API worker controller, wrap the <code>allow()</code> call in a try/except block. In the event of any exception or lock-acquisition timeout, log a critical error, emit a fallback metric, and <strong>fail-open</strong> (<code>return True</code>) to protect API availability.</li></ul>
-<ol start="4"><li><strong>Canary &amp; Rollout Strategy:</strong></li></ol>
-<ul><li>Deploy the code with <code>dry_run = True</code>. Run in production for 48 hours to collect metrics, build a baseline of false-positive blocks, and verify lock latency overhead under peak load.</li><li>Adjust configured values per-worker to partition limits (e.g., <code>local_limit = global_limit / worker_count</code>).</li><li>Flip <code>dry_run = False</code> incrementally via feature flags.</li></ul>
+<ol><li><strong>Correctness Patches (Clock &amp; Math Safety):</strong><ul><li>Replace <code>time.time()</code> with <code>time.monotonic()</code> to guarantee non-decreasing time delta.</li><li>Clamp elapsed calculation: <code>elapsed = max(0.0, now - self._last)</code> as defense-in-depth.</li><li>Add validation to <code>__init__</code> and <code>allow(n)</code> to enforce <code>rate &gt; 0</code>, <code>capacity &gt; 0</code>, and <code>n &gt; 0</code>.</li></ul></li><li><strong>Operations &amp; Observability Enhancements:</strong><ul><li><strong>Shadow Mode:</strong> Introduce a <code>dry_run: bool</code> configuration. When <code>True</code>, evaluate the limit and emit metrics/logs, but always return <code>True</code>.</li><li><strong>Telemetry:</strong> Instrument the class to emit real-time counters for <code>rate_limiter.allow</code> and <code>rate_limiter.reject</code> tagged by client ID.</li></ul></li><li><strong>Resilience &amp; Fail-Safe Routing:</strong><ul><li>In the API worker controller, wrap the <code>allow()</code> call in a try/except block. In the event of any exception or lock-acquisition timeout, log a critical error, emit a fallback metric, and <strong>fail-open</strong> (<code>return True</code>) to protect API availability.</li></ul></li><li><strong>Canary &amp; Rollout Strategy:</strong><ul><li>Deploy the code with <code>dry_run = True</code>. Run in production for 48 hours to collect metrics, build a baseline of false-positive blocks, and verify lock latency overhead under peak load.</li><li>Adjust configured values per-worker to partition limits (e.g., <code>local_limit = global_limit / worker_count</code>).</li><li>Flip <code>dry_run = False</code> incrementally via feature flags.</li></ul></li></ol>
 <p>---</p>
 <p class="r-title">5. Invariants and Guardrails</p>
-<ul><li><strong>Token Guardrail:</strong> $0.0 \le \text{​​self.\_tokens} \le \text{​​capacity}$ must hold true after every execution of <code>allow()</code>.</li><li><strong>Monotonic time delta:</strong> $\text{​​elapsed} \ge 0.0$ under all circumstances.</li><li><strong>Bounded Consumption:</strong> $n &gt; 0$ and $n \le \text{​​capacity}$. Requests requesting $n &gt; \text{​​capacity}$ must be rejected immediately without consuming tokens or modifying internal state.</li><li><strong>Fail-Open Policy:</strong> Code invoking <code>TokenBucket</code> must guarantee that rate-limiting failures do not prevent API execution.</li></ul>
+<ul><li><strong>Token Guardrail:</strong> $0.0 \le \text{​self.\_tokens} \le \text{​capacity}$ must hold true after every execution of <code>allow()</code>.</li><li><strong>Monotonic time delta:</strong> $\text{​elapsed} \ge 0.0$ under all circumstances.</li><li><strong>Bounded Consumption:</strong> $n &gt; 0$ and $n \le \text{​capacity}$. Requests requesting $n &gt; \text{​capacity}$ must be rejected immediately without consuming tokens or modifying internal state.</li><li><strong>Fail-Open Policy:</strong> Code invoking <code>TokenBucket</code> must guarantee that rate-limiting failures do not prevent API execution.</li></ul>
 <p>---</p>
 <p class="r-title">6. Risks, Stale Assumptions, and Missing Evidence</p>
 <ul><li><strong>Stale Assumption (Process Isolation):</strong> Assumes Python WSGI/ASGI multi-process workers can run independent limits without coordination. In reality, client requests hitting different workers will experience higher total throughput capacity (up to <code>capacity * worker_count</code>).</li><li><strong>Missing Evidence (Telemetry Baselines):</strong> We lack production baseline data on client request volumes. Running this in active blocking mode immediately is highly prone to blocking critical partner workflows.</li><li><strong>SLA Latency Risk:</strong> We lack benchmarking data of GIL lock overhead on <code>threading.Lock</code> under high thread contention in high-core count environments.</li></ul>
 <p>---</p>
 <p class="r-title">7. Concrete Evidence</p>
-<ul><li><strong>Wall-clock time source (vulnerable to NTP/operator adjustments):</strong></li><li><code>self._last = time.time()</code> (<code>tokenbucket.py</code>, line 24)</li><li><code>now = time.time()</code> (<code>tokenbucket.py</code>, line 30)</li><li><strong>Unprotected elapsed subtraction (negative token creation potential):</strong></li><li><code>elapsed = now - self._last</code> (<code>tokenbucket.py</code>, line 31)</li><li><strong>Missing input validation for tokens requested (unbounded consumption):</strong></li><li><code>def allow(self, n: float = 1) -&gt; bool:</code> (<code>tokenbucket.py</code>, line 28)</li><li>No validation on $n$, meaning negative or abnormally large inputs can bypass or drain the bucket indefinitely.</li></ul>
+<ul><li><strong>Wall-clock time source (vulnerable to NTP/operator adjustments):</strong><ul><li><code>self._last = time.time()</code> (<code>tokenbucket.py</code>, line 24)</li><li><code>now = time.time()</code> (<code>tokenbucket.py</code>, line 30)</li></ul></li><li><strong>Unprotected elapsed subtraction (negative token creation potential):</strong><ul><li><code>elapsed = now - self._last</code> (<code>tokenbucket.py</code>, line 31)</li></ul></li><li><strong>Missing input validation for tokens requested (unbounded consumption):</strong><ul><li><code>def allow(self, n: float = 1) -&gt; bool:</code> (<code>tokenbucket.py</code>, line 28)</li><li>No validation on $n$, meaning negative or abnormally large inputs can bypass or drain the bucket indefinitely.</li></ul></li></ul>
 <p>VERDICT: caution</p>
         </div>
       </div>
@@ -710,11 +777,27 @@
     </div>
   </section>
 
-  <!-- ===================== FOOTER / PROVENANCE ===================== -->
-  <footer class="meta">
-    Rendered from <code>verdict.json</code> by <code>scripts/render_verdict.py</code>.
+  </main>
+
+  <!-- ===================== FOOTER / COLOPHON (Panely / dark band) ===================== -->
+  
+  <footer class="colophon">
+    <div class="band-inner">
+      <div class="colophon-grid">
+        <div class="colophon-about">
+          <div class="footer-lockup">
+            <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect x="2" y="2" width="96" height="96" rx="22" fill="#0a0e1a"/><circle cx="50" cy="50" r="30" fill="none" stroke="#3a5fd9" stroke-width="3" opacity="0.55"/><circle cx="50" cy="20" r="10" fill="#0a0e1a" stroke="#e2b658" stroke-width="4"/><circle cx="50" cy="20" r="4" fill="#e2b658"/><circle cx="76" cy="65" r="10" fill="#0a0e1a" stroke="#3d6bff" stroke-width="4"/><circle cx="76" cy="65" r="4" fill="#3d6bff"/><circle cx="24" cy="65" r="10" fill="#0a0e1a" stroke="#3d6bff" stroke-width="4"/><circle cx="24" cy="65" r="4" fill="#3d6bff"/><circle cx="50" cy="50" r="13" fill="#5b8cff"/><circle cx="50" cy="50" r="5.5" fill="#ffffff"/></svg>
+            <span>Advisory Board <span style="font-weight:400; color:var(--on-dark-soft); font-size:11.5px; letter-spacing:0.02em;">powered by Panely</span></span>
+          </div>
+          <p>Convene Claude, Codex, and Gemini on your own subscriptions — the ones you already pay for, no new accounts and no API keys — to review the same material and reach one clear verdict.</p>
+        </div>
+        <div class="colophon-cta">
+          <a class="cta" href="https://panely.ai">panely.ai</a>
+        </div>
+      </div>
+      <span class="prov">Board: Claude · Codex · Gemini · 3 rounds · 2026-06-25</span>
+    </div>
   </footer>
 
-</div>
 </body>
 </html>
