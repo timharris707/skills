@@ -443,7 +443,9 @@ def _render_html(hd: dict, shape: str = "full-handoff") -> str:
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description="Render final-consensus.md / handoff-data.json / HTML from verdict.json.")
     parser.add_argument("path", help="path to verdict.json")
-    parser.add_argument("-o", "--out", default="final-consensus.md", help="Markdown output path (default: final-consensus.md)")
+    parser.add_argument("-o", "--out", default=None,
+                        help="Markdown output path. Written when given, or — when no --html/--handoff-data is "
+                             "requested — defaults to final-consensus.md. Pass --html alone to render only the HTML.")
     parser.add_argument("--check", action="store_true", help="print Markdown to stdout; write nothing")
     parser.add_argument("--handoff-data", dest="handoff_data", help="also write a derived handoff-data.json here")
     parser.add_argument("--html", help="also write final-consensus.html here (via render_handoff.py)")
@@ -455,12 +457,17 @@ def main(argv=None) -> int:
     data = load(args.path)
     markdown = render_markdown(data)
 
+    # The Markdown is the implicit default deliverable: write it when --out is given, or
+    # when no other output (--html / --handoff-data) was requested. Asking only for the
+    # HTML brief (e.g. --html quick-verdict.html --shape quick-verdict) no longer litters
+    # a stray final-consensus.md.
     if args.check:
         sys.stdout.write(markdown)
-    else:
-        with open(args.out, "w", encoding="utf-8") as handle:
+    elif args.out is not None or not (args.html or args.handoff_data):
+        out_path = args.out or "final-consensus.md"
+        with open(out_path, "w", encoding="utf-8") as handle:
             handle.write(markdown)
-        print(f"wrote {args.out} ({len(markdown)} bytes)")
+        print(f"wrote {out_path} ({len(markdown)} bytes)")
 
     if args.handoff_data or args.html:
         hd = build_handoff_data(data, run_dir=args.run_dir)

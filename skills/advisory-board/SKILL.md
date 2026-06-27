@@ -125,7 +125,7 @@ Write:
 - `round-1/<seat>.md` (and `round-2/`, `round-3/` as rounds run)
 - `board-packet-round-2.md` (and `board-packet-round-3.md` when needed)
 - `final-consensus.md` — the handoff in Markdown
-- `final-consensus.html` — a self-contained, human-readable view of the handoff. Render it deterministically with `scripts/render_handoff.py` from a `handoff-data.json` (recommended — guarantees no leftover placeholders or template drift), or fill `references/handoff-template.html` by hand
+- `final-consensus.html` — a self-contained, human-readable view of the handoff. Render it deterministically with `scripts/render_handoff.py` from a `handoff-data.json` (recommended — guarantees no leftover placeholders or template drift), or fill `references/handoff-template.html` by hand. Choose the **shape** with `scripts/render_verdict.py --html … --shape full-handoff` (default — the complete record) or `--shape quick-verdict` (a slim skim brief to lead with); see `references/output-formats.md`
 - `verdict.json` — the machine-readable verdict (`references/verdict-schema.md`); gate or reformat it with `scripts/`
 - `run-metadata.md` — provenance: commands, the model that actually answered per seat, auth mode (no secrets), per-seat status (ran / degraded / dropped), timings, and source paths. Use `references/run-metadata-template.md`.
 
