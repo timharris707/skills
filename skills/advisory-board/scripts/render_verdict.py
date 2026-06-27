@@ -37,7 +37,12 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _render_engine import die  # noqa: E402  shared with the other renderers
-from _verdict_labels import human_label, lens_disclaimer  # noqa: E402  lens-aware label + disclaimer
+from _verdict_labels import (  # noqa: E402  lens-aware label + framing (renderer-only)
+    blockers_heading,
+    human_label,
+    lens_disclaimer,
+    verdict_lead,
+)
 
 STATUS_WORD = {"verified": "verified", "unverified": "unverified", "refuted": "REFUTED"}
 EVIDENCE_CONTAINERS = ("blockers", "dissent", "concerns")
@@ -127,6 +132,13 @@ def render_markdown(data: dict) -> str:
 
     label, note = human_label(data.get("verdict"), data.get("lens_preset"), data.get("decision"))
     out.append(f"## Verdict: {label} — {_stance(data)} ({data.get('confidence', '?')} confidence)")
+    # Lead with the plain should-I/shouldn't-I answer on a non-software lens. The heading
+    # keeps the calibrated label (the machine-friendly anchor); this bold line answers
+    # the reader's actual question. Suppressed when the board authored its own
+    # `decision` (the heading already leads with it) and for a software lens.
+    lead = verdict_lead(data.get("verdict"), data.get("lens_preset"), data.get("decision"))
+    if lead and not data.get("decision"):
+        out.append(f"**{lead}.**")
     # An explicit verdict_note (authored in the verdict.json) wins; else the plain
     # "what this means" line a non-software lens supplies.
     note = data.get("verdict_note") or note
@@ -136,7 +148,7 @@ def render_markdown(data: dict) -> str:
 
     blockers = data.get("blockers", [])
     if blockers:
-        out.append("## Consensus blockers (must fix before ship)")
+        out.append(f"## {blockers_heading(data.get('lens_preset'), 'md')}")
         for index, blocker in enumerate(blockers, 1):
             title = blocker.get("title", "blocker")
             body = blocker.get("body", "")
@@ -279,8 +291,13 @@ def build_handoff_data(data: dict, run_dir=None) -> dict:
     verdict = data.get("verdict", "")
     lens_preset = data.get("lens_preset")
     label, note = human_label(verdict, lens_preset, data.get("decision"))
-    # An explicit verdict_note (authored) wins; else the plain lens note. The banner
-    # color (verdict_class) stays keyed on the raw token, never the lens label.
+    # The banner headline leads with a plain should-I/shouldn't-I answer on a non-software
+    # lens. `verdict_lead` is None for a software board, so its headline (and the whole
+    # banner) is byte-identical to before. The stance rides on the headline for both
+    # families; the banner color (verdict_class) stays keyed on the raw token.
+    lead = verdict_lead(verdict, lens_preset, data.get("decision"))
+    headline = f"{lead} · {_stance(data)}" if lead else f"{label} — {_stance(data)}"
+    # An explicit verdict_note (authored) wins; else the plain lens note.
     verdict_note = data.get("verdict_note") or note
     # The subtle, lens-aware professional-advice caveat (None for a software lens and
     # the absent-preset default). Empty string when absent so the template slot resolves
@@ -305,9 +322,11 @@ def build_handoff_data(data: dict, run_dir=None) -> dict:
         "date": _plain(data.get("date", "")),
         "board": _raw(board_str),
         "rounds": rounds_str,
-        "verdict": _plain(f"{label} — {_stance(data)}"),
+        "verdict": _plain(headline),
         "verdict_class": _VERDICT_CLASS.get(verdict, ""),
         "verdict_note": _raw(verdict_note) if verdict_note else "",
+        # Lens-aware section header for the consensus must-resolve items.
+        "blockers_heading": _plain(blockers_heading(lens_preset, "html")),
         "disclaimer": _raw(disclaimer) if disclaimer else "",
         "plan": _raw(data.get("title", "")),
         "metadata": _raw(metadata),

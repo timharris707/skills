@@ -18,8 +18,8 @@ Standard library only; no third-party dependencies.
 handoff-data.json shape (keys mirror the template's {{TOKENS}}, lowercased):
 
   Top level (scalars):  title, subtitle, date, board, rounds, verdict,
-                        verdict_class, verdict_note, disclaimer, plan, metadata,
-                        dissent_flag
+                        verdict_class, verdict_note, blockers_heading, disclaimer,
+                        plan, metadata, dissent_flag
   Lists of objects:     seats[], blockers[], dissents[], caveats[],
                         questions[], actions[]
     seats[]:   seat_name, seat_lens, seat_model, seat_status, seat_status_class,
