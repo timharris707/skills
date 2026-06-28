@@ -5,7 +5,7 @@
 - **Source:** Tim's feature request ("2 Opus + 1 Codex, 2 Codex + 1 Opus, 3 Opus… and different lenses for all") + two architecture-mapping investigations (seat-identity flow across ~8 modules / ~15 call sites; lens system — per-seat lens is ~80% already built, assigned positionally)
 - **Owner:** Tim
 - **Baseline:** advisory-board @ `main` `837fb0d` (v1.8.0 line · 649 tests green)
-- **Status:** APPROVED (Tim, 2026-06-28) — building. **Syntax:** auto-number + optional alias. **Per-seat lens value:** free-form focus string OR a preset name (→ its primary focus).
+- **Status:** SHIPPED (2026-06-28) — merged to `main`, released **`advisory-board/v1.9.0`** (Latest). **Syntax:** auto-number + optional alias. **Per-seat lens value:** free-form focus string OR a preset name (→ its primary focus). 674 tests · 0 adversarial-review defects · default board byte-identical.
 
 ## Overview
 
@@ -46,7 +46,7 @@ Seat-id resolution (──> = "resolves to")
 ```
 
 ## Milestone: Flexible seat composition
-status: planned
+status: done
 
 Seat the same provider multiple times with a distinct identity and an individually-aimed lens, while a single-provider-per-name board stays byte-identical. Replaces seat-name-as-identity with a unique seat `id` across the conductor, and exposes a per-seat lens input on top of the existing per-seat `SeatConfig.lens` plumbing.
 
@@ -87,10 +87,10 @@ Testing (8 new): per-seat `--lens` reaches the seat + preset-name expands to pri
 Gate: unittest (full suite).
 
 ### Phase 4 — Docs, adversarial review, demo
-status: in-progress
+status: done
 Document the new composition surface, prove it on a real run, and gate the merge with adversarial review (the refactor touches prompt/egress paths).
 - [x] Docs: `SKILL.md` (board choice + the syntax), `references/board-composition.md` (new **Naming & targeting** section: ids, auto-number, aliases, `--model`/`--lens` by id), `references/lens-presets.md` (per-seat lens via repeated `--lens id=value`). Frontier model IDs kept inline.
 - [x] Adversarial review: **three parallel skeptics** — identity/collision, egress/consent **security**, and byte-identical+recipe. **0 confirmed defects.** Each verified live against a duplicate-seat board: every identity/path site uses `seat.id`; consent still binds every byte (both same-provider blobs in `packet_hash`); disclosure names every provider; `_ALIAS_RE` blocks path traversal; the default board is byte-for-byte identical to `main` (empirically diffed). Added the one suggested guard (default board's `verdict.json` omits `id`).
-- [ ] Demo (optional, off the gallery track): a `2× Opus + 1× Codex` run with three explicit lenses, rendered to confirm 3 distinct seat cards + dissent attribution reads cleanly.
-- [ ] Release: skill-scoped semver tag once Tim signs off (memory: milestone merge → `advisory-board/vX.Y.Z`; outward-facing release needs Tim's explicit go).
+- [ ] Demo (optional) — deferred: Tim chose the relocation gallery packet as the next thread instead. A live `2× Opus + 1× Codex` demo run remains a nice-to-have.
+- [x] Release: **`advisory-board/v1.9.0`** tagged + GitHub release (Latest), `--target main`, on Tim's explicit go.
 Gate: full suite green + adversarial review clean + the default-board byte-identical regression holds.
