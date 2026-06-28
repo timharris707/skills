@@ -219,9 +219,9 @@ def choose_synthesizer_seat(config: RunConfig, last_round_results: list,
         return by_name[preferred]
     if "claude" in by_name:
         return by_name["claude"]
-    usable_seats = {r.seat for r in last_round_results if r.usable}
+    usable_seats = {r.seat for r in last_round_results if r.usable}  # keyed by seat id
     for seat in config.board:
-        if seat.name in usable_seats:
+        if seat.id in usable_seats:
             return seat
     return config.board[0]
 
@@ -237,16 +237,26 @@ def build_skeleton(config: RunConfig, rounds_done: list) -> dict:
     substitute a default — see `run_synthesizer`).
     """
     rounds_run = len(rounds_done)
+    # Display label + "is this a default (id==provider) seat?" per seat id. Duplicate/
+    # aliased seats carry an explicit machine `id`; a default board omits it so its
+    # verdict.json stays byte-identical (renderers match the round file on id when present).
+    label_for = {s.id: s.label for s in config.board}
+    default_id = {s.id: (s.id == s.name) for s in config.board}
     by_seat: dict = {}
     for round_results in rounds_done:
         for r in round_results:
-            entry = by_seat.setdefault(r.seat, {
-                "seat": r.seat.capitalize(),
-                "model": r.model_requested,
-                "lens": _lens_for(config, r.seat),
-                "round_verdicts": [],
-                "dropped": False,
-            })
+            entry = by_seat.get(r.seat)
+            if entry is None:
+                entry = {
+                    "seat": label_for.get(r.seat, r.seat.capitalize()),
+                    "model": r.model_requested,
+                    "lens": _lens_for(config, r.seat),
+                    "round_verdicts": [],
+                    "dropped": False,
+                }
+                if not default_id.get(r.seat, True):
+                    entry["id"] = r.seat
+                by_seat[r.seat] = entry
             # For a USABLE round, append the parsed token (or None if the seat
             # emitted no clean VERDICT line) — a None at index k means "round k
             # was usable but the seat broke the M1 contract" and the missing-token
@@ -261,7 +271,7 @@ def build_skeleton(config: RunConfig, rounds_done: list) -> dict:
             if r.usable:
                 entry["round_verdicts"].append(r.verdict)
             entry["dropped"] = not r.usable
-    board = [by_seat[s.name] for s in config.board if s.name in by_seat]
+    board = [by_seat[s.id] for s in config.board if s.id in by_seat]
     return {
         "schema": "advisory-board/verdict@2",
         "title": config.title,
@@ -275,9 +285,9 @@ def build_skeleton(config: RunConfig, rounds_done: list) -> dict:
     }
 
 
-def _lens_for(config: RunConfig, seat_name: str) -> str:
+def _lens_for(config: RunConfig, seat_id: str) -> str:
     for seat in config.board:
-        if seat.name == seat_name:
+        if seat.id == seat_id:
             # Match the verdict.json convention in the committed example: the short
             # lens label (before the "—"), so the board entry is compact and legible.
             return seat.lens.split("—")[0].strip()
@@ -298,26 +308,29 @@ def build_synthesizer_prompt(config: RunConfig, rounds_done: list, *,
     final_round = rounds_done[final_round_index if final_round_index is not None else -1]
     final_round_no = final_round[0].round_no if final_round else rounds_run
 
+    # Display label per seat id (a duplicate/aliased seat disambiguates; a default seat
+    # is just the capitalized provider, so this stays byte-identical for the usual board).
+    label_for = {s.id: s.label for s in config.board}
     seats_meta = []
     for r in final_round:
         if r.usable:
-            seats_meta.append(f"  - {r.seat.capitalize():<11} model={r.model_requested}  "
-                              f"lens={_lens_for(config, r.seat)}")
+            seats_meta.append(f"  - {label_for.get(r.seat, r.seat.capitalize()):<11} "
+                              f"model={r.model_requested}  lens={_lens_for(config, r.seat)}")
     seats_table = "\n".join(seats_meta) if seats_meta else "  (no usable seats — synthesis cannot proceed)"
 
-    # Per-round token table, one row per seat, columns = round 1..N.
+    # Per-round token table, one row per seat (keyed by seat id), columns = round 1..N.
     tokens_by_seat: dict = {}
     for round_results in rounds_done:
         for r in round_results:
             tokens_by_seat.setdefault(r.seat, []).append(r.verdict or "—")
     verdicts_lines = ["  | Seat        | " + " | ".join(f"R{i+1}" for i in range(rounds_run)) + " |",
                       "  | ----------- | " + " | ".join("--" for _ in range(rounds_run)) + " |"]
-    for seat_name in (s.name for s in config.board):
-        tokens = tokens_by_seat.get(seat_name)
+    for sid in (s.id for s in config.board):
+        tokens = tokens_by_seat.get(sid)
         if not tokens:
             continue
         padded = tokens + ["—"] * (rounds_run - len(tokens))
-        verdicts_lines.append(f"  | {seat_name.capitalize():<11} | "
+        verdicts_lines.append(f"  | {label_for[sid]:<11} | "
                               + " | ".join(f"{t:<2}" for t in padded) + " |")
     verdicts_table = "\n".join(verdicts_lines)
 
@@ -329,7 +342,8 @@ def build_synthesizer_prompt(config: RunConfig, rounds_done: list, *,
     for r in final_round:
         if not r.usable:
             continue
-        review_chunks.append(f"## {r.seat.capitalize()} — round {r.round_no} review\n\n"
+        review_chunks.append(f"## {label_for.get(r.seat, r.seat.capitalize())} — round "
+                             f"{r.round_no} review\n\n"
                              f"{neutralize_synth_markers(r.stdout.strip())}")
     round_reviews = "\n\n".join(review_chunks) if review_chunks else "(no usable reviews)"
 

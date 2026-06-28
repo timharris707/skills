@@ -108,7 +108,7 @@ def _run_seat_round(seat: SeatConfig, blob: "PacketBlob", config: RunConfig, *,
 
     answered = adapter.model_answered(result.stdout, result.stderr) if status in ("ran", "degraded") else None
     return SeatRoundResult(
-        seat=seat.name,
+        seat=seat.id,
         provider=seat.provider,
         round_no=round_no,
         model_requested=seat.model,
@@ -162,8 +162,8 @@ def run_round(config: RunConfig, blobs: list, approval: EgressApproval, *,
         if current_scope_hash != approval.scope_hash:
             die("repo scope hash drift: the snapshot no longer matches the approved scope "
                 "hash — refusing to spawn the board", EXIT_EGRESS_BLOCKED)
-    by_seat = {b.seat: b for b in blobs}
-    seats = [s for s in config.board if s.name in by_seat]   # round 2 drops failed seats
+    by_seat = {b.seat: b for b in blobs}                     # keyed by seat id
+    seats = [s for s in config.board if s.id in by_seat]      # round 2 drops failed seats
 
     # Workdir policy (P3, read XOR network). When --repo is on, EVERY seat is pointed
     # at the read-only snapshot (config.grounding.snapshot_dir) as its cwd — in BOTH
@@ -189,7 +189,7 @@ def run_round(config: RunConfig, blobs: list, approval: EgressApproval, *,
         workdir = None
     try:
         def _one(seat: SeatConfig) -> SeatRoundResult:
-            return _run_seat_round(seat, by_seat[seat.name], config, round_no=round_no,
+            return _run_seat_round(seat, by_seat[seat.id], config, round_no=round_no,
                                    round_packet_hash=round_packet_hash,
                                    workdir=workdir, timeout=timeout)
 
@@ -199,11 +199,11 @@ def run_round(config: RunConfig, blobs: list, approval: EgressApproval, *,
             with ThreadPoolExecutor(max_workers=len(seats)) as pool:
                 futures = {pool.submit(_one, s): s for s in seats}
                 for fut, seat in futures.items():
-                    results[seat.name] = fut.result()
+                    results[seat.id] = fut.result()
         else:
             for seat in seats:
-                results[seat.name] = _one(seat)
-        return [results[s.name] for s in seats]
+                results[seat.id] = _one(seat)
+        return [results[s.id] for s in seats]
     finally:
         # Only tear down the ephemeral per-round tempdir WE created. The grounded
         # snapshot is owned by cmd_run (one snapshot shared across rounds) and is

@@ -47,10 +47,10 @@ def seat_network_status(seat: SeatConfig, config: RunConfig) -> str:
 
 def render_run_card(config: RunConfig) -> str:
     seats = "\n".join(
-        f"    - {s.name:<7} {s.provider:<10} {s.model:<18} [{s.reasoning}]  — {s.lens}"
+        f"    - {s.id:<7} {s.provider:<10} {s.model:<18} [{s.reasoning}]  — {s.lens}"
         for s in config.board
     )
-    net = ", ".join(f"{s.name}={seat_network_status(s, config)}" for s in config.board)
+    net = ", ".join(f"{s.id}={seat_network_status(s, config)}" for s in config.board)
     synth_line = "off (verdict.json hand-authored from the round artifacts)"
     if config.synthesize:
         chosen = config.synthesizer_seat or (
@@ -102,7 +102,7 @@ def render_sensitivity_json(config: RunConfig, approval: Optional[EgressApproval
             "required": config.sensitivity != "public",
             "mode": consent_token(config.sensitivity),
         },
-        "network_isolation": {s.name: seat_network_status(s, config) for s in config.board},
+        "network_isolation": {s.id: seat_network_status(s, config) for s in config.board},
         "network_unenforced": config.unenforced_network_seats,
     }
     if config.grounding is not None:
@@ -139,7 +139,7 @@ def render_artifact_tree(config: RunConfig) -> str:
         f"  board-packet-round-{r}.md" for r in range(2, n + 1)
     )
     seat_prompts = "\n".join(
-        f"  prompts/{s.name}-round-1.prompt" for s in config.board
+        f"  prompts/{s.id}-round-1.prompt" for s in config.board
     )
     top = "  run-recipe.yaml   egress-manifest.md   sensitivity.json"
     if config.grounding is not None:
@@ -253,14 +253,14 @@ def render_run_metadata(config: RunConfig, preflight: list, approval: EgressAppr
         "| Seat   | Lens | Model requested | Reasoning | Auth | Preflight |",
         "| ------ | ---- | --------------- | --------- | ---- | --------- |",
     ]
-    pf = {p.seat: p for p in preflight}
+    pf = {p.seat: p for p in preflight}     # p.seat is the seat id
     for s in config.board:
-        p = pf.get(s.name)
+        p = pf.get(s.id)
         verdict = ("GO" if p and p.go else "NO-GO") if p else "n/a"
         auth = p.auth if p else "n/a"
         lens_short = s.lens.split("—")[0].strip()
         lines.append(
-            f"| {s.name:<6} | {lens_short} | {s.model} | {s.reasoning} | {auth} | {verdict} |"
+            f"| {s.id:<6} | {lens_short} | {s.model} | {s.reasoning} | {auth} | {verdict} |"
         )
     lines += [
         "",

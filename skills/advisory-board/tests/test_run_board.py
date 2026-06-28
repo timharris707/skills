@@ -4539,6 +4539,49 @@ class TestSynthesizerE2E(EnvMixin):
         self.assertIn("synthesized", text)
         self.assertIn("verdict.json", text)
 
+    def test_duplicate_seats_get_distinct_ids_and_artifacts(self):
+        # 2 Claude + 1 Codex: the two Claude seats must NOT collapse. Distinct prompts,
+        # distinct round files (both rounds), and 3 distinct board entries in verdict.json.
+        out = self._out()
+        code, text, _ = run_cli(["run", "--source", SAMPLE, "--out", out, "--yes",
+                                 "--board", "claude,claude,codex", "--synthesize"])
+        self.assertEqual(code, rb.EXIT_OK)
+        self.assertIn("3 of 3 seats produced a usable round-1 review", text)
+        for rel in ("prompts/claude#1-round-1.prompt", "prompts/claude#2-round-1.prompt",
+                    "prompts/codex-round-1.prompt",
+                    "round-1/claude#1.md", "round-1/claude#2.md", "round-1/codex.md",
+                    "round-2/claude#1.md", "round-2/claude#2.md",
+                    "logs/claude#1-round-1.stderr", "logs/claude#2-round-1.stderr"):
+            self.assertTrue(os.path.exists(os.path.join(out, rel)), rel)
+        with open(os.path.join(out, "verdict.json")) as fh:
+            data = json.load(fh)
+        self.assertEqual(len(data["board"]), 3)            # not collapsed to 2
+        ids = [b.get("id") for b in data["board"]]
+        self.assertIn("claude#1", ids)
+        self.assertIn("claude#2", ids)
+        # The two Claude seats took different positional lenses (distinct foci).
+        claude_lenses = [b["lens"] for b in data["board"]
+                         if (b.get("id") or "").startswith("claude")]
+        self.assertEqual(len(claude_lenses), 2)
+        self.assertNotEqual(claude_lenses[0], claude_lenses[1])
+        bv.validate(data)                                  # passes the gate-time schema check
+
+    def test_aliased_seats_flow_end_to_end(self):
+        # Aliases key the whole run: distinct files by alias, board entries by alias id.
+        out = self._out()
+        code, _, _ = run_cli(["run", "--source", SAMPLE, "--out", out, "--yes",
+                              "--board", "econ=claude,risk=claude,exec=codex", "--synthesize"])
+        self.assertEqual(code, rb.EXIT_OK)
+        for rel in ("round-1/econ.md", "round-1/risk.md", "round-1/exec.md"):
+            self.assertTrue(os.path.exists(os.path.join(out, rel)), rel)
+        with open(os.path.join(out, "verdict.json")) as fh:
+            data = json.load(fh)
+        self.assertEqual(sorted(b.get("id") for b in data["board"]), ["econ", "exec", "risk"])
+        # The full handoff renders without a missing round-review (glob matches the alias file).
+        hd = rv.build_handoff_data(data, run_dir=out)
+        econ = next(s for s in hd["seats"] if s["seat_name"] == "econ")
+        self.assertTrue(econ["rounds"][0]["round_review"])
+
     def test_synthesizer_smuggle_skeleton_keys_are_dropped(self):
         # A synthesizer reply that tries to overwrite schema/title/rounds/board MUST
         # NOT be allowed through: the persisted verdict.json keeps the conductor's

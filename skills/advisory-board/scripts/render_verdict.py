@@ -400,6 +400,9 @@ def build_handoff_data(data: dict, run_dir=None) -> dict:
     }
     for seat in data.get("board", []):
         name = seat.get("seat", "?")
+        # Match the round artifact file on the machine id when present (a duplicate/aliased
+        # seat writes round-N/<id>.md); fall back to the display label for a default board.
+        seat_key = seat.get("id") or name
         rounds = []
         for round_no, rv in enumerate(seat.get("round_verdicts", []), 1):
             # Per-round pills follow the board-level lens family (the note is for the
@@ -411,7 +414,7 @@ def build_handoff_data(data: dict, run_dir=None) -> dict:
                 "round_verdict": _plain(rv_label),
                 "round_verdict_class": _VERDICT_CLASS.get(rv, ""),
                 "round_confidence": "",
-                "round_review": _round_review(run_dir, name, round_no, rv_label),
+                "round_review": _round_review(run_dir, seat_key, round_no, rv_label),
             })
         lens = seat.get("lens", "") or ""
         hd["seats"].append({

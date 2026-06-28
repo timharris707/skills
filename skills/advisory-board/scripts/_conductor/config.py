@@ -121,7 +121,7 @@ class RunConfig:
         """
         if not self.gate_mode:
             return []
-        return [s.name for s in self.board if not s.adapter.isolates_network]
+        return [s.id for s in self.board if not s.adapter.isolates_network]
 
 
 def load_source(ref: str) -> SourceSpec:

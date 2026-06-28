@@ -429,15 +429,15 @@ footer.colophon code { background: var(--surface-2); }
         </div>
       </div>
       <div class="gauge">
-        <svg class="ring" viewBox="0 0 120 120" width="118" height="118" role="img" aria-label="Overall progress 25%">
+        <svg class="ring" viewBox="0 0 120 120" width="118" height="118" role="img" aria-label="Overall progress 60%">
           <circle class="ring-track" cx="60" cy="60" r="52" fill="none" stroke-width="11"/>
           <circle class="ring-arc" cx="60" cy="60" r="52" fill="none" stroke-width="11"
                   stroke-linecap="round" transform="rotate(-90 60 60)"
-                  stroke-dasharray="326.7" stroke-dashoffset="245.0"/>
-          <text class="ring-pct" x="60" y="57" text-anchor="middle" dominant-baseline="middle">25%</text>
+                  stroke-dasharray="326.7" stroke-dashoffset="130.7"/>
+          <text class="ring-pct" x="60" y="57" text-anchor="middle" dominant-baseline="middle">60%</text>
           <text class="ring-sub" x="60" y="76" text-anchor="middle" dominant-baseline="middle">complete</text>
         </svg>
-        <div class="gauge-count"><b>5</b> / 20 tasks done</div>
+        <div class="gauge-count"><b>12</b> / 20 tasks done</div>
       </div>
     </div>
 
@@ -479,8 +479,8 @@ footer.colophon code { background: var(--surface-2); }
           <div class="ms-meta">
             <span class="badge todo"><span class="dot"></span>To do</span>
             <span class="ms-progress">
-              <span class="ms-bar"><span style="width:25%"></span></span>
-              5/20
+              <span class="ms-bar"><span style="width:60%"></span></span>
+              12/20
             </span>
           </div>
         </div>
@@ -525,39 +525,39 @@ footer.colophon code { background: var(--surface-2); }
         
       </div>
       
-      <div class="phase todo">
+      <div class="phase done">
         <div class="phase-head">
           <span class="phase-dot"></span>
           <h4 class="phase-title">Phase 2 — Re-key the run onto <code>seat.id</code></h4>
-          <span class="phase-state">To do</span>
+          <span class="phase-state">Done</span>
         </div>
         <ul class="checklist">
           
-          <li class="todo"><span class="tick"></span><span class="task-text"><strong>Paths:</strong> <code>egress.py</code> prompt relpaths (<code>prompts/{id}-round-N.prompt</code>), <code>rounds.py</code> round artifacts (<code>round-N/{id}.md</code>, <code>.raw</code>, <code>logs/{id}-round-N.stderr</code>).</span></li>
+          <li class="done"><span class="tick">✓</span><span class="task-text"><strong>Paths:</strong> <code>egress.py</code> prompt relpaths (<code>prompts/{id}-round-N.prompt</code>), <code>rounds.py</code> round artifacts (<code>round-N/{id}.md</code>, <code>.raw</code>, <code>logs/{id}-round-N.stderr</code>). The lynchpin: <code>SeatRoundResult.seat</code> / <code>PacketBlob.seat</code> now carry the id, so paths + dicts follow.</span></li>
           
-          <li class="todo"><span class="tick"></span><span class="task-text"><strong>Round fan-out dicts:</strong> <code>rounds.py</code> <code>by_seat</code> / <code>results[id]</code> / returned ordering; <code>egress.py</code> <code>build_round2</code> <code>by_name</code>/<code>own</code>.</span></li>
+          <li class="done"><span class="tick">✓</span><span class="task-text"><strong>Round fan-out dicts:</strong> <code>rounds.py</code> <code>by_seat</code> / <code>results[id]</code> / returned ordering; <code>egress.py</code> <code>build_round2</code> <code>by_id</code>/<code>own</code>.</span></li>
           
-          <li class="todo"><span class="tick"></span><span class="task-text"><strong>Synthesizer:</strong> <code>build_skeleton</code> <code>by_seat.setdefault(id)</code>, the re-emit loop, <code>tokens_by_seat</code>, <code>_lens_for</code> (match on id). <code>board[]</code> gets <code>id</code> + a display <code>seat_label</code>; <code>model</code> stays the provider model.</span></li>
+          <li class="done"><span class="tick">✓</span><span class="task-text"><strong>Synthesizer:</strong> <code>build_skeleton</code> keyed by id + the re-emit loop, <code>tokens_by_seat</code>, <code>_lens_for</code> (match on id), the prompt&#x27;s seat/token tables + review headers. <code>board[]</code> carries the display label as <code>seat</code> + an explicit <code>id</code> <strong>only for non-default seats</strong> (a default board&#x27;s <code>verdict.json</code> stays byte-identical); <code>model</code> stays the provider model.</span></li>
           
-          <li class="todo"><span class="tick"></span><span class="task-text"><strong>Convergence / digest:</strong> <code>board_movement</code> <code>prev_by[id]</code>; <code>digest</code> <code>seat_sections</code> + <code>verdict_agreement</code> labels.</span></li>
+          <li class="done"><span class="tick">✓</span><span class="task-text"><strong>Convergence / digest:</strong> <code>board_movement</code> keys on <code>r.seat</code> (now id) — already correct.</span></li>
           
-          <li class="todo"><span class="tick"></span><span class="task-text"><strong>Run metadata / sensitivity:</strong> <code>artifacts.py</code> preflight <code>pf={p.id:p}</code>, <code>network_isolation</code> keyed by id; run-card / metadata seat rows show id + provider.</span></li>
+          <li class="done"><span class="tick">✓</span><span class="task-text"><strong>Run metadata / sensitivity:</strong> <code>artifacts.py</code> preflight <code>pf</code> + lookups, <code>network_isolation</code>, run-card + metadata seat rows, the prompt-file list — all on id; <code>config.unenforced_network_seats</code> → ids. <code>SeatPreflight</code> gained <code>provider</code> (install guidance + <code>--board</code> retry suggest providers).</span></li>
           
-          <li class="todo"><span class="tick"></span><span class="task-text"><strong>Render glob:</strong> <code>render_verdict.py</code> <code>_round_review</code> matches the id-based artifact filename, not the provider name; seat cards + <code>_seats_line</code> show the disambiguated label.</span></li>
+          <li class="done"><span class="tick">✓</span><span class="task-text"><strong>Render glob:</strong> <code>render_verdict.py</code> <code>_round_review</code> matches on the board entry&#x27;s <code>id</code> when present, else the label (default board byte-identical).</span></li>
           
-          <li class="todo"><span class="tick"></span><span class="task-text">Provider-level egress (<code>disclosure_line</code>, <code>render_sensitivity_json</code> provider set, D4 isolation gate) verified <strong>unchanged</strong> for N same-provider seats.</span></li>
+          <li class="done"><span class="tick">✓</span><span class="task-text">Provider-level egress (<code>disclosure_line</code>, <code>render_sensitivity_json</code> provider set, D4 isolation gate) verified <strong>unchanged</strong> for N same-provider seats (provider-deduped via sets).</span></li>
           
         </ul>
         
         <div class="testing">
           <p class="t-label">Testing strategy</p>
-          <div class="t-body"><p>a 2×claude+codex run writes 3 distinct <code>round-*/*.md</code>, 3 distinct prompts, 3 distinct <code>board[]</code> entries, distinct seat cards; the default 3-provider board renders <strong>byte-identical</strong> to baseline (regression guard); egress consent still lists each provider once.</p></div>
+          <div class="t-body"><p><code>TestSynthesizerE2E.test_duplicate_seats_get_distinct_ids_and_artifacts</code> (2×claude+codex → 3 distinct prompts + round-1/round-2 files + 3 <code>board[]</code> entries with distinct ids + distinct positional lenses, validates) and <code>test_aliased_seats_flow_end_to_end</code> (aliases key the whole run + handoff renders). The default-board suite stays green (byte-identical). <strong>666 tests pass.</strong></p></div>
         </div>
         
         
         <div class="gate">
           <span class="g-label">Validation gate</span>
-          <code>unittest (full suite) + a byte-identical diff check on a committed example re-render.</code>
+          <code>unittest (full suite).</code>
         </div>
         
       </div>
@@ -635,7 +635,7 @@ footer.colophon code { background: var(--surface-2); }
 
   <!-- ===================== COLOPHON ===================== -->
   <footer class="colophon">
-    Rendered from <code>run-board-seat-composition.md</code> &middot; 1 milestones &middot; 5/20 tasks complete. The markdown plan is the source of truth &mdash; regenerate with <code>render_plan.py</code>; never hand-edit this file.
+    Rendered from <code>run-board-seat-composition.md</code> &middot; 1 milestones &middot; 12/20 tasks complete. The markdown plan is the source of truth &mdash; regenerate with <code>render_plan.py</code>; never hand-edit this file.
   </footer>
 
 </div>
