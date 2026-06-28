@@ -429,15 +429,15 @@ footer.colophon code { background: var(--surface-2); }
         </div>
       </div>
       <div class="gauge">
-        <svg class="ring" viewBox="0 0 120 120" width="118" height="118" role="img" aria-label="Overall progress 0%">
+        <svg class="ring" viewBox="0 0 120 120" width="118" height="118" role="img" aria-label="Overall progress 25%">
           <circle class="ring-track" cx="60" cy="60" r="52" fill="none" stroke-width="11"/>
           <circle class="ring-arc" cx="60" cy="60" r="52" fill="none" stroke-width="11"
                   stroke-linecap="round" transform="rotate(-90 60 60)"
-                  stroke-dasharray="326.7" stroke-dashoffset="326.7"/>
-          <text class="ring-pct" x="60" y="57" text-anchor="middle" dominant-baseline="middle">0%</text>
+                  stroke-dasharray="326.7" stroke-dashoffset="245.0"/>
+          <text class="ring-pct" x="60" y="57" text-anchor="middle" dominant-baseline="middle">25%</text>
           <text class="ring-sub" x="60" y="76" text-anchor="middle" dominant-baseline="middle">complete</text>
         </svg>
-        <div class="gauge-count"><b>0</b> / 19 tasks done</div>
+        <div class="gauge-count"><b>5</b> / 20 tasks done</div>
       </div>
     </div>
 
@@ -479,8 +479,8 @@ footer.colophon code { background: var(--surface-2); }
           <div class="ms-meta">
             <span class="badge todo"><span class="dot"></span>To do</span>
             <span class="ms-progress">
-              <span class="ms-bar"><span style="width:0%"></span></span>
-              0/19
+              <span class="ms-bar"><span style="width:25%"></span></span>
+              5/20
             </span>
           </div>
         </div>
@@ -492,27 +492,29 @@ footer.colophon code { background: var(--surface-2); }
       
 
       
-      <div class="phase todo">
+      <div class="phase done">
         <div class="phase-head">
           <span class="phase-dot"></span>
           <h4 class="phase-title">Phase 1 — Seat identity (<code>id</code>) and <code>--board</code> parsing</h4>
-          <span class="phase-state">To do</span>
+          <span class="phase-state">Done</span>
         </div>
         <ul class="checklist">
           
-          <li class="todo"><span class="tick"></span><span class="task-text">DECISION: <code>id</code> is the alias when given, else the provider name, suffixed <code>#N</code> (board order) only when a bare provider repeats. Unique bare providers keep <code>id == name</code> (backward compat). <em>(Alt rejected: always suffix — breaks every existing recipe/test and the default render.)</em></span></li>
+          <li class="done"><span class="tick">✓</span><span class="task-text">DECISION: <code>id</code> is the alias when given, else the provider name, suffixed <code>#N</code> (board order) only when a bare provider repeats. Unique bare providers keep <code>id == name</code> (backward compat). <em>(Alt rejected: always suffix — breaks every existing recipe/test and the default render.)</em> — <code>assign_seat_ids</code> (pure) in <code>config.py</code>.</span></li>
           
-          <li class="todo"><span class="tick"></span><span class="task-text">Parse <code>--board</code> entries as <code>alias=provider | provider</code>; validate each <code>provider ∈ REGISTRY</code>; assign ids; <strong>reject duplicate ids / duplicate aliases / unknown provider</strong> with a clear <code>die</code>. (<code>config.py</code> <code>parse_board</code> → a richer return; <code>resolve_board</code> builds <code>SeatConfig(id, name, adapter, model, lens, …)</code>.)</span></li>
+          <li class="done"><span class="tick">✓</span><span class="task-text">Parse <code>--board</code> entries as <code>alias=provider | provider</code>; validate each <code>provider ∈ REGISTRY</code>; assign ids; <strong>reject duplicate ids / duplicate aliases / unknown provider</strong> with a clear <code>die</code>. <code>parse_board</code> → <code>[(alias|None, provider)]</code>; <code>resolve_board</code> builds <code>SeatConfig(id, name, adapter, model, lens, …)</code> + the uniqueness guard. Alias chars restricted (<code>_ALIAS_RE</code>, no <code>#</code>).</span></li>
           
-          <li class="todo"><span class="tick"></span><span class="task-text">Add <code>id</code> to <code>SeatConfig</code>; keep <code>name</code>/<code>provider</code> for adapter + egress. Default <code>id = name</code> so all current call sites that haven&#x27;t migrated still behave until re-keyed in Phase 2.</span></li>
+          <li class="done"><span class="tick">✓</span><span class="task-text">Add <code>id</code> to <code>SeatConfig</code> (+ a <code>.label</code> for display); keep <code>name</code>/<code>provider</code> for adapter + egress. The provider-name literals (CLAUDE_OUTPUT_OVERRIDE, synth-seat pick) correctly stay on <code>.name</code>.</span></li>
           
-          <li class="todo"><span class="tick"></span><span class="task-text">Add a uniqueness guard so even a <em>malformed</em> duplicate (same alias twice) fails loudly — closes today&#x27;s silent-collapse bug.</span></li>
+          <li class="done"><span class="tick">✓</span><span class="task-text">Add a uniqueness guard so even a <em>malformed</em> duplicate (same alias twice) fails loudly — closes today&#x27;s silent-collapse bug.</span></li>
+          
+          <li class="done"><span class="tick">✓</span><span class="task-text"><code>cmd_toolchain</code> migrated to the new <code>parse_board</code> shape (checks each distinct provider&#x27;s CLI once).</span></li>
           
         </ul>
         
         <div class="testing">
           <p class="t-label">Testing strategy</p>
-          <div class="t-body"><p><code>--board claude,claude,codex</code> → 3 SeatConfigs with ids <code>claude#1/claude#2/codex</code>; <code>--board econ=claude,risk=claude</code> → ids <code>econ/risk</code>; <code>--board claude,codex,gemini</code> → ids unchanged; duplicate alias / unknown provider → <code>SystemExit</code> with message.</p></div>
+          <div class="t-body"><p><code>TestSeatComposition</code> (15 tests) — auto-number, aliases, byte-identical unique board, label disambiguation, positional lenses differ across duplicates, lens/model override by id, and every loud-reject path. <strong>664 tests pass.</strong></p></div>
         </div>
         
         
@@ -633,7 +635,7 @@ footer.colophon code { background: var(--surface-2); }
 
   <!-- ===================== COLOPHON ===================== -->
   <footer class="colophon">
-    Rendered from <code>run-board-seat-composition.md</code> &middot; 1 milestones &middot; 0/19 tasks complete. The markdown plan is the source of truth &mdash; regenerate with <code>render_plan.py</code>; never hand-edit this file.
+    Rendered from <code>run-board-seat-composition.md</code> &middot; 1 milestones &middot; 5/20 tasks complete. The markdown plan is the source of truth &mdash; regenerate with <code>render_plan.py</code>; never hand-edit this file.
   </footer>
 
 </div>

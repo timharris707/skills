@@ -39,6 +39,11 @@ import format_output as fo  # noqa: E402  (share formats; lens-aware verdict lab
 import _verdict_labels as vl  # noqa: E402  (lens-aware human label module)
 from _conductor import grounding as grd  # noqa: E402  (repo-grounding: scope/snapshot/manifest)
 from _conductor.config import resolve_config as resolve_config  # noqa: E402
+from _conductor.config import (  # noqa: E402  (seat composition: ids, alias parsing)
+    parse_board,
+    resolve_board,
+    assign_seat_ids,
+)
 
 SRC_FIXTURE = os.path.join(FIXTURES, "src")
 PACKET_FIXTURE = os.path.join(FIXTURES, "packet.txt")
@@ -294,6 +299,103 @@ class TestConfig(EnvMixin):
         self.assertEqual(c.source.kind, "stdin")
         self.assertEqual(c.source.ref, "-")
         self.assertIn("stdin", c.source.text)
+
+
+class TestSeatComposition(unittest.TestCase):
+    """Flexible seat composition (design/run-board-seat-composition.md) — Phase 1:
+    a unique per-seat id (alias, or provider#N), alias=provider parsing, and the
+    uniqueness guard that replaces today's silent collapse of duplicate seats."""
+
+    def _ids(self, board, lens="business-decision", **kw):
+        return [s.id for s in resolve_board(parse_board(board), lens, {}, **kw)]
+
+    # --- id assignment ----------------------------------------------------- #
+
+    def test_bare_duplicate_providers_auto_number(self):
+        self.assertEqual(self._ids("claude,claude,codex"), ["claude#1", "claude#2", "codex"])
+        self.assertEqual(self._ids("claude,claude,claude"),
+                         ["claude#1", "claude#2", "claude#3"])
+
+    def test_aliases_become_ids_verbatim(self):
+        self.assertEqual(self._ids("econ=claude,risk=claude,exec=codex"),
+                         ["econ", "risk", "exec"])
+
+    def test_unique_bare_board_is_byte_identical_ids(self):
+        # The regression guard: a unique-provider board keeps id == provider name.
+        self.assertEqual(self._ids("claude,codex,gemini"), ["claude", "codex", "gemini"])
+        # default board (None) likewise
+        self.assertEqual([s.id for s in resolve_board(parse_board(None), "business-decision", {})],
+                         ["claude", "codex", "gemini"])
+
+    def test_single_bare_alongside_alias_keeps_bare_name(self):
+        # one bare claude (unique among bare) stays "claude"; the aliased one is "econ".
+        self.assertEqual(self._ids("claude,econ=claude"), ["claude", "econ"])
+
+    def test_label_disambiguates_duplicates_and_aliases(self):
+        board = resolve_board(parse_board("claude,claude,exec=codex"), "business-decision", {})
+        self.assertEqual([s.label for s in board], ["Claude #1", "Claude #2", "exec"])
+        # a plain unique seat is just the capitalized provider
+        plain = resolve_board(parse_board("claude,codex"), "business-decision", {})
+        self.assertEqual([s.label for s in plain], ["Claude", "Codex"])
+
+    # --- provider stays the registry/adapter key --------------------------- #
+
+    def test_duplicate_seats_share_provider_and_adapter(self):
+        board = resolve_board(parse_board("a=claude,b=claude"), "business-decision", {})
+        self.assertEqual([s.name for s in board], ["claude", "claude"])
+        self.assertEqual(board[0].adapter, board[1].adapter)
+        self.assertNotEqual(board[0].id, board[1].id)
+
+    # --- lenses: positional default already differs per seat --------------- #
+
+    def test_positional_lenses_differ_across_duplicate_seats(self):
+        board = resolve_board(parse_board("claude,claude,codex"), "business-decision", {})
+        foci = [s.lens.split("—")[0].strip() for s in board]
+        self.assertEqual(len(set(foci)), 3)  # three distinct foci, even with two Claudes
+
+    def test_lens_override_by_id_wins_over_positional(self):
+        board = resolve_board(parse_board("econ=claude,risk=claude,exec=codex"),
+                              "business-decision", {}, lens_overrides={"risk": "Tail risk only"})
+        by_id = {s.id: s.lens for s in board}
+        self.assertEqual(by_id["risk"], "Tail risk only")
+        self.assertNotEqual(by_id["econ"], "Tail risk only")  # others keep positional default
+
+    # --- model override keyed by id ---------------------------------------- #
+
+    def test_model_override_targets_one_duplicate_seat(self):
+        board = resolve_board(parse_board("claude,claude,codex"), "business-decision",
+                              {"claude#2": "claude-opus-4-7"})
+        by_id = {s.id: s.model for s in board}
+        self.assertEqual(by_id["claude#2"], "claude-opus-4-7")
+        self.assertNotEqual(by_id["claude#1"], "claude-opus-4-7")  # #1 keeps the default
+
+    def test_bare_model_override_still_works_for_unique_provider(self):
+        board = resolve_board(parse_board("claude,codex"), "business-decision",
+                              {"claude": "claude-opus-4-7"})
+        self.assertEqual({s.id: s.model for s in board}["claude"], "claude-opus-4-7")
+
+    # --- loud failure replaces silent collapse ----------------------------- #
+
+    def test_duplicate_alias_is_rejected(self):
+        with self.assertRaises(SystemExit):
+            resolve_board(parse_board("econ=claude,econ=gemini"), "business-decision", {})
+
+    def test_alias_colliding_with_bare_name_is_rejected(self):
+        with self.assertRaises(SystemExit):
+            resolve_board(parse_board("claude,claude=codex"), "business-decision", {})
+
+    def test_unknown_provider_is_rejected(self):
+        with self.assertRaises(SystemExit):
+            resolve_board(parse_board("claude,bogus"), "business-decision", {})
+
+    def test_bad_alias_chars_are_rejected(self):
+        for bad in ("a b=claude", "x#1=claude", "=claude", "econ="):
+            with self.assertRaises(SystemExit):
+                parse_board(bad)
+
+    def test_assign_seat_ids_is_pure(self):
+        self.assertEqual(assign_seat_ids([(None, "claude"), (None, "claude"), (None, "codex")]),
+                         [("claude#1", "claude"), ("claude#2", "claude"), ("codex", "codex")])
 
 
 # --------------------------------------------------------------------------- #

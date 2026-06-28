@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import re
 import sys
 from dataclasses import dataclass
 from typing import Optional, TYPE_CHECKING
@@ -51,7 +52,9 @@ class SourceSpec:
 
 @dataclass
 class SeatConfig:
-    name: str
+    id: str              # unique per-seat identity (alias, or provider[#N]) — the run's key:
+                         # filesystem paths, dicts, cross-reading, render, dissent attribution
+    name: str            # provider/registry name (claude/codex/gemini) — adapter + egress provider
     adapter: SeatAdapter
     model: str
     lens: str
@@ -60,6 +63,17 @@ class SeatConfig:
     @property
     def provider(self) -> str:
         return self.adapter.provider
+
+    @property
+    def label(self) -> str:
+        """Human display label. For a bare unique seat this is just the provider
+        (e.g. "Claude"); for an alias or an auto-numbered duplicate it disambiguates
+        (e.g. "econ" / "Claude #2")."""
+        if self.id == self.name:
+            return self.name.capitalize()
+        if self.id.startswith(f"{self.name}#"):
+            return f"{self.name.capitalize()} #{self.id.split('#', 1)[1]}"
+        return self.id
 
 
 @dataclass
@@ -141,20 +155,61 @@ def _source_from_text(kind: str, ref: str, text: str) -> SourceSpec:
     )
 
 
-def resolve_board(seat_names: list, lens_preset: str, model_overrides: dict) -> list:
+def assign_seat_ids(seat_specs: list) -> list:
+    """Turn parsed board entries [(alias|None, provider), ...] into unique ids.
+
+    An alias is the id verbatim. A bare provider keeps its name as the id unless that
+    provider is bare-repeated, in which case the repeats are numbered provider#1, #2…
+    in board order. So a unique-provider board (claude,codex,gemini) keeps id==name —
+    byte-identical to the pre-feature behavior. Returns [(id, provider), ...]."""
+    bare_total: dict = {}
+    for alias, provider in seat_specs:
+        if alias is None:
+            bare_total[provider] = bare_total.get(provider, 0) + 1
+    bare_seen: dict = {}
+    out = []
+    for alias, provider in seat_specs:
+        if alias is not None:
+            sid = alias
+        elif bare_total.get(provider, 0) > 1:
+            bare_seen[provider] = bare_seen.get(provider, 0) + 1
+            sid = f"{provider}#{bare_seen[provider]}"
+        else:
+            sid = provider
+        out.append((sid, provider))
+    return out
+
+
+def resolve_board(seat_specs: list, lens_preset: str, model_overrides: dict,
+                  lens_overrides: Optional[dict] = None) -> list:
     lenses = LENS_PRESETS.get(lens_preset)
     if lenses is None:
         die(f"unknown lens preset {lens_preset!r}; choose from {', '.join(sorted(LENS_PRESETS))}")
+    lens_overrides = lens_overrides or {}
+    ids = assign_seat_ids(seat_specs)
+    # Uniqueness guard — replaces today's SILENT collapse of two same-named seats with a
+    # loud failure. Only reachable when a user aliases two seats identically (auto-numbering
+    # can't collide); we surface it rather than overwrite one seat's artifacts/board entry.
+    seen: set = set()
+    for sid, _ in ids:
+        if sid in seen:
+            die(f"duplicate seat id {sid!r}; give each seat a distinct alias (alias=provider)")
+        seen.add(sid)
     board: list = []
-    for index, name in enumerate(seat_names):
-        adapter = REGISTRY.get(name)
+    for index, (sid, provider) in enumerate(ids):
+        adapter = REGISTRY.get(provider)
         if adapter is None:
-            die(f"unknown seat {name!r}; known seats: {', '.join(sorted(REGISTRY))}")
-        lens = lenses[index] if index < len(lenses) else lenses[-1]
+            die(f"unknown seat {provider!r}; known seats: {', '.join(sorted(REGISTRY))}")
+        # Lens: an explicit per-seat override (by id) wins; else the preset's positional
+        # default (slot i → lens i; seats past the trio reuse the last focus).
+        lens = lens_overrides.get(sid) or (lenses[index] if index < len(lenses) else lenses[-1])
         board.append(SeatConfig(
-            name=name,
+            id=sid,
+            name=provider,
             adapter=adapter,
-            model=model_overrides.get(name, adapter.default_model),
+            # Model override is keyed by id; a bare provider name == its id when unique,
+            # so `--model claude=…` still works for a single-Claude board.
+            model=model_overrides.get(sid, adapter.default_model),
             lens=lens,
             reasoning=adapter.default_reasoning,
         ))
@@ -179,7 +234,11 @@ def resolve_config(args) -> RunConfig:
 
     if base is not None and not getattr(args, "source", None):
         source = load_source(base["source_ref"])
-        seat_names = [s["seat"] for s in base["board"]]
+        # A recipe stores each seat's registry name in "seat" (its "provider" field is the
+        # display provider, e.g. "Anthropic" — not a REGISTRY key). Restore as bare
+        # providers: a single-provider board gives id==name, and duplicates re-derive the
+        # same provider#N ids deterministically. Alias + per-seat-lens round-trip is Phase 3.
+        seat_specs = [(None, s["seat"]) for s in base["board"]]
         lens_preset = base.get("lens", DEFAULT_LENS)
         # Restore the recipe's exact per-seat models so --from-recipe reproduces
         # the original run; an explicit --model on the CLI still wins.
@@ -189,10 +248,10 @@ def resolve_config(args) -> RunConfig:
         if not getattr(args, "source", None):
             die("a --source is required (PATH, or - for stdin)")
         source = load_source(args.source)
-        seat_names = parse_board(getattr(args, "board", None))
+        seat_specs = parse_board(getattr(args, "board", None))
         lens_preset = getattr(args, "lens", None) or (base or {}).get("lens", DEFAULT_LENS)
 
-    board = resolve_board(seat_names, lens_preset, model_overrides)
+    board = resolve_board(seat_specs, lens_preset, model_overrides)
 
     mode = getattr(args, "mode", None) or (base or {}).get("mode") or "gate"
     if mode not in ("gate", "advisory"):
@@ -297,13 +356,38 @@ def derive_title(source: SourceSpec) -> str:
     return (first[:60] or "Advisory board review").strip()
 
 
+# An alias is a user-chosen seat id; it becomes a filesystem path component and a CLI
+# target, so it is restricted to safe chars and must not contain '#' (reserved for the
+# provider#N auto-numbering convention).
+_ALIAS_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+
+
 def parse_board(value: Optional[str]) -> list:
+    """Parse --board into [(alias|None, provider), ...] in board order.
+
+    Each comma-separated entry is either a bare `provider` (claude/codex/gemini) or an
+    `alias=provider` (a user-named seat). The default board is the three providers, bare."""
     if not value:
-        return ["claude", "codex", "gemini"]
-    seats = [s.strip() for s in value.split(",") if s.strip()]
-    if not seats:
+        return [(None, "claude"), (None, "codex"), (None, "gemini")]
+    specs: list = []
+    for raw in value.split(","):
+        item = raw.strip()
+        if not item:
+            continue
+        if "=" in item:
+            alias, _, provider = item.partition("=")
+            alias, provider = alias.strip(), provider.strip()
+            if not alias or not provider:
+                die(f"--board entry {item!r} must be alias=provider")
+            if not _ALIAS_RE.match(alias):
+                die(f"--board alias {alias!r} must be alphanumeric (A-Z a-z 0-9 . _ -) and "
+                    "may not contain '#'")
+        else:
+            alias, provider = None, item
+        specs.append((alias, provider))
+    if not specs:
         die("--board must list at least one seat")
-    return seats
+    return specs
 
 
 def parse_model_overrides(pairs: list) -> dict:

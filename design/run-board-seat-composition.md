@@ -53,13 +53,14 @@ Seat the same provider multiple times with a distinct identity and an individual
 **Invariants (must hold at every gate).** (1) A board of unique bare providers (`claude,codex,gemini`) is **byte-identical** to baseline — same ids, paths, `verdict.json`, render; this is the regression guard for the whole refactor. (2) **Consent stays byte-bound** — the egress sha256/disclosure surface is unchanged; provider-set disclosure lists each provider once for N same-provider seats; the D4 network-isolation posture is provider-level and inherited correctly. (3) The **verdict is one consensus voice** — board-level lens drives vocabulary/disclaimer/headings; per-seat lens never changes them. (4) **No silent collapse** — every malformed composition `die`s with a message.
 
 ### Phase 1 — Seat identity (`id`) and `--board` parsing
-status: planned
+status: done
 Give every seat a unique `id` distinct from its provider, parse the `alias=provider` / bare-with-auto-number syntax, and reject malformed boards loudly. This is the foundation; nothing else is safe until identity is unique.
-- [ ] DECISION: `id` is the alias when given, else the provider name, suffixed `#N` (board order) only when a bare provider repeats. Unique bare providers keep `id == name` (backward compat). *(Alt rejected: always suffix — breaks every existing recipe/test and the default render.)*
-- [ ] Parse `--board` entries as `alias=provider | provider`; validate each `provider ∈ REGISTRY`; assign ids; **reject duplicate ids / duplicate aliases / unknown provider** with a clear `die`. (`config.py` `parse_board` → a richer return; `resolve_board` builds `SeatConfig(id, name, adapter, model, lens, …)`.)
-- [ ] Add `id` to `SeatConfig`; keep `name`/`provider` for adapter + egress. Default `id = name` so all current call sites that haven't migrated still behave until re-keyed in Phase 2.
-- [ ] Add a uniqueness guard so even a *malformed* duplicate (same alias twice) fails loudly — closes today's silent-collapse bug.
-Testing: `--board claude,claude,codex` → 3 SeatConfigs with ids `claude#1/claude#2/codex`; `--board econ=claude,risk=claude` → ids `econ/risk`; `--board claude,codex,gemini` → ids unchanged; duplicate alias / unknown provider → `SystemExit` with message.
+- [x] DECISION: `id` is the alias when given, else the provider name, suffixed `#N` (board order) only when a bare provider repeats. Unique bare providers keep `id == name` (backward compat). *(Alt rejected: always suffix — breaks every existing recipe/test and the default render.)* — `assign_seat_ids` (pure) in `config.py`.
+- [x] Parse `--board` entries as `alias=provider | provider`; validate each `provider ∈ REGISTRY`; assign ids; **reject duplicate ids / duplicate aliases / unknown provider** with a clear `die`. `parse_board` → `[(alias|None, provider)]`; `resolve_board` builds `SeatConfig(id, name, adapter, model, lens, …)` + the uniqueness guard. Alias chars restricted (`_ALIAS_RE`, no `#`).
+- [x] Add `id` to `SeatConfig` (+ a `.label` for display); keep `name`/`provider` for adapter + egress. The provider-name literals (CLAUDE_OUTPUT_OVERRIDE, synth-seat pick) correctly stay on `.name`.
+- [x] Add a uniqueness guard so even a *malformed* duplicate (same alias twice) fails loudly — closes today's silent-collapse bug.
+- [x] `cmd_toolchain` migrated to the new `parse_board` shape (checks each distinct provider's CLI once).
+Testing: `TestSeatComposition` (15 tests) — auto-number, aliases, byte-identical unique board, label disambiguation, positional lenses differ across duplicates, lens/model override by id, and every loud-reject path. **664 tests pass.**
 Gate: `cd skills/advisory-board && python3 -m unittest discover -s tests -t tests`
 
 ### Phase 2 — Re-key the run onto `seat.id`

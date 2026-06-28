@@ -129,7 +129,15 @@ def cmd_toolchain(args) -> int:
     # No --board => check EVERY registered seat CLI (incl. ones outside the default
     # board, like antigravity), since toolchain currency is about all installed CLIs.
     board_arg = getattr(args, "board", None)
-    names = parse_board(board_arg) if board_arg else list(REGISTRY.keys())
+    if board_arg:
+        # parse_board returns (alias, provider) specs; toolchain currency is per-CLI, so
+        # check each distinct provider once (a duplicate-seat board reuses one CLI).
+        names = []
+        for _, provider in parse_board(board_arg):
+            if provider not in names:
+                names.append(provider)
+    else:
+        names = list(REGISTRY.keys())
     unknown = [n for n in names if n not in REGISTRY]
     if unknown:
         die(f"unknown seat(s): {', '.join(unknown)}", EXIT_USAGE)
