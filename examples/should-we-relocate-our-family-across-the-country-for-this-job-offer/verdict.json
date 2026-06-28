@@ -1,0 +1,208 @@
+{
+  "schema": "advisory-board/verdict@2",
+  "title": "Should we relocate our family across the country for this job offer?",
+  "date": "2026-06-27",
+  "lens_preset": "business-decision",
+  "rounds": 2,
+  "board": [
+    {
+      "seat": "Claude",
+      "model": "claude-opus-4-8",
+      "lens": "First principles & economics",
+      "round_verdicts": [
+        "caution",
+        "caution"
+      ],
+      "dropped": false
+    },
+    {
+      "seat": "Codex",
+      "model": "gpt-5.5",
+      "lens": "Execution & feasibility",
+      "round_verdicts": [
+        "caution",
+        "caution"
+      ],
+      "dropped": false
+    },
+    {
+      "seat": "Gemini",
+      "model": "gemini-3-pro-preview",
+      "lens": "Second-order & downside",
+      "round_verdicts": [
+        "caution",
+        "caution"
+      ],
+      "dropped": false
+    }
+  ],
+  "verdict": "caution",
+  "confidence": "high",
+  "blockers": [
+    {
+      "title": "The year-two spouse-income flip — the entire bull case — is fragile and likely overstated",
+      "body": "All three seats converged that the headline +$2,590/month year-two improvement is not credible. Claude's economics catch: $2,590/mo = $31,080/yr net on $42k gross implies ~74% retention on a second income stacked on $176k in a high-tax state, where the realistic net after a ~35-40% marginal rate is ~$2,100-2,300/mo — and then real working-parent HCOL childcare must be subtracted, leaving roughly half the advertised swing. Gemini, adopting Claude's tax math, concluded the net financial return of the spouse working is near zero after marginal taxes and full-time HCOL childcare. Gemini and Codex add the 'success trap': a step-up role at a big-name employer demands the hours and flexibility the family needs for re-employment, with zero local backup, so the spouse may be structurally trapped out of the workforce — meaning the linchpin event may never occur at all.",
+      "evidence": [
+        {
+          "kind": "source",
+          "url": "source material under review",
+          "quote": "household take-home rises roughly +$2,590/month and the whole picture flips strongly positive"
+        },
+        {
+          "kind": "source",
+          "url": "source material under review",
+          "quote": "we lose the spouse's income and our free family childcare"
+        },
+        {
+          "kind": "source",
+          "url": "source material under review",
+          "quote": "If my spouse lands even a $42,000 job in year two."
+        },
+        {
+          "kind": "judgment",
+          "detail": "Stacking $42k on $176k in a high-tax state nets ~74% under the document's math but ~$2,100-2,300/mo realistically at ~35-40% marginal rate, before HCOL working-parent childcare — roughly half the advertised swing."
+        }
+      ]
+    },
+    {
+      "title": "The $20,000 sign-on is gross and does not cover the move — a $5-7k deficit before year one starts",
+      "body": "Three seats, no dissent: the bonus is taxable, nets ~$11-13k (Claude adopts the lower edge), while the move costs ~$18k. Codex and Gemini cite that the moving-expense reimbursement exclusion is permanently eliminated for ordinary employees and supplemental withholding remains 22% before FICA/state effects. The result is a known ~$5-7k hole drawn straight from the $70k savings before year one begins.",
+      "evidence": [
+        {
+          "kind": "source",
+          "url": "source material under review",
+          "quote": "a flat $20,000 sign-on… the bonus roughly covers the move"
+        },
+        {
+          "kind": "source",
+          "url": "https://www.irs.gov/publications/p15b",
+          "quote": "the moving-expense reimbursement exclusion is permanently eliminated for ordinary employees, with exceptions for specified groups, and says supplemental wage withholding remains 22%"
+        }
+      ]
+    },
+    {
+      "title": "The 'take-home rises' headline rests on a 1-2 point tax estimate on an unnamed state and can invert",
+      "body": "Claude (the financial seat asked by Gemini to prove the $10,267 number) bounds it: the headline rests on a ~30.0% effective deduction; push to ~32% (reachable in CA/NY/MA-class states on a concentrated single income) and take-home falls to ~$9,970 — flat-to-down vs. today's $9,990 — erasing the 'raise more than offsets' framing. The claim that take-home rises is true only at the optimistic edge of an unnamed tax assumption.",
+      "evidence": [
+        {
+          "kind": "source",
+          "url": "source material under review",
+          "quote": "Household take-home drops to $10,267/month — yes, slightly *higher* than now"
+        },
+        {
+          "kind": "judgment",
+          "detail": "At ~32% effective deduction take-home falls to ~$9,970, below today's $9,990; the document never names the destination state, which is the variable that drives this."
+        }
+      ]
+    },
+    {
+      "title": "Net liquidity breaches the emergency floor on day one; $537/month is no operating buffer",
+      "body": "The new plan leaves only $537/month margin. Claude argues for raising the floor to ~9 months of essential spend (~$60-65k liquid post-move), conceding Codex's point that 6 months is too thin for a single-income, new-employer, no-network, far-from-family risk profile. With ~$65k post-move minus the $5-7k bonus-tax hole minus likely move overrun against a ~$60-65k floor, the family has effectively no runway, and the plan rebuilds it at only ~$6.4k/yr.",
+      "evidence": [
+        {
+          "kind": "judgment",
+          "detail": "Codex: $10,267 take-home minus $9,730 expenses leaves only $537/month — not a real operating margin for a cross-country move with two kids, one income, and no local support."
+        },
+        {
+          "kind": "judgment",
+          "detail": "~$65k post-move minus $5-7k bonus-tax hole minus move overrun, against a revised ~9-month (~$60-65k) HCOL essential-expense floor, leaves the family at or below the floor on day one."
+        }
+      ]
+    },
+    {
+      "title": "Rent (+$1,900/month) dominates the model and is unverified",
+      "body": "Rent jumps from $2,200 to $4,100 (+$1,900/month) and is the single highest-leverage unverified number. The document concedes the 37.5% raise is consumed 'almost entirely because rent jumps +$1,900/month.' Claude notes that at a real $4,600 comp, year-one savings go negative, and the year-two flip silently assumes rent holds at $4,100 against a fixed salary.",
+      "evidence": [
+        {
+          "kind": "judgment",
+          "detail": "Codex: rent moves from $2,200 to $4,100, a $1,900/month increase — unverified, and at a real ~$4,600 comp year-one savings go negative."
+        },
+        {
+          "kind": "source",
+          "url": "source material under review",
+          "quote": "+37.5% raise… savings falling from $2,750 to $537… almost entirely because rent jumps +$1,900/month"
+        }
+      ]
+    }
+  ],
+  "concerns": [
+    {
+      "title": "Budget lines held flat across metros that should have been COL-adjusted",
+      "body": "All three seats flag that car ($940), health ($320), and misc ($390) — and per Claude the childcare line ($1,350) — are held constant despite a move to a high-cost coastal metro, while every other line was COL-adjusted. Coastal metros carry higher insurance, parking, tolls, and general friction; each flat line is a small downward bias on year-one savings.",
+      "evidence": [
+        {
+          "kind": "source",
+          "url": "source material under review",
+          "quote": "Childcare / aftercare (2 kids) | $1,350"
+        },
+        {
+          "kind": "judgment",
+          "detail": "Cars $940, health $320, misc $390 held flat across metros while everything else was COL-adjusted — a systematic downward bias on year-one expenses."
+        }
+      ]
+    },
+    {
+      "title": "Childcare line is internally inconsistent and ignores the lost 'village'",
+      "body": "Childcare is held flat at $1,350 (up $200 from $1,150) regardless of whether the spouse is home or working — Gemini and Codex independently flagged the $200 rise as mathematically incompatible with the HCOL move, and the source acknowledges the loss of free family childcare without pricing the replacement cost if the spouse returns to work.",
+      "evidence": [
+        {
+          "kind": "source",
+          "url": "source material under review",
+          "quote": "we lose the spouse's income and our free family childcare"
+        },
+        {
+          "kind": "judgment",
+          "detail": "Childcare held flat at $1,350 regardless of spouse employment state; the $200 rise over $1,150 is incompatible with year-one with a non-working spouse."
+        }
+      ]
+    },
+    {
+      "title": "Career upside is asserted, not evidenced",
+      "body": "Codex notes the career upside may be worth buying but is still only asserted; the family needs evidence that the title, employer brand, manager, team stability, promotion path, and future marketability make the first-year risk rational. Claude reframes the decision as a call option on a higher lifetime earnings trajectory whose value turns entirely on the durability of the trajectory claim.",
+      "evidence": [
+        {
+          "kind": "judgment",
+          "detail": "No evidence in the source on manager/team stability, promotion path, or future marketability to justify the first-year, single-income, no-network risk."
+        }
+      ]
+    }
+  ],
+  "dissent": [
+    {
+      "who": "Claude",
+      "body": "Holds a distinct line vs. the rest of the board: the +$2,590 retention math is itself wrong, not merely unverified — $2,590/mo implies ~74% retention on a second income stacked on $176k in a high-tax state, so the honest year-two improvement is roughly half the advertised swing. Also uniquely frames the decision as a call option on a higher lifetime earnings trajectory priced at ~$2,213/mo (~$26.5k/yr) of foregone savings plus relocation, spouse career disruption, and tail risk."
+    },
+    {
+      "who": "Gemini",
+      "body": "Dissents from Claude's 'call option' framing: a call option implies capped, purely financial downside, but the real downside is un-capping systemic stress on a dual-income family forced into a single-earner dynamic without their local village — 'you are shorting your marital operating system.' Also dissents from Codex's 'run spouse job discovery before moving': even if the spouse finds a job, the new economic environment (negligible marginal cash ROI after high taxes and HCOL childcare) actively disincentivizes taking it, structurally trapping the spouse in unemployment."
+    },
+    {
+      "who": "Codex",
+      "body": "Dissents from modeling year-one childcare as near-zero just because the spouse is home: a job-searching parent with kids ages 5 and 8 still needs aftercare, summer/break coverage, backup sitters, and interview/networking time. Also dissents from demanding $190k+ base as a first-line rule without market data — the more reliable ask is grossed-up relocation, temporary housing, clawback protection, and start-date flexibility before salary/equity."
+    }
+  ],
+  "caveats": [
+    "The financial seat cannot prove the $10,267 take-home is accurate because the document never names the destination state, which is the variable that drives the tax estimate.",
+    "The claim that take-home rises versus today is true only at the optimistic edge of an unnamed-state tax assumption; at ~32% effective deduction it inverts."
+  ],
+  "open_questions": [
+    "What is the exact destination metro/state? It drives the tax estimate and the central take-home fragility.",
+    "What is a real rent comp for a 3BR adequate-commute family home in the actual target neighborhoods?",
+    "What is the full compensation package — equity/RSUs, bonus target, 401(k) match — none of which are mentioned and any of which can dominate base?",
+    "What are the sign-on clawback and severance/repayment-on-early-exit terms?",
+    "What is the spouse's concrete re-employment pipeline — profession, licensing needs, local pay bands, schedule fit — converted from the $42k assumption into live applications with dates?",
+    "What are the actual workload/hour expectations of the new role ('bigger team, more scope' often implies 50-60 hour weeks)?",
+    "Is the $10,267 figure already net of 401(k) contributions? If so, real wealth accumulation is understated and changes how tight year one is."
+  ],
+  "next_actions": [
+    "Get the full written offer before acceptance: base, bonus, equity/RSUs, 401(k), benefits, payroll timing, sign-on clawback, severance, start date, remote/hybrid and travel expectations, and relocation terms.",
+    "Reprice net-of-tax: model the bonus at ~$11-13k net and the move at ~$18k plus contingency, fund the gap from savings explicitly, and confirm it does not breach the runway floor.",
+    "Verify rent with 10 real rental comps in the actual target neighborhoods; set a hard go/no-go at roughly $4,100-$4,300/month.",
+    "Rebuild the budget in two correct operating states — spouse home year one (childcare near-zero) and spouse working (real HCOL working-parent childcare plus the second income taxed at the marginal rate) — to produce the honest year-two number.",
+    "Negotiate before signing: grossed-up/direct-billed relocation, 60-90 days temporary housing, lease/deposit support, sign-on clawback waived if laid off, delayed or remote start, spouse job-search support, and COL/base or equity uplift if comps justify it.",
+    "Run spouse job discovery before moving: target roles, pay range, licensing, recruiter calls, live applications, schedule fit, with 90/180/270-day checkpoints.",
+    "Set explicit kill criteria (e.g. spouse not re-employed at ≥ target by month 14, rent comp > ~$4,300, cash floor breaks, role stability weak → renegotiate or walk) and a pre-agreed spouse 'code red' trigger.",
+    "Preserve at least ~9 months of HCOL essential expenses (~$60-65k liquid after move and bonus-tax), keep exit optionality (no home purchase, no new debt), and stage the move so the earner starts first while family follows after lease, school, and childcare are locked."
+  ],
+  "unanimous": true
+}

@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Should we relocate our family across the country for this job offer?</title>
+<style>
+  :root {
+    --maxw: 820px;
+    /* light "Boardroom" body */
+    --page: #faf8f3;
+    --surface: #ffffff;
+    --surface-soft: #faf7f0;
+    --vellum: #f3eee3;
+    --ink: #11192b;
+    --ink-soft: #3a4459;
+    --ink-faint: #6e768a;
+    --line: #e4ddce;
+    --line-strong: #d8cfb8;
+    /* brand accents (both themes) */
+    --accent: #2347ff;          /* cobalt — signature */
+    --accent-deep: #0f2bc2;
+    --accent-tint: #eaedff;
+    --gold: #a8843c;            /* secondary — the lead seat */
+    /* dark "Signal" bands */
+    --dark: #0a0e1a;
+    --dark-2: #111726;
+    --dark-line: #232b3e;
+    --on-dark: #fbfaf7;
+    --on-dark-soft: #b9c0d0;
+    --on-dark-faint: #8a93a8;
+    --accent-bright: #5b8cff;
+    --gold-bright: #e2b658;
+    /* verdict palettes (muted — counsel, not error toasts) */
+    --ship-bg: #e9f1ec;     --ship-edge: #2f6f57;   --ship-ink: #235540;
+    --caution-bg: #fbf1de;  --caution-edge: #b07a1e; --caution-ink: #7a5410;
+    --block-bg: #f7e9e9;    --block-edge: #9e3636;  --block-ink: #7a2525;
+    --font-sans: "Panely Grotesk","Söhne","Inter","Helvetica Neue",Helvetica,Arial,"Segoe UI",system-ui,sans-serif;
+    --font-mono: "Berkeley Mono","JetBrains Mono",ui-monospace,"Menlo","Consolas",monospace;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--page);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: 17px;
+    line-height: 1.65;
+  }
+
+  /* ---- dark masthead band ---- */
+  header.masthead { background: var(--dark); color: var(--on-dark); padding: 30px 20px 28px; }
+  .band-inner { max-width: var(--maxw); margin: 0 auto; }
+  .brand-lockup { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+  .brand-mark { width: 46px; height: 46px; border-radius: 11px; overflow: hidden; flex: 0 0 auto; }
+  .brand-mark svg { display: block; width: 100%; height: 100%; }
+  .brand-name { display: flex; flex-direction: column; line-height: 1.1; }
+  .brand-name .p { font-size: 18px; font-weight: 700; letter-spacing: -0.01em; color: var(--on-dark); }
+  .brand-name .ab { font-size: 10.5px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--accent-bright); margin-top: 4px; }
+  header.masthead h1 { font-size: 29px; line-height: 1.18; font-weight: 700; margin: 0 0 8px; letter-spacing: -0.01em; color: var(--on-dark); }
+  .subtitle { font-size: 16px; color: var(--on-dark-soft); margin: 0 0 18px; max-width: 60ch; }
+  .meta-row { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(255,255,255,0.05); border: 1px solid var(--dark-line);
+    border-radius: 999px; padding: 5px 13px; font-size: 13px; color: var(--on-dark-soft);
+  }
+  .chip b { font-weight: 600; color: var(--on-dark); }
+
+  /* ---- body column ---- */
+  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 30px 20px 56px; }
+
+  /* ---- verdict banner ---- */
+  .verdict {
+    border-radius: 12px; padding: 22px 24px; margin: 4px 0 32px;
+    border: 1px solid transparent; border-left-width: 6px;
+  }
+  .verdict .label {
+    font-size: 12px; letter-spacing: 0.09em; text-transform: uppercase;
+    font-weight: 700; margin: 0 0 6px; opacity: 0.85;
+  }
+  .verdict .conf-badge {
+    display: inline-block; margin-left: 9px; font-size: 10.5px; letter-spacing: 0.05em;
+    font-weight: 700; padding: 1px 8px; border-radius: 999px;
+    background: rgba(0,0,0,0.07); vertical-align: 1.5px;
+  }
+  .verdict .headline { font-size: 23px; font-weight: 700; margin: 0; line-height: 1.25; }
+  .verdict .note { margin: 10px 0 0; font-size: 15.5px; line-height: 1.55; }
+  .verdict.ship    { background: var(--ship-bg);    border-color: var(--ship-edge);    color: var(--ship-ink); }
+  .verdict.caution { background: var(--caution-bg); border-color: var(--caution-edge); color: var(--caution-ink); }
+  .verdict.block   { background: var(--block-bg);   border-color: var(--block-edge);   color: var(--block-ink); }
+
+  /* ---- sections ---- */
+  section { margin: 0 0 34px; }
+  h2 {
+    font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase;
+    font-weight: 700; color: var(--ink-faint); margin: 0 0 14px;
+    padding-bottom: 8px; border-bottom: 1px solid var(--line);
+  }
+
+  /* ---- plan callout ---- */
+  .plan {
+    background: var(--surface-soft); border: 1px solid var(--line);
+    border-left: 4px solid var(--accent); border-radius: 0 10px 10px 0;
+    padding: 16px 20px;
+  }
+  .plan p { margin: 0 0 10px; } .plan p:last-child { margin: 0; }
+
+  /* ---- seat cards ---- */
+  .seat {
+    background: var(--surface); border: 1px solid var(--line-strong);
+    border-radius: 12px; padding: 20px 22px; margin: 0 0 18px;
+  }
+  .seat-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 12px; margin-bottom: 4px; }
+  .seat-name { font-size: 19px; font-weight: 700; margin: 0; }
+  .seat-lens {
+    font-size: 12.5px; font-weight: 600; color: var(--accent);
+    background: var(--accent-tint); border-radius: 999px; padding: 3px 11px;
+  }
+  .seat-model { font-size: 13px; color: var(--ink-faint); font-family: var(--font-mono); }
+  .seat-status {
+    font-size: 11.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+    border-radius: 999px; padding: 3px 10px;
+  }
+  .seat-status.ran      { background: var(--vellum);     color: var(--ink-faint); }
+  .seat-status.degraded { background: var(--caution-bg); color: var(--caution-ink); }
+  .seat-status.dropped  { background: var(--block-bg);   color: var(--block-ink); }
+  .round { margin-top: 16px; padding-top: 16px; border-top: 1px dashed var(--line); }
+  .round:first-of-type { margin-top: 12px; }
+  .round-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .round-tag { font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-faint); }
+  /* per-round verdict pill */
+  .vpill { font-size: 12px; font-weight: 700; border-radius: 999px; padding: 3px 11px; line-height: 1.4; }
+  .vpill.ship    { background: var(--ship-bg);    color: var(--ship-ink); }
+  .vpill.caution { background: var(--caution-bg); color: var(--caution-ink); }
+  .vpill.block   { background: var(--block-bg);   color: var(--block-ink); }
+  .vpill.moved::after { content: " ↓"; }
+  .conf {
+    font-size: 11.5px; font-weight: 600; color: var(--ink-faint);
+    background: var(--surface-soft); border: 1px solid var(--line);
+    border-radius: 999px; padding: 2px 9px;
+  }
+
+  .review-body { font-size: 15.5px; color: var(--ink); }
+  .review-body strong { font-weight: 600; }
+  .review-body em { font-style: italic; }
+  .review-body a { color: var(--accent); text-decoration: underline; }
+  .review-body ul, .review-body ol { margin: 6px 0; padding-left: 22px; }
+  .review-body li { margin: 5px 0; }
+  .review-body p { margin: 6px 0; }
+  .review-body p.r-title { font-weight: 600; margin-top: 12px; }
+  .review-body blockquote {
+    margin: 8px 0; padding: 2px 0 2px 14px;
+    border-left: 3px solid var(--line-strong); color: var(--ink-soft);
+  }
+  .review-body pre {
+    background: var(--surface-soft); border: 1px solid var(--line);
+    border-radius: 8px; padding: 10px 12px; margin: 8px 0;
+    overflow-x: auto; font-size: 13px; line-height: 1.5;
+  }
+  .review-body pre code { background: none; border: 0; padding: 0; font-size: inherit; }
+  code {
+    font-family: var(--font-mono);
+    font-size: 0.86em; background: var(--vellum); border: 1px solid var(--line);
+    border-radius: 5px; padding: 1px 5px;
+  }
+
+  /* highlight callout (e.g. a seat that changed its verdict) */
+  .highlight {
+    background: #fff6e3; border: 1px solid #ecd9a3; border-radius: 10px;
+    padding: 12px 16px; margin: 14px 0 0; font-size: 14.5px; color: #6f5212;
+  }
+  .highlight b { color: #5a4209; }
+
+  /* ---- numbered blocker checklist ---- */
+  ol.blockers { list-style: none; counter-reset: blk; margin: 0; padding: 0; }
+  ol.blockers > li {
+    counter-increment: blk; position: relative;
+    background: var(--surface); border: 1px solid var(--line-strong);
+    border-radius: 11px; padding: 15px 18px 15px 56px; margin: 0 0 11px;
+  }
+  ol.blockers > li::before {
+    content: counter(blk); position: absolute; left: 14px; top: 14px;
+    width: 28px; height: 28px; border-radius: 50%;
+    background: var(--block-bg); color: var(--block-ink);
+    font-size: 14px; font-weight: 700; display: flex; align-items: center; justify-content: center;
+  }
+  ol.blockers .b-title { font-weight: 600; }
+  ol.blockers .b-body { font-size: 15px; color: var(--ink-soft); margin-top: 3px; }
+
+  /* ---- dissent (visually distinct) ---- */
+  .dissent {
+    background: #fbf3ec; border: 1px dashed var(--caution-edge);
+    border-radius: 12px; padding: 16px 20px;
+  }
+  .dissent .d-flag {
+    display: inline-block; font-size: 11.5px; font-weight: 700;
+    letter-spacing: 0.07em; text-transform: uppercase; color: var(--caution-ink);
+    background: var(--caution-bg); border-radius: 999px; padding: 3px 10px; margin-bottom: 8px;
+  }
+  .dissent p { margin: 6px 0; font-size: 15.5px; color: #5e4a31; }
+  .dissent .who { font-weight: 700; color: var(--caution-ink); }
+
+  /* ---- what the board couldn't verify (epistemic caveats) ---- */
+  .caveats {
+    background: var(--surface-soft); border: 1px solid var(--line);
+    border-left: 4px solid var(--ink-faint); border-radius: 0 12px 12px 0;
+    padding: 16px 20px;
+  }
+  .caveats ul { margin: 0; padding-left: 22px; }
+  .caveats li { margin: 7px 0; font-size: 15.5px; }
+  .caveats .c-claim { font-weight: 600; }
+  .caveats .c-change { color: var(--ink-soft); }
+
+  /* ---- simple lists ---- */
+  ul.plain { margin: 0; padding-left: 22px; }
+  ul.plain li { margin: 7px 0; font-size: 15.5px; }
+
+  .actions {
+    background: var(--surface-soft); border: 1px solid var(--line);
+    border-radius: 12px; padding: 16px 20px; font-size: 15.5px;
+  }
+  .actions ol { margin: 0; padding-left: 20px; }
+  .actions li { margin: 6px 0; }
+
+  /* ---- dark footer / colophon band ---- */
+  footer.colophon { background: var(--dark); color: var(--on-dark-soft); padding: 26px 20px 32px; }
+  footer.colophon .disclaimer {
+    display: block; margin: 0 0 16px; font-style: italic;
+    color: var(--on-dark-faint); font-size: 13.5px;
+  }
+  .colophon-grid { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; justify-content: space-between; }
+  .colophon-about { flex: 1 1 320px; }
+  .footer-lockup { display: flex; align-items: center; gap: 9px; font-weight: 700; color: var(--on-dark); font-size: 14px; margin-bottom: 9px; }
+  .footer-lockup svg { width: 26px; height: 26px; display: block; }
+  .colophon-about p { margin: 0; font-size: 13.5px; line-height: 1.6; color: var(--on-dark-soft); max-width: 54ch; }
+  .colophon-cta { flex: 0 0 auto; }
+  .cta {
+    display: inline-block; background: var(--accent); color: #ffffff;
+    font-weight: 600; font-size: 14.5px; text-decoration: none;
+    padding: 10px 20px; border-radius: 9px;
+  }
+  .cta::after { content: " →"; }
+  footer.colophon .prov { display: block; margin-top: 12px; font-size: 11.5px; color: var(--on-dark-faint); font-family: var(--font-mono); }
+
+  /* ---- responsive ---- */
+  @media (max-width: 560px) {
+    body { font-size: 16px; }
+    .wrap { padding: 22px 15px 44px; }
+    header.masthead, footer.colophon { padding-left: 15px; padding-right: 15px; }
+    header.masthead h1 { font-size: 25px; }
+    .verdict .headline { font-size: 20px; }
+    .seat, ol.blockers > li { padding-left: 16px; padding-right: 16px; }
+    ol.blockers > li { padding-left: 50px; }
+    .colophon-cta { width: 100%; }
+  }
+
+  /* ---- print / PDF (Print -> Save as PDF) ---- */
+  @media print {
+    body { background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    header.masthead, footer.colophon { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .wrap { max-width: none; }
+    .verdict, .plan, .seat, .round, ol.blockers > li, .dissent, .actions { break-inside: avoid; }
+    a { color: inherit; text-decoration: none; }
+  }
+</style>
+</head>
+<body>
+
+  <!-- ===================== MASTHEAD (Panely / dark band) ===================== -->
+  <header class="masthead">
+    <div class="band-inner">
+      <div class="brand-lockup">
+        <span class="brand-mark"><svg viewBox="0 0 1000 1000" xmlns="http://www.w3.org/2000/svg"><defs><radialGradient id="bg" cx="50%" cy="38%" r="74%"><stop offset="0%" stop-color="#122046"/><stop offset="55%" stop-color="#0a1024"/><stop offset="100%" stop-color="#05070f"/></radialGradient><radialGradient id="vig" cx="50%" cy="50%" r="62%"><stop offset="60%" stop-color="#000000" stop-opacity="0"/><stop offset="100%" stop-color="#000000" stop-opacity="0.5"/></radialGradient><linearGradient id="cobalt" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#a9c2ff"/><stop offset="52%" stop-color="#5b8cff"/><stop offset="100%" stop-color="#2347ff"/></linearGradient><linearGradient id="gold" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#ffe6a3"/><stop offset="55%" stop-color="#e2b658"/><stop offset="100%" stop-color="#b9842e"/></linearGradient><radialGradient id="core" cx="50%" cy="42%" r="62%"><stop offset="0%" stop-color="#ffffff"/><stop offset="34%" stop-color="#dbe6ff"/><stop offset="70%" stop-color="#6f93ff"/><stop offset="100%" stop-color="#2347ff"/></radialGradient><radialGradient id="spark" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#eaf1ff"/><stop offset="100%" stop-color="#5b8cff"/></radialGradient><filter id="gM" x="-180%" y="-180%" width="460%" height="460%"><feGaussianBlur stdDeviation="14"/></filter><filter id="gL" x="-220%" y="-220%" width="540%" height="540%"><feGaussianBlur stdDeviation="32"/></filter></defs><rect width="1000" height="1000" fill="#05070f"/><rect width="1000" height="1000" fill="url(#bg)"/><circle cx="500" cy="500" r="220" fill="#3a5fff" opacity="0.12" filter="url(#gL)"/><circle cx="500" cy="500" r="312" fill="none" stroke="url(#cobalt)" stroke-width="3" opacity="0.7"/><circle cx="500" cy="500" r="210" fill="none" stroke="#4f7bff" stroke-width="2" opacity="0.32"/><circle cx="500" cy="500" r="120" fill="none" stroke="#4f7bff" stroke-width="2" opacity="0.22"/><g stroke="#4f7bff" stroke-width="2"><line x1="830" y1="500" x2="850" y2="500" opacity="0.4"/><line x1="500" y1="830" x2="500" y2="850" opacity="0.4"/><line x1="170" y1="500" x2="150" y2="500" opacity="0.4"/><line x1="500" y1="170" x2="500" y2="150" opacity="0.4"/><line x1="733.3" y1="733.3" x2="743.2" y2="743.2" opacity="0.16"/><line x1="266.7" y1="733.3" x2="256.8" y2="743.2" opacity="0.16"/><line x1="266.7" y1="266.7" x2="256.8" y2="256.8" opacity="0.16"/><line x1="733.3" y1="266.7" x2="743.2" y2="256.8" opacity="0.16"/></g><line x1="500" y1="250" x2="500" y2="188" stroke="#f7b500" stroke-width="3" opacity="0.45"/><circle cx="500" cy="188" r="46" fill="#e2b658" opacity="0.30" filter="url(#gM)"/><circle cx="500" cy="188" r="34" fill="#0a1430" stroke="url(#gold)" stroke-width="5"/><circle cx="500" cy="188" r="15" fill="url(#gold)"/><circle cx="770.2" cy="344" r="46" fill="#2f54e6" opacity="0.30" filter="url(#gM)"/><circle cx="770.2" cy="344" r="34" fill="#0a1430" stroke="url(#cobalt)" stroke-width="5"/><circle cx="770.2" cy="344" r="15" fill="url(#spark)"/><circle cx="770.2" cy="656" r="46" fill="#2f54e6" opacity="0.30" filter="url(#gM)"/><circle cx="770.2" cy="656" r="34" fill="#0a1430" stroke="url(#cobalt)" stroke-width="5"/><circle cx="770.2" cy="656" r="15" fill="url(#spark)"/><circle cx="500" cy="812" r="46" fill="#2f54e6" opacity="0.30" filter="url(#gM)"/><circle cx="500" cy="812" r="34" fill="#0a1430" stroke="url(#cobalt)" stroke-width="5"/><circle cx="500" cy="812" r="15" fill="url(#spark)"/><circle cx="229.8" cy="656" r="46" fill="#2f54e6" opacity="0.30" filter="url(#gM)"/><circle cx="229.8" cy="656" r="34" fill="#0a1430" stroke="url(#cobalt)" stroke-width="5"/><circle cx="229.8" cy="656" r="15" fill="url(#spark)"/><circle cx="229.8" cy="344" r="46" fill="#2f54e6" opacity="0.30" filter="url(#gM)"/><circle cx="229.8" cy="344" r="34" fill="#0a1430" stroke="url(#cobalt)" stroke-width="5"/><circle cx="229.8" cy="344" r="15" fill="url(#spark)"/><circle cx="500" cy="500" r="74" fill="none" stroke="#4f7bff" stroke-width="2" opacity="0.5"/><circle cx="500" cy="500" r="144" fill="#3a5fff" opacity="0.16" filter="url(#gL)"/><circle cx="500" cy="500" r="77" fill="url(#core)" opacity="0.5" filter="url(#gM)"/><circle cx="500" cy="500" r="48" fill="url(#core)" stroke="#ffffff" stroke-width="3"/><circle cx="500" cy="489" r="13" fill="#ffffff" opacity="0.92"/><rect width="1000" height="1000" fill="url(#vig)"/></svg></span>
+        <span class="brand-name"><span class="p">Advisory Board</span><span class="ab" style="text-transform:none; letter-spacing:0.03em; font-weight:600; margin-top:3px;">powered by Panely</span></span>
+      </div>
+      <h1>Should we relocate our family across the country for this job offer?</h1>
+      <p class="subtitle">An independent multi-model review.</p>
+      <div class="meta-row">
+        <span class="chip"><b>Date</b> 2026-06-27</span>
+        <span class="chip"><b>Rounds</b> 2</span>
+        <span class="chip"><b>Board</b> Claude · Codex · Gemini</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+
+  <!-- ===================== VERDICT BANNER ===================== -->
+  
+  <div class="verdict caution">
+    <p class="label">Final verdict<span class="conf-badge">high confidence</span></p>
+    <p class="headline">Go ahead, with conditions · unanimous</p>
+    <p class="note">Workable, but address the flagged concerns before you go ahead.</p>
+  </div>
+
+  <!-- ===================== PLAN UNDER REVIEW ===================== -->
+  <section>
+    <h2>What was reviewed</h2>
+    <div class="plan">
+      Should we relocate our family across the country for this job offer?
+    </div>
+  </section>
+
+  <!-- ===================== SEAT REVIEWS ===================== -->
+  <section>
+    <h2>Board reviews — round by round</h2>
+
+    
+    <article class="seat">
+      <div class="seat-head">
+        <h3 class="seat-name">Claude</h3>
+        <span class="seat-lens">First principles &amp; economics lens</span>
+        <span class="seat-model">claude-opus-4-8</span>
+        
+      </div>
+
+      
+      <div class="round">
+        <div class="round-head">
+          <span class="round-tag">Round 1</span>
+          
+          <span class="vpill caution">Proceed with care</span>
+          
+        </div>
+        <div class="review-body">
+          
+          <p>I'm the first‑principles &amp; economics seat. I worked the numbers in the document line by line. Short version: the <strong>arithmetic is clean, but two of the three load‑bearing assumptions are economically inconsistent with the budget</strong>, and both errors bias the decision toward "take it."</p>
+<p class="r-title">1. Verdict</p>
+<p><strong>CAUTION — confidence: medium.</strong> The year‑one cash‑flow table is internally correct, but the case rests on (a) a "slightly higher take‑home" that is fragile to the exact state tax, (b) a childcare line that contradicts the one‑income premise, and (c) a year‑two "flips strongly positive" that is overstated by ~2×. Proceed only with the changes in §3.</p>
+<p><em>What would change it to ship:</em> a real apartment listing confirming an adequate family home at <strong>≤ $4,100</strong>, plus a concrete, evidenced spouse re‑employment plan (live pipeline, target ≥ $50k), and a redone year‑two model at <strong>marginal</strong> tax with <strong>working‑parent</strong> childcare that still clears a meaningful margin.</p>
+<p class="r-title">2. Strongest objections</p>
+<p class="r-title">A. The childcare line is inconsistent with the "$0 spouse" premise — and it hides the real year‑two cost.</p>
+<p>Year one assumes the spouse "earns <strong>$0 the first year</strong>" and is home job‑hunting — yet childcare is budgeted at <strong>$1,350/mo</strong>, <em>higher</em> than today's $1,150. If a parent is home all year, school‑age‑plus‑young kids need far less paid care, so <strong>year‑one savings are likely better than the stated $537.</strong> The mirror problem is worse: the moment the spouse works (the entire upside case), you lose <strong>"our free family childcare"</strong> with no family backup in the new city, and real HCOL care for two kids runs well above $1,350. The budget holds childcare flat regardless of the spouse's employment state, which is the one variable that drives it. Net effect: year one looks slightly too grim, year two looks much too rosy — and the bias points toward "go."</p>
+<p class="r-title">B. The year‑two "flips strongly positive" is overstated on two independent counts.</p>
+<p>The claim: a <strong>$42,000</strong> job makes "household take‑home rise roughly <strong>+$2,590/month</strong>." That's $31,080/yr net on $42k gross — <strong>74% retention</strong> on income <em>stacked on top of $176k in a high‑tax state</em>. The marginal rate on that second income is ~35–40% (fed + high state + FICA), so realistic net is <strong>~$2,100–2,300/mo, not $2,590</strong> — an overstatement of ~$300–450/mo. Then subtract the new working‑parent childcare from objection A. The honest year‑two improvement is roughly <strong>half</strong> the advertised swing. The picture still turns positive, but "strongly" is doing unearned work.</p>
+<p class="r-title">C. "Take‑home slightly higher than now" is true only at the optimistic edge of the tax assumption.</p>
+<p>You're claiming $176k single‑earner in a high‑tax coastal state nets <strong>$10,267/mo</strong> (30.0% effective deduction) vs today's $9,990 (26.0%). That's plausible but optimistic: push the effective rate to ~32% (very reachable in CA/NY‑class states on a concentrated single income) and take‑home falls to <strong>~$9,970 — flat to slightly <em>down</strong></em>, which erases the "raise more than offsets" framing entirely. The headline rests on a 1–2 point tax estimate.</p>
+<p class="r-title">D. The raise is nominal, not real. Frame this as buying an option, not getting a raise.</p>
+<p>The "<strong>+37.5% raise</strong>" is a single‑line gross figure. On a household, COL‑adjusted basis, <strong>purchasing power falls in year one</strong> — the entire $48k raise is consumed by rent (+$1,900/mo), the lost $34k income, and higher tax. What you're actually buying is a <strong>call option on a higher lifetime earnings trajectory</strong>, priced at <strong>~$2,213/mo (~$26.5k/yr) of foregone savings</strong> plus relocation plus the spouse's career disruption plus tail risk. That reframe is the correct lens — and it makes the decision turn on the <em>durability of the trajectory claim and spouse re‑employment</em>, not on the year‑one budget at all.</p>
+<p class="r-title">E. The sign‑on bonus is pre‑tax; it does not actually cover the move.</p>
+<p>"A flat <strong>$20,000 sign‑on</strong>… the bonus roughly covers the move" against a <strong>$18,000</strong> estimate. Sign‑on bonuses are taxable (supplemental ~22% fed + FICA + state withholding), so $20k gross nets ~$13–14k. There's a <strong>~$4–5k hole</strong> that comes straight out of the $70k savings — before any moving‑cost overrun, and moves routinely overrun.</p>
+<p class="r-title">3. Recommended execution sequence</p>
+<ol><li><strong>Reprice the move and the bonus net‑of‑tax.</strong> Assume the $20k sign‑on nets ~$13–14k; budget the move at $18k <strong>+ 15% contingency</strong>; fund the gap from savings explicitly.</li><li><strong>Verify the rent line with real listings</strong> for an adequate family home (3BR, tolerable commute) in the actual target neighborhoods. This single number (+$1,900/mo) dominates everything; at $4,600 the year‑one savings go negative.</li><li><strong>Rebuild the budget in two correct states, not one:</strong> (i) spouse‑home year one → childcare near‑zero; (ii) spouse‑working → childcare at real HCOL working‑parent rates and income at <strong>marginal</strong> tax. Decide on the honest year‑two number.</li><li><strong>Negotiate the offer before signing</strong> — this is the highest‑leverage step (see §4): larger/guaranteed relocation, COL adjustment, or a spouse‑landing/job‑search support clause.</li><li><strong>Set explicit kill criteria</strong> (e.g., "spouse not re‑employed at ≥ $X by month 14 → revisit").</li><li><strong>Only then decide.</strong> The year‑one budget is survivable; the decision is really a yes/no on the option in §2‑D.</li></ol>
+<p class="r-title">4. Invariants and guardrails</p>
+<ul><li><strong>6‑month HCOL emergency fund preserved.</strong> At ~$9,730/mo expenses on one income with no family backup, keep ≥ ~$58k liquid <em>after</em> the move. The plan leaves ~$65k post‑move and adds only ~$6.4k/yr at $537/mo — thin. Do not let the move + bonus tax gap drop you below the floor.</li><li><strong>Rent ceiling as a go/no‑go:</strong> if a verified adequate home exceeds ~$4,300/mo, the year‑one math breaks; renegotiate or walk.</li><li><strong>Don't sign without testing the relocation package.</strong> A flat $20k for a cross‑country family move from a "big‑name employer" is below market; ask for net‑of‑tax relo, temporary housing, or a spouse job‑search benefit. The downside of asking is near zero.</li><li><strong>Spouse re‑employment is a guardrail, not a footnote:</strong> require a concrete plan (target role/comp, pipeline, timeline) <em>before</em> moving, and a defined fallback if it slips.</li></ul>
+<p class="r-title">5. Risks, stale assumptions, missing evidence</p>
+<ul><li><strong>Single‑career concentration risk.</strong> The household sheds its second income and the safety of two earners to bet entirely on one new role at a new employer with <strong>no local network</strong>. New role + big org + no network = real first‑year fit/layoff risk; runway then is ~6–7 months in an expensive city far from family. The plan is cash‑positive but tail‑fragile.</li><li><strong>Spouse opportunity cost is undercounted.</strong> It's not one year of $34k — it's the risk of prolonged underemployment plus loss of an established position. This is the least‑scrutinized and most decision‑relevant variable.</li><li><strong>Identical lines that probably shouldn't be:</strong> "Two cars… $940," health premiums $320, and misc $390 are held <strong>constant</strong> across metros. A dense coastal metro may make one car redundant (savings) or make parking/insurance/tolls higher; HCOL misc/clothing typically rises. Every other line was COL‑adjusted; these weren't.</li><li><strong>Rent escalation asymmetry:</strong> HCOL rents reset upward annually while the salary is fixed; the "year‑two flip" silently assumes rent holds at $4,100.</li><li><strong>401(k) ambiguity:</strong> if the $10,267 take‑home is already net of retirement contributions, the "$537/mo savings" understates real wealth accumulation — clarify, because it changes how tight year one truly is.</li><li><strong>Missing evidence:</strong> an actual rent comp; the offer's full comp (equity/RSUs, bonus target, 401k match — none mentioned, and they can dominate base); state of destination (drives the tax estimate); the spouse's concrete re‑employment pipeline.</li></ul>
+<p class="r-title">6. Concrete evidence from the material</p>
+<ul><li>Year‑one cash flow checks out: new expenses 4100+1350+1450+940+620+560+320+390 = <strong>$9,730</strong> ✓; $10,267 − $9,730 = <strong>$537</strong> ✓; current 9990 − 7240 = <strong>$2,750</strong> ✓; swing <strong>$2,213</strong> ✓. <em>The arithmetic is not where the problem is.</em></li><li>"<strong>My spouse earns $0 the first year</strong>" vs. new "Childcare / aftercare (2 kids) | <strong>$1,350</strong>" (up from "<strong>$1,150</strong>") — the inconsistency in objection A.</li><li>"we lose the spouse's income and <strong>our free family childcare</strong>" — confirms the year‑two childcare cost the +$2,590 figure omits.</li><li>"household take‑home rises roughly <strong>+$2,590/month</strong> and the whole picture <strong>flips strongly positive</strong>" — the over‑retention error in objection B.</li><li>"Household take‑home drops to <strong>$10,267/month</strong> — yes, slightly <em>higher</em> than now" — the tax‑sensitivity fragility in objection C (vs. "$9,990/month" today).</li><li>"a flat <strong>$20,000 sign‑on</strong>… the bonus <strong>roughly covers the move</strong>" against "about <strong>$18,000</strong>" — the pre‑tax‑bonus hole in objection E.</li><li>"<strong>+37.5% raise</strong>… monthly savings <strong>falling from $2,750 to $537</strong>… almost entirely because <strong>rent jumps +$1,900/month</strong>" — the document already concedes the raise is consumed; objection D just names what you're actually buying.</li></ul>
+<p class="r-title">7. What I'd ask the other seats to challenge</p>
+<ul><li><strong>The career/trajectory seat:</strong> quantify the option. Is the $128k→$176k base step <em>durable and compounding</em>, or a one‑time level shift? Estimate the PV of the trajectory bump — that single number decides whether paying ~$26.5k/yr + spouse disruption + tail risk is rational.</li><li><strong>The risk/operations seat:</strong> stress‑test the no‑network single‑income failure mode — layoff/bad‑fit in months 1–12, and the cost/feasibility of moving <em>back</em> near family.</li><li><strong>The human/family seat:</strong> weigh the "kids move easily now, window closing" claim against the lived cost of an isolated year with one stressed earner and a job‑hunting spouse far from support.</li><li><strong>The negotiation seat:</strong> how much of this is fixable at the table (net‑of‑tax relo, COL adjustment, spouse job‑search benefit, sign‑on uplift) before any of the above math even matters?</li></ul>
+<p>Bottom line from the economics seat: the budget is honest arithmetic on optimistic assumptions. Fix the childcare/tax/year‑two inconsistencies, verify the rent, price it as an option with kill criteria, and negotiate the package — then it's a defensible bet rather than a prestige trap. Don't sign as currently modeled.</p>
+<p>VERDICT: caution</p>
+        </div>
+      </div>
+      
+      <div class="round">
+        <div class="round-head">
+          <span class="round-tag">Round 2</span>
+          
+          <span class="vpill caution">Proceed with care</span>
+          
+        </div>
+        <div class="review-body">
+          
+          <p>I'm the first-principles &amp; economics seat. I've read all three round-1 reviews. The board has fully converged on CAUTION, and the cross-reading sharpened rather than softened my position. Here is my round-2 review.</p>
+<p class="r-title">1. Updated verdict</p>
+<p><strong>CAUTION — confidence: medium-high</strong> (raised from medium). The arithmetic in the document is clean, but the case for "go" rests on a year-two flip that is fragile on two independent counts, and the cross-reading surfaced a third. One line to change it to ship: a <strong>verified rent comp ≤ $4,100 for an adequate family home</strong>, a <strong>net-of-tax bonus/relocation that actually funds the move without touching the emergency floor</strong>, and a <strong>concrete spouse re-employment pipeline (live applications, target ≥ $50k) that survives the demands of the new role</strong> — rebuilt at marginal tax. Absent those, do not sign as modeled.</p>
+<p class="r-title">2. Where I changed my mind / where I still dissent</p>
+<p><strong>Changed — I raised confidence on the sign-on tax hole (my obj. E).</strong> In round 1 I estimated $20k gross nets ~$13–14k. Codex independently cited <a href="https://www.irs.gov/publications/p15b">IRS Pub 15-B</a> (taxable benefits) and Gemini put it at ~22% supplemental → ~$11–13k net. Three seats, same conclusion, no dissent. This is now the most settled finding on the board: the bonus does <strong>not</strong> cover the move; there is a <strong>$5–7k hole out of the $70k savings before year one even starts.</strong> I adopt Gemini's lower-edge number.</p>
+<p><strong>Changed — I'm raising the emergency-fund floor toward Codex's number.</strong> I argued 6-month HCOL (~$58k). Codex argued 9–12 months of <em>essential</em> expenses, and given exactly the failure mode I described (single income, new employer, no local network, far from family), Codex is right that 6 months is too thin for this risk profile. I concede the floor should be ~<strong>9 months of essential spend (~$60–65k liquid post-move)</strong>. That is decision-relevant: with ~$65k post-move <em>before</em> the bonus-tax hole, they are at or below the floor on day one. This tightens, not loosens, my caution.</p>
+<p><strong>Changed — I'm adopting Gemini's "success trap" as a strengthening of my objection B.</strong> I argued the year-two +$2,590 is overstated ~2× (retention error + omitted working-parent childcare). Gemini adds a sharper, independent attack: if the role delivers the "bigger team / more scope" upside, it demands more hours with <strong>zero local backup</strong>, which can trap the spouse in full-time domestic load and make the year-two job <em>impossible</em>, not just smaller. So the linchpin assumption is <strong>doubly fragile</strong> — the number is too high <em>and</em> the event may never occur, and these compound. This is the strongest single point to come out of the cross-reading. I had treated year-two as "happens but overstated"; the honest model is "may not happen at all."</p>
+<p><strong>Still dissent / hold my distinct line vs. the board — the +$2,590 retention math is itself wrong, not just unverified.</strong> Codex and Gemini both flagged the $42k as "unsupported." Correct, but they stopped at the input. My economics catch is on the <em>conversion</em>: $2,590/mo = $31,080/yr net on $42k gross = <strong>74% retention on a second income stacked on $176k in a high-tax state</strong>, where the marginal rate (fed + high state + FICA) is ~35–40%. Realistic net is <strong>~$2,100–2,300/mo</strong>, and then you subtract real working-parent HCOL childcare. The honest year-two improvement is roughly <strong>half</strong> the advertised swing. This is the seat's unique finding and I hold it unchanged.</p>
+<p><strong>Still dissent — the "slightly higher take-home" is the load-bearing fragility, and Gemini directed this question at me.</strong> Gemini asked the financial seat to "prove whether the $10,267 take-home is accurate." I can't prove it — the document never names the destination state, which <em>is</em> the variable. But I can bound it: the headline rests on a 30.0% effective deduction. Push to ~32% (very reachable in CA/NY/MA-class states on a concentrated single income) and take-home falls to <strong>~$9,970 — flat-to-down vs. today's $9,990</strong>, which erases the "raise more than offsets" framing entirely. The claim that take-home <em>rises</em> is true only at the optimistic edge of an unnamed tax assumption. Holds.</p>
+<p><strong>Still hold — the option-valuation reframe (my obj. D), which no other seat offered.</strong> The other three seats focused on negotiation and execution (all correct). My distinct contribution is the lens: this is not a 37.5% raise, it is a <strong>call option on a higher lifetime earnings trajectory, priced at ~$2,213/mo (~$26.5k/yr) of foregone savings + relocation + spouse career disruption + tail risk.</strong> The decision turns entirely on the <em>durability</em> of the trajectory claim, not on the year-one budget. That number is what the career seat must produce.</p>
+<p class="r-title">3. Strongest remaining objections</p>
+<ol><li><strong>The year-two flip — the entire bull case — is fragile on three compounding counts:</strong> (a) retention math overstated ~2×; (b) working-parent childcare omitted (loses "free family childcare," budget holds care flat at $1,350 regardless of spouse employment state); (c) Gemini's success-trap — the role's own demands may prevent re-employment. Any one weakens it; together they make "flips <em>strongly</em> positive" unearned.</li><li><strong>Take-home superiority rests on a 1–2 point tax estimate on an unnamed state.</strong> At ~32% effective the headline inverts. This is the single most important unverified number after rent.</li><li><strong>Net liquidity breaches the (now higher) emergency floor on day one.</strong> ~$65k post-move, minus the $5–7k bonus-tax hole, minus likely move overrun, against a ~$60–65k floor → effectively no runway in an expensive city with no local network. The plan adds only ~$6.4k/yr at $537/mo to rebuild it.</li><li><strong>Rent (+$1,900/mo) dominates everything and is unverified.</strong> At a real $4,600 comp, year-one savings go negative. Single highest-leverage number in the document.</li><li><strong>Several lines held constant across metros that shouldn't be</strong> — cars $940, health $320, misc $390 unchanged while everything else was COL-adjusted. Each is a small downward bias on year-one savings.</li></ol>
+<p class="r-title">4. Recommended execution sequence</p>
+<ol><li><strong>Reprice net-of-tax:</strong> bonus nets ~$11–13k (adopt board consensus); move at $18k + 15% contingency; fund the gap from savings <em>explicitly</em> and confirm it doesn't breach the floor.</li><li><strong>Verify rent</strong> with real listings for a 3BR adequate-commute home in the actual target neighborhoods. Hard go/no-go at ~$4,300/mo.</li><li><strong>Rebuild the budget in two correct states:</strong> spouse-home year one → childcare near-zero (year one is likely <em>better</em> than $537); spouse-working → real HCOL working-parent childcare + second income at <strong>marginal</strong> tax. Produce the honest year-two number.</li><li><strong>Negotiate before signing</strong> — highest-leverage step, near-zero downside: grossed-up relocation, COL/base uplift (Gemini's lowballing concern: $176k may be anchored to the old $128k), temp housing, spouse job-search benefit, and severance/clawback terms.</li><li><strong>Run spouse job discovery <em>before</em> moving</strong> — live applications, recruiter calls, local bands, licensing, childcare-compatible schedules. Convert the $42k assumption into a pipeline with dates.</li><li><strong>Set kill criteria</strong> ("spouse not re-employed at ≥ $X by month 14 → revisit"; rent comp &gt; $4,300 → walk).</li><li><strong>Only then decide.</strong> The decision is a yes/no on the option in §2, not on the year-one budget.</li></ol>
+<p class="r-title">5. Invariants and guardrails</p>
+<ul><li><strong>~9-month HCOL essential-expense floor preserved (revised up from 6).</strong> Keep ≥ ~$60–65k liquid <em>after</em> move and bonus-tax. Do not let move + tax gap drop below it.</li><li><strong>Rent ceiling as hard go/no-go:</strong> verified adequate home &gt; ~$4,300/mo → renegotiate or walk.</li><li><strong>Do not count the $20k sign-on at gross, and check for clawback</strong> — use net cash, and know the repayment-on-early-exit terms.</li><li><strong>Spouse re-employment is a guardrail, not a footnote</strong> — require a concrete plan + defined fallback before moving; explicitly stress it against the new role's hour demands (the success trap).</li><li><strong>Preserve exit optionality</strong> — no home purchase, no new debt, keep enough liquid to move back near family in year one.</li></ul>
+<p class="r-title">6. Risks, stale assumptions, missing evidence</p>
+<ul><li><strong>The linchpin (year-two spouse income) is simultaneously overstated and possibly unrealizable</strong> — the compounding risk, newly sharpened by the cross-reading.</li><li><strong>Single-career concentration with no local network</strong> — sheds the two-earner safety net; first-year fit/layoff risk with ~6–9 months runway far from family.</li><li><strong>Spouse opportunity cost undercounted</strong> — not one year of $34k, but risk of prolonged underemployment + loss of an established position; least-scrutinized, most decision-relevant.</li><li><strong>Lines held constant across metros</strong> (cars, health, misc) — every other line was COL-adjusted.</li><li><strong>Rent-escalation asymmetry</strong> — HCOL rents reset up annually against a fixed salary; the year-two flip silently assumes rent holds at $4,100.</li><li><strong>401(k) ambiguity</strong> — if $10,267 is already net of contributions, real wealth accumulation is understated; clarify, it changes how tight year one is.</li><li><strong>Missing:</strong> destination state (drives the tax estimate, the §2 fragility), a real rent comp, full comp (equity/RSU/bonus target/401k match — none mentioned, can dominate base), clawback/severance terms, and the spouse's concrete pipeline.</li></ul>
+<p class="r-title">7. Concrete evidence</p>
+<ul><li>Arithmetic verified: <code>4100+1350+1450+940+620+560+320+390 = 9,730</code> ✓; <code>10,267 − 9,730 = 537</code> ✓; <code>9,990 − 7,240 = 2,750</code> ✓; swing <code>2,213</code> ✓. <em>The problem is never the arithmetic.</em></li><li>"<strong>My spouse earns $0 the first year</strong>" vs. "Childcare / aftercare (2 kids) | <strong>$1,350</strong>" (up from <strong>$1,150</strong>) — childcare held flat regardless of spouse employment state (obj. A; Gemini and Codex independently flagged the $200 rise as "mathematically incompatible" with HCOL).</li><li>"we lose the spouse's income and <strong>our free family childcare</strong>" — confirms the working-parent childcare the +$2,590 omits.</li><li>"household take-home rises roughly <strong>+$2,590/month</strong> and the whole picture <strong>flips strongly positive</strong>" — the 74%-retention error (obj. B), my distinct catch.</li><li>"Household take-home drops to <strong>$10,267/month</strong> — yes, slightly <em>higher</em> than now" vs. "$9,990/month" — the tax-sensitivity fragility (obj. C); state is never named.</li><li>"a flat <strong>$20,000 sign-on</strong>… the bonus <strong>roughly covers the move</strong>" vs. "about <strong>$18,000</strong>" — board-consensus net-of-tax hole (obj. E); IRS Pub 15-B per Codex.</li><li>"<strong>+37.5% raise</strong>… savings <strong>falling from $2,750 to $537</strong>… almost entirely because <strong>rent jumps +$1,900/month</strong>" — the document concedes the raise is consumed; obj. D names what is actually being bought.</li></ul>
+<p>Bottom line from the economics seat, unchanged in direction and firmer in confidence: the budget is honest arithmetic on optimistic, partly inconsistent assumptions, and the bull case rests on a year-two flip that is overstated <em>and</em> may not occur. Fix childcare/tax/year-two, verify rent, hold the higher runway floor, price it as an option with kill criteria, and negotiate the package. Then it's a defensible bet. Not as currently modeled.</p>
+<p>VERDICT: caution</p>
+        </div>
+      </div>
+      
+
+      
+
+    </article>
+    
+    <article class="seat">
+      <div class="seat-head">
+        <h3 class="seat-name">Codex</h3>
+        <span class="seat-lens">Execution &amp; feasibility lens</span>
+        <span class="seat-model">gpt-5.5</span>
+        
+      </div>
+
+      
+      <div class="round">
+        <div class="round-head">
+          <span class="round-tag">Round 1</span>
+          
+          <span class="vpill caution">Proceed with care</span>
+          
+        </div>
+        <div class="review-body">
+          
+          <p class="r-title">1. Verdict</p>
+<p>Caution, medium-high confidence. This is feasible only if they turn the move from a prestige/career bet into a managed transition with negotiated cash protection, verified housing/childcare costs, and a spouse re-employment plan with dates. A signed spouse job, stronger relocation package, or verified lower housing would move this toward <code>ship</code>; weak employer flexibility or higher actual costs would move it toward <code>block</code>.</p>
+<p class="r-title">2. Strongest Objections</p>
+<ul><li>The year-one margin is too thin: <code>$537/month</code> savings leaves almost no room for rent variance, childcare gaps, parking, insurance increases, travel back to family, medical surprises, or a delayed spouse job.</li><li>The sign-on likely does not “roughly cover” the move after tax. IRS 2026 guidance says ordinary moving reimbursements are taxable, and taxable benefits must be included in pay unless excluded by law. Source: <a href="https://www.irs.gov/publications/p15b">IRS Publication 15-B</a>.</li><li>The family is giving up hidden economic value: nearby family childcare, local support, and spouse employment continuity. The budget prices dollars, but not fragility.</li><li>The upside depends heavily on spouse re-employment, but the plan has no evidence on local job availability, licensing, schedule fit, childcare coverage, or expected time-to-offer.</li><li>Career upside is asserted, not de-risked. “Big-name employer” and “title bump” matter only if the role is stable, promotion path is real, manager quality is good, and a failed move still improves future employability.</li></ul>
+<p class="r-title">3. Recommended Execution Sequence</p>
+<ol><li>Rebuild the model using net cash: actual payroll estimate, state/local taxes, benefits, retirement contributions, sign-on withholding, relocation clawback, deposits, and first-year one-time setup costs.</li><li>Negotiate before acceptance: grossed-up relocation/sign-on, temporary housing, lease-break coverage, childcare support, delayed start, hybrid/remote ramp, severance or guaranteed bonus treatment if laid off.</li><li>Verify the new city budget with real quotes: 5-10 rental comps, school/aftercare availability, summer care, commute costs, car insurance, parking, healthcare premiums, and travel-to-family costs.</li><li>Run spouse job discovery before moving: applications, recruiter calls, local pay bands, required credentials, childcare-compatible schedules, and a 90/180/270-day job-search plan.</li><li>Decide with gates: accept only if minimum cash runway, rent cap, childcare slot, and employer terms are met.</li><li>Move in phases if possible: primary earner starts first, family follows after housing/school/childcare are locked.</li></ol>
+<p class="r-title">4. Invariants And Guardrails</p>
+<ul><li>Do not move unless post-move liquid savings stays above a defined floor, preferably at least 9-12 months of new-city essential expenses.</li><li>Do not count the <code>$20,000</code> sign-on at gross value; use after-tax cash and account for clawback.</li><li>Do not sign a lease above the modeled rent without re-approving the whole plan.</li><li>Do not assume spouse income until there is either an offer, credible pipeline, or a cash runway that survives 12-18 months without it.</li><li>Preserve exit options: avoid buying a house in year one, avoid new debt, and keep enough cash to move back or pivot.</li></ul>
+<p class="r-title">5. Risks, Stale Assumptions, Missing Evidence</p>
+<ul><li>Missing: exact new metro, school district, rent comps, lease terms, commute, employer benefits, sign-on clawback, bonus payout date, and tax treatment.</li><li>Missing: spouse’s profession, local demand, likely wage, licensing requirements, and schedule constraints.</li><li>Risk: childcare estimate rises only <code>$200/month</code> despite losing family support.</li><li>Risk: car costs are held flat, but high-cost coastal metros often add parking, insurance, tolls, tickets, or longer commutes.</li><li>Risk: family isolation has operational cost: sick days, school closures, emergencies, travel, and spouse job-search friction.</li><li>Stale assumption: the <code>$42,000</code> spouse job in year two may be either too optimistic or too conservative, but it is currently unsupported.</li></ul>
+<p class="r-title">6. Concrete Evidence From Source Material</p>
+<ul><li>“we have family nearby and a lot of childcare help.”</li><li>“My spouse works part-time ($34,000/year) and would almost certainly have to quit”</li><li>“Relocation help is minimal”</li><li>“the actual move ... about $18,000”</li><li>“That leaves us saving only $537/month”</li><li>“If my spouse lands even a $42,000 job in year two”</li><li>“we'd be trading a supported, cash-positive life near family for a tighter, isolated, more expensive one”</li></ul>
+<p class="r-title">7. Ask Other Board Seats To Challenge</p>
+<ul><li>Finance seat: are the take-home numbers, sign-on tax treatment, and emergency runway correct?</li><li>Career seat: is the role’s compounding upside specific enough to justify the relocation risk?</li><li>Family/wellbeing seat: what is the real cost of losing nearby help with kids ages 5 and 8?</li><li>Legal/HR seat: what are the clawbacks, severance protections, start-date flexibility, and relocation terms?</li><li>Spouse-career seat: how realistic is re-employment at <code>$42,000+</code>, on the needed schedule, in that city?</li></ul>
+<p>VERDICT: caution</p>
+        </div>
+      </div>
+      
+      <div class="round">
+        <div class="round-head">
+          <span class="round-tag">Round 2</span>
+          
+          <span class="vpill caution">Proceed with care</span>
+          
+        </div>
+        <div class="review-body">
+          
+          <p class="r-title">1. Updated Verdict</p>
+<p>Caution, high confidence. The move is feasible only if they replace the current optimistic model with verified housing, childcare, tax, relocation, spouse-employment, and role-stability gates before signing.</p>
+<p class="r-title">2. Changed Mind / Dissent</p>
+<p>Changed mind:</p>
+<ul><li><code>claude</code>: I now think the biggest modeling flaw is the single childcare line. Year one with a nonworking spouse and year two with a working spouse are different operating states, and the upside case is overstated if working-parent childcare is not repriced.</li><li><code>gemini</code>: The “success trap” is real. A bigger role may consume the exact time and flexibility the family needs for spouse re-employment, school transitions, sick days, and no-network logistics.</li><li><code>claude</code> + <code>gemini</code>: The sign-on issue is stronger than I framed in round 1. IRS 2026 Pub. 15-B says the moving-expense reimbursement exclusion is permanently eliminated for ordinary employees, and supplemental withholding remains 22%, before FICA/state effects.</li></ul>
+<p>Still dissent:</p>
+<ul><li><code>claude</code>: I would not model year-one childcare as near-zero just because the spouse is home. A job-searching parent with kids ages 5 and 8 still needs aftercare, summer/break coverage, backup sitters, and interview/networking time.</li><li><code>gemini</code>: I would not demand <code>$190k+</code> base as the first-line rule without market data. The more reliable ask is grossed-up relocation, temporary housing, clawback protection, start-date flexibility, and then salary/equity if comps justify it.</li><li><code>claude</code>: Six months of HCOL expenses is only a hard floor. For this family’s execution risk, I’d prefer 9-12 months or six months plus a separately reserved move-back fund.</li></ul>
+<p class="r-title">3. Strongest Remaining Objections</p>
+<p>The current plan has almost no execution buffer. <code>$537/month</code> is not a real operating margin for a cross-country move with two kids, no local support, a new role, and one income.</p>
+<p>The year-two upside depends on an unverified spouse job, but that job also creates new childcare costs and will be taxed at the household’s marginal rate.</p>
+<p>The relocation package is underfunded. A <code>$20,000</code> gross sign-on does not cover an <code>$18,000</code> move once taxes, deposits, setup costs, and overruns are included.</p>
+<p>The career upside may be worth buying, but it is still only asserted. They need evidence that the title, employer brand, manager, team stability, promotion path, and future marketability make the first-year risk rational.</p>
+<p class="r-title">4. Recommended Execution Sequence</p>
+<ol><li>Before acceptance, get the full written offer: base, bonus, equity/RSUs, 401(k), benefits, payroll timing, sign-on clawback, severance, start date, remote/hybrid expectations, travel load, and relocation terms.</li><li>Negotiate: company-paid movers or grossed-up relocation, 60-90 days temporary housing, lease/deposit support, sign-on clawback waived if laid off, delayed start or remote ramp, spouse job-search support, and possibly salary/equity if market comps support it.</li><li>Rebuild the model with actual payroll/tax/benefit numbers and net sign-on cash.</li><li>Verify the new-city budget with real data: 10 rental comps, school zones, aftercare availability, summer care, backup care, parking, tolls, insurance, utilities, and travel back to family.</li><li>Build the spouse plan before moving: target roles, pay range, licensing needs, recruiter calls, applications, schedule fit, and 90/180/270-day checkpoints.</li><li>If accepted, stage the move if possible: earner starts first or remotely, family follows only after lease, school, and childcare are locked.</li><li>Set kill criteria: if rent exceeds cap, cash floor breaks, role stability looks weak, or spouse pipeline is not credible by a fixed date, do not move or renegotiate.</li></ol>
+<p class="r-title">5. Invariants And Guardrails</p>
+<ul><li>Do not count the <code>$20,000</code> sign-on at gross value.</li><li>Do not sign a lease above <code>$4,100-$4,300/month</code> without redoing the decision.</li><li>Preserve at least six months of essential new-city expenses after move costs, preferably more.</li><li>Do not count spouse income until there is a signed offer or a verified pipeline.</li><li>Do not buy a house or add debt in year one.</li><li>Do not move until school, childcare, and backup-care logistics are confirmed.</li><li>Build an explicit spouse operating agreement: job-search time, childcare coverage, trips home, and what happens if the new role’s hours expand.</li></ul>
+<p class="r-title">6. Risks / Missing Evidence</p>
+<p>Missing: exact metro/state, tax estimate, payroll deductions, benefits, retirement contributions, equity/bonus details, sign-on clawback, severance, manager/team stability, actual rent comps, school/aftercare slots, summer-care costs, parking/tolls, current lease-break costs, and spouse profession/licensing/pay data.</p>
+<p>Stale assumption: car, health, misc, and childcare costs are mostly held flat despite moving to a high-cost coastal metro.</p>
+<p>Core risk: the family moves from a supported two-earner system into a one-earner, no-network system exactly when job and family execution demands peak.</p>
+<p class="r-title">7. Concrete Evidence</p>
+<ul><li>Current cash flow: <code>$9,990</code> take-home minus <code>$7,240</code> expenses leaves <code>$2,750/month</code>.</li><li>New cash flow: <code>$10,267</code> take-home minus <code>$9,730</code> expenses leaves only <code>$537/month</code>.</li><li>Rent moves from <code>$2,200</code> to <code>$4,100</code>, a <code>$1,900/month</code> increase.</li><li>Spouse currently earns <code>$34,000/year</code> and “would almost certainly have to quit.”</li><li>Source says they have “family nearby and a lot of childcare help,” then later says they would lose “our free family childcare.”</li><li>The upside case depends on: “If my spouse lands even a <code>$42,000</code> job in year two.”</li><li>IRS Pub. 15-B 2026 says the moving-expense reimbursement exclusion is permanently eliminated for ordinary employees, with exceptions for specified groups, and says supplemental wage withholding remains 22%: https://www.irs.gov/publications/p15b</li></ul>
+<p>VERDICT: caution</p>
+        </div>
+      </div>
+      
+
+      
+
+    </article>
+    
+    <article class="seat">
+      <div class="seat-head">
+        <h3 class="seat-name">Gemini</h3>
+        <span class="seat-lens">Second-order &amp; downside lens</span>
+        <span class="seat-model">gemini-3-pro-preview</span>
+        
+      </div>
+
+      
+      <div class="round">
+        <div class="round-head">
+          <span class="round-tag">Round 1</span>
+          
+          <span class="vpill caution">Proceed with care</span>
+          
+        </div>
+        <div class="review-body">
+          
+          <p class="r-title">1. Verdict</p>
+<p>Verdict: CAUTION Confidence: High What would change it: Renegotiating the offer to include a true, grossed-up relocation package (protecting your liquid savings) and pricing out exact, verified childcare costs in the target zip code to prove the Year 1 budget is mathematically sound.</p>
+<p class="r-title">2. Strongest objections</p>
+<ul><li><strong>The "Success" Trap (What breaks if it works):</strong> If this new role is a "big step up" with a "bigger team, more scope," it will almost certainly demand more hours, more energy, and potentially travel. Because you are losing your local family support network, that operational overflow falls entirely on your spouse. If you succeed wildly at the new job, you may inadvertently trap your spouse in a full-time domestic/childcare role, making the "Year 2 spouse job" assumption impossible and locking you into the $537/mo savings rate indefinitely.</li><li><strong>Gross vs. Net Illusion on the Move:</strong> You state the $20,000 sign-on roughly covers the $18,000 move. It does not. Sign-on bonuses are taxed as supplemental income (typically ~22% federal plus state). You will likely net $11,000–$13,000. You are instantly $5,000–$7,000 in the red on the move itself, which will bleed out of your $70k savings before Year 1 even begins.</li><li><strong>The Childcare Contradiction:</strong> You acknowledge losing "free family childcare," yet your childcare budget for two kids in a "high-cost coastal metro" only increases by $200 (from $1,150 to $1,350). This is highly suspicious. Paid after-school care and summer coverage for two kids in a coastal metro without family backstops will likely obliterate your $537 monthly margin.</li><li><strong>Spousal Resentment as a Single Point of Failure:</strong> The spouse is absorbing 100% of the downside (losing their job, their local family network, their routine, and taking on the mental load of relocating the kids) while you get the prestige, title bump, and career trajectory. If the spouse breaks under this isolation, the financial model and the family structure fracture.</li></ul>
+<p class="r-title">3. Recommended execution sequence</p>
+<ul><li><strong>Phase 1: Counter the Offer.</strong> Do not accept a flat $20k sign-on. Demand a dedicated relocation package (movers paid directly by the company, temp housing) <em>plus</em> a sign-on bonus, or request a base salary bump to $190k+. Employers anchoring your new salary to your current LCOL salary is a common trap; $176k may actually be under-market for the coastal role's scope.</li><li><strong>Phase 2: The Spouse's Operating Agreement.</strong> Sit down and explicitly map the spouse's Year 1. Earmark a specific budget for their sanity (babysitters for their own free time, budget for flights home to see family). Do not treat them as a frictionless gear in your career machine.</li><li><strong>Phase 3: Verify the Math.</strong> Call three after-school programs in your target destination. Look at the actual state income tax brackets. Adjust the budget with hard data, not estimates.</li></ul>
+<p class="r-title">4. Invariants and guardrails</p>
+<ul><li><em>Invariant:</em> The $70,000 savings must not be used to subsidize monthly operating deficits. It is a one-way trip to financial ruin in a HCOL area.</li><li><em>Guardrail:</em> You must maintain an absolute minimum emergency fund capable of breaking a lease and moving back home if the job goes sideways in month 6. Do not lock up all liquidity in deposits and moving trucks.</li><li><em>Guardrail:</em> Do not sign a long-term (1+ year) lease unseen. Secure a short-term rental first to ensure the commute, neighborhood, and school zones are actually functional for your family system.</li></ul>
+<p class="r-title">5. Risks, stale assumptions, and missing evidence</p>
+<ul><li><em>Risk:</em> Job security. If you are laid off (common in coastal tech/corporate roles right now), your break-even point is astronomically higher, and you have zero local network to help bridge the gap.</li><li><em>Stale assumption:</em> Believing your grocery and utility bills will only increase by $250 and $80 respectively. Coastal HCOL pricing affects everything from gasoline to car insurance to a gallon of milk.</li><li><em>Missing evidence:</em> Spousal employability in the new market. You project a $42,000 job in Year 2. Is their industry viable there? Do they need local licenses/certifications?</li></ul>
+<p class="r-title">6. Concrete evidence from the source material</p>
+<ul><li><em>Quote:</em> "we lose the spouse's income and our free family childcare" / <em>Math:</em> "Childcare... $1,350" (These two statements are mathematically incompatible for a HCOL area).</li><li><em>Quote:</em> "flat $20,000 sign-on... roughly covers the move and not much else" (Demonstrates a failure to account for tax withholdings on bonuses).</li><li><em>Quote:</em> "If my spouse lands even a $42,000 job in year two... the whole picture flips strongly positive" (Shows the entire structural viability of this move relies on an unverified future event).</li></ul>
+<p class="r-title">7. What you would ask the other board seats to challenge</p>
+<ul><li><em>I ask the Financial/Quantitative Seat:</em> Please run a hard tax calculation on the $20k bonus and the $176k base in typical high-tax coastal states (e.g., CA/NY/MA). Prove whether their $10,267 take-home estimate is actually accurate.</li><li><em>I ask the Career/Market Seat:</em> Look at the $176k base for a "big name employer" with "more scope" in a coastal metro. Is this candidate being lowballed because the employer knows they currently only make $128k?</li></ul>
+<p>VERDICT: caution</p>
+        </div>
+      </div>
+      
+      <div class="round">
+        <div class="round-head">
+          <span class="round-tag">Round 2</span>
+          
+          <span class="vpill caution">Proceed with care</span>
+          
+        </div>
+        <div class="review-body">
+          
+          <p class="r-title">1. Updated verdict</p>
+<p>Verdict: CAUTION Confidence: High What would change it to ship: The employer converting the $20,000 sign-on into a fully grossed-up, comprehensive relocation package (protecting the $70k savings), plus a remodeled Year 2 budget that proves the spouse returning to work is mathematically viable after marginal taxes and full-time HCOL childcare.</p>
+<p class="r-title">2. Where you CHANGED YOUR MIND and where you STILL DISSENT</p>
+<ul><li><strong>Changed my mind (Claude):</strong> I previously focused on Year 1 as the primary danger zone. Claude's analysis of the Year 2 marginal tax rate completely shifted my perspective. Claude correctly identified that stacking a $42,000 spouse income on top of a $176,000 base in a high-tax state will not yield a "+$2,590/month" swing. Once you subtract marginal taxes (35-40%) and the true cost of working-parent HCOL childcare, the net financial return of the spouse working is near zero.</li><li><strong>Still Dissent (Claude):</strong> Claude frames this move as buying a "call option on a higher lifetime earnings trajectory." I strongly dissent from this sterile framing. A call option implies capped, purely financial downside. The downside here is un-capping the systemic stress on a dual-income family and forcing them into a 1950s single-earner dynamic without the local village they rely on. You aren't buying an option; you are shorting your marital operating system.</li><li><strong>Still Dissent (Codex):</strong> Codex recommends mitigating risk by running "spouse job discovery before moving." I disagree because it misses the structural incentive problem: even if the spouse finds a job, the new economic environment actively disincentivizes them from taking it.</li></ul>
+<p class="r-title">3. Strongest remaining objections</p>
+<ul><li><strong>The Structural Unemployment Trap:</strong> Building on Claude's tax math, if the new job demands the hours typical of a "step up" at a "big-name employer," the primary earner will vanish into the role. The spouse will absorb 100% of the childcare and domestic labor, totally isolated from their family backstops. Because the marginal cash ROI of the spouse taking a $42k job in Year 2 is negligible (after high taxes and HCOL childcare), the system will structurally trap the spouse in permanent unemployment.</li><li><strong>The "Success" Penalty (What breaks if it works):</strong> If you are wildly successful and get promoted again in Year 2, the tax bracket climbs higher, the hours get longer, and the spouse becomes even more entrenched as the sole domestic operator. The career compounds, but the family's isolation and the spouse's career disruption compound with it.</li><li><strong>Immediate Wealth Destruction:</strong> The $20k sign-on is gross, meaning you net ~$13k. The move costs $18k. You are starting Year 1 with a known $5,000 deficit before you even buy groceries, instantly bleeding the $70k savings you rely on for safety.</li></ul>
+<p class="r-title">4. Recommended execution sequence</p>
+<ol><li><strong>Run the true Year 2 Spouse ROI:</strong> Calculate the exact net take-home of the hypothetical $42,000 spouse job. Subtract 35-40% marginal tax, then subtract the delta between stay-at-home childcare ($0-$1,350) and full-time HCOL dual-working childcare ($2,500+). If this number is negative or trivial, you must make this decision assuming the spouse <em>never</em> works again.</li><li><strong>Renegotiate the Transition:</strong> Reject the flat $20k sign-on. Demand direct-billed movers, temporary housing, and a grossed-up cash bonus for incidentals. Do not subsidize a massive corporation's talent acquisition with your family's finite liquid savings.</li><li><strong>Draft a "Spouse Sanity" Budget:</strong> If the spouse is going to absorb the entire domestic shock of this move, line-item a dedicated budget (from the new $10,267 take-home) for their resilience—e.g., paid babysitting for their personal time, flights back home to see family.</li></ol>
+<p class="r-title">5. Invariants and guardrails</p>
+<ul><li><strong>Liquidity Floor:</strong> Your $70k savings must not drop below $50k during the relocation. If the employer refuses to gross-up the moving costs, you must walk away. A single-earner family with zero local network cannot survive in a coastal HCOL city with depleted cash reserves.</li><li><strong>Symmetry of Veto:</strong> The spouse must have an explicit, agreed-upon right to call a "code red" at month 9. If the isolation and domestic burden are breaking the family unit, there must be a pre-agreed trigger to plan an exit strategy.</li></ul>
+<p class="r-title">6. Risks, stale assumptions, and missing evidence</p>
+<ul><li><strong>Risk:</strong> The assumption that the kids will "move easily now." Kids age 5 and 8 are losing their grandparents, their local support network, and half of their parents' dual-presence (as the primary earner scales up at the new job). The operational friction of parenting will skyrocket.</li><li><strong>Stale Assumption:</strong> The budget holds car costs ($940), health premiums ($320), and misc ($390) entirely flat despite a cross-country move to a high-cost coastal metro. Coastal metros have higher insurance premiums, parking fees, tolls, and general living friction.</li><li><strong>Missing Evidence:</strong> The actual workload expectations of the new role. "Bigger team, more scope" usually translates to 50-60 hour weeks. The math model completely ignores the time-cost of the new salary.</li></ul>
+<p class="r-title">7. Concrete evidence from the source material</p>
+<ul><li><em>Quote:</em> "a flat $20,000 sign-on... the bonus roughly covers the move" — Ignores tax withholding; mathematically false.</li><li><em>Quote:</em> "we lose the spouse's income and our free family childcare" — Acknowledges the loss of the village, but fails to price the true replacement cost of that village if the spouse ever tries to return to work.</li><li><em>Quote:</em> "household take-home rises roughly +$2,590/month and the whole picture flips strongly positive" — (As Claude noted) Fails to apply marginal tax rates to the stacked income, creating a dangerous illusion of a Year 2 financial rescue.</li></ul>
+<p>VERDICT: caution</p>
+        </div>
+      </div>
+      
+
+      
+
+    </article>
+    
+
+  </section>
+
+  <!-- ===================== CONSENSUS BLOCKERS ===================== -->
+  <section>
+    <h2>What to resolve first</h2>
+    <ol class="blockers">
+      
+      <li>
+        <span class="b-title">The year-two spouse-income flip — the entire bull case — is fragile and likely overstated</span>
+        <div class="b-body">All three seats converged that the headline +$2,590/month year-two improvement is not credible. Claude&#x27;s economics catch: $2,590/mo = $31,080/yr net on $42k gross implies ~74% retention on a second income stacked on $176k in a high-tax state, where the realistic net after a ~35-40% marginal rate is ~$2,100-2,300/mo — and then real working-parent HCOL childcare must be subtracted, leaving roughly half the advertised swing. Gemini, adopting Claude&#x27;s tax math, concluded the net financial return of the spouse working is near zero after marginal taxes and full-time HCOL childcare. Gemini and Codex add the &#x27;success trap&#x27;: a step-up role at a big-name employer demands the hours and flexibility the family needs for re-employment, with zero local backup, so the spouse may be structurally trapped out of the workforce — meaning the linchpin event may never occur at all.</div>
+      </li>
+      
+      <li>
+        <span class="b-title">The $20,000 sign-on is gross and does not cover the move — a $5-7k deficit before year one starts</span>
+        <div class="b-body">Three seats, no dissent: the bonus is taxable, nets ~$11-13k (Claude adopts the lower edge), while the move costs ~$18k. Codex and Gemini cite that the moving-expense reimbursement exclusion is permanently eliminated for ordinary employees and supplemental withholding remains 22% before FICA/state effects. The result is a known ~$5-7k hole drawn straight from the $70k savings before year one begins.</div>
+      </li>
+      
+      <li>
+        <span class="b-title">The &#x27;take-home rises&#x27; headline rests on a 1-2 point tax estimate on an unnamed state and can invert</span>
+        <div class="b-body">Claude (the financial seat asked by Gemini to prove the $10,267 number) bounds it: the headline rests on a ~30.0% effective deduction; push to ~32% (reachable in CA/NY/MA-class states on a concentrated single income) and take-home falls to ~$9,970 — flat-to-down vs. today&#x27;s $9,990 — erasing the &#x27;raise more than offsets&#x27; framing. The claim that take-home rises is true only at the optimistic edge of an unnamed tax assumption.</div>
+      </li>
+      
+      <li>
+        <span class="b-title">Net liquidity breaches the emergency floor on day one; $537/month is no operating buffer</span>
+        <div class="b-body">The new plan leaves only $537/month margin. Claude argues for raising the floor to ~9 months of essential spend (~$60-65k liquid post-move), conceding Codex&#x27;s point that 6 months is too thin for a single-income, new-employer, no-network, far-from-family risk profile. With ~$65k post-move minus the $5-7k bonus-tax hole minus likely move overrun against a ~$60-65k floor, the family has effectively no runway, and the plan rebuilds it at only ~$6.4k/yr.</div>
+      </li>
+      
+      <li>
+        <span class="b-title">Rent (+$1,900/month) dominates the model and is unverified</span>
+        <div class="b-body">Rent jumps from $2,200 to $4,100 (+$1,900/month) and is the single highest-leverage unverified number. The document concedes the 37.5% raise is consumed &#x27;almost entirely because rent jumps +$1,900/month.&#x27; Claude notes that at a real $4,600 comp, year-one savings go negative, and the year-two flip silently assumes rent holds at $4,100 against a fixed salary.</div>
+      </li>
+      
+    </ol>
+  </section>
+
+  <!-- ===================== DISSENT / MINORITY REPORT ===================== -->
+  
+  <section>
+    <h2>Dissent &amp; minority report</h2>
+    <div class="dissent">
+      <span class="d-flag">Dissent on the record</span>
+      
+      <p><span class="who">Claude:</span> Holds a distinct line vs. the rest of the board: the +$2,590 retention math is itself wrong, not merely unverified — $2,590/mo implies ~74% retention on a second income stacked on $176k in a high-tax state, so the honest year-two improvement is roughly half the advertised swing. Also uniquely frames the decision as a call option on a higher lifetime earnings trajectory priced at ~$2,213/mo (~$26.5k/yr) of foregone savings plus relocation, spouse career disruption, and tail risk.</p>
+      
+      <p><span class="who">Gemini:</span> Dissents from Claude&#x27;s &#x27;call option&#x27; framing: a call option implies capped, purely financial downside, but the real downside is un-capping systemic stress on a dual-income family forced into a single-earner dynamic without their local village — &#x27;you are shorting your marital operating system.&#x27; Also dissents from Codex&#x27;s &#x27;run spouse job discovery before moving&#x27;: even if the spouse finds a job, the new economic environment (negligible marginal cash ROI after high taxes and HCOL childcare) actively disincentivizes taking it, structurally trapping the spouse in unemployment.</p>
+      
+      <p><span class="who">Codex:</span> Dissents from modeling year-one childcare as near-zero just because the spouse is home: a job-searching parent with kids ages 5 and 8 still needs aftercare, summer/break coverage, backup sitters, and interview/networking time. Also dissents from demanding $190k+ base as a first-line rule without market data — the more reliable ask is grossed-up relocation, temporary housing, clawback protection, and start-date flexibility before salary/equity.</p>
+      
+    </div>
+  </section>
+
+  <!-- ===================== WHAT THE BOARD COULDN'T VERIFY ===================== -->
+  
+  <section>
+    <h2>What the board couldn't verify</h2>
+    <div class="caveats">
+      <ul>
+        
+        <li><span class="c-claim">The financial seat cannot prove the $10,267 take-home is accurate because the document never names the destination state, which is the variable that drives the tax estimate.</span> — <span class="c-change"></span></li>
+        
+        <li><span class="c-claim">The claim that take-home rises versus today is true only at the optimistic edge of an unnamed-state tax assumption; at ~32% effective deduction it inverts.</span> — <span class="c-change"></span></li>
+        
+      </ul>
+    </div>
+  </section>
+
+  <!-- ===================== OPEN QUESTIONS ===================== -->
+  <section>
+    <h2>Open questions</h2>
+    <ul class="plain">
+      
+      <li>What is the exact destination metro/state? It drives the tax estimate and the central take-home fragility.</li>
+      
+      <li>What is a real rent comp for a 3BR adequate-commute family home in the actual target neighborhoods?</li>
+      
+      <li>What is the full compensation package — equity/RSUs, bonus target, 401(k) match — none of which are mentioned and any of which can dominate base?</li>
+      
+      <li>What are the sign-on clawback and severance/repayment-on-early-exit terms?</li>
+      
+      <li>What is the spouse&#x27;s concrete re-employment pipeline — profession, licensing needs, local pay bands, schedule fit — converted from the $42k assumption into live applications with dates?</li>
+      
+      <li>What are the actual workload/hour expectations of the new role (&#x27;bigger team, more scope&#x27; often implies 50-60 hour weeks)?</li>
+      
+      <li>Is the $10,267 figure already net of 401(k) contributions? If so, real wealth accumulation is understated and changes how tight year one is.</li>
+      
+    </ul>
+  </section>
+
+  <!-- ===================== NEXT ACTIONS ===================== -->
+  <section>
+    <h2>Next actions</h2>
+    <div class="actions">
+      <ol>
+        
+        <li>Get the full written offer before acceptance: base, bonus, equity/RSUs, 401(k), benefits, payroll timing, sign-on clawback, severance, start date, remote/hybrid and travel expectations, and relocation terms.</li>
+        
+        <li>Reprice net-of-tax: model the bonus at ~$11-13k net and the move at ~$18k plus contingency, fund the gap from savings explicitly, and confirm it does not breach the runway floor.</li>
+        
+        <li>Verify rent with 10 real rental comps in the actual target neighborhoods; set a hard go/no-go at roughly $4,100-$4,300/month.</li>
+        
+        <li>Rebuild the budget in two correct operating states — spouse home year one (childcare near-zero) and spouse working (real HCOL working-parent childcare plus the second income taxed at the marginal rate) — to produce the honest year-two number.</li>
+        
+        <li>Negotiate before signing: grossed-up/direct-billed relocation, 60-90 days temporary housing, lease/deposit support, sign-on clawback waived if laid off, delayed or remote start, spouse job-search support, and COL/base or equity uplift if comps justify it.</li>
+        
+        <li>Run spouse job discovery before moving: target roles, pay range, licensing, recruiter calls, live applications, schedule fit, with 90/180/270-day checkpoints.</li>
+        
+        <li>Set explicit kill criteria (e.g. spouse not re-employed at ≥ target by month 14, rent comp &gt; ~$4,300, cash floor breaks, role stability weak → renegotiate or walk) and a pre-agreed spouse &#x27;code red&#x27; trigger.</li>
+        
+        <li>Preserve at least ~9 months of HCOL essential expenses (~$60-65k liquid after move and bonus-tax), keep exit optionality (no home purchase, no new debt), and stage the move so the earner starts first while family follows after lease, school, and childcare are locked.</li>
+        
+      </ol>
+    </div>
+  </section>
+
+  </main>
+
+  <!-- ===================== FOOTER / COLOPHON (Panely / dark band) ===================== -->
+  
+  <footer class="colophon">
+    <div class="band-inner">
+      <span class="disclaimer">An advisory board sharpens your judgment; it doesn&#x27;t replace professional advice where your decision warrants it.</span>
+      <div class="colophon-grid">
+        <div class="colophon-about">
+          <div class="footer-lockup">
+            <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect x="2" y="2" width="96" height="96" rx="22" fill="#0a0e1a"/><circle cx="50" cy="50" r="30" fill="none" stroke="#3a5fd9" stroke-width="3" opacity="0.55"/><circle cx="50" cy="20" r="10" fill="#0a0e1a" stroke="#e2b658" stroke-width="4"/><circle cx="50" cy="20" r="4" fill="#e2b658"/><circle cx="76" cy="65" r="10" fill="#0a0e1a" stroke="#3d6bff" stroke-width="4"/><circle cx="76" cy="65" r="4" fill="#3d6bff"/><circle cx="24" cy="65" r="10" fill="#0a0e1a" stroke="#3d6bff" stroke-width="4"/><circle cx="24" cy="65" r="4" fill="#3d6bff"/><circle cx="50" cy="50" r="13" fill="#5b8cff"/><circle cx="50" cy="50" r="5.5" fill="#ffffff"/></svg>
+            <span>Advisory Board <span style="font-weight:400; color:var(--on-dark-soft); font-size:11.5px; letter-spacing:0.02em;">powered by Panely</span></span>
+          </div>
+          <p>Convene Claude, Codex, and Gemini on your own subscriptions — the ones you already pay for, no new accounts and no API keys — to review the same material and reach one clear verdict.</p>
+        </div>
+        <div class="colophon-cta">
+          <a class="cta" href="https://panely.ai">panely.ai</a>
+        </div>
+      </div>
+      <span class="prov">Board: Claude · Codex · Gemini · 2 rounds · 2026-06-27</span>
+    </div>
+  </footer>
+
+</body>
+</html>
