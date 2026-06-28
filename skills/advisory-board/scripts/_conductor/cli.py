@@ -547,7 +547,10 @@ def add_run_options(parser: argparse.ArgumentParser) -> None:
                              "--rounds 1|2|3. Persisted in the recipe so an auto run reproduces.")
     parser.add_argument("--cross-reading", dest="cross_reading",
                         choices=("none", "summaries", "full"))
-    parser.add_argument("--lens", help=f"lens preset (default {DEFAULT_LENS})")
+    parser.add_argument("--lens", action="append", metavar="PRESET | SEAT=LENS",
+                        help=f"lens preset for the board (default {DEFAULT_LENS}); repeat with "
+                             "SEAT=LENS to give one seat its own focus (a free-form string, or a "
+                             "preset name for its primary focus)")
     parser.add_argument("--board", help="comma-separated seats (default claude,codex,gemini)")
     parser.add_argument("--model", action="append", metavar="SEAT=ID",
                         help="override a seat's model (repeatable)")

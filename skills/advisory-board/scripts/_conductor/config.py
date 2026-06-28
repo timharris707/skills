@@ -195,6 +195,14 @@ def resolve_board(seat_specs: list, lens_preset: str, model_overrides: dict,
         if sid in seen:
             die(f"duplicate seat id {sid!r}; give each seat a distinct alias (alias=provider)")
         seen.add(sid)
+    # An override that targets a seat that isn't on the board is almost always a typo or a
+    # stale id — fail loudly rather than silently ignore it (the old behavior). A bare
+    # provider name is a valid target only when that provider is the seat's id (unique board).
+    for kind, keys in (("--model", model_overrides), ("--lens", lens_overrides)):
+        for key in keys:
+            if key not in seen:
+                die(f"{kind} targets seat {key!r}, which isn't on the board "
+                    f"({', '.join(sorted(seen))})")
     board: list = []
     for index, (sid, provider) in enumerate(ids):
         adapter = REGISTRY.get(provider)
@@ -232,26 +240,35 @@ def resolve_config(args) -> RunConfig:
     else:
         base = None
 
+    lens_overrides: dict = {}
     if base is not None and not getattr(args, "source", None):
         source = load_source(base["source_ref"])
-        # A recipe stores each seat's registry name in "seat" (its "provider" field is the
-        # display provider, e.g. "Anthropic" — not a REGISTRY key). Restore as bare
-        # providers: a single-provider board gives id==name, and duplicates re-derive the
-        # same provider#N ids deterministically. Alias + per-seat-lens round-trip is Phase 3.
-        seat_specs = [(None, s["seat"]) for s in base["board"]]
-        lens_preset = base.get("lens", DEFAULT_LENS)
-        # Restore the recipe's exact per-seat models so --from-recipe reproduces
-        # the original run; an explicit --model on the CLI still wins.
+        # Reconstruct the exact board from the recipe. Each entry's "seat" is the seat id
+        # and "registry" (when present) is its REGISTRY key; a default/auto-numbered seat
+        # restores as a bare provider so its id re-derives deterministically, while a true
+        # alias restores as alias=provider. Per-seat models and lenses are restored so a
+        # duplicate-seat / per-seat-lens run reproduces exactly; an explicit CLI --model wins.
+        seat_specs = []
         for entry in base["board"]:
-            model_overrides.setdefault(entry["seat"], entry["model"])
+            sid = entry["seat"]
+            registry = entry.get("registry", sid)
+            if registry == sid or re.match(rf"^{re.escape(registry)}#\d+$", sid):
+                seat_specs.append((None, registry))
+            else:
+                seat_specs.append((sid, registry))
+            model_overrides.setdefault(sid, entry["model"])
+            if entry.get("lens"):
+                lens_overrides.setdefault(sid, entry["lens"])
+        lens_preset = base.get("lens", DEFAULT_LENS)
     else:
         if not getattr(args, "source", None):
             die("a --source is required (PATH, or - for stdin)")
         source = load_source(args.source)
         seat_specs = parse_board(getattr(args, "board", None))
-        lens_preset = getattr(args, "lens", None) or (base or {}).get("lens", DEFAULT_LENS)
+        board_preset, lens_overrides = parse_lens_args(getattr(args, "lens", None))
+        lens_preset = board_preset or (base or {}).get("lens", DEFAULT_LENS)
 
-    board = resolve_board(seat_specs, lens_preset, model_overrides)
+    board = resolve_board(seat_specs, lens_preset, model_overrides, lens_overrides)
 
     mode = getattr(args, "mode", None) or (base or {}).get("mode") or "gate"
     if mode not in ("gate", "advisory"):
@@ -398,3 +415,40 @@ def parse_model_overrides(pairs: list) -> dict:
         seat, _, model = pair.partition("=")
         overrides[seat.strip()] = model.strip()
     return overrides
+
+
+def _resolve_seat_lens(value: str) -> str:
+    """A per-seat lens VALUE is either a free-form focus string (used verbatim) or a
+    known preset name, which expands to that preset's PRIMARY (first) focus."""
+    preset = LENS_PRESETS.get(value)
+    return preset[0] if preset else value
+
+
+def parse_lens_args(values) -> tuple:
+    """Split the repeated --lens into (board_preset|None, {seat_id: focus}).
+
+    A bare token is the board-level preset (the verdict's vocabulary/disclaimer +
+    the positional default focus trio); an `id=value` token overrides one seat's
+    focus. At most one bare preset is allowed."""
+    if values is None:
+        values = []
+    if isinstance(values, str):   # a test/_args may pass a single string
+        values = [values]
+    board_preset = None
+    overrides: dict = {}
+    for raw in values:
+        item = (raw or "").strip()
+        if not item:
+            continue
+        if "=" in item:
+            sid, _, val = item.partition("=")
+            sid, val = sid.strip(), val.strip()
+            if not sid or not val:
+                die(f"--lens per-seat override {item!r} must be id=lens")
+            overrides[sid] = _resolve_seat_lens(val)
+        elif board_preset is not None and board_preset != item:
+            die(f"--lens given two board presets ({board_preset!r} and {item!r}); pass at "
+                "most one bare preset — per-seat focus uses id=lens")
+        else:
+            board_preset = item
+    return board_preset, overrides

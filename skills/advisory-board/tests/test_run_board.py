@@ -397,6 +397,67 @@ class TestSeatComposition(unittest.TestCase):
         self.assertEqual(assign_seat_ids([(None, "claude"), (None, "claude"), (None, "codex")]),
                          [("claude#1", "claude"), ("claude#2", "claude"), ("codex", "codex")])
 
+    # --- Phase 3: per-seat lens via the CLI + override validation ----------- #
+
+    def test_cli_per_seat_lens_override_reaches_the_seat(self):
+        c = resolve_config(_args(source=SAMPLE, board="econ=claude,risk=claude,exec=codex",
+                                 lens=["business-decision", "risk=Tail risk only"]))
+        by_id = {s.id: s for s in c.board}
+        self.assertEqual(by_id["risk"].lens, "Tail risk only")       # the override lands
+        self.assertEqual(c.lens, "business-decision")                # board vocabulary kept
+        self.assertNotEqual(by_id["econ"].lens, "Tail risk only")    # others keep positional default
+
+    def test_cli_per_seat_lens_preset_name_expands_to_primary_focus(self):
+        from _conductor.constants import LENS_PRESETS
+        c = resolve_config(_args(source=SAMPLE, board="econ=claude,risk=claude,exec=codex",
+                                 lens=["business-decision", "econ=legal-contract"]))
+        by_id = {s.id: s for s in c.board}
+        self.assertEqual(by_id["econ"].lens, LENS_PRESETS["legal-contract"][0])
+
+    def test_cli_two_bare_presets_rejected(self):
+        with self.assertRaises(SystemExit):
+            resolve_config(_args(source=SAMPLE, board="claude,codex",
+                                 lens=["business-decision", "legal-contract"]))
+
+    def test_cli_unknown_lens_target_is_rejected(self):
+        with self.assertRaises(SystemExit):
+            resolve_config(_args(source=SAMPLE, board="claude,codex", lens=["bogus=Some focus"]))
+
+    def test_cli_unknown_model_target_is_rejected(self):
+        with self.assertRaises(SystemExit):
+            resolve_config(_args(source=SAMPLE, board="claude,codex", model=["gemini=x"]))
+
+    # --- Phase 3: recipe round-trip ---------------------------------------- #
+
+    def _round_trip(self, **kw):
+        c = resolve_config(_args(source=SAMPLE, **kw))
+        text = rb.dump_recipe(rb.config_to_recipe(c))
+        path = os.path.join(tempfile.mkdtemp(prefix="board-sc-"), "run-recipe.yaml")
+        with open(path, "w") as fh:
+            fh.write(text)
+        return rb.resolve_config(_args(source=None, from_recipe=path))
+
+    def test_recipe_round_trips_aliases_models_and_lenses(self):
+        restored = self._round_trip(board="econ=claude,risk=claude,exec=codex",
+                                    lens=["business-decision", "risk=Tail risk only"],
+                                    model=["risk=claude-opus-4-7"])
+        by_id = {s.id: s for s in restored.board}
+        self.assertEqual(sorted(by_id), ["econ", "exec", "risk"])
+        self.assertEqual(by_id["risk"].lens, "Tail risk only")        # per-seat lens reproduced
+        self.assertEqual(by_id["risk"].model, "claude-opus-4-7")      # per-seat model reproduced
+        self.assertEqual(by_id["econ"].name, "claude")                # provider restored from registry
+        self.assertEqual(by_id["exec"].name, "codex")
+
+    def test_recipe_round_trips_auto_numbered_duplicates(self):
+        restored = self._round_trip(board="claude,claude,codex")
+        self.assertEqual([s.id for s in restored.board], ["claude#1", "claude#2", "codex"])
+
+    def test_recipe_default_board_omits_registry_field(self):
+        # Byte-identical guard: a default board's recipe must not gain a `registry` key.
+        c = resolve_config(_args(source=SAMPLE))
+        text = rb.dump_recipe(rb.config_to_recipe(c))
+        self.assertNotIn("registry", text)
+
 
 # --------------------------------------------------------------------------- #
 # Packet + hash + prompts

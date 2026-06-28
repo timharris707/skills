@@ -429,15 +429,15 @@ footer.colophon code { background: var(--surface-2); }
         </div>
       </div>
       <div class="gauge">
-        <svg class="ring" viewBox="0 0 120 120" width="118" height="118" role="img" aria-label="Overall progress 60%">
+        <svg class="ring" viewBox="0 0 120 120" width="118" height="118" role="img" aria-label="Overall progress 80%">
           <circle class="ring-track" cx="60" cy="60" r="52" fill="none" stroke-width="11"/>
           <circle class="ring-arc" cx="60" cy="60" r="52" fill="none" stroke-width="11"
                   stroke-linecap="round" transform="rotate(-90 60 60)"
-                  stroke-dasharray="326.7" stroke-dashoffset="130.7"/>
-          <text class="ring-pct" x="60" y="57" text-anchor="middle" dominant-baseline="middle">60%</text>
+                  stroke-dasharray="326.7" stroke-dashoffset="65.3"/>
+          <text class="ring-pct" x="60" y="57" text-anchor="middle" dominant-baseline="middle">80%</text>
           <text class="ring-sub" x="60" y="76" text-anchor="middle" dominant-baseline="middle">complete</text>
         </svg>
-        <div class="gauge-count"><b>12</b> / 20 tasks done</div>
+        <div class="gauge-count"><b>16</b> / 20 tasks done</div>
       </div>
     </div>
 
@@ -479,8 +479,8 @@ footer.colophon code { background: var(--surface-2); }
           <div class="ms-meta">
             <span class="badge todo"><span class="dot"></span>To do</span>
             <span class="ms-progress">
-              <span class="ms-bar"><span style="width:60%"></span></span>
-              12/20
+              <span class="ms-bar"><span style="width:80%"></span></span>
+              16/20
             </span>
           </div>
         </div>
@@ -562,28 +562,23 @@ footer.colophon code { background: var(--surface-2); }
         
       </div>
       
-      <div class="phase todo">
+      <div class="phase done">
         <div class="phase-head">
           <span class="phase-dot"></span>
           <h4 class="phase-title">Phase 3 — Targeting: <code>--model</code> / per-seat <code>--lens</code> by id + recipe round-trip</h4>
-          <span class="phase-state">To do</span>
+          <span class="phase-state">Done</span>
         </div>
         <ul class="checklist">
           
-          <li class="todo"><span class="tick"></span><span class="task-text"><code>parse_model_overrides</code> + its consumption + the recipe restore key by <strong>id</strong> (<code>--model risk=…</code>, <code>--model claude#2=…</code>); a bare provider name still resolves when unique. Override targeting a nonexistent id → <code>die</code>.</span></li>
+          <li class="done"><span class="tick">✓</span><span class="task-text"><code>--model</code> keys by <strong>id</strong> (<code>--model risk=…</code>, <code>--model claude#2=…</code>); a bare provider name still resolves when unique (id==provider). Override targeting a nonexistent id → <code>die</code> (both <code>--model</code> and <code>--lens</code>).</span></li>
           
-          <li class="todo"><span class="tick"></span><span class="task-text">Per-seat lens override surface: <code>--lens</code> accepts the board-level preset (bare) <strong>and/or</strong> <code>id=VALUE</code> per-seat assignments. <code>VALUE</code> = a free-form focus string, or a preset name → its primary focus. <code>resolve_board</code> uses the override when present, else the positional default <code>trio[index]</code>.</span></li>
+          <li class="done"><span class="tick">✓</span><span class="task-text">Per-seat lens surface: <code>--lens</code> is now repeatable — a bare token is the board preset, <code>id=VALUE</code> overrides one seat. <code>VALUE</code> = a free-form focus string, or a preset name → its primary focus (<code>_resolve_seat_lens</code>). <code>parse_lens_args</code> splits them; <code>resolve_board</code> uses the override else the positional default. Two bare presets → <code>die</code>.</span></li>
           
-          <li class="todo"><span class="tick"></span><span class="task-text"><strong>Recipe round-trip:</strong> persist + <strong>restore</strong> per-seat <code>{id, provider, model, lens}</code>; <code>config.py</code> <code>--from-recipe</code> path restores per-seat lens (currently ignored). <code>validate_recipe</code> enforces id uniqueness.</span></li>
+          <li class="done"><span class="tick">✓</span><span class="task-text"><strong>Recipe round-trip:</strong> the recipe stores each seat&#x27;s <code>id</code> as <code>seat</code> + a <code>registry</code> key (REGISTRY name) <strong>only when id≠name</strong>; <code>config_to_recipe</code> via <code>_recipe_seat</code>. Restore reconstructs aliases vs auto-numbered ids, and restores per-seat model + lens. <code>validate_recipe</code> validates the provider via <code>registry</code>/<code>seat</code> and enforces unique ids. A default board&#x27;s recipe omits <code>registry</code> (byte-identical).</span></li>
           
-          <li class="todo"><span class="tick"></span><span class="task-text">Loud errors: duplicate alias, unknown provider, override → unknown id, malformed <code>--lens id=</code>.</span></li>
+          <li class="done"><span class="tick">✓</span><span class="task-text">Loud errors: duplicate alias/id, unknown provider, override → unknown id, two bare presets, malformed <code>--lens id=</code>.</span></li>
           
         </ul>
-        
-        <div class="testing">
-          <p class="t-label">Testing strategy</p>
-          <div class="t-body"><p><code>--model claude#1=…</code> and <code>--model claude#2=…</code> hit the right seats; <code>--lens risk=legal-contract</code> sets only that seat&#x27;s lens; a per-seat-lens run round-trips identically through <code>--from-recipe</code>; each error case raises with a clear message.</p></div>
-        </div>
         
         
         <div class="gate">
@@ -635,7 +630,7 @@ footer.colophon code { background: var(--surface-2); }
 
   <!-- ===================== COLOPHON ===================== -->
   <footer class="colophon">
-    Rendered from <code>run-board-seat-composition.md</code> &middot; 1 milestones &middot; 12/20 tasks complete. The markdown plan is the source of truth &mdash; regenerate with <code>render_plan.py</code>; never hand-edit this file.
+    Rendered from <code>run-board-seat-composition.md</code> &middot; 1 milestones &middot; 16/20 tasks complete. The markdown plan is the source of truth &mdash; regenerate with <code>render_plan.py</code>; never hand-edit this file.
   </footer>
 
 </div>

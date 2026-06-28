@@ -77,13 +77,13 @@ Testing: `TestSynthesizerE2E.test_duplicate_seats_get_distinct_ids_and_artifacts
 Gate: unittest (full suite).
 
 ### Phase 3 — Targeting: `--model` / per-seat `--lens` by id + recipe round-trip
-status: planned
+status: done
 Let users address a specific seat for model and lens, and make duplicate-seat / per-seat-lens runs **reproducible** under `--from-recipe` (today the recipe writes per-seat lens but never reads it back).
-- [ ] `parse_model_overrides` + its consumption + the recipe restore key by **id** (`--model risk=…`, `--model claude#2=…`); a bare provider name still resolves when unique. Override targeting a nonexistent id → `die`.
-- [ ] Per-seat lens override surface: `--lens` accepts the board-level preset (bare) **and/or** `id=VALUE` per-seat assignments. `VALUE` = a free-form focus string, or a preset name → its primary focus. `resolve_board` uses the override when present, else the positional default `trio[index]`.
-- [ ] **Recipe round-trip:** persist + **restore** per-seat `{id, provider, model, lens}`; `config.py` `--from-recipe` path restores per-seat lens (currently ignored). `validate_recipe` enforces id uniqueness.
-- [ ] Loud errors: duplicate alias, unknown provider, override → unknown id, malformed `--lens id=`.
-Testing: `--model claude#1=…` and `--model claude#2=…` hit the right seats; `--lens risk=legal-contract` sets only that seat's lens; a per-seat-lens run round-trips identically through `--from-recipe`; each error case raises with a clear message.
+- [x] `--model` keys by **id** (`--model risk=…`, `--model claude#2=…`); a bare provider name still resolves when unique (id==provider). Override targeting a nonexistent id → `die` (both `--model` and `--lens`).
+- [x] Per-seat lens surface: `--lens` is now repeatable — a bare token is the board preset, `id=VALUE` overrides one seat. `VALUE` = a free-form focus string, or a preset name → its primary focus (`_resolve_seat_lens`). `parse_lens_args` splits them; `resolve_board` uses the override else the positional default. Two bare presets → `die`.
+- [x] **Recipe round-trip:** the recipe stores each seat's `id` as `seat` + a `registry` key (REGISTRY name) **only when id≠name**; `config_to_recipe` via `_recipe_seat`. Restore reconstructs aliases vs auto-numbered ids, and restores per-seat model + lens. `validate_recipe` validates the provider via `registry`/`seat` and enforces unique ids. A default board's recipe omits `registry` (byte-identical).
+- [x] Loud errors: duplicate alias/id, unknown provider, override → unknown id, two bare presets, malformed `--lens id=`.
+Testing (8 new): per-seat `--lens` reaches the seat + preset-name expands to primary focus; unknown `--model`/`--lens` target rejected; recipe round-trips aliases+models+lenses AND auto-numbered duplicates; default recipe omits `registry`. **674 tests pass.**
 Gate: unittest (full suite).
 
 ### Phase 4 — Docs, adversarial review, demo
