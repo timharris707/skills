@@ -424,26 +424,26 @@ footer.colophon code { background: var(--surface-2); }
           
           <span class="chip"><b>Baseline</b> advisory-board @ `main` `837fb0d` (v1.8.0 line · 649 tests green)</span>
           
-          <span class="chip"><b>Status</b> APPROVED (Tim, 2026-06-28) — building. **Syntax:** auto-number + optional alias. **Per-seat lens value:** free-form focus string OR a preset name (→ its primary focus).</span>
+          <span class="chip"><b>Status</b> SHIPPED (2026-06-28) — merged to `main`, released **`advisory-board/v1.9.0`** (Latest). **Syntax:** auto-number + optional alias. **Per-seat lens value:** free-form focus string OR a preset name (→ its primary focus). 674 tests · 0 adversarial-review defects · default board byte-identical.</span>
           
         </div>
       </div>
       <div class="gauge">
-        <svg class="ring" viewBox="0 0 120 120" width="118" height="118" role="img" aria-label="Overall progress 90%">
+        <svg class="ring" viewBox="0 0 120 120" width="118" height="118" role="img" aria-label="Overall progress 95%">
           <circle class="ring-track" cx="60" cy="60" r="52" fill="none" stroke-width="11"/>
           <circle class="ring-arc" cx="60" cy="60" r="52" fill="none" stroke-width="11"
                   stroke-linecap="round" transform="rotate(-90 60 60)"
-                  stroke-dasharray="326.7" stroke-dashoffset="32.7"/>
-          <text class="ring-pct" x="60" y="57" text-anchor="middle" dominant-baseline="middle">90%</text>
+                  stroke-dasharray="326.7" stroke-dashoffset="16.3"/>
+          <text class="ring-pct" x="60" y="57" text-anchor="middle" dominant-baseline="middle">95%</text>
           <text class="ring-sub" x="60" y="76" text-anchor="middle" dominant-baseline="middle">complete</text>
         </svg>
-        <div class="gauge-count"><b>18</b> / 20 tasks done</div>
+        <div class="gauge-count"><b>19</b> / 20 tasks done</div>
       </div>
     </div>
 
     <div class="rail">
       
-      <span class="rail-item todo"><i class="dot"></i>M1</span>
+      <span class="rail-item done"><i class="dot"></i>M1</span>
       
     </div>
     <div class="legend">
@@ -471,16 +471,16 @@ footer.colophon code { background: var(--surface-2); }
     <div class="section-head"><h2 class="section-title">Milestones</h2><span class="rule"></span></div>
 
     
-    <article class="milestone todo">
+    <article class="milestone done">
       <div class="ms-head">
         <div class="ms-num">1</div>
         <div class="ms-head-main">
           <h3 class="ms-title">Flexible seat composition</h3>
           <div class="ms-meta">
-            <span class="badge todo"><span class="dot"></span>To do</span>
+            <span class="badge done"><span class="dot"></span>Done</span>
             <span class="ms-progress">
-              <span class="ms-bar"><span style="width:90%"></span></span>
-              18/20
+              <span class="ms-bar"><span style="width:95%"></span></span>
+              19/20
             </span>
           </div>
         </div>
@@ -588,11 +588,11 @@ footer.colophon code { background: var(--surface-2); }
         
       </div>
       
-      <div class="phase wip">
+      <div class="phase done">
         <div class="phase-head">
           <span class="phase-dot"></span>
           <h4 class="phase-title">Phase 4 — Docs, adversarial review, demo</h4>
-          <span class="phase-state">In progress</span>
+          <span class="phase-state">Done</span>
         </div>
         <ul class="checklist">
           
@@ -600,9 +600,9 @@ footer.colophon code { background: var(--surface-2); }
           
           <li class="done"><span class="tick">✓</span><span class="task-text">Adversarial review: <strong>three parallel skeptics</strong> — identity/collision, egress/consent <strong>security</strong>, and byte-identical+recipe. <strong>0 confirmed defects.</strong> Each verified live against a duplicate-seat board: every identity/path site uses <code>seat.id</code>; consent still binds every byte (both same-provider blobs in <code>packet_hash</code>); disclosure names every provider; <code>_ALIAS_RE</code> blocks path traversal; the default board is byte-for-byte identical to <code>main</code> (empirically diffed). Added the one suggested guard (default board&#x27;s <code>verdict.json</code> omits <code>id</code>).</span></li>
           
-          <li class="todo"><span class="tick"></span><span class="task-text">Demo (optional, off the gallery track): a <code>2× Opus + 1× Codex</code> run with three explicit lenses, rendered to confirm 3 distinct seat cards + dissent attribution reads cleanly.</span></li>
+          <li class="todo"><span class="tick"></span><span class="task-text">Demo (optional) — deferred: Tim chose the relocation gallery packet as the next thread instead. A live <code>2× Opus + 1× Codex</code> demo run remains a nice-to-have.</span></li>
           
-          <li class="todo"><span class="tick"></span><span class="task-text">Release: skill-scoped semver tag once Tim signs off (memory: milestone merge → <code>advisory-board/vX.Y.Z</code>; outward-facing release needs Tim&#x27;s explicit go).</span></li>
+          <li class="done"><span class="tick">✓</span><span class="task-text">Release: <strong><code>advisory-board/v1.9.0</code></strong> tagged + GitHub release (Latest), <code>--target main</code>, on Tim&#x27;s explicit go.</span></li>
           
         </ul>
         
@@ -630,7 +630,7 @@ footer.colophon code { background: var(--surface-2); }
 
   <!-- ===================== COLOPHON ===================== -->
   <footer class="colophon">
-    Rendered from <code>run-board-seat-composition.md</code> &middot; 1 milestones &middot; 18/20 tasks complete. The markdown plan is the source of truth &mdash; regenerate with <code>render_plan.py</code>; never hand-edit this file.
+    Rendered from <code>run-board-seat-composition.md</code> &middot; 1 milestones &middot; 19/20 tasks complete. The markdown plan is the source of truth &mdash; regenerate with <code>render_plan.py</code>; never hand-edit this file.
   </footer>
 
 </div>
