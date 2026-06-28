@@ -87,10 +87,10 @@ Testing (8 new): per-seat `--lens` reaches the seat + preset-name expands to pri
 Gate: unittest (full suite).
 
 ### Phase 4 — Docs, adversarial review, demo
-status: planned
+status: in-progress
 Document the new composition surface, prove it on a real run, and gate the merge with adversarial review (the refactor touches prompt/egress paths).
-- [ ] Docs: `SKILL.md` (board choice + the syntax), `references/board-composition.md` (duplicate seats, ids, targeting), `references/lens-presets.md` (per-seat lens + custom focus). Keep frontier model IDs inline (memory: never abstract/downgrade them).
-- [ ] Adversarial review: one correctness round (parallel finders) + a focused **identity/egress skeptic** (does any seat-id path still collide? does consent still bind every byte? any silent dedup left?). Fix confirmed findings + add regression tests.
+- [x] Docs: `SKILL.md` (board choice + the syntax), `references/board-composition.md` (new **Naming & targeting** section: ids, auto-number, aliases, `--model`/`--lens` by id), `references/lens-presets.md` (per-seat lens via repeated `--lens id=value`). Frontier model IDs kept inline.
+- [x] Adversarial review: **three parallel skeptics** — identity/collision, egress/consent **security**, and byte-identical+recipe. **0 confirmed defects.** Each verified live against a duplicate-seat board: every identity/path site uses `seat.id`; consent still binds every byte (both same-provider blobs in `packet_hash`); disclosure names every provider; `_ALIAS_RE` blocks path traversal; the default board is byte-for-byte identical to `main` (empirically diffed). Added the one suggested guard (default board's `verdict.json` omits `id`).
 - [ ] Demo (optional, off the gallery track): a `2× Opus + 1× Codex` run with three explicit lenses, rendered to confirm 3 distinct seat cards + dissent attribution reads cleanly.
 - [ ] Release: skill-scoped semver tag once Tim signs off (memory: milestone merge → `advisory-board/vX.Y.Z`; outward-facing release needs Tim's explicit go).
 Gate: full suite green + adversarial review clean + the default-board byte-identical regression holds.

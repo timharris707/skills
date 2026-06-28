@@ -4571,6 +4571,9 @@ class TestSynthesizerE2E(EnvMixin):
         # The conductor's authoritative skeleton is preserved.
         self.assertEqual(data["schema"], "advisory-board/verdict@2")
         self.assertEqual(len(data["board"]), 3)
+        # Byte-identical guard: a default board's board[] entries carry NO `id` field
+        # (it is emitted only for aliased/auto-numbered seats).
+        self.assertNotIn("id", data["board"][0])
         # The synthesizer's content fields land.
         self.assertIn(data["verdict"], ("ship", "caution", "block"))
         self.assertIn(data["confidence"], ("low", "medium", "high"))
