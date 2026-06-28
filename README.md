@@ -32,16 +32,21 @@ Default behavior: two rounds of review and rebuttal; read-only unless edits are 
 
 ## See It In Action
 
-Here's a real board debating a real decision — *"Should I go full-time on my side project?"*
+Here's a real board debating a real decision — *"Should we relocate our family across the country for this job offer?"* The offer looks great on paper: a **+37.5% raise**. The board's job was to check whether the headline survives contact with the math.
 
-> **Verdict: Proceed with care — unanimous, high confidence.** The blocker all three advisors converged on: *"Income case never closes: $12k MRR ≠ replacing a $165k salary."* They didn't say "don't do it" — they said exactly what had to be true first, and handed back the next steps to get there.
+> **Verdict: Go ahead, with conditions — unanimous, high confidence.** The reveal all three advisors converged on: the raise is *consumed almost entirely by rent*, quietly collapsing monthly savings from **$2,750 to $537**; the $20k "covers the move" sign-on is gross and nets ~$11–13k against an ~$18k move; and the "take-home rises" headline **inverts** at a realistic tax rate. They didn't say "don't" — they said exactly what to resolve first, and handed back the next steps.
 
-Every run ends in a single, self-contained HTML handoff — verdict, the round-by-round debate, consensus blockers, preserved dissent, and next actions — that opens offline in any browser with no dependencies.
+**Read it two ways — start with the skim:**
 
-- **View a live sample:** [rendered handoff for the side-project decision](https://htmlpreview.github.io/?https://github.com/timharris707/skills/blob/main/examples/side-project-go-full-time-review/final-consensus.html)
-- **Browse the full run:** [`examples/side-project-go-full-time-review/`](./examples/side-project-go-full-time-review/) — per-seat round notes, the board packet, and both the Markdown and HTML handoffs.
+- **The 30-second brief:** [quick-verdict for the relocation decision](https://htmlpreview.github.io/?https://github.com/timharris707/skills/blob/main/examples/should-we-relocate-our-family-across-the-country-for-this-job-offer/quick-verdict.html) — the verdict, the must-resolve blockers as one-liners, the top next steps. The teaser you'd forward.
+- **The full handoff:** [the complete record](https://htmlpreview.github.io/?https://github.com/timharris707/skills/blob/main/examples/should-we-relocate-our-family-across-the-country-for-this-job-offer/final-consensus.html) — the round-by-round debate, every consensus blocker, and preserved cross-model dissent (Gemini: *"you're shorting your marital operating system"*).
+- **See the input, too:** [the decision brief](./examples/should-we-relocate-our-family-across-the-country-for-this-job-offer/decision.md) the board reviewed — good input in, good output out.
 
-**Also built for engineers:** point the board at a real codebase and advisors cite exact `path:line` evidence. Every run also emits a machine-readable [`verdict.json`](./examples/side-project-go-full-time-review/verdict.json); `scripts/board_verdict.py --gate` turns the board's `ship | caution | block` call into a CI exit code, and `scripts/format_output.py` reshapes it into a PR comment, Slack message, or TL;DR. See the technical [payments idempotency review](https://htmlpreview.github.io/?https://github.com/timharris707/skills/blob/main/examples/payments-idempotency-review/final-consensus.html) for a code-grounded run.
+Every run ends in a single, self-contained HTML handoff that opens offline in any browser with no dependencies.
+
+**Also built for engineers:** point the board at a real codebase and advisors cite exact `path:line` evidence. Every run also emits a machine-readable [`verdict.json`](./examples/payments-idempotency-review/verdict.json); `scripts/board_verdict.py --gate` turns the board's `ship | caution | block` call into a CI exit code, and `scripts/format_output.py` reshapes it into a PR comment, Slack message, or TL;DR. See the technical [payments idempotency review](https://htmlpreview.github.io/?https://github.com/timharris707/skills/blob/main/examples/payments-idempotency-review/final-consensus.html) for a code-grounded run.
+
+**More runs to browse:** the [side-project go-full-time decision](./examples/side-project-go-full-time-review/) and the [API rate-limiter readiness review](./examples/ratelimiter-readiness-review/).
 
 The look comes from one template, [`handoff-template.html`](./skills/advisory-board/references/handoff-template.html), so any agent that installs the skill renders the same clean output.
 
