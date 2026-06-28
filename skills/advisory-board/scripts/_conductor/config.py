@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import re
 import sys
 from dataclasses import dataclass
 from typing import Optional, TYPE_CHECKING
@@ -51,7 +52,9 @@ class SourceSpec:
 
 @dataclass
 class SeatConfig:
-    name: str
+    id: str              # unique per-seat identity (alias, or provider[#N]) — the run's key:
+                         # filesystem paths, dicts, cross-reading, render, dissent attribution
+    name: str            # provider/registry name (claude/codex/gemini) — adapter + egress provider
     adapter: SeatAdapter
     model: str
     lens: str
@@ -60,6 +63,17 @@ class SeatConfig:
     @property
     def provider(self) -> str:
         return self.adapter.provider
+
+    @property
+    def label(self) -> str:
+        """Human display label. For a bare unique seat this is just the provider
+        (e.g. "Claude"); for an alias or an auto-numbered duplicate it disambiguates
+        (e.g. "econ" / "Claude #2")."""
+        if self.id == self.name:
+            return self.name.capitalize()
+        if self.id.startswith(f"{self.name}#"):
+            return f"{self.name.capitalize()} #{self.id.split('#', 1)[1]}"
+        return self.id
 
 
 @dataclass
@@ -107,7 +121,7 @@ class RunConfig:
         """
         if not self.gate_mode:
             return []
-        return [s.name for s in self.board if not s.adapter.isolates_network]
+        return [s.id for s in self.board if not s.adapter.isolates_network]
 
 
 def load_source(ref: str) -> SourceSpec:
@@ -141,20 +155,69 @@ def _source_from_text(kind: str, ref: str, text: str) -> SourceSpec:
     )
 
 
-def resolve_board(seat_names: list, lens_preset: str, model_overrides: dict) -> list:
+def assign_seat_ids(seat_specs: list) -> list:
+    """Turn parsed board entries [(alias|None, provider), ...] into unique ids.
+
+    An alias is the id verbatim. A bare provider keeps its name as the id unless that
+    provider is bare-repeated, in which case the repeats are numbered provider#1, #2…
+    in board order. So a unique-provider board (claude,codex,gemini) keeps id==name —
+    byte-identical to the pre-feature behavior. Returns [(id, provider), ...]."""
+    bare_total: dict = {}
+    for alias, provider in seat_specs:
+        if alias is None:
+            bare_total[provider] = bare_total.get(provider, 0) + 1
+    bare_seen: dict = {}
+    out = []
+    for alias, provider in seat_specs:
+        if alias is not None:
+            sid = alias
+        elif bare_total.get(provider, 0) > 1:
+            bare_seen[provider] = bare_seen.get(provider, 0) + 1
+            sid = f"{provider}#{bare_seen[provider]}"
+        else:
+            sid = provider
+        out.append((sid, provider))
+    return out
+
+
+def resolve_board(seat_specs: list, lens_preset: str, model_overrides: dict,
+                  lens_overrides: Optional[dict] = None) -> list:
     lenses = LENS_PRESETS.get(lens_preset)
     if lenses is None:
         die(f"unknown lens preset {lens_preset!r}; choose from {', '.join(sorted(LENS_PRESETS))}")
+    lens_overrides = lens_overrides or {}
+    ids = assign_seat_ids(seat_specs)
+    # Uniqueness guard — replaces today's SILENT collapse of two same-named seats with a
+    # loud failure. Only reachable when a user aliases two seats identically (auto-numbering
+    # can't collide); we surface it rather than overwrite one seat's artifacts/board entry.
+    seen: set = set()
+    for sid, _ in ids:
+        if sid in seen:
+            die(f"duplicate seat id {sid!r}; give each seat a distinct alias (alias=provider)")
+        seen.add(sid)
+    # An override that targets a seat that isn't on the board is almost always a typo or a
+    # stale id — fail loudly rather than silently ignore it (the old behavior). A bare
+    # provider name is a valid target only when that provider is the seat's id (unique board).
+    for kind, keys in (("--model", model_overrides), ("--lens", lens_overrides)):
+        for key in keys:
+            if key not in seen:
+                die(f"{kind} targets seat {key!r}, which isn't on the board "
+                    f"({', '.join(sorted(seen))})")
     board: list = []
-    for index, name in enumerate(seat_names):
-        adapter = REGISTRY.get(name)
+    for index, (sid, provider) in enumerate(ids):
+        adapter = REGISTRY.get(provider)
         if adapter is None:
-            die(f"unknown seat {name!r}; known seats: {', '.join(sorted(REGISTRY))}")
-        lens = lenses[index] if index < len(lenses) else lenses[-1]
+            die(f"unknown seat {provider!r}; known seats: {', '.join(sorted(REGISTRY))}")
+        # Lens: an explicit per-seat override (by id) wins; else the preset's positional
+        # default (slot i → lens i; seats past the trio reuse the last focus).
+        lens = lens_overrides.get(sid) or (lenses[index] if index < len(lenses) else lenses[-1])
         board.append(SeatConfig(
-            name=name,
+            id=sid,
+            name=provider,
             adapter=adapter,
-            model=model_overrides.get(name, adapter.default_model),
+            # Model override is keyed by id; a bare provider name == its id when unique,
+            # so `--model claude=…` still works for a single-Claude board.
+            model=model_overrides.get(sid, adapter.default_model),
             lens=lens,
             reasoning=adapter.default_reasoning,
         ))
@@ -177,22 +240,35 @@ def resolve_config(args) -> RunConfig:
     else:
         base = None
 
+    lens_overrides: dict = {}
     if base is not None and not getattr(args, "source", None):
         source = load_source(base["source_ref"])
-        seat_names = [s["seat"] for s in base["board"]]
-        lens_preset = base.get("lens", DEFAULT_LENS)
-        # Restore the recipe's exact per-seat models so --from-recipe reproduces
-        # the original run; an explicit --model on the CLI still wins.
+        # Reconstruct the exact board from the recipe. Each entry's "seat" is the seat id
+        # and "registry" (when present) is its REGISTRY key; a default/auto-numbered seat
+        # restores as a bare provider so its id re-derives deterministically, while a true
+        # alias restores as alias=provider. Per-seat models and lenses are restored so a
+        # duplicate-seat / per-seat-lens run reproduces exactly; an explicit CLI --model wins.
+        seat_specs = []
         for entry in base["board"]:
-            model_overrides.setdefault(entry["seat"], entry["model"])
+            sid = entry["seat"]
+            registry = entry.get("registry", sid)
+            if registry == sid or re.match(rf"^{re.escape(registry)}#\d+$", sid):
+                seat_specs.append((None, registry))
+            else:
+                seat_specs.append((sid, registry))
+            model_overrides.setdefault(sid, entry["model"])
+            if entry.get("lens"):
+                lens_overrides.setdefault(sid, entry["lens"])
+        lens_preset = base.get("lens", DEFAULT_LENS)
     else:
         if not getattr(args, "source", None):
             die("a --source is required (PATH, or - for stdin)")
         source = load_source(args.source)
-        seat_names = parse_board(getattr(args, "board", None))
-        lens_preset = getattr(args, "lens", None) or (base or {}).get("lens", DEFAULT_LENS)
+        seat_specs = parse_board(getattr(args, "board", None))
+        board_preset, lens_overrides = parse_lens_args(getattr(args, "lens", None))
+        lens_preset = board_preset or (base or {}).get("lens", DEFAULT_LENS)
 
-    board = resolve_board(seat_names, lens_preset, model_overrides)
+    board = resolve_board(seat_specs, lens_preset, model_overrides, lens_overrides)
 
     mode = getattr(args, "mode", None) or (base or {}).get("mode") or "gate"
     if mode not in ("gate", "advisory"):
@@ -297,13 +373,38 @@ def derive_title(source: SourceSpec) -> str:
     return (first[:60] or "Advisory board review").strip()
 
 
+# An alias is a user-chosen seat id; it becomes a filesystem path component and a CLI
+# target, so it is restricted to safe chars and must not contain '#' (reserved for the
+# provider#N auto-numbering convention).
+_ALIAS_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+
+
 def parse_board(value: Optional[str]) -> list:
+    """Parse --board into [(alias|None, provider), ...] in board order.
+
+    Each comma-separated entry is either a bare `provider` (claude/codex/gemini) or an
+    `alias=provider` (a user-named seat). The default board is the three providers, bare."""
     if not value:
-        return ["claude", "codex", "gemini"]
-    seats = [s.strip() for s in value.split(",") if s.strip()]
-    if not seats:
+        return [(None, "claude"), (None, "codex"), (None, "gemini")]
+    specs: list = []
+    for raw in value.split(","):
+        item = raw.strip()
+        if not item:
+            continue
+        if "=" in item:
+            alias, _, provider = item.partition("=")
+            alias, provider = alias.strip(), provider.strip()
+            if not alias or not provider:
+                die(f"--board entry {item!r} must be alias=provider")
+            if not _ALIAS_RE.match(alias):
+                die(f"--board alias {alias!r} must be alphanumeric (A-Z a-z 0-9 . _ -) and "
+                    "may not contain '#'")
+        else:
+            alias, provider = None, item
+        specs.append((alias, provider))
+    if not specs:
         die("--board must list at least one seat")
-    return seats
+    return specs
 
 
 def parse_model_overrides(pairs: list) -> dict:
@@ -314,3 +415,40 @@ def parse_model_overrides(pairs: list) -> dict:
         seat, _, model = pair.partition("=")
         overrides[seat.strip()] = model.strip()
     return overrides
+
+
+def _resolve_seat_lens(value: str) -> str:
+    """A per-seat lens VALUE is either a free-form focus string (used verbatim) or a
+    known preset name, which expands to that preset's PRIMARY (first) focus."""
+    preset = LENS_PRESETS.get(value)
+    return preset[0] if preset else value
+
+
+def parse_lens_args(values) -> tuple:
+    """Split the repeated --lens into (board_preset|None, {seat_id: focus}).
+
+    A bare token is the board-level preset (the verdict's vocabulary/disclaimer +
+    the positional default focus trio); an `id=value` token overrides one seat's
+    focus. At most one bare preset is allowed."""
+    if values is None:
+        values = []
+    if isinstance(values, str):   # a test/_args may pass a single string
+        values = [values]
+    board_preset = None
+    overrides: dict = {}
+    for raw in values:
+        item = (raw or "").strip()
+        if not item:
+            continue
+        if "=" in item:
+            sid, _, val = item.partition("=")
+            sid, val = sid.strip(), val.strip()
+            if not sid or not val:
+                die(f"--lens per-seat override {item!r} must be id=lens")
+            overrides[sid] = _resolve_seat_lens(val)
+        elif board_preset is not None and board_preset != item:
+            die(f"--lens given two board presets ({board_preset!r} and {item!r}); pass at "
+                "most one bare preset — per-seat focus uses id=lens")
+        else:
+            board_preset = item
+    return board_preset, overrides

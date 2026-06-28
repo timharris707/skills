@@ -129,7 +129,15 @@ def cmd_toolchain(args) -> int:
     # No --board => check EVERY registered seat CLI (incl. ones outside the default
     # board, like antigravity), since toolchain currency is about all installed CLIs.
     board_arg = getattr(args, "board", None)
-    names = parse_board(board_arg) if board_arg else list(REGISTRY.keys())
+    if board_arg:
+        # parse_board returns (alias, provider) specs; toolchain currency is per-CLI, so
+        # check each distinct provider once (a duplicate-seat board reuses one CLI).
+        names = []
+        for _, provider in parse_board(board_arg):
+            if provider not in names:
+                names.append(provider)
+    else:
+        names = list(REGISTRY.keys())
     unknown = [n for n in names if n not in REGISTRY]
     if unknown:
         die(f"unknown seat(s): {', '.join(unknown)}", EXIT_USAGE)
@@ -539,7 +547,10 @@ def add_run_options(parser: argparse.ArgumentParser) -> None:
                              "--rounds 1|2|3. Persisted in the recipe so an auto run reproduces.")
     parser.add_argument("--cross-reading", dest="cross_reading",
                         choices=("none", "summaries", "full"))
-    parser.add_argument("--lens", help=f"lens preset (default {DEFAULT_LENS})")
+    parser.add_argument("--lens", action="append", metavar="PRESET | SEAT=LENS",
+                        help=f"lens preset for the board (default {DEFAULT_LENS}); repeat with "
+                             "SEAT=LENS to give one seat its own focus (a free-form string, or a "
+                             "preset name for its primary focus)")
     parser.add_argument("--board", help="comma-separated seats (default claude,codex,gemini)")
     parser.add_argument("--model", action="append", metavar="SEAT=ID",
                         help="override a seat's model (repeatable)")

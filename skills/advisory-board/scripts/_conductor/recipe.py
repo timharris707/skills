@@ -205,6 +205,20 @@ RECIPE_COMMENTS = {
 }
 
 
+def _recipe_seat(seat) -> dict:
+    """One board entry for the recipe. `seat` is the unique seat id; `registry` (the
+    REGISTRY key needed to restore an alias/duplicate) is added only when it differs
+    from the id, so a default board's recipe is byte-identical to before."""
+    entry = {"seat": seat.id}
+    if seat.id != seat.name:
+        entry["registry"] = seat.name
+    entry["provider"] = seat.provider
+    entry["model"] = seat.model
+    entry["lens"] = seat.lens
+    entry["reasoning"] = seat.reasoning
+    return entry
+
+
 def config_to_recipe(config: RunConfig) -> dict:
     unenforced = config.unenforced_network_seats
     if config.network_on:
@@ -239,19 +253,10 @@ def config_to_recipe(config: RunConfig) -> dict:
         "source_bytes": config.source.nbytes,
         "source_lines": config.source.nlines,
         "source_sha256": config.source.sha256,
-        "board": [
-            {
-                "seat": seat.name,
-                "provider": seat.provider,
-                "model": seat.model,
-                "lens": seat.lens,
-                "reasoning": seat.reasoning,
-            }
-            for seat in config.board
-        ],
+        "board": [_recipe_seat(seat) for seat in config.board],
         "egress_consent": "tiered",
         "egress_providers": [
-            f"{seat.name} seat -> {seat.provider}" for seat in config.board
+            f"{seat.id} seat -> {seat.provider}" for seat in config.board
         ],
         "isolation_network": network,
         "isolation_network_unenforced": unenforced,
@@ -287,12 +292,22 @@ def validate_recipe(recipe: dict) -> None:
     board = recipe.get("board")
     if not isinstance(board, list) or not board:
         die("recipe: 'board' must be a non-empty list of seats")
+    seen_ids: set = set()
     for index, seat in enumerate(board):
         if not isinstance(seat, dict):
             die(f"recipe: board[{index}] must be a mapping (seat/model/...)")
-        name = seat.get("seat")
-        if not isinstance(name, str) or name not in REGISTRY:
-            die(f"recipe: board[{index}].seat must be one of {', '.join(sorted(REGISTRY))}; got {name!r}")
+        sid = seat.get("seat")
+        if not isinstance(sid, str) or not sid.strip():
+            die(f"recipe: board[{index}].seat must be a non-empty seat id; got {sid!r}")
+        if sid in seen_ids:
+            die(f"recipe: duplicate board seat id {sid!r}")
+        seen_ids.add(sid)
+        # The provider (REGISTRY key) is `registry` when present, else the id itself
+        # (a default/bare seat where id == provider).
+        registry = seat.get("registry", sid)
+        if not isinstance(registry, str) or registry not in REGISTRY:
+            die(f"recipe: board[{index}] provider must be one of {', '.join(sorted(REGISTRY))}; "
+                f"got {registry!r}")
         if "model" in seat and not isinstance(seat["model"], str):
             die(f"recipe: board[{index}].model must be a string")
     for key, allowed in _RECIPE_ENUMS.items():
@@ -309,12 +324,13 @@ def validate_recipe(recipe: dict) -> None:
         if not isinstance(ss, str) or ss not in REGISTRY:
             die(f"recipe: 'synthesizer_seat' must be one of {', '.join(sorted(REGISTRY))} or null; "
                 f"got {ss!r}")
-        # The synth seat must also be in THIS recipe's board (same rule as
-        # resolve_config — egress to a board provider only).
-        board_names = {s.get("seat") for s in board if isinstance(s, dict)}
-        if ss not in board_names:
-            pretty = ", ".join(sorted(n for n in board_names if isinstance(n, str)))
-            die(f"recipe: 'synthesizer_seat' {ss!r} is not in this recipe's board "
+        # The synth seat must egress to a provider ON the board (same rule as
+        # resolve_config). It's named by provider, so check the board's providers
+        # (each entry's `registry`, or its `seat` id when that IS the provider).
+        board_providers = {s.get("registry", s.get("seat")) for s in board if isinstance(s, dict)}
+        if ss not in board_providers:
+            pretty = ", ".join(sorted(n for n in board_providers if isinstance(n, str)))
+            die(f"recipe: 'synthesizer_seat' {ss!r} is not a provider in this recipe's board "
                 f"({pretty}); the synthesizer egresses to that seat's provider, which "
                 "the run's disclosure only covers for board seats")
     # Repo-grounding fields (optional; present only for a grounded recipe).

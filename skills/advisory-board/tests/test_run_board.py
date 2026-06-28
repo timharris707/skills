@@ -39,6 +39,11 @@ import format_output as fo  # noqa: E402  (share formats; lens-aware verdict lab
 import _verdict_labels as vl  # noqa: E402  (lens-aware human label module)
 from _conductor import grounding as grd  # noqa: E402  (repo-grounding: scope/snapshot/manifest)
 from _conductor.config import resolve_config as resolve_config  # noqa: E402
+from _conductor.config import (  # noqa: E402  (seat composition: ids, alias parsing)
+    parse_board,
+    resolve_board,
+    assign_seat_ids,
+)
 
 SRC_FIXTURE = os.path.join(FIXTURES, "src")
 PACKET_FIXTURE = os.path.join(FIXTURES, "packet.txt")
@@ -294,6 +299,164 @@ class TestConfig(EnvMixin):
         self.assertEqual(c.source.kind, "stdin")
         self.assertEqual(c.source.ref, "-")
         self.assertIn("stdin", c.source.text)
+
+
+class TestSeatComposition(unittest.TestCase):
+    """Flexible seat composition (design/run-board-seat-composition.md) — Phase 1:
+    a unique per-seat id (alias, or provider#N), alias=provider parsing, and the
+    uniqueness guard that replaces today's silent collapse of duplicate seats."""
+
+    def _ids(self, board, lens="business-decision", **kw):
+        return [s.id for s in resolve_board(parse_board(board), lens, {}, **kw)]
+
+    # --- id assignment ----------------------------------------------------- #
+
+    def test_bare_duplicate_providers_auto_number(self):
+        self.assertEqual(self._ids("claude,claude,codex"), ["claude#1", "claude#2", "codex"])
+        self.assertEqual(self._ids("claude,claude,claude"),
+                         ["claude#1", "claude#2", "claude#3"])
+
+    def test_aliases_become_ids_verbatim(self):
+        self.assertEqual(self._ids("econ=claude,risk=claude,exec=codex"),
+                         ["econ", "risk", "exec"])
+
+    def test_unique_bare_board_is_byte_identical_ids(self):
+        # The regression guard: a unique-provider board keeps id == provider name.
+        self.assertEqual(self._ids("claude,codex,gemini"), ["claude", "codex", "gemini"])
+        # default board (None) likewise
+        self.assertEqual([s.id for s in resolve_board(parse_board(None), "business-decision", {})],
+                         ["claude", "codex", "gemini"])
+
+    def test_single_bare_alongside_alias_keeps_bare_name(self):
+        # one bare claude (unique among bare) stays "claude"; the aliased one is "econ".
+        self.assertEqual(self._ids("claude,econ=claude"), ["claude", "econ"])
+
+    def test_label_disambiguates_duplicates_and_aliases(self):
+        board = resolve_board(parse_board("claude,claude,exec=codex"), "business-decision", {})
+        self.assertEqual([s.label for s in board], ["Claude #1", "Claude #2", "exec"])
+        # a plain unique seat is just the capitalized provider
+        plain = resolve_board(parse_board("claude,codex"), "business-decision", {})
+        self.assertEqual([s.label for s in plain], ["Claude", "Codex"])
+
+    # --- provider stays the registry/adapter key --------------------------- #
+
+    def test_duplicate_seats_share_provider_and_adapter(self):
+        board = resolve_board(parse_board("a=claude,b=claude"), "business-decision", {})
+        self.assertEqual([s.name for s in board], ["claude", "claude"])
+        self.assertEqual(board[0].adapter, board[1].adapter)
+        self.assertNotEqual(board[0].id, board[1].id)
+
+    # --- lenses: positional default already differs per seat --------------- #
+
+    def test_positional_lenses_differ_across_duplicate_seats(self):
+        board = resolve_board(parse_board("claude,claude,codex"), "business-decision", {})
+        foci = [s.lens.split("—")[0].strip() for s in board]
+        self.assertEqual(len(set(foci)), 3)  # three distinct foci, even with two Claudes
+
+    def test_lens_override_by_id_wins_over_positional(self):
+        board = resolve_board(parse_board("econ=claude,risk=claude,exec=codex"),
+                              "business-decision", {}, lens_overrides={"risk": "Tail risk only"})
+        by_id = {s.id: s.lens for s in board}
+        self.assertEqual(by_id["risk"], "Tail risk only")
+        self.assertNotEqual(by_id["econ"], "Tail risk only")  # others keep positional default
+
+    # --- model override keyed by id ---------------------------------------- #
+
+    def test_model_override_targets_one_duplicate_seat(self):
+        board = resolve_board(parse_board("claude,claude,codex"), "business-decision",
+                              {"claude#2": "claude-opus-4-7"})
+        by_id = {s.id: s.model for s in board}
+        self.assertEqual(by_id["claude#2"], "claude-opus-4-7")
+        self.assertNotEqual(by_id["claude#1"], "claude-opus-4-7")  # #1 keeps the default
+
+    def test_bare_model_override_still_works_for_unique_provider(self):
+        board = resolve_board(parse_board("claude,codex"), "business-decision",
+                              {"claude": "claude-opus-4-7"})
+        self.assertEqual({s.id: s.model for s in board}["claude"], "claude-opus-4-7")
+
+    # --- loud failure replaces silent collapse ----------------------------- #
+
+    def test_duplicate_alias_is_rejected(self):
+        with self.assertRaises(SystemExit):
+            resolve_board(parse_board("econ=claude,econ=gemini"), "business-decision", {})
+
+    def test_alias_colliding_with_bare_name_is_rejected(self):
+        with self.assertRaises(SystemExit):
+            resolve_board(parse_board("claude,claude=codex"), "business-decision", {})
+
+    def test_unknown_provider_is_rejected(self):
+        with self.assertRaises(SystemExit):
+            resolve_board(parse_board("claude,bogus"), "business-decision", {})
+
+    def test_bad_alias_chars_are_rejected(self):
+        for bad in ("a b=claude", "x#1=claude", "=claude", "econ="):
+            with self.assertRaises(SystemExit):
+                parse_board(bad)
+
+    def test_assign_seat_ids_is_pure(self):
+        self.assertEqual(assign_seat_ids([(None, "claude"), (None, "claude"), (None, "codex")]),
+                         [("claude#1", "claude"), ("claude#2", "claude"), ("codex", "codex")])
+
+    # --- Phase 3: per-seat lens via the CLI + override validation ----------- #
+
+    def test_cli_per_seat_lens_override_reaches_the_seat(self):
+        c = resolve_config(_args(source=SAMPLE, board="econ=claude,risk=claude,exec=codex",
+                                 lens=["business-decision", "risk=Tail risk only"]))
+        by_id = {s.id: s for s in c.board}
+        self.assertEqual(by_id["risk"].lens, "Tail risk only")       # the override lands
+        self.assertEqual(c.lens, "business-decision")                # board vocabulary kept
+        self.assertNotEqual(by_id["econ"].lens, "Tail risk only")    # others keep positional default
+
+    def test_cli_per_seat_lens_preset_name_expands_to_primary_focus(self):
+        from _conductor.constants import LENS_PRESETS
+        c = resolve_config(_args(source=SAMPLE, board="econ=claude,risk=claude,exec=codex",
+                                 lens=["business-decision", "econ=legal-contract"]))
+        by_id = {s.id: s for s in c.board}
+        self.assertEqual(by_id["econ"].lens, LENS_PRESETS["legal-contract"][0])
+
+    def test_cli_two_bare_presets_rejected(self):
+        with self.assertRaises(SystemExit):
+            resolve_config(_args(source=SAMPLE, board="claude,codex",
+                                 lens=["business-decision", "legal-contract"]))
+
+    def test_cli_unknown_lens_target_is_rejected(self):
+        with self.assertRaises(SystemExit):
+            resolve_config(_args(source=SAMPLE, board="claude,codex", lens=["bogus=Some focus"]))
+
+    def test_cli_unknown_model_target_is_rejected(self):
+        with self.assertRaises(SystemExit):
+            resolve_config(_args(source=SAMPLE, board="claude,codex", model=["gemini=x"]))
+
+    # --- Phase 3: recipe round-trip ---------------------------------------- #
+
+    def _round_trip(self, **kw):
+        c = resolve_config(_args(source=SAMPLE, **kw))
+        text = rb.dump_recipe(rb.config_to_recipe(c))
+        path = os.path.join(tempfile.mkdtemp(prefix="board-sc-"), "run-recipe.yaml")
+        with open(path, "w") as fh:
+            fh.write(text)
+        return rb.resolve_config(_args(source=None, from_recipe=path))
+
+    def test_recipe_round_trips_aliases_models_and_lenses(self):
+        restored = self._round_trip(board="econ=claude,risk=claude,exec=codex",
+                                    lens=["business-decision", "risk=Tail risk only"],
+                                    model=["risk=claude-opus-4-7"])
+        by_id = {s.id: s for s in restored.board}
+        self.assertEqual(sorted(by_id), ["econ", "exec", "risk"])
+        self.assertEqual(by_id["risk"].lens, "Tail risk only")        # per-seat lens reproduced
+        self.assertEqual(by_id["risk"].model, "claude-opus-4-7")      # per-seat model reproduced
+        self.assertEqual(by_id["econ"].name, "claude")                # provider restored from registry
+        self.assertEqual(by_id["exec"].name, "codex")
+
+    def test_recipe_round_trips_auto_numbered_duplicates(self):
+        restored = self._round_trip(board="claude,claude,codex")
+        self.assertEqual([s.id for s in restored.board], ["claude#1", "claude#2", "codex"])
+
+    def test_recipe_default_board_omits_registry_field(self):
+        # Byte-identical guard: a default board's recipe must not gain a `registry` key.
+        c = resolve_config(_args(source=SAMPLE))
+        text = rb.dump_recipe(rb.config_to_recipe(c))
+        self.assertNotIn("registry", text)
 
 
 # --------------------------------------------------------------------------- #
@@ -4408,6 +4571,9 @@ class TestSynthesizerE2E(EnvMixin):
         # The conductor's authoritative skeleton is preserved.
         self.assertEqual(data["schema"], "advisory-board/verdict@2")
         self.assertEqual(len(data["board"]), 3)
+        # Byte-identical guard: a default board's board[] entries carry NO `id` field
+        # (it is emitted only for aliased/auto-numbered seats).
+        self.assertNotIn("id", data["board"][0])
         # The synthesizer's content fields land.
         self.assertIn(data["verdict"], ("ship", "caution", "block"))
         self.assertIn(data["confidence"], ("low", "medium", "high"))
@@ -4436,6 +4602,49 @@ class TestSynthesizerE2E(EnvMixin):
         # The CLI's next-steps message points at the populated verdict.json.
         self.assertIn("synthesized", text)
         self.assertIn("verdict.json", text)
+
+    def test_duplicate_seats_get_distinct_ids_and_artifacts(self):
+        # 2 Claude + 1 Codex: the two Claude seats must NOT collapse. Distinct prompts,
+        # distinct round files (both rounds), and 3 distinct board entries in verdict.json.
+        out = self._out()
+        code, text, _ = run_cli(["run", "--source", SAMPLE, "--out", out, "--yes",
+                                 "--board", "claude,claude,codex", "--synthesize"])
+        self.assertEqual(code, rb.EXIT_OK)
+        self.assertIn("3 of 3 seats produced a usable round-1 review", text)
+        for rel in ("prompts/claude#1-round-1.prompt", "prompts/claude#2-round-1.prompt",
+                    "prompts/codex-round-1.prompt",
+                    "round-1/claude#1.md", "round-1/claude#2.md", "round-1/codex.md",
+                    "round-2/claude#1.md", "round-2/claude#2.md",
+                    "logs/claude#1-round-1.stderr", "logs/claude#2-round-1.stderr"):
+            self.assertTrue(os.path.exists(os.path.join(out, rel)), rel)
+        with open(os.path.join(out, "verdict.json")) as fh:
+            data = json.load(fh)
+        self.assertEqual(len(data["board"]), 3)            # not collapsed to 2
+        ids = [b.get("id") for b in data["board"]]
+        self.assertIn("claude#1", ids)
+        self.assertIn("claude#2", ids)
+        # The two Claude seats took different positional lenses (distinct foci).
+        claude_lenses = [b["lens"] for b in data["board"]
+                         if (b.get("id") or "").startswith("claude")]
+        self.assertEqual(len(claude_lenses), 2)
+        self.assertNotEqual(claude_lenses[0], claude_lenses[1])
+        bv.validate(data)                                  # passes the gate-time schema check
+
+    def test_aliased_seats_flow_end_to_end(self):
+        # Aliases key the whole run: distinct files by alias, board entries by alias id.
+        out = self._out()
+        code, _, _ = run_cli(["run", "--source", SAMPLE, "--out", out, "--yes",
+                              "--board", "econ=claude,risk=claude,exec=codex", "--synthesize"])
+        self.assertEqual(code, rb.EXIT_OK)
+        for rel in ("round-1/econ.md", "round-1/risk.md", "round-1/exec.md"):
+            self.assertTrue(os.path.exists(os.path.join(out, rel)), rel)
+        with open(os.path.join(out, "verdict.json")) as fh:
+            data = json.load(fh)
+        self.assertEqual(sorted(b.get("id") for b in data["board"]), ["econ", "exec", "risk"])
+        # The full handoff renders without a missing round-review (glob matches the alias file).
+        hd = rv.build_handoff_data(data, run_dir=out)
+        econ = next(s for s in hd["seats"] if s["seat_name"] == "econ")
+        self.assertTrue(econ["rounds"][0]["round_review"])
 
     def test_synthesizer_smuggle_skeleton_keys_are_dropped(self):
         # A synthesizer reply that tries to overwrite schema/title/rounds/board MUST

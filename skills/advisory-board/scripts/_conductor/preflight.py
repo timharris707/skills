@@ -34,7 +34,7 @@ __all__ = [
 
 @dataclass
 class SeatPreflight:
-    seat: str
+    seat: str            # the seat id (claude / claude#1 / an alias) — unique per board slot
     binary_ok: bool
     auth: str            # human-readable; never a token
     model_ok: bool
@@ -42,6 +42,7 @@ class SeatPreflight:
     go: bool
     detail: str
     model_proposal: Optional[str] = None  # a resolvable fallback id when the pinned one 404s
+    provider: str = ""   # the seat's provider/registry name (for install guidance + --board suggestions)
 
 
 def preflight_seat(seat: SeatConfig, *, network_on: bool, workdir: Optional[str] = None,
@@ -51,8 +52,9 @@ def preflight_seat(seat: SeatConfig, *, network_on: bool, workdir: Optional[str]
     version = spawn(adapter, adapter.version_argv(), timeout=15)
     binary_ok = version.exit_code == 0
     if not binary_ok:
-        return SeatPreflight(seat.name, False, "n/a", False, "dropped", False,
-                             f"binary not present / --version exit {version.exit_code}")
+        return SeatPreflight(seat.id, False, "n/a", False, "dropped", False,
+                             f"binary not present / --version exit {version.exit_code}",
+                             provider=seat.name)
 
     prompt = SMOKE_PROMPT
     argv = adapter.build_argv(seat.model, prompt, reasoning=seat.reasoning,
@@ -74,8 +76,8 @@ def preflight_seat(seat: SeatConfig, *, network_on: bool, workdir: Optional[str]
         detail = f"version ok; model '{seat.model}' did not resolve ({FAILURE_MODEL})"
         if proposal:
             detail += f"; fallback that resolves: {proposal}"
-        return SeatPreflight(seat.name, binary_ok, "unknown (model id did not resolve)",
-                             False, "dropped", False, detail, proposal)
+        return SeatPreflight(seat.id, binary_ok, "unknown (model id did not resolve)",
+                             False, "dropped", False, detail, proposal, provider=seat.name)
 
     # The smoke ping proves model + transport end to end and that *some* auth is
     # live, but we do NOT run a separate session/whoami probe, so we report the
@@ -93,7 +95,7 @@ def preflight_seat(seat: SeatConfig, *, network_on: bool, workdir: Optional[str]
 
     go = binary_ok and model_ok and status in ("ran", "degraded")
     detail = f"version ok; smoke {status}" + (f" ({failure})" if failure else "")
-    return SeatPreflight(seat.name, binary_ok, auth, model_ok, status, go, detail)
+    return SeatPreflight(seat.id, binary_ok, auth, model_ok, status, go, detail, provider=seat.name)
 
 
 def run_preflight(config: RunConfig) -> list:
@@ -142,12 +144,14 @@ def render_board_guidance(preflight: list, config: RunConfig) -> str:
     if len(go) >= 2:
         return ""
 
-    by_name = {s.name: s for s in config.board}
+    # Look the adapter up by provider — install guidance is per-CLI, and a duplicate-seat
+    # board can have several ids sharing one provider/CLI.
+    by_provider = {s.name: s for s in config.board}
     missing, unusable = [], []
     for p in preflight:
         if p.go:
             continue
-        (missing if not p.binary_ok else unusable).append(p.seat)
+        (missing if not p.binary_ok else unusable).append(p)
 
     lines = [f"Only {len(go)} of {len(preflight)} seats are usable — a board needs at "
              "least 2 independent voices. Here's how to get there:"]
@@ -155,11 +159,15 @@ def render_board_guidance(preflight: list, config: RunConfig) -> str:
     if missing:
         lines.append("")
         lines.append("CLIs not installed (install ≠ account — you still need provider auth):")
-        for name in missing:
-            seat = by_name.get(name)
+        seen_provider = set()
+        for p in missing:
+            if p.provider in seen_provider:   # one install line per CLI, not per seat
+                continue
+            seen_provider.add(p.provider)
+            seat = by_provider.get(p.provider)
             adapter = seat.adapter if seat else None
             cmd = " ".join(adapter.install_argv()) if (adapter and adapter.install_argv) else "(no installer known)"
-            line = f"  {name}: {cmd}"
+            line = f"  {p.provider}: {cmd}"
             if adapter and adapter.auth_hint:
                 line += f"  ·  then {adapter.auth_hint}"
             lines.append(line)
@@ -168,7 +176,7 @@ def render_board_guidance(preflight: list, config: RunConfig) -> str:
     if unusable:
         lines.append("")
         lines.append("Installed but not usable right now (check auth/login or model availability): "
-                     + ", ".join(unusable))
+                     + ", ".join(p.seat for p in unusable))
 
     lines.append("")
     lines.append("Other ways to still run a board:")
@@ -176,9 +184,11 @@ def render_board_guidance(preflight: list, config: RunConfig) -> str:
         lines.append(f"  • Same-provider, multi-lens board with what works ({', '.join(p.seat for p in go)}): "
                      "two seats on the same model with different lenses. Less independent — flag it in "
                      "provenance. See references/board-composition.md.")
+    # The retry --board uses providers (valid --board tokens); duplicates auto-number.
+    go_providers = ",".join(p.provider for p in go)
     lines.append("  • Add a local-model seat — runnable now, no account or egress: "
                  "`brew install ollama`, pull a model (`ollama pull <model>`), then add it "
-                 "with `--board " + (",".join(p.seat for p in go) + "," if go else "") +
+                 "with `--board " + (go_providers + "," if go else "") +
                  "ollama --model ollama=<model>`. Or capture a human review as a seat. "
                  "See references/board-composition.md.")
     return "\n".join(lines)

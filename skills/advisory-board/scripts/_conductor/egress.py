@@ -45,11 +45,11 @@ def build_round2(config: RunConfig, prev_results: list, round_no: int = 2) -> tu
     repo_lines = config.grounding.content_lines if config.grounding is not None else None
     board_packet = build_round2_packet(usable, config.cross_reading, round_no=round_no,
                                        repo_lines=repo_lines)
-    by_name = {s.name: s for s in config.board}
+    by_id = {s.id: s for s in config.board}
     own = {r.seat: r.stdout for r in usable}
     blobs: list = []
     for r in usable:
-        seat = by_name[r.seat]
+        seat = by_id[r.seat]
         prompt = build_round2_prompt(seat, config.source.text,
                                      board_packet=board_packet,
                                      own_review=own[r.seat],
@@ -57,9 +57,9 @@ def build_round2(config: RunConfig, prev_results: list, round_no: int = 2) -> tu
                                      round_no=round_no,
                                      grounded=config.grounded)
         blobs.append(PacketBlob(
-            seat=seat.name,
+            seat=seat.id,
             provider=seat.provider,
-            relpath=f"prompts/{seat.name}-round-{round_no}.prompt",
+            relpath=f"prompts/{seat.id}-round-{round_no}.prompt",
             text=prompt,
         ))
     return blobs, board_packet
@@ -98,9 +98,9 @@ def build_packet(config: RunConfig) -> list:
     for seat in config.board:
         prompt = build_round1_prompt(seat, config.source.text, grounded=config.grounded)
         blobs.append(PacketBlob(
-            seat=seat.name,
+            seat=seat.id,
             provider=seat.provider,
-            relpath=f"prompts/{seat.name}-round-1.prompt",
+            relpath=f"prompts/{seat.id}-round-1.prompt",
             text=prompt,
         ))
     return blobs

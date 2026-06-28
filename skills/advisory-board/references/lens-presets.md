@@ -10,6 +10,8 @@ Every seat still answers the full brief. The lens reduces blind spots; it doesn'
 2. Assign each lens to a seat. With the default Claude / Codex / Gemini lineup, map by fit; with a different lineup or a different seat count, assign however the lenses land.
 3. Drop the lens into the Round 1 seat prompt's "Role emphasis" slot (see `prompt-templates.md`).
 
+Running via `run_board.py`, the board preset is `--lens <preset>` (it sets the verdict's vocabulary *and* the default per-seat focus trio). Give one seat its own focus with a repeated `--lens <seat-id>=<value>`, where `<value>` is a free-form focus string or a preset name (which uses that preset's primary focus). Seats you don't override keep the positional default — so a same-provider board gets distinct lenses without any extra flags. See `references/board-composition.md` for seat ids and targeting.
+
 ## Presets
 
 ### `software-architecture` (default)
