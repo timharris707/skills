@@ -8,6 +8,69 @@ Pre-1.0 the minor tracks the conductor milestone (M5 → `v0.5.0`, M6 → `v0.6.
 reserved for an explicit production-ready call. The verdict-JSON schema is versioned separately
 (`advisory-board/verdict@N`) and is not the same axis as the release version.
 
+## [Unreleased]
+
+## [v1.10.0] - 2026-07-01 — Claude seat on Fable 5 at max effort
+
+The Claude seat now defaults to **Fable 5** (`claude-fable-5`), Anthropic's most capable model,
+and runs it at **max reasoning**. The seat's effort is now forwarded to the CLI via `--effort max`
+— previously the seat computed a reasoning value but never passed it, so it ran at the CLI's own
+default. Max effort is scoped to the Claude seat (the only CLI that exposes a `max` level): Codex
+stays at `xhigh` (its ceiling — `model_reasoning_effort=max` returns a 400), and
+Gemini/Antigravity/Ollama expose no effort knob.
+
+### Changed
+- **`scripts/_conductor/registry.py`** — Claude seat `default_model` `claude-opus-4-8` →
+  `claude-fable-5`; `default_reasoning` `xhigh` → `max`; `claude_argv()` now forwards
+  `--effort <reasoning>`; `flags_verified_version` → `2.1.191`.
+- **`SKILL.md`, `references/run-metadata-template.md`, `references/verdict-schema.md`** — model
+  lineup, the Claude CLI template, and examples updated to Fable 5 / `--effort max`, with a
+  premium-tier cost note and the `--model claude=<id>` override.
+
+### Fixed
+- **`--from-recipe` now reproduces per-seat reasoning.** Recipe replay restored model and lens but
+  re-pulled reasoning from the live registry, so a recipe recorded at `xhigh` would have silently
+  replayed at the new `max` default. `resolve_board` takes reasoning overrides and the replay path
+  restores recorded reasoning; guarded by a new round-trip test.
+
+Also since v1.9.0: the **relocation gallery example** and its README "See It In Action" lead
+(#45), and the seat-composition plan marked SHIPPED (#46, docs-only).
+
+## [v1.9.0] - 2026-06-28 — Flexible seat composition
+
+Seat the **same provider more than once** (`2 Opus + 1 Codex`, `3 Opus`) with a unique `seat.id`
+and per-seat lenses. `--board` entries are `provider` or `alias=provider` (bare repeats
+auto-number `claude#1`/`#2`; aliases read cleaner); `--lens` is repeatable (bare = the board
+preset, `id=value` overrides one seat's focus). `--model`/`--lens` target seats by id. Duplicate
+seats no longer silently collapse — that is now a loud failure — and a run stays reproducible via
+`--from-recipe`. A default `claude,codex,gemini` board is byte-identical to before (the regression
+guard).
+
+### Added
+- **Flexible seat composition** (#44) — `seat.id`, alias/auto-numbering, and per-seat lenses,
+  re-keyed across the conductor onto `seat.id`; `TestSeatComposition` plus duplicate/alias E2E.
+  Gated by three parallel adversarial skeptics (identity-collision, egress/consent, byte-identical
+  + recipe) → zero confirmed defects.
+
+### Fixed
+- **`--shape` documented** and the quick-verdict render no longer leaves a stray
+  `final-consensus.md` (`--out` defaults to none) (#43).
+- **Untracked confidence renders cleanly** in Markdown and the short formats — the clause is
+  dropped (matching the HTML pill), so no more literal `(? confidence)` (#42).
+
+## [v1.8.0] - 2026-06-27 — Quick-verdict skim-brief shape + confidence pill
+
+### Added
+- A **quick-verdict (skim-brief) output shape** that leads with the verdict for fast skimming,
+  plus a **confidence pill** in the artifact banner (#40).
+
+## [v1.7.2] - 2026-06-27 — Lens-aware consensus artifact
+
+### Changed
+- The **consensus artifact leads with the plain-language, lens-aware verdict** — a plain verdict
+  lead plus a matching section heading — carrying the v1.6.0 plain-language label into the
+  consensus surface (#39).
+
 ## [v1.7.1] - 2026-06-27 — Artifact lockup: "Advisory Board, powered by Panely"
 
 The artifact masthead and footer now lead with **Advisory Board** as the product, with
