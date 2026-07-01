@@ -106,19 +106,31 @@ class TestRegistry(unittest.TestCase):
 
     def test_claude_gate_isolation_flags(self):
         a = rb.REGISTRY["claude"]
-        argv = a.build_argv("claude-opus-4-8", "PROMPT", reasoning="xhigh", network=False)
+        argv = a.build_argv("claude-fable-5", "PROMPT", reasoning="xhigh", network=False)
         self.assertIn("--permission-mode", argv)
         self.assertIn("plan", argv)
         self.assertIn("--disallowed-tools", argv)
         self.assertIn("WebSearch", argv)
         self.assertIn("WebFetch", argv)
-        self.assertIn("claude-opus-4-8", argv)
+        self.assertIn("claude-fable-5", argv)
+        self.assertEqual(argv[argv.index("--effort") + 1], "xhigh")  # reasoning forwarded
         self.assertNotIn("--bare", argv)  # --bare would break subscription auth
+
+    def test_claude_default_model_and_max_effort(self):
+        # The Claude seat runs Fable 5 at max effort, forwarded via the claude CLI's
+        # --effort flag (the deepest level it exposes).
+        a = rb.REGISTRY["claude"]
+        self.assertEqual(a.default_model, "claude-fable-5")
+        self.assertEqual(a.default_reasoning, "max")
+        argv = a.build_argv(a.default_model, "PROMPT", reasoning=a.default_reasoning, network=False)
+        self.assertEqual(argv[argv.index("--effort") + 1], "max")
+        self.assertIn("claude-fable-5", argv)
 
     def test_claude_advisory_allows_network(self):
         a = rb.REGISTRY["claude"]
-        argv = a.build_argv("claude-opus-4-8", "PROMPT", network=True)
+        argv = a.build_argv("claude-fable-5", "PROMPT", network=True)
         self.assertNotIn("--disallowed-tools", argv)
+        self.assertIn("--effort", argv)  # effort is forwarded in advisory mode too
 
     def test_codex_gate_isolation_flags(self):
         a = rb.REGISTRY["codex"]
@@ -262,7 +274,7 @@ class TestConfig(EnvMixin):
         c = _config(model=["codex=gpt-5.6"])
         models = {s.name: s.model for s in c.board}
         self.assertEqual(models["codex"], "gpt-5.6")
-        self.assertEqual(models["claude"], "claude-opus-4-8")
+        self.assertEqual(models["claude"], "claude-fable-5")
 
     def test_board_subset(self):
         c = _config(board="claude,gemini")
@@ -447,6 +459,22 @@ class TestSeatComposition(unittest.TestCase):
         self.assertEqual(by_id["risk"].model, "claude-opus-4-7")      # per-seat model reproduced
         self.assertEqual(by_id["econ"].name, "claude")                # provider restored from registry
         self.assertEqual(by_id["exec"].name, "codex")
+
+    def test_recipe_restores_recorded_reasoning(self):
+        # Reasoning is part of the reproducibility contract: a recipe recorded at one
+        # effort must replay at that effort even if the registry default later changes
+        # (regression guard — replay used to re-pull reasoning from the live registry).
+        c = resolve_config(_args(source=SAMPLE, board="claude,codex"))
+        recipe = rb.config_to_recipe(c)
+        for entry in recipe["board"]:
+            if entry["seat"] == "claude":
+                entry["reasoning"] = "high"   # a non-default effort, pinned in the recipe
+        path = os.path.join(tempfile.mkdtemp(prefix="board-rz-"), "run-recipe.yaml")
+        with open(path, "w") as fh:
+            fh.write(rb.dump_recipe(recipe))
+        restored = rb.resolve_config(_args(source=None, from_recipe=path))
+        by_id = {s.id: s for s in restored.board}
+        self.assertEqual(by_id["claude"].reasoning, "high")   # recorded value, not the registry default
 
     def test_recipe_round_trips_auto_numbered_duplicates(self):
         restored = self._round_trip(board="claude,claude,codex")
@@ -777,7 +805,7 @@ class TestRunFlow(EnvMixin):
             raw = fh.read()
         self.assertIn("packet-hash", raw)
         self.assertIn("source-hash", raw)
-        self.assertIn("model-answered  : claude-opus-4-8", raw)
+        self.assertIn("model-answered  : claude-fable-5", raw)
 
     def test_preflight_gates_before_egress(self):
         # Two seats down -> NO-GO -> must stop BEFORE writing any egress manifest,
@@ -1687,7 +1715,7 @@ class TestRound1FanOut(EnvMixin):
         self.assertTrue(all(r.usable for r in results))
         self.assertTrue(all(r.attempts == 1 for r in results))
         answered = {r.seat: r.model_answered for r in results}
-        self.assertEqual(answered["claude"], "claude-opus-4-8")
+        self.assertEqual(answered["claude"], "claude-fable-5")
         self.assertEqual(answered["codex"], "gpt-5.5")
         self.assertEqual(answered["gemini"], "gemini-3.5-flash")
 

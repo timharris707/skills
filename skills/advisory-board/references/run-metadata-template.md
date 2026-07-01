@@ -13,7 +13,7 @@ Lens preset: <preset, or "custom">
 
 | Seat   | Lens          | Model requested | Model that answered | Reasoning/effort | Auth mode    | Status            |
 | ------ | ------------- | --------------- | ------------------- | ---------------- | ------------ | ----------------- |
-| Claude | architecture  | claude-opus-4-8 | <id returned>       | xhigh            | subscription | ran               |
+| Claude | architecture  | claude-fable-5  | <id returned>       | max              | subscription | ran               |
 | Codex  | impl/testing  | gpt-5.5         | <id returned>       | xhigh            | subscription | ran               |
 | Gemini | product/ops   | <model>         | <id returned>       | HIGH             | subscription | dropped @ round 2 |
 
