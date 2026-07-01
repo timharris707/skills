@@ -21,7 +21,7 @@ via `scripts/render_handoff.py`. It drives tooling — most usefully a **CI / la
   "board": [
     {
       "seat": "Claude",
-      "model": "claude-opus-4-8",
+      "model": "claude-fable-5",
       "lens": "architecture",
       "round_verdicts": ["block", "block"],
       "dropped": false

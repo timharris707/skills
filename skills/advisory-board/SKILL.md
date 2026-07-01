@@ -44,7 +44,7 @@ If the user says "use defaults", stop asking the *optional* setup questions and 
 
 Target the strongest reasoning model each provider offers:
 
-- Claude seat: `claude-opus-4-8` at the highest available reasoning/effort.
+- Claude seat: `claude-fable-5` (Anthropic's most capable model) at max effort — `--effort max`. Fable 5 is a premium tier (priced above Opus) and max effort means longer, costlier runs; swap it with `--model claude=<id>` if cost matters more than depth.
 - Codex seat: `gpt-5.5` with `model_reasoning_effort="xhigh"` (or the highest Codex reasoning setting available).
 - Gemini seat: Google's latest frontier reasoning model via the Gemini CLI (currently Gemini 3.1 Pro) with `thinkingLevel: HIGH` (or the highest available).
 
@@ -157,10 +157,10 @@ Prefer read-only modes. Confirm every flag against the installed CLI (`<cli> --h
 Claude seat:
 
 ```
-claude -p "<seat prompt>" --model claude-opus-4-8 --permission-mode plan
+claude -p "<seat prompt>" --model claude-fable-5 --effort max --permission-mode plan
 ```
 
-`-p` runs non-interactively; `--permission-mode plan` keeps it read-only. Use the strongest reasoning/effort the build exposes (Claude Code defaults to `xhigh`). On long analytic prompts, `--permission-mode plan` can make the seat return a plan-style *summary* (and even claim it wrote a file) instead of the full review — so append the `{{CLAUDE_OUTPUT_OVERRIDE}}` block from `references/prompt-templates.md` verbatim to the Claude seat's prompt, and treat a short or plan-shaped artifact as a degraded seat to re-run.
+`-p` runs non-interactively; `--permission-mode plan` keeps it read-only. `--effort max` runs the deepest reasoning the build exposes (the flag accepts `low|medium|high|xhigh|max`; on Fable 5 thinking is always-on and effort scales how hard it thinks). On long analytic prompts, `--permission-mode plan` can make the seat return a plan-style *summary* (and even claim it wrote a file) instead of the full review — so append the `{{CLAUDE_OUTPUT_OVERRIDE}}` block from `references/prompt-templates.md` verbatim to the Claude seat's prompt, and treat a short or plan-shaped artifact as a degraded seat to re-run.
 
 Codex seat:
 

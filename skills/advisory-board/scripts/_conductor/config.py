@@ -181,11 +181,13 @@ def assign_seat_ids(seat_specs: list) -> list:
 
 
 def resolve_board(seat_specs: list, lens_preset: str, model_overrides: dict,
-                  lens_overrides: Optional[dict] = None) -> list:
+                  lens_overrides: Optional[dict] = None,
+                  reasoning_overrides: Optional[dict] = None) -> list:
     lenses = LENS_PRESETS.get(lens_preset)
     if lenses is None:
         die(f"unknown lens preset {lens_preset!r}; choose from {', '.join(sorted(LENS_PRESETS))}")
     lens_overrides = lens_overrides or {}
+    reasoning_overrides = reasoning_overrides or {}
     ids = assign_seat_ids(seat_specs)
     # Uniqueness guard — replaces today's SILENT collapse of two same-named seats with a
     # loud failure. Only reachable when a user aliases two seats identically (auto-numbering
@@ -219,7 +221,9 @@ def resolve_board(seat_specs: list, lens_preset: str, model_overrides: dict,
             # so `--model claude=…` still works for a single-Claude board.
             model=model_overrides.get(sid, adapter.default_model),
             lens=lens,
-            reasoning=adapter.default_reasoning,
+            # Reasoning has no CLI flag today; the only per-seat source is a recipe
+            # (recorded reasoning restored on --from-recipe), else the registry default.
+            reasoning=reasoning_overrides.get(sid, adapter.default_reasoning),
         ))
     return board
 
@@ -241,6 +245,7 @@ def resolve_config(args) -> RunConfig:
         base = None
 
     lens_overrides: dict = {}
+    reasoning_overrides: dict = {}
     if base is not None and not getattr(args, "source", None):
         source = load_source(base["source_ref"])
         # Reconstruct the exact board from the recipe. Each entry's "seat" is the seat id
@@ -259,6 +264,8 @@ def resolve_config(args) -> RunConfig:
             model_overrides.setdefault(sid, entry["model"])
             if entry.get("lens"):
                 lens_overrides.setdefault(sid, entry["lens"])
+            if entry.get("reasoning"):
+                reasoning_overrides.setdefault(sid, entry["reasoning"])
         lens_preset = base.get("lens", DEFAULT_LENS)
     else:
         if not getattr(args, "source", None):
@@ -268,7 +275,8 @@ def resolve_config(args) -> RunConfig:
         board_preset, lens_overrides = parse_lens_args(getattr(args, "lens", None))
         lens_preset = board_preset or (base or {}).get("lens", DEFAULT_LENS)
 
-    board = resolve_board(seat_specs, lens_preset, model_overrides, lens_overrides)
+    board = resolve_board(seat_specs, lens_preset, model_overrides, lens_overrides,
+                          reasoning_overrides)
 
     mode = getattr(args, "mode", None) or (base or {}).get("mode") or "gate"
     if mode not in ("gate", "advisory"):

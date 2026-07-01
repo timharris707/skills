@@ -148,13 +148,18 @@ def parse_model_answered(stdout: str, stderr: str) -> Optional[str]:
 # until M3+, and a silently-ignored flag is a worse footgun than its absence.
 
 
-def claude_argv(model, prompt, *, reasoning="xhigh", workdir=None, network=False, grounded=False):
+def claude_argv(model, prompt, *, reasoning="max", workdir=None, network=False, grounded=False):
     # claude -p reads the prompt from stdin; plan mode is read-only. fs scoping is
     # the subprocess cwd (applied at spawn), since claude has no dir-scoping flag.
     # `grounded` is accepted for a uniform signature: claude reads the repo via its
     # cwd (the snapshot, set at spawn) with no flag to change, so its argv is the
     # same grounded or not.
-    argv = ["claude", "-p", "--model", model, "--permission-mode", "plan"]
+    # --effort sets the session's reasoning depth (levels low|medium|high|xhigh|max,
+    # verified on claude 2.1.191). The board forwards the seat's reasoning here so the
+    # Claude seat actually runs at its configured effort (default "max"). On Fable 5
+    # thinking is always-on and effort scales how hard it thinks.
+    argv = ["claude", "-p", "--model", model, "--effort", reasoning,
+            "--permission-mode", "plan"]
     if not network:
         # Cut the seat's network reach in gate mode. Note: NOT --bare, which would
         # force ANTHROPIC_API_KEY auth and break subscription/OAuth login.
@@ -389,9 +394,12 @@ def model_not_found(result: "SpawnResult", *, include_stdout: bool = False) -> b
 REGISTRY: dict = {
     "claude": SeatAdapter(
         name="claude",
-        default_model="claude-opus-4-8",
+        # Fable 5 is Anthropic's most capable model; the board runs it at max effort
+        # (on Fable 5 thinking is always-on, so effort scales how hard it thinks).
+        # Pinned inline per the model-id policy; Anthropic ids are stable.
+        default_model="claude-fable-5",
         provider="Anthropic",
-        default_reasoning="xhigh",
+        default_reasoning="max",   # forwarded via --effort; deepest level the CLI exposes
         build_argv=claude_argv,
         version_argv=claude_version,
         prompt_on_stdin=True,
@@ -406,7 +414,7 @@ REGISTRY: dict = {
         install_argv=claude_install_argv,
         auth_hint="run `claude` once and sign in (Claude subscription, or set ANTHROPIC_API_KEY)",
         pkg_label="npm @anthropic-ai/claude-code",
-        flags_verified_version="2.1.177",
+        flags_verified_version="2.1.191",   # --model/--effort/--permission-mode plan verified here
         fallback_models=(),   # Anthropic ids are stable; pin the current one, no guesses
     ),
     "codex": SeatAdapter(
