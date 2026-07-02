@@ -185,6 +185,20 @@ def render_egress_manifest(config: RunConfig, blobs: list, content_hash: str) ->
                   f"{r.note} — {len(r.material.encode('utf-8'))} bytes.",
                   "Prior run sensitivity: "
                   + (r.prior_sensitivity or "unknown (no readable sensitivity.json)")]
+    if config.ask is not None:
+        # `ask` carries a NEW question + run-context bytes to the addressed seat(s).
+        # Disclose it HERE on the consent surface (§8) — the bytes are already inside
+        # the content hash above.
+        a = config.ask
+        material = ("the recovered reviewed material" if a.source_recovered_from
+                    else "the reviewed material could NOT be recovered")
+        lines += ["", "## Post-verdict question (ask)", "",
+                  f"Run questioned: {a.run_dir}",
+                  f"Addressed seats: {', '.join(s.id for s in config.board)}",
+                  f"Question ({len(a.question.encode('utf-8'))} bytes): {a.question}",
+                  f"Each addressed seat's prompt carries this question, a mechanical "
+                  f"digest of the prior verdict, that seat's own prior review, and "
+                  f"{material} — all inside the packet content hash above."]
     lines += [
         "",
         "## Files leaving this machine",
@@ -240,6 +254,18 @@ def disclosure_line(config: RunConfig) -> str:
                     f"{config.grounding.repo_root}, but those bytes stay on this machine.")
         return "This run sends nothing to external providers (local-only board)."
     pretty = ", ".join(providers)
+    if config.ask is not None:
+        # A post-verdict follow-up (ask) is not a review — it sends a NEW question plus
+        # run-context bytes to the addressed seat(s) only. Give it its own accurate
+        # disclosure rather than the review-shaped base below (ask never grounds or
+        # revises, so this returns here).
+        a = config.ask
+        seats = ", ".join(s.id for s in config.board)
+        material = ("the recovered reviewed material, " if a.source_recovered_from
+                    else "")
+        return (f"This post-verdict follow-up sends to {pretty} ({seats}): your "
+                f"question, {material}a mechanical digest of the prior verdict, and the "
+                "addressed seat(s)' own prior review from that run. Proceed?")
     base = f"This review sends your source material to {pretty}."
     if config.grounding is not None:
         base += (f" Seats may also read & quote any of {config.grounding.n_files} files under "

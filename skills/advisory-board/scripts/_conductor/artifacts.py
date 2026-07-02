@@ -170,6 +170,26 @@ def render_sensitivity_json(config: RunConfig, approval: Optional[EgressApproval
             "source_verified": r.source_verified,
             "injected_bytes": len(r.material.encode("utf-8")),
         }
+    if config.ask is not None:
+        # `ask` provenance on the consent record (mirrors revision): the post-verdict
+        # question, which run it interrogates, and how the run context was recovered.
+        # Only present on an ask, so every other sensitivity.json is unchanged.
+        a = config.ask
+        payload["ask"] = {
+            "questioned_run_dir": a.run_dir,
+            "question": a.question,
+            "addressed_seats": [s.id for s in config.board],
+            "prior_verdict_sha256": a.previous_run.get("verdict_sha256"),
+            "prior_sensitivity": a.prior_sensitivity,
+            "source_recovered_from": a.source_recovered_from,
+            "source_verified": a.source_verified,
+            "prompt_template": a.template_version,
+            "prompt_template_sha256": a.template_sha256,
+        }
+        if a.floor_note:
+            # The fail-closed flooring (no readable sensitivity.json -> never
+            # public) is consent provenance — record WHY the posture tightened.
+            payload["ask"]["sensitivity_floored"] = a.floor_note
     if approval is not None:
         payload["approval"] = {
             "approved": approval.approved,

@@ -35,6 +35,10 @@ done
 
 is_review=0
 case "$*" in *"MATERIAL UNDER REVIEW"*) is_review=1 ;; esac
+# `ask` (v1.12): a post-verdict cross-examination prompt carries the PRIOR RUN
+# CONTEXT fence and gets a short free-form answer (NOT a 7-section review).
+is_ask=0
+case "$*" in *"PRIOR RUN CONTEXT"*) is_ask=1; is_review=0 ;; esac
 
 # Round detection (the round-N>=2 template header names the round); drives the
 # `moving` mode's cross-round VERDICT shift (M1).
@@ -83,6 +87,12 @@ REVIEW
   echo "VERDICT: $(verdict_token)"
 }
 
+emit_answer() {
+  # `ask` (v1.12): a short free-form answer to a post-verdict follow-up (not a review).
+  echo "model: ${model:-unknown}" >&2
+  echo "ASK ANSWER (gemini): re your follow-up — the rollout/observability gap I raised is still open in the reviewed material."
+}
+
 case "$mode" in
   nogo_smoke) echo "auth error" >&2; exit 1 ;;
   empty)      exit 0 ;;
@@ -98,7 +108,7 @@ case "$mode" in
     exit 0 ;;
   degraded)
     echo "[router] retrying with fallback" >&2
-    if [ "$is_review" = "1" ]; then emit_review; else echo "ready"; fi
+    if [ "$is_review" = "1" ]; then emit_review; elif [ "$is_ask" = "1" ]; then emit_answer; else echo "ready"; fi
     exit 1 ;;
   model_proposal)
     case "$model" in
@@ -109,6 +119,6 @@ case "$mode" in
   # go (default): router noise on stderr but a valid answer on stdout, exit 0:
   *)
     echo "[router] retrying with fallback" >&2
-    if [ "$is_review" = "1" ]; then emit_review; else echo "ready"; fi
+    if [ "$is_review" = "1" ]; then emit_review; elif [ "$is_ask" = "1" ]; then emit_answer; else echo "ready"; fi
     exit 0 ;;
 esac

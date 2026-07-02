@@ -429,15 +429,15 @@ footer.colophon code { background: var(--surface-2); }
         </div>
       </div>
       <div class="gauge">
-        <svg class="ring" viewBox="0 0 120 120" width="118" height="118" role="img" aria-label="Overall progress 47%">
+        <svg class="ring" viewBox="0 0 120 120" width="118" height="118" role="img" aria-label="Overall progress 50%">
           <circle class="ring-track" cx="60" cy="60" r="52" fill="none" stroke-width="11"/>
           <circle class="ring-arc" cx="60" cy="60" r="52" fill="none" stroke-width="11"
                   stroke-linecap="round" transform="rotate(-90 60 60)"
-                  stroke-dasharray="326.7" stroke-dashoffset="173.2"/>
-          <text class="ring-pct" x="60" y="57" text-anchor="middle" dominant-baseline="middle">47%</text>
+                  stroke-dasharray="326.7" stroke-dashoffset="163.4"/>
+          <text class="ring-pct" x="60" y="57" text-anchor="middle" dominant-baseline="middle">50%</text>
           <text class="ring-sub" x="60" y="76" text-anchor="middle" dominant-baseline="middle">complete</text>
         </svg>
-        <div class="gauge-count"><b>18</b> / 38 tasks done</div>
+        <div class="gauge-count"><b>19</b> / 38 tasks done</div>
       </div>
     </div>
 
@@ -665,8 +665,8 @@ footer.colophon code { background: var(--surface-2); }
           <div class="ms-meta">
             <span class="badge wip"><span class="dot"></span>In progress</span>
             <span class="ms-progress">
-              <span class="ms-bar"><span style="width:56%"></span></span>
-              5/9
+              <span class="ms-bar"><span style="width:67%"></span></span>
+              6/9
             </span>
           </div>
         </div>
@@ -733,15 +733,15 @@ footer.colophon code { background: var(--surface-2); }
         
       </div>
       
-      <div class="phase todo">
+      <div class="phase done">
         <div class="phase-head">
           <span class="phase-dot"></span>
           <h4 class="phase-title">Phase 3 — <code>ask</code>: post-verdict cross-examination (#4)</h4>
-          <span class="phase-state">To do</span>
+          <span class="phase-state">Done</span>
         </div>
         <ul class="checklist">
           
-          <li class="todo"><span class="tick"></span><span class="task-text"><code>run_board.py ask &quot;&lt;question&gt;&quot; --run &lt;dir&gt; [--seat &lt;id&gt;]</code> — context packet built from the run&#x27;s own artifacts, egress re-consent for the new bytes, one-round fan-out to the addressed seat(s), <code>addendum-N.md</code> + handoff refresh</span></li>
+          <li class="done"><span class="tick">✓</span><span class="task-text"><code>run_board.py ask &quot;&lt;question&gt;&quot; --run &lt;dir&gt; [--seat &lt;id&gt;]</code> — context packet built from the run&#x27;s own artifacts, egress re-consent for the new bytes, one-round fan-out to the addressed seat(s), <code>addendum-N.md</code> + handoff refresh. <em>Hardened per the adversarial review: never-loosen sensitivity floor (strictest of recipe / sensitivity.json / tighten-only <code>--sensitivity</code>; missing sensitivity.json never floats down to public), dropped-placeholder skip for seat continuity, sentinel-injection-proof handoff block, bounded reads (symlink/out-of-tree refused).</em> <em>(PR #65)</em></span></li>
           
         </ul>
         
@@ -1293,7 +1293,7 @@ footer.colophon code { background: var(--surface-2); }
 
   <!-- ===================== COLOPHON ===================== -->
   <footer class="colophon">
-    Rendered from <code>run-board-roadmap-v1.11-v1.15.md</code> &middot; 5 milestones &middot; 18/38 tasks complete. The markdown plan is the source of truth &mdash; regenerate with <code>render_plan.py</code>; never hand-edit this file.
+    Rendered from <code>run-board-roadmap-v1.11-v1.15.md</code> &middot; 5 milestones &middot; 19/38 tasks complete. The markdown plan is the source of truth &mdash; regenerate with <code>render_plan.py</code>; never hand-edit this file.
   </footer>
 
 </div>

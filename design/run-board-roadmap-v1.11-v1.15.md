@@ -79,7 +79,7 @@ Testing: delta pure-function matrix; end-to-end revise on a fixture pair; consen
 Gate: full suite.
 
 ### Phase 3 — `ask`: post-verdict cross-examination (#4)
-- [ ] `run_board.py ask "<question>" --run <dir> [--seat <id>]` — context packet built from the run's own artifacts, egress re-consent for the new bytes, one-round fan-out to the addressed seat(s), `addendum-N.md` + handoff refresh
+- [x] `run_board.py ask "<question>" --run <dir> [--seat <id>]` — context packet built from the run's own artifacts, egress re-consent for the new bytes, one-round fan-out to the addressed seat(s), `addendum-N.md` + handoff refresh. _Hardened per the adversarial review: never-loosen sensitivity floor (strictest of recipe / sensitivity.json / tighten-only `--sensitivity`; missing sensitivity.json never floats down to public), dropped-placeholder skip for seat continuity, sentinel-injection-proof handoff block, bounded reads (symlink/out-of-tree refused)._ _(PR #65)_
 Testing: packet content bounded to the named run; seat targeting; re-consent required on sensitive runs.
 Gate: full suite.
 
@@ -184,6 +184,7 @@ Discovered mid-milestone (R6), deliberately not folded into the phase that found
 - `board_verdict.py` membership checks on hand-authored files crash with a raw TypeError (exit 1, not the clean schema exit 2) when a token field holds an unhashable value — e.g. top-level `"verdict": []`, `round_verdicts` entries, evidence `kind`/`status`. Pre-existing idiom across the file (the new lifecycle checks guard against it); sweep the remaining membership checks with isinstance guards in one pass. _(found during v1.12 P1 adversarial review, 2026-07-01)_
 - Delta-render trust: `previous_run.run_dir` in a verdict.json is an arbitrary local path the renderer reads at render time (sha-gated when `verdict_sha256` is recorded, but the field is optional) — a hostile shared verdict could point it anywhere for a spoofed/cosmetic delta or a file-exists oracle. Consider requiring the sha for delta rendering, or a run_dir sanity check. _(v1.12 P2 security review, LOW, 2026-07-01)_
 - Delta similarity tier can still pair parallel-but-different titles ("Add index on users" / "Add index on orders" share a token + high ratio). Mechanical limit, honestly rendered (both lists shown); revisit only if real runs mis-pair. _(v1.12 P2 correctness review, LOW, 2026-07-01)_
+- `revise.py` shares three hardening gaps whose `ask`-side twins were fixed in P3: `_prior_sensitivity` crashes (raw AttributeError) on a non-object `sensitivity.json`; `_load_prior_verdict` crashes (raw TypeError) on a scalar-JSON verdict; `prior_source_text`'s prompt extraction checks `islink` per file but not a symlinked `prompts/` PARENT dir (sha-gated, so not exploitable today — the attacker would already need the exact bytes). Sweep all three with the ask-side patterns (isinstance guards + realpath containment) in one pass. _(v1.12 P3 adversarial review, LOW, 2026-07-02)_
 
 ## Dependency order
 ```svg

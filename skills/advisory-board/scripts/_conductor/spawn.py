@@ -35,6 +35,7 @@ __all__ = [
     "_AUTH_FAILURE_SIGNALS",
     "auth_failed",
     "classify_round1",
+    "classify_ask",
 ]
 
 
@@ -221,4 +222,26 @@ def classify_round1(result: SpawnResult, adapter: SeatAdapter) -> tuple:
         return "dropped", FAILURE_INVALID   # retryable once
     if result.exit_code != 0:
         return "degraded", None             # usable review despite a non-zero exit
+    return "ran", None
+
+
+def classify_ask(result: SpawnResult, adapter: SeatAdapter) -> tuple:
+    """Classify an `ask` cross-examination answer into (status, failure_class|None).
+
+    Lighter than classify_round1: an answer to a follow-up question is free-form
+    prose, NOT a 7-section review, so there is no shape/length gate (that would drop
+    a perfectly good short answer). Non-empty stdout IS the usable artifact. Ordering
+    mirrors classify_round1 — timeout, then (only when NO usable answer came back) the
+    model-not-found / auth / empty split (stderr-only, the poisoning defense), then the
+    usable-but-nonzero degrade."""
+    if result.timed_out:
+        return "dropped", FAILURE_TIMEOUT
+    if not result.stdout.strip():
+        if model_not_found(result):
+            return "dropped", FAILURE_MODEL
+        if auth_failed(result.stderr):
+            return "dropped", FAILURE_AUTH
+        return "dropped", FAILURE_NOOUTPUT
+    if result.exit_code != 0:
+        return "degraded", None             # usable answer despite a non-zero exit
     return "ran", None

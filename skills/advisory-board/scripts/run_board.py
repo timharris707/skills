@@ -108,6 +108,7 @@ from _conductor.revise import *  # noqa: F401,F403  (v1.12: --revise prior-run c
 from _conductor.history import *  # noqa: F401,F403  (v1.11: the `history` run listing)
 from _conductor.artifacts import *  # noqa: F401,F403
 from _conductor.rounds import *  # noqa: F401,F403
+from _conductor.ask import *  # noqa: F401,F403  (v1.12: `ask` post-verdict cross-examination)
 from _conductor.cli import *  # noqa: F401,F403
 
 if __name__ == "__main__":

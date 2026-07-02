@@ -36,7 +36,10 @@ dependency DAG — each imports only from those above it:
 | `recipe.py` | The restricted-YAML codec for `run-recipe.yaml` plus recipe↔config conversion/validation. |
 | `history.py` | The run-history listing (v1.11 #5): scan the persistent runs root and render the `history` table from each run's `verdict.json` (degrading to `run-recipe.yaml` / `incomplete` for partial or legacy runs — never crashing the listing). |
 | `artifacts.py` | Renderers/writers for the pre-spawn artifacts: run-card, `sensitivity.json`, the artifact tree, and the run-metadata stamp (md + tsv). |
-| `rounds.py` | The round fan-out (design §11/§12/§13): `run_round`/`_run_seat_round` and the per-seat round artifacts/renderers. |
+| `rounds.py` | The round fan-out (design §11/§12/§13): `run_round`/`_run_seat_round` (pluggable classifier) and the per-seat round artifacts/renderers. |
+| `delta.py` | The pure cross-run verdict delta (v1.12 #1): matches blockers/concerns across two runs (exact title > shared citations > guarded similarity) into cleared / still-open / new + trajectory. |
+| `revise.py` | `--revise` (v1.12 #1): load a prior run, recover its source (sha-verified), and build the injected prior-verdict digest + source diff (with the sensitivity-escalation gate). |
+| `ask.py` | `ask` (v1.12 #4): post-verdict cross-examination — reconstruct the run's board from its recipe, build a run-context packet from that run's own artifacts, re-consent, one-round fan-out, and write `addendum-N.md` + the addenda index / handoff refresh. |
 | `cli.py` | The argparse front end: the `cmd_*` handlers, the delegation shim, and `main()`. |
 
 The split is behavior-preserving — the test suite (`tests/`) imports `run_board`
@@ -91,6 +94,14 @@ python3 scripts/run_board.py run --source plan.md --repo ./myrepo --board claude
 # up at run end, so re-verification points --source at the LIVE repo (recorded in
 # run-metadata.md): a citation real at approval can refute later if the tree drifted.
 python3 scripts/run_board.py verify <out>/verdict.json --source ./myrepo --run <out>
+
+# post-verdict cross-examination: put a follow-up question to a COMPLETED run's board.
+# context packet is built ONLY from <out>'s own artifacts (reviewed material + a
+# mechanical verdict digest + each addressed seat's own prior review); re-consents the
+# new bytes (public discloses; non-public needs --yes); --seat targets one seat.
+# -> addendum-N.md + addendum-N/ (prompts + manifest) + addenda.json + a refreshed
+#    "Post-verdict addenda" block in final-consensus.md.
+python3 scripts/run_board.py ask "Does the dedup blocker still hold if we shard?" --run <out> --yes
 
 # --- the canonical-verdict chain (after the agent fills verdict.json,
 #     or `run --synthesize` drafts it via the neutral synthesizer seat — M2) ---

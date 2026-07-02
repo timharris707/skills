@@ -12,6 +12,7 @@ from typing import Optional, TYPE_CHECKING
 if TYPE_CHECKING:
     from _conductor.grounding import GroundingContext
     from _conductor.revise import RevisionContext
+    from _conductor.ask import AskContext
 
 from _conductor.constants import (
     DEFAULT_LENS,
@@ -34,6 +35,7 @@ __all__ = [
     "load_source",
     "_source_from_text",
     "resolve_board",
+    "board_from_recipe",
     "default_out_dir",
     "default_runs_root",
     "default_run_dir",
@@ -119,6 +121,10 @@ class RunConfig:
     # covers the injected bytes): the prior verdict digest + source diff + lineage.
     # None until then, and always None for a non-revise run.
     revision: "Optional[RevisionContext]" = None
+    # Runtime-populated (cli.cmd_ask, before the ask packet is built so the consent
+    # hash covers the injected bytes): the post-verdict question + run-context
+    # provenance. None until then, and always None for a normal `run`.
+    ask: "Optional[AskContext]" = None
 
     @property
     def grounded(self) -> bool:
@@ -262,6 +268,32 @@ def resolve_board(seat_specs: list, lens_preset: str, model_overrides: dict,
     return board
 
 
+def board_from_recipe(base: dict, model_overrides: dict, lens_overrides: dict,
+                      reasoning_overrides: dict) -> tuple:
+    """Reconstruct a recipe's `board[]` into (seat_specs, lens_preset), filling the
+    given override dicts by setdefault (so any explicit CLI override already present
+    wins). Each entry's "seat" is the seat id and "registry" (when present) its
+    REGISTRY key; a default/auto-numbered seat restores as a bare provider so its id
+    re-derives deterministically, while a true alias restores as alias=provider.
+    Per-seat models/lenses/reasoning are restored so a duplicate-seat / per-seat-lens
+    run reproduces exactly. Shared by resolve_config's --from-recipe path and `ask`
+    (which has no board flags of its own — it re-addresses the run's recorded seats)."""
+    seat_specs = []
+    for entry in base["board"]:
+        sid = entry["seat"]
+        registry = entry.get("registry", sid)
+        if registry == sid or re.match(rf"^{re.escape(registry)}#\d+$", sid):
+            seat_specs.append((None, registry))
+        else:
+            seat_specs.append((sid, registry))
+        model_overrides.setdefault(sid, entry["model"])
+        if entry.get("lens"):
+            lens_overrides.setdefault(sid, entry["lens"])
+        if entry.get("reasoning"):
+            reasoning_overrides.setdefault(sid, entry["reasoning"])
+    return seat_specs, base.get("lens", DEFAULT_LENS)
+
+
 def default_out_dir() -> str:
     """The EPHEMERAL out dir (`--ephemeral`): a timestamped folder under /tmp — the
     pre-v1.11 default, kept byte-identical for anyone opting back out of persistence."""
@@ -342,25 +374,10 @@ def resolve_config(args) -> RunConfig:
     reasoning_overrides: dict = {}
     if base is not None and not getattr(args, "source", None):
         source = load_source(base["source_ref"])
-        # Reconstruct the exact board from the recipe. Each entry's "seat" is the seat id
-        # and "registry" (when present) is its REGISTRY key; a default/auto-numbered seat
-        # restores as a bare provider so its id re-derives deterministically, while a true
-        # alias restores as alias=provider. Per-seat models and lenses are restored so a
-        # duplicate-seat / per-seat-lens run reproduces exactly; an explicit CLI --model wins.
-        seat_specs = []
-        for entry in base["board"]:
-            sid = entry["seat"]
-            registry = entry.get("registry", sid)
-            if registry == sid or re.match(rf"^{re.escape(registry)}#\d+$", sid):
-                seat_specs.append((None, registry))
-            else:
-                seat_specs.append((sid, registry))
-            model_overrides.setdefault(sid, entry["model"])
-            if entry.get("lens"):
-                lens_overrides.setdefault(sid, entry["lens"])
-            if entry.get("reasoning"):
-                reasoning_overrides.setdefault(sid, entry["reasoning"])
-        lens_preset = base.get("lens", DEFAULT_LENS)
+        # Reconstruct the exact board from the recipe (an explicit CLI --model already
+        # in model_overrides wins via setdefault). Same reconstruction `ask` uses.
+        seat_specs, lens_preset = board_from_recipe(
+            base, model_overrides, lens_overrides, reasoning_overrides)
     else:
         if not getattr(args, "source", None):
             die("a --source is required (PATH, or - for stdin)")
