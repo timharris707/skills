@@ -123,7 +123,7 @@ Gate: release Latest + full suite green.
 Noise controls, a quantified independence story, and something to watch during a 15-minute run.
 
 ### Phase 1 — Severity filters (#8)
-- [ ] `--filter blockers|blockers+dissent|all` on `render_verdict.py`/`format_output.py`; `--min-severity` option on the `board_verdict.py --gate` path (schema already separates blockers/concerns/caveats — this is exposure, not new modeling)
+- [x] `--filter blockers|blockers+dissent|all` on `render_verdict.py`/`format_output.py`; `--min-severity` option on the `board_verdict.py --gate` path (schema already separates blockers/concerns/caveats — this is exposure, not new modeling)
 Testing: filter matrix over a rich fixture verdict; gate threshold behavior.
 Gate: full suite.
 
