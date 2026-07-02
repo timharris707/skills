@@ -25,7 +25,7 @@ from _conductor.egress import (
     EgressApproval,
     packet_hash,
 )
-from _conductor.convergence import parse_verdict
+from _conductor.convergence import parse_verdict, parse_basis
 from _conductor.artifacts import _write
 
 __all__ = [
@@ -81,6 +81,14 @@ class SeatRoundResult:
         from its review, or None if unusable or no clean token was emitted (M1).
         The conductor only reads this token, never the prose (principle #1)."""
         return parse_verdict(self.stdout) if self.usable else None
+
+    @property
+    def basis(self):
+        """The seat's self-reported BASIS token (independent|evidence|deference) from
+        a round-2+ review, or None if unusable or no clean token was emitted (v1.14
+        #9). Feeds the echo-score metric only — never the verdict chain; a round-1
+        reply carries no BASIS line, so this is None there by construction."""
+        return parse_basis(self.stdout) if self.usable else None
 
 
 def _run_seat_round(seat: SeatConfig, blob: "PacketBlob", config: RunConfig, *,

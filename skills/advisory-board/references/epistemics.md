@@ -15,6 +15,29 @@ When a seat changes position after reading the others, it must say *why*:
 
 Deference is not a reason. If a seat can only cite deference, it should hold its prior position and mark the point unresolved. Record evidence-driven changes in the seat's rebuttal and in the verdict-change highlight.
 
+The round-2+ template makes this check machine-parseable: each seat emits a `BASIS:` line naming what its revised position rests on — **independent** (its own evidence, or it held its prior view), **evidence** (it changed toward another seat because of a specific argument/file/fact *they* surfaced), or **deference** (it changed only because the others agreed). It is a self-reported, advisory token: it feeds the echo score below, it never gates, and it never overrides the one `VERDICT:` token. A seat that omits the line parses as *unknown* — never guessed.
+
+## Independence / echo score (round 2+)
+
+A convergent board can be convergent for two very different reasons: the seats each did the work and independently reached the same answer, or they read each other and drifted into agreement. The second is *echo* — three voices that collapsed into one, reading as authority while carrying one voice's information. The echo score is a coarse, honest flag for that risk.
+
+**What it is.** A pure function over signals the conductor already parses — nothing here reads a seat's prose (principle #1 / §11). Over the **final** round transition (where echo shows, on the settled board) it combines three explainable sub-signals:
+
+- **flip-toward-majority** — of the seats that changed their `VERDICT:` token in the final round, how many moved *onto* the emerging majority verdict (the convergence fingerprint);
+- **citation overlap** — the mean pairwise Jaccard overlap of the seats' concrete citation sets (the same inline-code-span + slash-path citations the convergence movement uses);
+- **deference count** — how many seats' `BASIS:` line is `deference`, versus `evidence`/`independent`/`unknown`.
+
+These roll up to a **coarse band — low / moderate / high echo risk** — never a false-precision 0–100 number. The one-line explanation always names the sub-signals that drove the band (e.g. "2/2 seats flipped toward the majority with 78% citation overlap and 1 deference declaration"), so the call is auditable. It surfaces in `run-metadata.md` (inside the Convergence section) and as an optional pill in the HTML handoff.
+
+**What it is NOT — the limits.** The score **flags possible echo; it does not prove independence**, and a `high` band is not a verdict on the board. It cannot distinguish echo from these honest cases, so read it as a prompt to look, not a finding:
+
+- Seats can **converge honestly on strong evidence** — the right answer is often singular, and three independent reviewers landing on it looks exactly like echo by these signals.
+- **Citation overlap is expected when the source is small** — if there are only a handful of files or lines to cite, every seat cites them; on a **same-provider board** (e.g. `--board claude,claude`) overlap is expected structurally, so the metric does not count overlap alone as echo there and says so in the explanation.
+- The **deference token is self-reported** — it records a seat's own account of why it moved, which a seat can misreport (over- or under-claiming); an omitted token is `unknown`, never inferred.
+- It reads only the **final** transition and only **parsed** signals — a seat that echoed in prose while keeping its token and citations is invisible to it.
+
+Because it is a metric, it degrades honestly. **`not computed`** is reserved for exactly two cases — a run with no final transition to score: a **single-round run** (no round N-1 → N transition, so no sidecar and no section at all), and a run where **fewer than two seats are usable in both final rounds**. Two related cases are *not* `not computed`: an **old run dir** re-rendered has no `echo-score.json`, so the pill/section are simply **absent** — nothing is computed or claimed; and a **pre-P2 recipe replayed via `--from-recipe`** runs with the *current* round-2 template (which carries the `BASIS:` line), so it **scores normally** like any fresh run — if its seats state no basis it scores with an all-`unknown` BASIS tally (the deference sub-signal contributes nothing and the explanation names how many seats did not state a basis), an honest band, never a fabricated one.
+
 ## Minority report (when the board converges)
 
 If the board reaches a **unanimous** verdict, it must still produce the strongest case *against* that verdict before the handoff is final. Assign one seat (or the neutral synthesizer) to argue the other side in good faith. Put it in the handoff's dissent section, flagged as the minority report. If the steelman survives scrutiny, the verdict wasn't as settled as it looked — add a round or lower the confidence.

@@ -294,6 +294,17 @@
     margin: 0 0 18px; font-size: 13.5px; font-style: italic; color: var(--ink-soft);
   }
 
+  /* ---- independence / echo-risk pill (v1.14 #9 / P2); present only on a ≥2-round
+     run whose run dir carries echo-score.json. Coarse band, band-tinted; the text
+     already says it flags echo, it does not prove independence. ---- */
+  .echo-pill {
+    margin: 0 0 18px; padding: 8px 14px; border-radius: 10px; border: 1px solid var(--line);
+    font-size: 13.5px; color: var(--ink-soft); background: var(--surface-soft);
+  }
+  .echo-pill.echo-low      { border-color: var(--ship-edge);    background: var(--ship-bg);    color: var(--ship-ink); }
+  .echo-pill.echo-moderate { border-color: var(--caution-edge); background: var(--caution-bg); color: var(--caution-ink); }
+  .echo-pill.echo-high     { border-color: var(--block-edge);   background: var(--block-bg);   color: var(--block-ink); }
+
   /* ---- simple lists ---- */
   ul.plain { margin: 0; padding-left: 22px; }
   ul.plain li { margin: 7px 0; font-size: 15.5px; }
@@ -441,6 +452,14 @@
        page is byte-identical. When a filter dropped a findings section, this states
        which and how many; the verdict banner above is never filtered. -->
   <p class="filter-note">{{FILTER_NOTE}}</p>
+
+  <!-- {{ECHO_PILL}}: OPTIONAL independence/echo-risk pill (v1.14 #9 / P2). Empty on a
+       single-round run and any run whose run dir carries no echo-score.json (old run
+       dirs / pre-P2 handoff-data) — the pill is dropped when blank, so the page is byte-
+       identical. When present it shows the coarse band (low/moderate/high) + a one-line
+       explanation naming the sub-signals; it FLAGS possible echo, it does not prove
+       independence (see epistemics.md). The band class colors it. -->
+  <p class="echo-pill {{ECHO_CLASS}}">{{ECHO_PILL}}</p>
 
   <!-- ============== DELTA VS THE PREVIOUS RUN (revise runs only) ==============
        The renderer drops this whole section when the verdict carries no

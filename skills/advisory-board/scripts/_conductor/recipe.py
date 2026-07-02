@@ -14,6 +14,8 @@ from _conductor.config import RunConfig
 from _conductor.prompts import (
     prompt_template_version,
     prompt_template_sha,
+    round2_template_version,
+    round2_template_sha,
 )
 from _conductor.synthesizer import (
     SYNTHESIZER_TEMPLATE_VERSION,
@@ -253,6 +255,12 @@ def config_to_recipe(config: RunConfig) -> dict:
         # records @3, a revise run appends +revise@1, each with the matching sha.
         "prompt_template": prompt_template_version(config.grounded, bool(config.revise_of)),
         "prompt_template_sha256": prompt_template_sha(config.grounded, bool(config.revise_of)),
+        # The round-2 template id + sha, recorded additively (v1.14 #9 fix): the surface
+        # that changed under P2 is round 2, so name it directly rather than only via the
+        # round-1 id. Old recipes without these keys still load — see recipe_to_config /
+        # the load-time sha check, which only consults the combined `prompt_template_sha256`.
+        "round2_template": round2_template_version(config.grounded),
+        "round2_template_sha256": round2_template_sha(config.grounded),
         "synthesize": config.synthesize,
         "synthesizer_seat": config.synthesizer_seat,
         "synthesizer_template": SYNTHESIZER_TEMPLATE_VERSION if config.synthesize else None,

@@ -275,6 +275,10 @@ def render_artifact_tree(config: RunConfig) -> str:
     ]
     if packet_rounds:
         parts.append(packet_rounds)
+        # The independence/echo sidecar (v1.14 #9) is written whenever ≥2 rounds run —
+        # the same condition under which cross-round movement (and a round-2 packet)
+        # exists. A single-round run produces neither, and neither is listed.
+        parts.append("  echo-score.json")
     if config.synthesize:
         parts += [
             "  prompts/synthesizer.prompt",
@@ -347,7 +351,40 @@ def render_convergence_section(convergence: dict) -> list:
         "(principle #1 / §11). A seat moved if its verdict token shifted or it added a "
         "new citation; `auto` stops when board-wide movement falls below the threshold.",
     ]
+    lines += render_echo_lines(convergence.get("echo"))
     return lines
+
+
+def render_echo_lines(echo) -> list:
+    """The v1.14 #9 independence/echo subsection, appended INSIDE the Convergence
+    section (it scores the same cross-round parsed signals). `echo` is the dict
+    `echo_score.echo_score` returned, or None. Returns [] when `echo` is absent — a
+    single-round run (the metric is never invoked) or an OLD RUN DIR re-rendered
+    (its convergence dict carries no `echo` key) — so a re-render of such a run stays
+    byte-identical. (A pre-P2 recipe replayed post-P2 re-runs with the current
+    BASIS-bearing round-2 template and DOES carry an `echo` key — it scores normally.)
+    A run WITH the metric renders the band + the one-line explanation naming the
+    sub-signals; `not_computed` — reserved for fewer than two seats usable in both
+    final rounds — degrades to a plain 'not computed' note, never a fabricated band."""
+    if not echo:
+        return []
+    band = echo.get("band")
+    if band == "not_computed":
+        return ["", "### Independence / echo", "",
+                f"Echo risk: not computed — {echo.get('explanation', '')}"]
+    return [
+        "",
+        "### Independence / echo",
+        "",
+        echo.get("explanation", ""),
+        "",
+        "A pure, self-reported-signal metric (v1.14 #9): it FLAGS possible echo — "
+        "seats drifting toward agreement for social rather than evidential reasons — "
+        "over the final round's parsed signals (verdict flips toward the majority, "
+        "citation-set overlap, and each seat's `BASIS:` line). It does NOT prove "
+        "independence, and a `high` band is not a verdict on the board — see "
+        "`references/epistemics.md` for the metric's limits and failure modes.",
+    ]
 
 
 def render_synthesizer_section(synth) -> list:
