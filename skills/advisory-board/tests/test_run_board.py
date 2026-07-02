@@ -6810,5 +6810,364 @@ class TestRepoGroundingP5Verify(EnvMixin):
         self.assertEqual(run_bv([vpath, "--gate"])[0], bv.EXIT_GATE_FAIL)
 
 
+# --------------------------------------------------------------------------- #
+# v1.11 #3a — per-seat token capture (per-CLI usage parsers), the preflight
+# estimate, and the "if known" cost/time rendering with tokenless byte-identity
+# --------------------------------------------------------------------------- #
+
+
+class TestUsageParsers(unittest.TestCase):
+    # --- claude: whole-stdout json result envelope only --------------------- #
+
+    def test_claude_text_mode_is_unknown(self):
+        # Plain `claude -p` (the board's argv) prints only the review text — no
+        # usage anywhere (grounded live on claude 2.1.191, 2026-07-01).
+        self.assertEqual(rb.claude_usage("## Verdict\nConditional go...", ""),
+                         (None, None, None))
+
+    def test_claude_json_envelope_parses(self):
+        env = json.dumps({"type": "result", "result": "ok",
+                          "usage": {"input_tokens": 1200, "output_tokens": 345}})
+        self.assertEqual(rb.claude_usage(env, ""), (1200, 345, 1545))
+
+    def test_claude_quoted_usage_in_prose_is_not_mined(self):
+        # A review that QUOTES a usage envelope is embedded in prose — the
+        # whole-document json parse fails, so the number can never be mined.
+        prose = ('The API reports {"usage": {"input_tokens": 999, '
+                 '"output_tokens": 1}} per call — cache accordingly.')
+        self.assertEqual(rb.claude_usage(prose, ""), (None, None, None))
+
+    def test_claude_envelope_without_usage_is_unknown(self):
+        self.assertEqual(rb.claude_usage(json.dumps({"type": "result"}), ""),
+                         (None, None, None))
+        self.assertEqual(rb.claude_usage(json.dumps(["usage"]), ""), (None, None, None))
+
+    def test_claude_non_int_usage_is_unknown(self):
+        for tin, tout in (("12", 3), (True, 3), (None, 3), (-1, 3), (3, None)):
+            env = json.dumps({"usage": {"input_tokens": tin, "output_tokens": tout}})
+            self.assertEqual(rb.claude_usage(env, ""), (None, None, None), (tin, tout))
+
+    # --- codex: the "tokens used" footer that terminates stderr ------------- #
+
+    def test_codex_two_line_footer_total_only(self):
+        stderr = ("OpenAI Codex v0.142.2\n--------\nuser\nprompt echo\n"
+                  "codex\nready\ntokens used\n13,976\n")
+        self.assertEqual(rb.codex_usage("ready", stderr), (None, None, 13976))
+
+    def test_codex_one_line_footer(self):
+        self.assertEqual(rb.codex_usage("ready", "codex\nready\ntokens used: 4,657"),
+                         (None, None, 4657))
+
+    def test_codex_footer_must_terminate_stderr(self):
+        # A "tokens used" pair QUOTED mid-stream (echoed prompt or mirrored
+        # review) is not the CLI's footer — only the tail position is trusted.
+        stderr = "user\ntokens used\n123\ncodex\nthe real reply text\n"
+        self.assertEqual(rb.codex_usage("reply", stderr), (None, None, None))
+
+    def test_codex_empty_or_unrelated_stderr_is_unknown(self):
+        self.assertEqual(rb.codex_usage("ready", ""), (None, None, None))
+        self.assertEqual(rb.codex_usage("ready", "warning: sandbox note"),
+                         (None, None, None))
+        self.assertEqual(rb.codex_usage("ready", "tokens used\nnot-a-number"),
+                         (None, None, None))
+
+    # --- seats whose CLIs print no usage at all ------------------------------ #
+
+    def test_gemini_antigravity_ollama_are_always_unknown(self):
+        for seat in ("gemini", "antigravity", "ollama"):
+            adapter = rb.REGISTRY[seat]
+            self.assertEqual(adapter.parse_usage("a full review", "[router] noise"),
+                             (None, None, None), seat)
+
+    def test_registry_wires_the_grounded_parsers(self):
+        self.assertIs(rb.REGISTRY["claude"].parse_usage, rb.claude_usage)
+        self.assertIs(rb.REGISTRY["codex"].parse_usage, rb.codex_usage)
+
+
+class TestPriceBand(unittest.TestCase):
+    def test_split_prices_exactly_at_list(self):
+        band = rb.price_band_usd("claude-fable-5", 100_000, 20_000, None)
+        self.assertEqual(band[0], band[1])
+        self.assertAlmostEqual(band[0], (100_000 * 10.00 + 20_000 * 50.00) / 1e6)
+
+    def test_total_only_bands_between_input_and_output_price(self):
+        self.assertEqual(rb.price_band_usd("claude-fable-5", None, None, 1_000_000),
+                         (10.00, 50.00))
+
+    def test_unknown_model_or_no_tokens_is_none(self):
+        self.assertIsNone(rb.price_band_usd("mystery-model", 10, 10, 20))
+        self.assertIsNone(rb.price_band_usd("claude-fable-5"))
+
+    def test_unverified_price_entry_is_none_not_zero(self):
+        # An inline id whose price wasn't verified must price as unknown — a
+        # $0.00 would read as "free", which is a guess in the wrong direction.
+        for model, prices in rb.MODEL_PRICING_USD_PER_MTOK.items():
+            if prices[0] is None or prices[1] is None:
+                self.assertIsNone(rb.price_band_usd(model, None, None, 1000), model)
+
+
+class TestEstimateRun(unittest.TestCase):
+    MODELS = ["claude-fable-5", "gpt-5.5", "gemini-3.5-flash"]
+
+    def test_pure_and_deterministic(self):
+        a = rb.estimate_run(20_000, self.MODELS, 2, "summaries")
+        b = rb.estimate_run(20_000, self.MODELS, 2, "summaries")
+        self.assertEqual(a, b)
+        self.assertLess(a["tokens_low"], a["tokens_high"])
+        self.assertLess(a["minutes_low"], a["minutes_high"])
+        self.assertEqual((a["seats"], a["rounds"]), (3, 2))
+
+    def test_monotonic_in_source_seats_and_rounds(self):
+        base = rb.estimate_run(10_000, self.MODELS, 2, "summaries")
+        bigger_src = rb.estimate_run(100_000, self.MODELS, 2, "summaries")
+        more_seats = rb.estimate_run(10_000, self.MODELS * 2, 2, "summaries")
+        more_rounds = rb.estimate_run(10_000, self.MODELS, 3, "summaries")
+        for grown in (bigger_src, more_seats, more_rounds):
+            self.assertGreater(grown["tokens_low"], base["tokens_low"])
+            self.assertGreater(grown["tokens_high"], base["tokens_high"])
+
+    def test_cross_reading_ordering(self):
+        none = rb.estimate_run(10_000, self.MODELS, 2, "none")
+        summaries = rb.estimate_run(10_000, self.MODELS, 2, "summaries")
+        full = rb.estimate_run(10_000, self.MODELS, 2, "full")
+        self.assertLess(none["tokens_high"], summaries["tokens_high"])
+        self.assertLess(summaries["tokens_high"], full["tokens_high"])
+        # a single round never cross-reads, so the mode cannot change the numbers
+        one_none = rb.estimate_run(10_000, self.MODELS, 1, "none")
+        one_full = rb.estimate_run(10_000, self.MODELS, 1, "full")
+        for key in ("tokens_low", "tokens_high", "cost_low_usd", "cost_high_usd"):
+            self.assertEqual(one_none[key], one_full[key], key)
+
+    def test_unpriced_models_are_flagged_never_guessed(self):
+        est = rb.estimate_run(10_000, ["claude-fable-5", "totally-unknown-model"],
+                              2, "summaries")
+        self.assertIn("totally-unknown-model", est["unpriced_models"])
+        self.assertTrue(est["cost_is_partial"])
+        self.assertIsNotNone(est["cost_low_usd"])
+        self.assertIn("excludes unpriced", "\n".join(rb.render_estimate(est)))
+
+    def test_all_unpriced_means_cost_unknown(self):
+        est = rb.estimate_run(10_000, ["mystery-a", "mystery-b"], 2, "summaries")
+        self.assertIsNone(est["cost_low_usd"])
+        self.assertIn("cost    : unknown", "\n".join(rb.render_estimate(est)))
+
+    def test_local_seat_is_zero_cost(self):
+        est = rb.estimate_run(10_000, ["llama3.3"], 1, "none")
+        self.assertEqual((est["cost_low_usd"], est["cost_high_usd"]), (0.0, 0.0))
+
+    def test_render_estimate_wording_is_explicit(self):
+        text = "\n".join(rb.render_estimate(
+            rb.estimate_run(10_000, ["claude-fable-5"], 2, "summaries")))
+        self.assertIn("ESTIMATES, not measurements or a gate", text)
+        self.assertIn("tokens  :", text)
+        self.assertIn(rb.PRICING_AS_OF, text)
+
+
+class TestTokenRendering(unittest.TestCase):
+    def _rounds(self, with_tokens):
+        a = _sr("claude", 1, "## Verdict\nlong enough\nVERDICT: ship")
+        b = _sr("codex", 1, "## Verdict\nlong enough\nVERDICT: ship")
+        if with_tokens:
+            a.model_requested = "claude-fable-5"
+            a.tokens_in, a.tokens_out, a.tokens_total = 100_000, 20_000, 120_000
+            b.tokens_total = 50_000   # codex-style combined count, no split
+        return [[a, b]]
+
+    def test_tsv_without_tokens_is_baseline(self):
+        tsv = rb.render_run_metadata_tsv(self._rounds(False))
+        lines = tsv.splitlines()
+        self.assertEqual(tuple(lines[0].split("\t")), rb.RUN_METADATA_TSV_COLUMNS)
+        self.assertNotIn("tokens", tsv)
+        # existing consumers read the packet hash as the LAST column — still true
+        self.assertTrue(lines[1].endswith("pk1"))
+
+    def test_tsv_with_tokens_appends_trailing_columns(self):
+        tsv = rb.render_run_metadata_tsv(self._rounds(True))
+        lines = tsv.splitlines()
+        self.assertEqual(tuple(lines[0].split("\t")),
+                         rb.RUN_METADATA_TSV_COLUMNS + rb.RUN_METADATA_TSV_TOKEN_COLUMNS)
+        self.assertEqual(lines[1].split("\t")[-3:], ["100000", "20000", "120000"])
+        self.assertEqual(lines[2].split("\t")[-3:], ["-", "-", "50000"])
+
+    def test_cost_time_section_absent_without_tokens(self):
+        self.assertEqual(rb.render_cost_time_section(self._rounds(False)), [])
+        self.assertEqual(rb.render_cost_time_section([]), [])
+        self.assertEqual(rb.render_cost_time_section(None), [])
+
+    def test_cost_time_section_present_with_tokens(self):
+        text = "\n".join(rb.render_cost_time_section(self._rounds(True)))
+        self.assertIn("## Cost & time (best effort)", text)
+        self.assertIn("170,000", text)                       # 120k + 50k known
+        self.assertIn("2 of 2 seat-round(s)", text)
+        self.assertIn("never guessed", text)
+        self.assertIn("ESTIMATE", text)
+        self.assertIn("Wall clock (measured)", text)
+        # only the verified-price model is costed: fable-5 split at list price
+        expected = (100_000 * 10.00 + 20_000 * 50.00) / 1e6
+        self.assertIn(f"${expected:.2f}", text)
+
+    def test_seat_tokens_label_shapes(self):
+        [[a, b]] = self._rounds(True)
+        self.assertEqual(rb.seat_tokens_label(a),
+                         "in 100,000 · out 20,000 · total 120,000")
+        self.assertIn("no in/out split", rb.seat_tokens_label(b))
+        [[c, _]] = self._rounds(False)
+        self.assertIn("unknown", rb.seat_tokens_label(c))
+
+
+class TestTokenlessRunStaysByteIdentical(EnvMixin):
+    """The v1.11 standing invariant: a default mocked run (no seat reports usage)
+    must carry NO token/cost surface anywhere — same bytes as the pre-feature
+    baseline in run-metadata.md/tsv and the final-consensus.html footer."""
+
+    def test_default_mocked_run_has_no_token_surfaces(self):
+        out = tempfile.mkdtemp(prefix="board-notokens-")
+        code, _, _ = run_cli(["run", "--source", SAMPLE, "--out", out, "--yes"])
+        self.assertEqual(code, rb.EXIT_OK)
+        with open(os.path.join(out, "run-metadata.tsv")) as fh:
+            tsv = fh.read()
+        self.assertEqual(tuple(tsv.splitlines()[0].split("\t")),
+                         rb.RUN_METADATA_TSV_COLUMNS)
+        self.assertNotIn("tokens", tsv)
+        with open(os.path.join(out, "run-metadata.md")) as fh:
+            meta = fh.read()
+        self.assertNotIn("Cost & time", meta)
+        self.assertNotIn("Tokens as reported", meta)
+        # The HTML footer built AGAINST this run dir equals one built without it:
+        # no seat reported usage, so the metadata segment must not appear at all.
+        data = _verdict("caution", "caution", "caution", title="t")
+        with_dir = rv.build_handoff_data(data, run_dir=out)["metadata"]
+        without = rv.build_handoff_data(data, run_dir=None)["metadata"]
+        self.assertEqual(with_dir, without)
+        self.assertNotIn("tokens", with_dir)
+
+
+class TestDryRunEstimate(EnvMixin):
+    def test_dry_run_prints_the_estimate_block(self):
+        out = os.path.join(tempfile.mkdtemp(prefix="board-est-"), "run")
+        code, text, _ = run_cli(["run", "--source", SAMPLE, "--out", out, "--dry-run"])
+        self.assertEqual(code, rb.EXIT_OK)
+        self.assertIn("=== estimate (best effort — never a gate) ===", text)
+        self.assertIn("tokens  :", text)
+        self.assertIn("ESTIMATES, not measurements or a gate", text)
+        self.assertFalse(os.path.exists(out), "dry-run must still write nothing")
+
+    def test_dry_run_auto_rounds_notes_the_ceiling(self):
+        out = os.path.join(tempfile.mkdtemp(prefix="board-est-"), "run")
+        code, text, _ = run_cli(["run", "--source", SAMPLE, "--out", out,
+                                 "--dry-run", "--rounds", "auto"])
+        self.assertEqual(code, rb.EXIT_OK)
+        self.assertIn("--max-rounds ceiling", text)
+
+
+class TestHtmlFooterTokenTotals(unittest.TestCase):
+    def _run_dir_with_tokens(self):
+        d = tempfile.mkdtemp(prefix="board-tokens-")
+        cols = rb.RUN_METADATA_TSV_COLUMNS + rb.RUN_METADATA_TSV_TOKEN_COLUMNS
+        base = ["1", "seat", "prov", "model", "unknown", "ran", "ship",
+                "-", "1", "60.00", "0", "no", "ph", "pk"]
+        rows = []
+        for seat, model, tin, tout, ttotal in (
+                ("claude", "claude-fable-5", "100000", "20000", "120000"),
+                ("codex", "gpt-5.5", "-", "-", "50000"),
+                ("gemini", "gemini-3.5-flash", "-", "-", "-")):
+            row = list(base)
+            row[1], row[3] = seat, model
+            rows.append("\t".join(row + [tin, tout, ttotal]))
+        with open(os.path.join(d, "run-metadata.tsv"), "w") as fh:
+            fh.write("\t".join(cols) + "\n" + "\n".join(rows) + "\n")
+        return d
+
+    def test_footer_reports_totals_with_estimate_wording(self):
+        d = self._run_dir_with_tokens()
+        hd = rv.build_handoff_data(_verdict("ship", "ship", "ship", title="t"), run_dir=d)
+        meta = hd["metadata"]
+        self.assertIn("Seat-reported tokens", meta)
+        self.assertIn("170,000", meta)               # 120k + 50k; gemini unknown
+        self.assertIn("where known", meta)           # some seats reported nothing
+        self.assertIn("est. cost", meta)             # fable-5 has a verified price
+        self.assertIn("an estimate, not a bill", meta)
+        # and the totals survive to the rendered page footer
+        import render_handoff as rh
+        with open(rh.default_template()) as fh:
+            html_out = rh.render(hd, fh.read())
+        self.assertIn("Seat-reported tokens", html_out)
+
+    def test_footer_ignores_a_tokenless_tsv(self):
+        d = tempfile.mkdtemp(prefix="board-tokenless-")
+        with open(os.path.join(d, "run-metadata.tsv"), "w") as fh:
+            fh.write("\t".join(rb.RUN_METADATA_TSV_COLUMNS) + "\n")
+        data = _verdict("ship", "ship", "ship", title="t")
+        self.assertEqual(rv.build_handoff_data(data, run_dir=d)["metadata"],
+                         rv.build_handoff_data(data, run_dir=None)["metadata"])
+
+    def test_footer_ignores_a_missing_run_dir(self):
+        data = _verdict("ship", "ship", "ship", title="t")
+        ghost = os.path.join(tempfile.mkdtemp(prefix="board-ghost-"), "nope")
+        self.assertEqual(rv.build_handoff_data(data, run_dir=ghost)["metadata"],
+                         rv.build_handoff_data(data, run_dir=None)["metadata"])
+
+    def test_footer_survives_malformed_token_cells(self):
+        # A Unicode digit-class char ("²") passes str.isdigit() yet int() rejects
+        # it — the reader must degrade the cell to unknown, never raise (the
+        # best-effort/malformed-row contract).
+        d = tempfile.mkdtemp(prefix="board-badcell-")
+        cols = rb.RUN_METADATA_TSV_COLUMNS + rb.RUN_METADATA_TSV_TOKEN_COLUMNS
+        row = ["1", "claude", "Anthropic", "claude-fable-5", "x", "ran", "ship",
+               "-", "1", "60.00", "0", "no", "ph", "pk", "-", "-", "²"]
+        with open(os.path.join(d, "run-metadata.tsv"), "w") as fh:
+            fh.write("\t".join(cols) + "\n" + "\t".join(row) + "\n")
+        data = _verdict("ship", "ship", "ship", title="t")
+        self.assertEqual(rv.build_handoff_data(data, run_dir=d)["metadata"],
+                         rv.build_handoff_data(data, run_dir=None)["metadata"])
+
+
+class TestTimeoutNeverMinesPartialStreams(EnvMixin):
+    """A killed process returns PARTIAL streams (spawn.py), so the parsers' tail/
+    whole-document anchors don't hold — a timed-out seat must record unknown
+    tokens even when the partial tail looks exactly like a codex footer."""
+
+    def _run_codex_with_fake_spawn(self, fake):
+        from _conductor import rounds as rounds_mod
+        config = _config()
+        blobs = rb.build_packet(config)
+        codex_seat = next(s for s in config.board if s.name == "codex")
+        blob = next(b for b in blobs if b.seat == "codex")
+        real_spawn = rounds_mod.spawn
+        rounds_mod.spawn = lambda *a, **k: fake
+        try:
+            return rounds_mod._run_seat_round(
+                codex_seat, blob, config, round_no=1,
+                round_packet_hash=rb.packet_hash(blobs), workdir=None, timeout=1)
+        finally:
+            rounds_mod.spawn = real_spawn
+
+    def test_timed_out_partial_tail_is_not_mined(self):
+        # The mirrored prompt/review in a killed codex's partial stderr can end
+        # with a QUOTED "tokens used"/N pair; the guard must ignore it.
+        fake = rb.SpawnResult(124, "partial review text",
+                              "user\nquoting the docs:\ntokens used\n12,345\n",
+                              30.0, True)
+        r = self._run_codex_with_fake_spawn(fake)
+        self.assertTrue(r.timed_out)
+        self.assertEqual((r.tokens_in, r.tokens_out, r.tokens_total),
+                         (None, None, None))
+
+    def test_completed_footer_still_captured(self):
+        # Control: the same tail on a process that FINISHED is the CLI's own
+        # footer and is captured end-to-end through the round runner.
+        review = ("## Verdict\nGo with conditions — evidence, objection, risk, "
+                  "invariant and guardrail sections all present and long enough "
+                  "to pass the round-1 shape check for this control fixture.\n"
+                  "## Strongest objections\n- one\n## Risks\n- assumption\n"
+                  "## Concrete evidence\n- x\nVERDICT: caution\n")
+        fake = rb.SpawnResult(0, review, "model: gpt-5.5\ntokens used\n13,976\n",
+                              12.0, False)
+        r = self._run_codex_with_fake_spawn(fake)
+        self.assertFalse(r.timed_out)
+        self.assertEqual((r.tokens_in, r.tokens_out, r.tokens_total),
+                         (None, None, 13976))
+
+
 if __name__ == "__main__":
     unittest.main()

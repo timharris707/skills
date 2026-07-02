@@ -41,6 +41,28 @@ reserved for an explicit production-ready call. The verdict-JSON schema is versi
   on the bundled sample source). No user material egresses — probes and smoke-pings only, and the
   output says so. Exits non-zero when no board is viable, so scripts can branch on it.
   (`scripts/_conductor/doctor.py`; probe logic stays in `preflight.py`/`toolchain.py`.)
+- **Per-seat token capture (v1.11 #3a).** `SeatRoundResult` gains nullable
+  `tokens_in`/`tokens_out`/`tokens_total`, filled by per-adapter `parse_usage`
+  parsers in `registry.py` that read ONLY what each CLI unambiguously reports
+  about its own usage (grounded live 2026-07-01): codex's trailing
+  `tokens used` stderr footer (a combined total — no in/out split), and
+  claude's `--output-format json` result envelope (plain `-p` text mode — the
+  board's argv today — prints no usage, so the seat honestly reports unknown).
+  gemini / antigravity / ollama print nothing and stay unknown. Never guessed.
+- **Preflight cost/time estimate.** A dated list-price table
+  (`constants.MODEL_PRICING_USD_PER_MTOK`) plus a pure `estimate_run()`
+  (source bytes × seats × rounds × cross-reading → token band, cost band,
+  rough minutes), surfaced as an `=== estimate ===` block in `run --dry-run`
+  and pointed at by SKILL.md's flag-a-large-run guidance. Best-effort and
+  labeled an ESTIMATE — never a gate; unverified prices render as unknown,
+  not $0.
+- **"If known" cost/time rendering.** When any seat CLI reported usage:
+  per-seat token lines and a `## Cost & time (best effort)` section in
+  `run-metadata.md`, three trailing token columns in `run-metadata.tsv`, and a
+  seat-reported totals segment in the `final-consensus.html` footer (read from
+  the run dir's TSV). With no usage reported — every mocked/default run today —
+  all three artifacts stay **byte-identical** to the pre-feature baseline
+  (guarded by tests).
 
 ## [v1.10.0] - 2026-07-01 — Claude seat on Fable 5 at max effort
 
