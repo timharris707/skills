@@ -72,9 +72,9 @@ Testing: old fixture verdicts validate unchanged; new-field round-trip.
 Gate: full suite.
 
 ### Phase 2 — `--revise`: re-review with a verdict delta (#1)
-- [ ] `--revise <prior run dir|verdict.json>` loads the prior recipe + verdict, replays board/lenses/models, and injects a **prior-verdict digest + source diff** into the round-1 packet (consent hash covers every added byte)
-- [ ] `delta.py`: pure matching of blockers/concerns across runs (id, citations, title similarity — mechanical only) → cleared / still-open / new + verdict trajectory
-- [ ] Delta section in `final-consensus.md`/`.html` (trajectory banner: e.g. BLOCK → SHIP) + `previous_run` recorded
+- [x] `--revise <prior run dir|verdict.json>` loads the prior recipe + verdict, replays board/lenses/models, and injects a **prior-verdict digest + source diff** into the round-1 packet (consent hash covers every added byte; disclosure on the consent line, manifest, and sensitivity.json; stricter-prior-sensitivity refused; material byte-neutralized; recovery sha-verified with `source-material.txt` now persisted per run) _(PR #63)_
+- [x] `delta.py`: pure matching of blockers/concerns across runs (citations, title similarity — mechanical only, global tier passes) → cleared / still-open / new + verdict trajectory _(PR #63)_
+- [x] Delta section in `final-consensus.md`/`.html` (trajectory banner: e.g. BLOCK → SHIP, lens-aware labels) + `previous_run` recorded by the conductor _(PR #63)_
 Testing: delta pure-function matrix; end-to-end revise on a fixture pair; consent-hash coverage test.
 Gate: full suite.
 
@@ -182,6 +182,8 @@ Gate: release Latest + full suite green.
 Discovered mid-milestone (R6), deliberately not folded into the phase that found it:
 - `--rounds 1` (incl. via `--tier quick`) + `--digest-format json` is a silent no-op — structured digests only exist for round 2+, so the run succeeds with zero JSON digests written. Pre-existing (#13); decide whether to refuse loudly or document. _(found during #3b adversarial review, 2026-07-01)_
 - `board_verdict.py` membership checks on hand-authored files crash with a raw TypeError (exit 1, not the clean schema exit 2) when a token field holds an unhashable value — e.g. top-level `"verdict": []`, `round_verdicts` entries, evidence `kind`/`status`. Pre-existing idiom across the file (the new lifecycle checks guard against it); sweep the remaining membership checks with isinstance guards in one pass. _(found during v1.12 P1 adversarial review, 2026-07-01)_
+- Delta-render trust: `previous_run.run_dir` in a verdict.json is an arbitrary local path the renderer reads at render time (sha-gated when `verdict_sha256` is recorded, but the field is optional) — a hostile shared verdict could point it anywhere for a spoofed/cosmetic delta or a file-exists oracle. Consider requiring the sha for delta rendering, or a run_dir sanity check. _(v1.12 P2 security review, LOW, 2026-07-01)_
+- Delta similarity tier can still pair parallel-but-different titles ("Add index on users" / "Add index on orders" share a token + high ratio). Mechanical limit, honestly rendered (both lists shown); revisit only if real runs mis-pair. _(v1.12 P2 correctness review, LOW, 2026-07-01)_
 
 ## Dependency order
 ```svg

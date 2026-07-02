@@ -36,6 +36,7 @@ from __future__ import annotations
 
 import argparse
 import glob
+import hashlib
 import html
 import json
 import os
@@ -53,6 +54,10 @@ from _verdict_labels import (  # noqa: E402  lens-aware label + framing (rendere
 from _conductor.constants import (  # noqa: E402  v1.11 cost transparency (stdlib-only module)
     PRICING_AS_OF,
     price_band_usd,
+)
+from _conductor.delta import (  # noqa: E402  v1.12: mechanical cross-run delta (stdlib-only)
+    DELTA_CONTAINERS,
+    verdict_delta,
 )
 
 STATUS_WORD = {"verified": "verified", "unverified": "unverified", "refuted": "REFUTED"}
@@ -132,6 +137,80 @@ def _iter_evidence(data: dict):
             yield ev
 
 
+def _load_previous_verdict(data: dict):
+    """(prior verdict dict, None) when `previous_run` points at a readable
+    verdict.json that matches the recorded verdict_sha256 (when recorded);
+    (None, reason) otherwise. Deterministic for a given filesystem state — the
+    delta is DERIVED from the two verdicts at render time, never stored (D8:
+    verdict.json carries lineage, not a rendering)."""
+    prev = data.get("previous_run")
+    if not isinstance(prev, dict) or not prev.get("run_dir"):
+        return None, None
+    path = os.path.join(os.path.expanduser(str(prev["run_dir"])), "verdict.json")
+    try:
+        with open(path, "rb") as handle:
+            raw = handle.read()
+        prior = json.loads(raw.decode("utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return None, (f"prior run not reachable at {prev['run_dir']} — "
+                      "delta not shown (lineage above still stands)")
+    want = prev.get("verdict_sha256")
+    if want and hashlib.sha256(raw).hexdigest() != want:
+        return None, ("prior verdict.json no longer matches the recorded "
+                      "verdict_sha256 — delta not shown (the prior run's "
+                      "artifacts changed after this run revised them)")
+    if not isinstance(prior, dict):
+        return None, "prior verdict.json is not an object — delta not shown"
+    return prior, None
+
+
+_DELTA_BUCKETS = (("cleared", "Cleared"), ("still_open", "Still open"), ("new", "New"))
+
+
+def _delta_item_title(entry) -> str:
+    """The display title for a delta entry. still_open entries are
+    {prior, current, matched_by} — show the CURRENT wording."""
+    item = entry.get("current", entry) if isinstance(entry, dict) and "current" in entry else entry
+    if isinstance(item, dict):
+        return item.get("title") or "(untitled)"
+    return str(item)
+
+
+def _trajectory_labels(prior: dict, data: dict):
+    frm, _ = human_label(prior.get("verdict"), prior.get("lens_preset"), prior.get("decision"))
+    to, _ = human_label(data.get("verdict"), data.get("lens_preset"), data.get("decision"))
+    return frm, to
+
+
+def render_delta_markdown(data: dict) -> list:
+    """The '## Delta vs the previous run' lines; [] when this verdict has no
+    `previous_run` (so a non-revise consensus stays byte-identical)."""
+    prev = data.get("previous_run")
+    if not isinstance(prev, dict):
+        return []
+    out = ["## Delta vs the previous run"]
+    when = f" ({prev['date']})" if isinstance(prev.get("date"), str) and prev["date"] else ""
+    out.append(f"Revises: {prev.get('run_dir', '?')}{when}")
+    prior, problem = _load_previous_verdict(data)
+    if prior is None:
+        out.append(f"_{problem or 'prior run reference incomplete — delta not shown'}_")
+        out.append("")
+        return out
+    delta = verdict_delta(prior, data)
+    frm, to = _trajectory_labels(prior, data)
+    out.append(f"**Trajectory: {frm} → {to}**")
+    for container in DELTA_CONTAINERS:
+        buckets = delta[container]
+        for key, label in _DELTA_BUCKETS:
+            entries = buckets[key]
+            if not entries:
+                continue
+            out.append(f"{label} {container} ({len(entries)}):")
+            out += [f"- {_delta_item_title(entry)}" for entry in entries]
+    out.append("")
+    return out
+
+
 def render_markdown(data: dict) -> str:
     out = ["# Advisory Board — Final Consensus"]
     if data.get("title"):
@@ -160,6 +239,10 @@ def render_markdown(data: dict) -> str:
     if note:
         out.append(note)
     out.append("")
+
+    # --revise runs only (previous_run present): the cross-run delta, right under
+    # the verdict so the trajectory reads first. Absent on every other verdict.
+    out += render_delta_markdown(data)
 
     blockers = data.get("blockers", [])
     if blockers:
@@ -630,7 +713,40 @@ def build_handoff_data(data: dict, run_dir=None) -> dict:
             "seat_highlight": "",
             "rounds": rounds,
         })
+    hd.update(_delta_handoff_fields(data))
     return hd
+
+
+def _delta_handoff_fields(data: dict) -> dict:
+    """The delta slots for the HTML handoff (v1.12 #1). All empty on a
+    non-revise verdict, so the template's delta section drops entirely and the
+    page stays byte-identical to before."""
+    empty = {"delta_revises": "", "delta_trajectory": "", "delta_note": "",
+             "delta_cleared": [], "delta_open": [], "delta_new": []}
+    prev = data.get("previous_run")
+    if not isinstance(prev, dict):
+        return empty
+    fields = dict(empty)
+    when = f" ({prev['date']})" if isinstance(prev.get("date"), str) and prev["date"] else ""
+    fields["delta_revises"] = _plain(f"Revises {prev.get('run_dir', '?')}{when}")
+    prior, problem = _load_previous_verdict(data)
+    if prior is None:
+        fields["delta_note"] = _plain(
+            problem or "prior run reference incomplete — delta not shown")
+        return fields
+    delta = verdict_delta(prior, data)
+    frm, to = _trajectory_labels(prior, data)
+    fields["delta_trajectory"] = _plain(f"{frm} → {to}")
+    singular = {"blockers": "blocker", "concerns": "concern"}
+    for container in DELTA_CONTAINERS:
+        buckets = delta[container]
+        for key, hd_key in (("cleared", "delta_cleared"),
+                            ("still_open", "delta_open"), ("new", "delta_new")):
+            fields[hd_key] += [
+                {"delta_item": _plain(f"{_delta_item_title(entry)} "
+                                      f"({singular[container]})")}
+                for entry in buckets[key]]
+    return fields
 
 
 def _render_html(hd: dict, shape: str = "full-handoff") -> str:

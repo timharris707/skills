@@ -93,10 +93,15 @@ class PacketBlob:
 
 
 def build_packet(config: RunConfig) -> list:
-    """Materialize the exact per-seat round-1 prompts that would leave the machine."""
+    """Materialize the exact per-seat round-1 prompts that would leave the machine.
+    On a --revise run the prompts embed the revision material (prior-verdict
+    digest + source diff), so the packet hash — and therefore consent — covers
+    every injected byte with no extra machinery."""
     blobs: list = []
+    revision_material = config.revision.material if config.revision else None
     for seat in config.board:
-        prompt = build_round1_prompt(seat, config.source.text, grounded=config.grounded)
+        prompt = build_round1_prompt(seat, config.source.text, grounded=config.grounded,
+                                     revision_material=revision_material)
         blobs.append(PacketBlob(
             seat=seat.id,
             provider=seat.provider,
@@ -169,6 +174,17 @@ def render_egress_manifest(config: RunConfig, blobs: list, content_hash: str) ->
                   "Seats may READ & QUOTE any file below; quotes can be transmitted to the "
                   "external providers and fan out to the other seats in round 2+.", ""]
         lines += render_repo_scope_lines(config.grounding)
+    if config.revision is not None:
+        # --revise widens the packet: prior-run material rides inside the round-1
+        # prompts. Disclose it HERE, on the consent surface itself, like grounding
+        # does (§8) — the bytes are already inside the content hash above.
+        r = config.revision
+        lines += ["", "## Prior-run revision context (--revise)", "",
+                  f"Revises: {r.run_dir}",
+                  f"Injected into every round-1 prompt (inside the packet content hash): "
+                  f"{r.note} — {len(r.material.encode('utf-8'))} bytes.",
+                  "Prior run sensitivity: "
+                  + (r.prior_sensitivity or "unknown (no readable sensitivity.json)")]
     lines += [
         "",
         "## Files leaving this machine",
@@ -229,6 +245,10 @@ def disclosure_line(config: RunConfig) -> str:
         base += (f" Seats may also read & quote any of {config.grounding.n_files} files under "
                  f"{config.grounding.repo_root}, which can be transmitted to {pretty} and fan "
                  "out to the other seats in round 2+.")
+    if config.revision is not None:
+        base += (f" The round-1 prompts ALSO carry a digest of the prior run's verdict and a "
+                 f"diff against the previously reviewed draft (--revise {config.revision.run_dir}), "
+                 "which egress with the source.")
     return base + " Proceed?"
 
 

@@ -152,6 +152,18 @@
   .verdict.caution { background: var(--caution-bg); border-color: var(--caution-edge); color: var(--caution-ink); }
   .verdict.block   { background: var(--block-bg);   border-color: var(--block-edge);   color: var(--block-ink); }
 
+  /* ---- delta vs previous run (revise runs only; section drops when absent) ---- */
+  .delta-revises { margin: 0 0 6px; font-size: 13.5px; color: var(--ink-faint); }
+  .delta-traj { margin: 0 0 12px; font-size: 17px; font-weight: 700; }
+  .delta-note { margin: 0 0 12px; font-size: 14px; font-style: italic; color: var(--ink-faint); }
+  .delta-cols { display: flex; gap: 18px; flex-wrap: wrap; }
+  .delta-col { flex: 1 1 180px; }
+  .delta-col h4 {
+    font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--ink-faint); margin: 0 0 6px;
+  }
+  .delta-list { margin: 0; padding-left: 18px; font-size: 14px; line-height: 1.5; }
+
   /* ---- sections ---- */
   section { margin: 0 0 34px; }
   h2 {
@@ -355,6 +367,39 @@
     <p class="headline">{{VERDICT}}</p>
     <p class="note">{{VERDICT_NOTE}}</p>
   </div>
+
+  <!-- ============== DELTA VS THE PREVIOUS RUN (revise runs only) ==============
+       The renderer drops this whole section when the verdict carries no
+       previous_run (the delta-revises line renders empty). On a revise verdict:
+       trajectory line, then the cleared / still-open / new buckets; a bucket
+       with no items drops, and delta-note carries the honest reason when the
+       prior run isn't reachable to diff. -->
+  <section class="delta-sec">
+    <h2>Delta vs the previous run</h2>
+    <p class="delta-revises">{{DELTA_REVISES}}</p>
+    <p class="delta-traj">{{DELTA_TRAJECTORY}}</p>
+    <p class="delta-note">{{DELTA_NOTE}}</p>
+    <div class="delta-cols">
+      <div class="delta-col">
+        <h4>Cleared</h4>
+        <ul class="delta-list"><!-- BEGIN DELTA CLEARED (duplicate per cleared item) -->
+          <li>{{DELTA_ITEM}}</li>
+        <!-- END DELTA CLEARED --></ul>
+      </div>
+      <div class="delta-col">
+        <h4>Still open</h4>
+        <ul class="delta-list"><!-- BEGIN DELTA OPEN (duplicate per still-open item) -->
+          <li>{{DELTA_ITEM}}</li>
+        <!-- END DELTA OPEN --></ul>
+      </div>
+      <div class="delta-col">
+        <h4>New</h4>
+        <ul class="delta-list"><!-- BEGIN DELTA NEW (duplicate per new item) -->
+          <li>{{DELTA_ITEM}}</li>
+        <!-- END DELTA NEW --></ul>
+      </div>
+    </div>
+  </section>
 
   <!-- ===================== PLAN UNDER REVIEW ===================== -->
   <section>

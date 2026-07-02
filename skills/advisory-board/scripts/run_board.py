@@ -103,6 +103,8 @@ from _conductor.preflight import *  # noqa: F401,F403
 from _conductor.doctor import *  # noqa: F401,F403  (setup doctor: guided provider sweep)
 from _conductor.synthesizer import *  # noqa: F401,F403
 from _conductor.recipe import *  # noqa: F401,F403
+from _conductor.delta import *  # noqa: F401,F403  (v1.12: mechanical verdict delta)
+from _conductor.revise import *  # noqa: F401,F403  (v1.12: --revise prior-run context)
 from _conductor.history import *  # noqa: F401,F403  (v1.11: the `history` run listing)
 from _conductor.artifacts import *  # noqa: F401,F403
 from _conductor.rounds import *  # noqa: F401,F403

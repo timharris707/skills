@@ -12,6 +12,7 @@ from _conductor.constants import (
     price_band_usd,
     tier_provenance_line,
 )
+from _conductor.revise import SOURCE_MATERIAL_FILENAME
 from _conductor.config import (
     RunConfig,
     SeatConfig,
@@ -117,6 +118,14 @@ def render_run_card(config: RunConfig) -> str:
             f"                  scope sha256:{g.scope_hash[:12]}…"
             + (f"  ·  ⚠ {len(g.secret_hits)} secret-scan hit(s)" if g.secret_hits else ""),
         ]
+    if config.revision is not None:
+        r = config.revision
+        lines += [
+            f"  revises       : {r.run_dir}"
+            f"  (prior sensitivity: {r.prior_sensitivity or 'unknown'})",
+            f"                  injected into round-1 prompts: {r.note} "
+            f"({len(r.material.encode('utf-8'))} bytes — inside the packet hash)",
+        ]
     note = unenforced_network_note(config)
     if note:
         lines += ["", "  " + note]
@@ -147,6 +156,19 @@ def render_sensitivity_json(config: RunConfig, approval: Optional[EgressApproval
             "include": g.include or [],
             "exclude": g.exclude or [],
             "secret_scan_hits": [{"path": rel, "kind": kind} for rel, kind in g.secret_hits],
+        }
+    if config.revision is not None:
+        # --revise provenance on the consent record (mirrors repo_scope): what prior
+        # material rides in the packet and how it was recovered. Only present on a
+        # revise run, so every other sensitivity.json is unchanged.
+        r = config.revision
+        payload["revision"] = {
+            "revises_run_dir": r.run_dir,
+            "prior_sensitivity": r.prior_sensitivity,
+            "prior_verdict_sha256": r.previous_run.get("verdict_sha256"),
+            "source_recovered_from": r.source_recovered_from,
+            "source_verified": r.source_verified,
+            "injected_bytes": len(r.material.encode("utf-8")),
         }
     if approval is not None:
         payload["approval"] = {
@@ -335,6 +357,10 @@ def render_run_metadata(config: RunConfig, preflight: list, approval: EgressAppr
     # a no-tier run's run-metadata.md stays byte-identical to baseline.
     if config.tier:
         lines.append(f"Tier: {tier_provenance_line(config.tier)}")
+    # --revise provenance (v1.12 #1): same discipline — only on a revise run.
+    if config.revision is not None:
+        lines.append(f"Revises: {config.revision.run_dir}   ·   "
+                     f"injected: {config.revision.note}")
     lines += [
         "",
         "## Seats",
@@ -534,6 +560,11 @@ def write_pre_spawn_artifacts(config: RunConfig, blobs: list, approval: EgressAp
         # audit can resolve citations against the same file list + scope hash.
         _write(os.path.join(out, "repo-scope-manifest.json"),
                json.dumps(config.grounding.manifest, indent=2) + "\n")
+    # Persist the exact reviewed source (v1.12 #1) so a later `--revise` of THIS
+    # run can diff against it. Post-approval only, next to the prompts that embed
+    # the same bytes — the same consent envelope and sensitivity handling
+    # (references/data-handling.md).
+    _write(os.path.join(out, SOURCE_MATERIAL_FILENAME), config.source.text)
     for b in blobs:
         _write(os.path.join(out, b.relpath), b.text)
 
