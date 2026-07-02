@@ -424,20 +424,20 @@ footer.colophon code { background: var(--surface-2); }
           
           <span class="chip"><b>Baseline</b> advisory-board/v1.10.0 · `main` @ `be4c9b2` · 676 tests green</span>
           
-          <span class="chip"><b>Status</b> M1 SHIPPED (`advisory-board/v1.11.0`, 2026-07-01) · M2 SHIPPED (`advisory-board/v1.12.0`, 2026-07-02) · M3 (v1.13) in flight — P1 design roundtable done, decisions D9–D14 recorded</span>
+          <span class="chip"><b>Status</b> M1 SHIPPED (`advisory-board/v1.11.0`, 2026-07-01) · M2 SHIPPED (`advisory-board/v1.12.0`, 2026-07-02) · M3 (v1.13) in flight — P1 decisions D9–D14 recorded, P2 revision seat merged (PR #67), P3 next</span>
           
         </div>
       </div>
       <div class="gauge">
-        <svg class="ring" viewBox="0 0 120 120" width="118" height="118" role="img" aria-label="Overall progress 61%">
+        <svg class="ring" viewBox="0 0 120 120" width="118" height="118" role="img" aria-label="Overall progress 63%">
           <circle class="ring-track" cx="60" cy="60" r="52" fill="none" stroke-width="11"/>
           <circle class="ring-arc" cx="60" cy="60" r="52" fill="none" stroke-width="11"
                   stroke-linecap="round" transform="rotate(-90 60 60)"
-                  stroke-dasharray="326.7" stroke-dashoffset="127.4"/>
-          <text class="ring-pct" x="60" y="57" text-anchor="middle" dominant-baseline="middle">61%</text>
+                  stroke-dasharray="326.7" stroke-dashoffset="120.9"/>
+          <text class="ring-pct" x="60" y="57" text-anchor="middle" dominant-baseline="middle">63%</text>
           <text class="ring-sub" x="60" y="76" text-anchor="middle" dominant-baseline="middle">complete</text>
         </svg>
-        <div class="gauge-count"><b>23</b> / 38 tasks done</div>
+        <div class="gauge-count"><b>24</b> / 38 tasks done</div>
       </div>
     </div>
 
@@ -816,8 +816,8 @@ footer.colophon code { background: var(--surface-2); }
           <div class="ms-meta">
             <span class="badge wip"><span class="dot"></span>In progress</span>
             <span class="ms-progress">
-              <span class="ms-bar"><span style="width:17%"></span></span>
-              1/6
+              <span class="ms-bar"><span style="width:33%"></span></span>
+              2/6
             </span>
           </div>
         </div>
@@ -853,15 +853,15 @@ footer.colophon code { background: var(--surface-2); }
         
       </div>
       
-      <div class="phase todo">
+      <div class="phase done">
         <div class="phase-head">
           <span class="phase-dot"></span>
           <h4 class="phase-title">Phase 2 — Revision seat + <code>changes.json</code> (#2)</h4>
-          <span class="phase-state">To do</span>
+          <span class="phase-state">Done</span>
         </div>
         <ul class="checklist">
           
-          <li class="todo"><span class="tick"></span><span class="task-text"><code>--output revised-draft</code>: after synthesis, spawn a revision seat (generalizing the synthesizer spawn path) with source + <code>verdict.json</code>; emits the <code>changes</code> mapping first, revised text second, in one spawn (D11) — <code>changes.json</code> keyed by composite <code>{list, index, title}</code> finding locators (D9; the roundtable struck the &quot;blocker/concern ids&quot; phrasing — no ids exist and none are introduced)</span></li>
+          <li class="done"><span class="tick">✓</span><span class="task-text"><code>--output revised-draft</code>: after synthesis, spawn a revision seat (generalizing the synthesizer spawn path) with source + <code>verdict.json</code>; emits the <code>changes</code> mapping first, revised text second, in one spawn (D11) — <code>changes.json</code> keyed by composite <code>{list, index, title}</code> finding locators (D9; the roundtable struck the &quot;blocker/concern ids&quot; phrasing — no ids exist and none are introduced) <em>Reviewed by 2 finder agents + a 2-seat dogfood board AND its <code>--revise</code> re-review (first real use of the v1.12 loop): 4 board blockers fixed, 1 re-review blocker (byte-clean vs LF-normalization) fixed per the board&#x27;s prescribed option. Suite 980 → 1118.</em> <em>(PR #67)</em></span></li>
           
         </ul>
         
@@ -1323,7 +1323,7 @@ footer.colophon code { background: var(--surface-2); }
 
   <!-- ===================== COLOPHON ===================== -->
   <footer class="colophon">
-    Rendered from <code>run-board-roadmap-v1.11-v1.15.md</code> &middot; 5 milestones &middot; 23/38 tasks complete. The markdown plan is the source of truth &mdash; regenerate with <code>render_plan.py</code>; never hand-edit this file.
+    Rendered from <code>run-board-roadmap-v1.11-v1.15.md</code> &middot; 5 milestones &middot; 24/38 tasks complete. The markdown plan is the source of truth &mdash; regenerate with <code>render_plan.py</code>; never hand-edit this file.
   </footer>
 
 </div>

@@ -5,7 +5,7 @@
 - **Source:** 2026-07-01 four-agent review (feature surface · conductor architecture · artifacts/examples · market scan) + Tim's selection of items 1–14 from the ranked slate
 - **Owner:** Tim
 - **Baseline:** advisory-board/v1.10.0 · `main` @ `be4c9b2` · 676 tests green
-- **Status:** M1 SHIPPED (`advisory-board/v1.11.0`, 2026-07-01) · M2 SHIPPED (`advisory-board/v1.12.0`, 2026-07-02) · M3 (v1.13) in flight — P1 design roundtable done, decisions D9–D14 recorded
+- **Status:** M1 SHIPPED (`advisory-board/v1.11.0`, 2026-07-01) · M2 SHIPPED (`advisory-board/v1.12.0`, 2026-07-02) · M3 (v1.13) in flight — P1 decisions D9–D14 recorded, P2 revision seat merged (PR #67), P3 next
 
 ## Overview
 
@@ -103,7 +103,7 @@ Testing: n/a (design phase); decisions land in this plan + Decisions below.
 Gate: decisions recorded here before Phase 2 starts.
 
 ### Phase 2 — Revision seat + `changes.json` (#2)
-- [ ] `--output revised-draft`: after synthesis, spawn a revision seat (generalizing the synthesizer spawn path) with source + `verdict.json`; emits the `changes` mapping first, revised text second, in one spawn (D11) — `changes.json` keyed by composite `{list, index, title}` finding locators (D9; the roundtable struck the "blocker/concern ids" phrasing — no ids exist and none are introduced)
+- [x] `--output revised-draft`: after synthesis, spawn a revision seat (generalizing the synthesizer spawn path) with source + `verdict.json`; emits the `changes` mapping first, revised text second, in one spawn (D11) — `changes.json` keyed by composite `{list, index, title}` finding locators (D9; the roundtable struck the "blocker/concern ids" phrasing — no ids exist and none are introduced) _Reviewed by 2 finder agents + a 2-seat dogfood board AND its `--revise` re-review (first real use of the v1.12 loop): 4 board blockers fixed, 1 re-review blocker (byte-clean vs LF-normalization) fixed per the board's prescribed option. Suite 980 → 1118._ _(PR #67)_
 Testing: revision honors verdict scope; changes.json schema round-trip; source file untouched.
 Gate: full suite.
 
@@ -193,6 +193,10 @@ Discovered mid-milestone (R6), deliberately not folded into the phase that found
 - `revise.py` shares three hardening gaps whose `ask`-side twins were fixed in P3: `_prior_sensitivity` crashes (raw AttributeError) on a non-object `sensitivity.json`; `_load_prior_verdict` crashes (raw TypeError) on a scalar-JSON verdict; `prior_source_text`'s prompt extraction checks `islink` per file but not a symlinked `prompts/` PARENT dir (sha-gated, so not exploitable today — the attacker would already need the exact bytes). Sweep all three with the ask-side patterns (isinstance guards + realpath containment) in one pass. _(v1.12 P3 adversarial review, LOW, 2026-07-02)_
 - `board_verdict.py load()` catches only FileNotFoundError/JSONDecodeError — a path through a non-directory (NotADirectoryError), an unreadable file (PermissionError), etc. still crash legacy invocations with a raw traceback instead of the clean exit 2 (`amend` now pre-checks its own `--run`; the legacy positional path does not). Widen to OSError in the same sweep as the membership-check note above. _(v1.12 P4 adversarial review, LOW, 2026-07-02)_
 - `render_handoff.py drop_empty_optionals`: the PRE-existing optional-block drops (seat-status / highlight / conf) leave a whitespace-only line behind because their regexes don't consume the preceding template authoring comment — the P4 blocks got the tempered-comment fix; old vs new output is identical (both carry the artifact), so this is cosmetic template-engine debt only. _(v1.12 P4 compat review, LOW, 2026-07-02)_
+- An extensionless code source (e.g. `Makefile`) under `--source-type code` falls back to `revised-draft.txt`, losing the original name — consider preserving the source basename for the revised artifact. _(v1.13 P2 board re-review, LOW, 2026-07-02)_
+- Exotic Unicode line separators (` `, `\f`) could desync a model's line numbering from `splitlines()`'s — the locator convention is documented against `splitlines()`; revisit only if real runs mis-anchor. _(v1.13 P2 board re-review, LOW, 2026-07-02)_
+- The revision path's duplicate-title refusal is arguably vestigial now that refs carry `index` (the cross-assert disambiguates); a verdict with two same-titled blockers currently can't be revised at all — consider relaxing to a warning. _(v1.13 P2 board re-review, LOW, 2026-07-02)_
+- Byte-exact (non-LF-normalized) source support for `revised-draft`: CR/CRLF sources are refused loudly today because the pipeline reads the source and captures seat replies with universal-newline translation end to end; add a byte-exact path only if demand shows. _(v1.13 P2 board re-review, LOW, 2026-07-02)_
 
 ## Dependency order
 ```svg
