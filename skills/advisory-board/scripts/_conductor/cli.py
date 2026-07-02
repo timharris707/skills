@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import subprocess
@@ -96,6 +97,13 @@ from _conductor.synthesizer import (
     run_synthesizer,
     synthesizer_template_sha,
 )
+from _conductor.revision import (
+    REVISION_TEMPLATE_VERSION,
+    choose_revision_seat,
+    render_revision_raw,
+    revision_template_sha,
+    run_revision,
+)
 
 __all__ = [
     "cmd_init",
@@ -104,6 +112,7 @@ __all__ = [
     "cmd_doctor",
     "_maybe_update_tools",
     "cmd_run",
+    "_run_revision_step",
     "cmd_ask",
     "cmd_history",
     "cmd_render",
@@ -562,10 +571,27 @@ def _run_synthesis_step(config, rounds_done: list, args, last_dir: str, *,
         if os.path.exists(rejected_path):
             os.unlink(rejected_path)
             print(f"  (removed stale verdict-rejected.json from a prior run)")
-        with open(verdict_path, "w", encoding="utf-8") as handle:
-            json.dump(sr.verdict_data, handle, indent=2, ensure_ascii=False)
-            handle.write("\n")
+        # The exact bytes written to verdict.json — captured so the revision step's
+        # pointer write (D10) can sha-guard against them (optimistic concurrency).
+        # newline="" disables platform newline translation so the ON-DISK bytes equal
+        # verdict_bytes exactly: the pointer guard reads verdict.json in BINARY
+        # (_file_sha256), so a text-mode \n → \r\n rewrite on Windows would diverge
+        # the file from the sha baseline below and FALSE-TRIP the guard on the very
+        # first pointer write. The JSON content is already \n-only, so this is a
+        # no-op on POSIX and a correctness fix on Windows.
+        verdict_bytes = (json.dumps(sr.verdict_data, indent=2, ensure_ascii=False) + "\n")
+        with open(verdict_path, "w", encoding="utf-8", newline="") as handle:
+            handle.write(verdict_bytes)
         print(f"\nwrote {verdict_path} (synthesized; advisory-board/verdict@2 — validated)")
+        # --output revised-draft (v1.13 #2): a validated verdict.json now exists, so
+        # the revision step runs — analogous placement/shape to the synthesis step,
+        # gated on config.output. A revision failure never discards the verdict/rounds
+        # (rejected artifacts + exit 0; --strict-exit → 4, same as the synthesizer).
+        if config.output == "revised-draft":
+            return _run_revision_step(config, sr.verdict_data, rounds_done, args,
+                                      verdict_path=verdict_path,
+                                      verdict_sha256=hashlib.sha256(
+                                          verdict_bytes.encode("utf-8")).hexdigest())
         print("\nNext — the deterministic M5 chain (human still gates ship/abstain):")
         print(f"  1. run_board.py verify {verdict_path} --source <src> --run {config.out_dir}")
         print(f"  2. run_board.py consensus {verdict_path} --run {config.out_dir} "
@@ -608,6 +634,232 @@ def _run_synthesis_step(config, rounds_done: list, args, last_dir: str, *,
     # success — every print, the verdict-rejected.json write, and the fallback
     # message above are byte-identical in both modes. Both synth-failure modes
     # (parse error and schema-rejected) flow through here, so both honor the flag.
+    if getattr(args, "strict_exit", False):
+        return EXIT_NO_VERDICT
+    return EXIT_OK
+
+
+def _revised_draft_name(config, *, rejected: bool) -> str:
+    """The on-disk filename for the revised draft. Prose → `revised-draft.md`;
+    code → `revised-draft.<orig-ext>` (so a saved code file keeps its extension
+    and stays syntactically valid), falling back to `.txt` for an extensionless
+    code source (e.g. a `Makefile` reached via an explicit `--source-type code`).
+    The rejected variant carries the same suffix with `-rejected` before it.
+    Byte-clean: this file holds the revised source bytes and nothing else (D12 —
+    no metadata header of any kind)."""
+    if config.source_type == "code" and config.source.kind == "path":
+        ext = os.path.splitext(config.source.ref)[1] or ".txt"
+    else:
+        ext = ".md"
+    stem = "revised-draft-rejected" if rejected else "revised-draft"
+    return stem + ext
+
+
+def _write_verdict_changes_pointer(verdict_path: str, changes_sha256: str, *,
+                                   baseline_sha256: str) -> "tuple":
+    """Write `verdict.json.changes = {artifact, sha256}` (D10) with amend's full
+    write discipline: re-read + re-validate, an optimistic sha guard against the
+    bytes synthesis wrote (a race/outside edit refuses), symlink-preserving
+    realpath, mkstemp + rename, mode preservation. The pointer is acyclic
+    (verdict → changes → {source, revised}); changes.json never references the
+    verdict by hash. Returns (ok, detail)."""
+    import tempfile
+    import board_verdict
+    # Resolve through any symlink so we read AND write the real target (amend's rule).
+    path = os.path.realpath(verdict_path)
+    current_sha = board_verdict._file_sha256(path)
+    if current_sha != baseline_sha256:
+        return (False, "verdict.json changed since synthesis wrote it — the changes "
+                "pointer was NOT written (optimistic-concurrency guard); changes.json "
+                "still stands on its own")
+    try:
+        data = board_verdict.load(path)   # re-read + re-validate before touching
+    except SystemExit:
+        return (False, "verdict.json failed re-validation before the pointer write — "
+                "pointer NOT written")
+    data["changes"] = {"artifact": "changes.json", "sha256": changes_sha256}
+    try:
+        board_verdict.validate(data)      # the pointer must itself validate (strict-when-present)
+    except SystemExit:
+        return (False, "the changes pointer failed verdict schema validation — NOT written")
+
+    dest_dir = os.path.dirname(path) or "."
+    try:
+        orig_mode = os.stat(path).st_mode & 0o777
+    except OSError:
+        orig_mode = 0o644
+    tmp = None
+    try:
+        fd, tmp = tempfile.mkstemp(dir=dest_dir, prefix=".verdict.json.changes.", suffix=".tmp")
+        # newline="" writes byte-exact (no platform \n → \r\n translation) so the
+        # bytes on disk are the bytes the guard hashes in binary — a later re-read /
+        # re-guard of this same file must not diverge from what we wrote.
+        with os.fdopen(fd, "w", encoding="utf-8", newline="") as handle:
+            json.dump(data, handle, indent=2, ensure_ascii=False)
+            handle.write("\n")
+        os.chmod(tmp, orig_mode)
+        # Re-check the race guard just before the swap (a narrowing, not a lock).
+        if board_verdict._file_sha256(path) != baseline_sha256:
+            board_verdict._cleanup(tmp)
+            return (False, "verdict.json changed while writing the changes pointer — NOT written")
+        os.replace(tmp, path)
+    except OSError as exc:
+        if tmp is not None:
+            board_verdict._cleanup(tmp)
+        return (False, f"cannot write the changes pointer to verdict.json: {exc}")
+    except BaseException:
+        # A non-OSError (e.g. KeyboardInterrupt) between mkstemp and replace must
+        # not leave a scratch tmp behind (parity with amend's write path).
+        if tmp is not None:
+            board_verdict._cleanup(tmp)
+        raise
+    return (True, "wrote verdict.json.changes pointer (sha-bound to changes.json)")
+
+
+def _run_revision_step(config, verdict_data: dict, rounds_done: list, args, *,
+                       verdict_path: str, verdict_sha256: str) -> int:
+    """The v1.13 revision step. Runs ONLY after synthesis produced a validated
+    verdict.json (this function is reached from _run_synthesis_step's success
+    branch, gated on config.output == "revised-draft"). Spawns one board seat to
+    produce a revised copy of the source + the changes mapping; the conductor
+    mechanically validates every claim, builds changes.json, writes the byte-clean
+    revised draft, and pins the verdict → changes pointer. A revision failure never
+    discards the completed rounds/verdict: rejected artifacts + a loud warning +
+    exit 0 (--strict-exit → 4, the same code the synthesizer uses)."""
+    import shutil
+    import tempfile
+    last = rounds_done[-1]
+    seat = choose_revision_seat(config, last, preferred=config.revision_seat)
+    timeout = seat.timeout_s
+    revised_artifact = _revised_draft_name(config, rejected=False)
+
+    print(f"\n=== revision ({seat.name}; --output revised-draft) ===")
+    print(f"prompt template: {REVISION_TEMPLATE_VERSION} "
+          f"(sha256:{revision_template_sha()[:12]}…)")
+    print("(the revision seat is handed the full source + the verdict's resolvable findings "
+          "enumerated BY THE CONDUCTOR; it returns the edit->finding mapping first and the "
+          "revised source second. Every edit is mechanically reconciled against the diff — "
+          "§11: the model reasons the edits, the conductor owns the finding skeleton.)")
+
+    workdir = tempfile.mkdtemp(prefix="advisory-board-revision-") if config.fs_scoped else None
+    try:
+        rr = run_revision(config, verdict_data, rounds_done, seat=seat,
+                          revised_artifact=revised_artifact, timeout=timeout,
+                          workdir_factory=(lambda: workdir) if workdir else None)
+    finally:
+        if workdir:
+            shutil.rmtree(workdir, ignore_errors=True)
+
+    # Persist the black-box record (mirrors synthesizer/), always — a failed
+    # revision is forensically inspectable, not lost.
+    rev_dir = os.path.join(config.out_dir, "revision")
+    os.makedirs(rev_dir, exist_ok=True)
+    if rr.prompt_text:
+        _write(os.path.join(config.out_dir, "prompts", "revision.prompt"), rr.prompt_text)
+    _write(os.path.join(rev_dir, f"{seat.name}.md"),
+           rr.stdout or "(revision seat produced no stdout)\n")
+    _write(os.path.join(rev_dir, f"{seat.name}.raw"), render_revision_raw(config, rr))
+    _write(os.path.join(config.out_dir, "logs", f"revision-{seat.name}.stderr"), rr.stderr or "")
+
+    print(f"revision: {rr.status}"
+          + (f" ({rr.failure_class})" if rr.failure_class else "")
+          + f"  ·  elapsed {rr.elapsed_s:.1f}s  ·  packet sha256:{rr.packet_hash[:12]}…")
+
+    draft_path = os.path.join(config.out_dir, revised_artifact)
+    rejected_artifact = _revised_draft_name(config, rejected=True)
+    rejected_draft_path = os.path.join(config.out_dir, rejected_artifact)
+    changes_path = os.path.join(config.out_dir, "changes.json")
+    changes_rejected_path = os.path.join(config.out_dir, "changes-rejected.json")
+
+    # P2 endorsement write-path guard (Blocker 4, belt-and-suspenders alongside
+    # build_changes' internal assert): the model cannot author endorsements in P2,
+    # so a non-empty endorsements must NEVER reach a written changes.json. If one
+    # somehow got this far, divert to the reject path (internal error, not
+    # model-blamed) rather than write it. (P4 will fill endorsements legitimately
+    # and lift this guard.)
+    if rr.changes is not None and (rr.changes.get("endorsements") or []) != []:
+        rr.changes = None
+        rr.reject_error = ("internal error: a non-empty 'endorsements' reached the "
+                           "changes.json write path in P2, but no endorsement pass "
+                           "exists yet (P4) and the model cannot author endorsements "
+                           "— refusing to write")
+
+    if rr.changes is not None:
+        # Drop stale rejected peers from a prior run only AFTER this run produced
+        # a successor (never destroy prior good state on an exception path).
+        for stale in (changes_rejected_path, rejected_draft_path):
+            if os.path.exists(stale):
+                os.unlink(stale)
+        # 1. The byte-clean revised draft — the revised source bytes and NOTHING
+        #    else (no header). Its sha256 MUST equal changes.json.revised.sha256,
+        #    so newline="" disables platform newline translation: the on-disk
+        #    bytes are exactly the bytes the sha was pinned over (the integrity
+        #    anchor). Without it, a \n → \r\n rewrite on Windows would diverge the
+        #    file from its own recorded sha.
+        with open(draft_path, "w", encoding="utf-8", newline="") as handle:
+            handle.write(rr.revised_text or "")
+        # 2. changes.json — the artifact of record. Same newline="" discipline:
+        #    the verdict→changes pointer below pins the sha of these exact bytes
+        #    (json.dumps + "\n"), so the disk bytes must not be newline-translated.
+        with open(changes_path, "w", encoding="utf-8", newline="") as handle:
+            json.dump(rr.changes, handle, indent=2, ensure_ascii=False)
+            handle.write("\n")
+        changes_sha = hashlib.sha256(
+            (json.dumps(rr.changes, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
+        ).hexdigest()
+        # 3. The verdict → changes pointer (D10), with amend's write discipline.
+        ok, detail = _write_verdict_changes_pointer(
+            verdict_path, changes_sha, baseline_sha256=verdict_sha256)
+        n_unresolved = len(rr.changes.get("unresolved") or [])
+        print(f"\nwrote {draft_path} (byte-clean revised {config.source_type} — no header)")
+        print(f"wrote {changes_path} (advisory-board/changes@1 — validated; "
+              f"{len(rr.changes['edits'])} edit(s), {n_unresolved} unresolved)")
+        if n_unresolved:
+            print(f"⚠ {n_unresolved} finding-conflict(s) left UNRESOLVED — surfaced in "
+                  "changes.json, decided by you (a conflict never fails the run; D14).")
+        if ok:
+            print(f"  {detail}")
+        else:
+            print(f"  ⚠ {detail}")
+        print("\nThe revised draft is an ARTIFACT — applying it is your act (D6); the source "
+              "was never written.")
+        return EXIT_OK
+
+    # Failure path: keep the verdict + rounds, be loud that the revision did NOT
+    # deliver. Persist rejected artifacts so the human can inspect/hand-fix.
+    for stale in (changes_path, draft_path):
+        if os.path.exists(stale):
+            os.unlink(stale)
+    if rr.revised_text is not None:
+        # We parsed a draft but a mechanical check rejected it — persist it so the
+        # human can see what the seat produced (clearly marked rejected).
+        # newline="" keeps the on-disk bytes faithful to what the seat emitted
+        # (same byte-fidelity discipline as the accepted draft), so a human
+        # inspecting the reject sees the exact revised bytes.
+        with open(rejected_draft_path, "w", encoding="utf-8", newline="") as handle:
+            handle.write(rr.revised_text)
+    # A best-effort rejected changes record: what we could assemble, or the reason.
+    rejected_record = {
+        "schema": "advisory-board/changes@1",
+        "rejected": True,
+        "reason": (rr.pre_spawn_error or rr.reject_error or rr.parse_error
+                   or rr.failure_class or "revision seat dropped"),
+        "revision_seat": rr.seat,
+    }
+    with open(changes_rejected_path, "w", encoding="utf-8") as handle:
+        json.dump(rejected_record, handle, indent=2, ensure_ascii=False)
+        handle.write("\n")
+
+    reason = rejected_record["reason"]
+    print(f"\n⚠ revision did NOT produce a usable revised draft — reason: {reason}")
+    print(f"  see {rev_dir}/{seat.name}.md and {rev_dir}/{seat.name}.raw for the full record")
+    print(f"  the rejection was recorded to {changes_rejected_path}"
+          + (f" and {rejected_draft_path}" if rr.revised_text is not None else ""))
+    print("\nThe verdict + rounds are intact — the revision failure discards nothing. "
+          "Re-run with --output revised-draft to retry, or apply the verdict's findings "
+          "by hand.")
+    # exit 0 by default (a revision hiccup never discards the verdict/rounds);
+    # --strict-exit → EXIT_NO_VERDICT (4), the same code the synthesizer uses.
     if getattr(args, "strict_exit", False):
         return EXIT_NO_VERDICT
     return EXIT_OK
@@ -703,7 +955,25 @@ def add_run_options(parser: argparse.ArgumentParser) -> None:
                         help="public proceeds after disclosure; redacted (default) blocks for "
                              "hash-bound approval; local-only forbids external egress")
     parser.add_argument("--output",
-                        choices=("quick-verdict", "full-handoff", "implementation-sequence"))
+                        choices=("quick-verdict", "full-handoff", "implementation-sequence",
+                                 "revised-draft"),
+                        help="verdict render shape, or (v1.13) revised-draft: after synthesis, "
+                             "spawn a revision seat to produce a board-derived, findings-mapped "
+                             "fixed copy of the source + changes.json (the edit->finding "
+                             "mapping; per-edit board endorsement is the later P4 pass). "
+                             "revised-draft REQUIRES --synthesize (or a --from-recipe replay of "
+                             "a synthesized revised-draft run) — a verdict must exist to revise.")
+    parser.add_argument("--source-type", dest="source_type", choices=("prose", "code"),
+                        help="prose|code for --output revised-draft — selects the redline "
+                             "format downstream (P3). Overrides the extension heuristic; "
+                             "REQUIRED for a stdin or unknown-extension source. Only accepted "
+                             "with --output revised-draft.")
+    parser.add_argument("--revision-seat", dest="revision_seat", metavar="SEAT",
+                        help="which board seat's CLI/adapter spawns the revision (default: "
+                             "claude if seated, else the first usable seat). Must be one of "
+                             "the run's board seats — the revision seat egresses to that "
+                             "provider, covered by the run's existing disclosure. Only "
+                             "accepted with --output revised-draft.")
     parser.add_argument("--out", help="exact output directory (default: a persistent "
                                       "<runs root>/<slug>-<date> — see --runs-root/--ephemeral)")
     parser.add_argument("--runs-root", dest="runs_root", metavar="DIR",

@@ -45,6 +45,13 @@ __all__ = [
     "parse_board",
     "parse_model_overrides",
     "parse_timeout_args",
+    "PROSE_EXTENSIONS",
+    "CODE_EXTENSIONS",
+    "REVISION_MAX_BYTES_DEFAULT",
+    "revision_max_bytes",
+    "source_type_from_ext",
+    "resolve_source_type",
+    "source_has_carriage_return",
 ]
 
 
@@ -96,13 +103,21 @@ class RunConfig:
     max_rounds: int      # hard ceiling for `auto` (ignored for an explicit 1|2|3)
     cross_reading: str   # none | summaries | full
     lens: str            # preset name
-    output: str          # quick-verdict | full-handoff | implementation-sequence
+    output: str          # quick-verdict | full-handoff | implementation-sequence | revised-draft
     out_dir: str
     board: list          # list[SeatConfig]
     network_on: bool     # isolation: network
     fs_scoped: bool      # isolation: filesystem scoped
     synthesize: bool = False         # M2: spawn the neutral synthesizer after rounds
     synthesizer_seat: Optional[str] = None   # which board seat's adapter runs it
+    # --output revised-draft (v1.13 #2): the revision-seat feature. `source_type`
+    # (prose|code) is RESOLVED at config time (extension heuristic + --source-type
+    # override) and drives redline-vs-patch downstream; `revision_seat` mirrors
+    # `synthesizer_seat` (a board seat's adapter runs the revision spawn). Both are
+    # None on a run that isn't producing a revised draft, so a normal run's config
+    # and recipe are byte-identical.
+    source_type: Optional[str] = None        # prose | code — only set for revised-draft
+    revision_seat: Optional[str] = None      # which board seat's adapter runs the revision
     repo: Optional[str] = None       # repo-grounding: a local repo seats may read (read-only)
     repo_include: Optional[list] = None   # optional fnmatch globs narrowing the grounding scope
     repo_exclude: Optional[list] = None   # optional fnmatch globs removed from the grounding scope
@@ -165,6 +180,94 @@ def load_source(ref: str) -> SourceSpec:
     except (OSError, UnicodeDecodeError) as exc:
         die(f"cannot read source {ref}: {exc}")
     return _source_from_text("path", ref, text)
+
+
+# --output revised-draft source-type heuristic (D12). Prose vs code decides
+# redline-vs-patch downstream (P3). The heuristic is deliberately CONSERVATIVE:
+# a known prose or code extension resolves; anything else (unknown extension,
+# no extension, stdin) refuses without an explicit --source-type, "better a loud
+# refusal than a silently-wrong board-derived copy". `--source-type` always wins.
+PROSE_EXTENSIONS = frozenset({
+    ".md", ".markdown", ".txt", ".rst", ".adoc",
+})
+CODE_EXTENSIONS = frozenset({
+    ".py", ".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs",
+    ".go", ".rs", ".java", ".kt", ".kts", ".scala",
+    ".c", ".h", ".cc", ".cpp", ".cxx", ".hpp", ".hh",
+    ".cs", ".rb", ".php", ".swift", ".m", ".mm",
+    ".sh", ".bash", ".zsh", ".fish", ".ps1",
+    ".sql", ".r", ".jl", ".lua", ".pl", ".pm",
+    ".html", ".htm", ".css", ".scss", ".sass", ".less", ".vue", ".svelte",
+    ".json", ".yaml", ".yml", ".toml", ".ini", ".cfg", ".xml",
+})
+
+# The source-size ceiling for a revised-draft run (D11's loud-refusal preflight).
+# Above this the whole reply (revised draft + mapping) is too large to trust the
+# revision seat to return byte-clean, so refuse at resolve time. Overridable via
+# $ADVISORY_BOARD_REVISION_MAX_BYTES (documented) — an unparseable/non-positive
+# value is refused rather than silently ignored.
+REVISION_MAX_BYTES_DEFAULT = 65536
+
+
+def revision_max_bytes() -> int:
+    """The revised-draft source-size ceiling in bytes (env-overridable)."""
+    raw = os.environ.get("ADVISORY_BOARD_REVISION_MAX_BYTES")
+    if raw is None or raw == "":
+        return REVISION_MAX_BYTES_DEFAULT
+    try:
+        value = int(raw)
+    except ValueError:
+        die(f"ADVISORY_BOARD_REVISION_MAX_BYTES must be a positive integer; got {raw!r}")
+    if value < 1:
+        die(f"ADVISORY_BOARD_REVISION_MAX_BYTES must be >= 1; got {value}")
+    return value
+
+
+def source_type_from_ext(ref: str) -> Optional[str]:
+    """"prose" | "code" | None for a source PATH's extension. None means unknown
+    (refuse without --source-type). Case-insensitive on the extension."""
+    ext = os.path.splitext(ref)[1].lower()
+    if ext in PROSE_EXTENSIONS:
+        return "prose"
+    if ext in CODE_EXTENSIONS:
+        return "code"
+    return None
+
+
+def source_has_carriage_return(ref: str) -> bool:
+    """Sniff a source PATH's RAW bytes for a carriage return (CRLF or a lone CR).
+
+    Deliberately reads the file in BINARY, independently of `load_source` (whose
+    universal-newline text read has already collapsed CR/CRLF → LF by the time the
+    SourceSpec exists). The revision pipeline is LF-normalized end-to-end — seat
+    stdout is captured `text=True`, so a CRLF source would silently round-trip to
+    an LF revised draft — so the revision path refuses a CR-bearing source up front
+    rather than quietly re-terminate it. Unreadable is treated as "no CR": a real
+    read error surfaces later through load_source's own clean die()."""
+    try:
+        with open(ref, "rb") as handle:
+            return b"\r" in handle.read()
+    except OSError:
+        return False
+
+
+def resolve_source_type(source: SourceSpec, explicit: Optional[str]) -> str:
+    """Resolve the prose/code source type for a revised-draft run: an explicit
+    --source-type wins; else the extension heuristic on a real path. A stdin
+    source, or a path with an unknown/absent extension, refuses loudly (only
+    reached when --output revised-draft is requested)."""
+    if explicit is not None:
+        if explicit not in ("prose", "code"):
+            die(f"--source-type must be prose or code; got {explicit!r}")
+        return explicit
+    if source.kind != "path":
+        die("--output revised-draft needs --source-type prose|code for a "
+            f"{source.kind} source (the extension heuristic needs a file path)")
+    inferred = source_type_from_ext(source.ref)
+    if inferred is None:
+        die(f"--output revised-draft can't infer prose vs code from "
+            f"{os.path.basename(source.ref)!r} — pass --source-type prose|code")
+    return inferred
 
 
 def _source_from_text(kind: str, ref: str, text: str) -> SourceSpec:
@@ -425,6 +528,10 @@ def resolve_config(args) -> RunConfig:
         die(f"--cross-reading must be none, summaries, or full; got {cross!r}")
 
     output = getattr(args, "output", None) or (base or {}).get("output") or "full-handoff"
+    if output not in ("quick-verdict", "full-handoff", "implementation-sequence",
+                      "revised-draft"):
+        die(f"--output must be one of quick-verdict, full-handoff, "
+            f"implementation-sequence, revised-draft; got {output!r}")
 
     title = getattr(args, "title", None) or (base or {}).get("title") or derive_title(source)
     date = now_date()
@@ -479,6 +586,67 @@ def resolve_config(args) -> RunConfig:
                 f"({', '.join(sorted(board_names))}); the synthesizer egresses to that seat's "
                 "provider, which the run's disclosure only covers for board seats")
 
+    # --output revised-draft (v1.13 #2): the revision seat + changes.json. Resolved
+    # here so a refusal is loud and pre-spawn (never after rounds spend). Requires a
+    # verdict path (--synthesize, or a --from-recipe replay of a synthesized recipe
+    # that recorded revised-draft) — a revision seat improvising findings from raw
+    # reviews would put a model where the conductor's skeleton belongs (D11). The
+    # source_type (prose|code) resolves from --source-type or the extension
+    # heuristic; a size preflight refuses an oversized source loudly (D11).
+    source_type: Optional[str] = None
+    revision_seat = (getattr(args, "revision_seat", None)
+                     or (base or {}).get("revision_seat"))
+    source_type_flag = getattr(args, "source_type", None) or (base or {}).get("source_type")
+    if output == "revised-draft":
+        if not synthesize:
+            die("--output revised-draft needs a verdict to revise from: pass "
+                "--synthesize (or --from-recipe a synthesized run's recipe). A "
+                "revision seat improvising findings from raw reviews is refused — "
+                "the conductor owns the finding skeleton (D11)")
+        # source_type: --source-type overrides; else the extension heuristic; a
+        # stdin/unknown-extension source without the flag is refused inside.
+        source_type = resolve_source_type(source, source_type_flag)
+        # Newline preflight: the revision pipeline is LF-normalized end to end
+        # (load_source reads with universal-newline translation; seat stdout is
+        # captured text=True), so a CR/CRLF source would silently become an
+        # LF-terminated revised draft. Rather than mislabel a re-terminated copy
+        # as byte-clean, refuse a CR-bearing PATH source up front. Sniff the RAW
+        # bytes (binary, independent of load_source's text semantics) — a stdin
+        # source can't be re-sniffed post-read, so it's only reached via a path.
+        if source.kind == "path" and source_has_carriage_return(source.ref):
+            die("--output revised-draft refuses a CR/CRLF source: the revision "
+                "pipeline is LF-normalized end to end (the source is read and the "
+                "seat's reply captured with universal-newline translation), so a "
+                "CRLF source would silently ship as an LF-terminated draft. Convert "
+                f"{os.path.basename(source.ref)!r} to LF (e.g. `dos2unix`) and re-run, "
+                "or run without --output revised-draft. Better a loud refusal than a "
+                "quietly re-terminated draft passed off as byte-clean")
+        # Size preflight (D11): a source above the ceiling is too large to trust
+        # the revision seat to return byte-clean — refuse loudly, at resolve time.
+        limit = revision_max_bytes()
+        if source.nbytes > limit:
+            die(f"--output revised-draft refuses an oversized source: "
+                f"{source.nbytes} bytes > the {limit}-byte ceiling "
+                "($ADVISORY_BOARD_REVISION_MAX_BYTES overrides). Better a loud "
+                "refusal than a silently-short board-derived copy")
+        # revision_seat mirrors --synthesizer-seat exactly: must be a board seat
+        # (its egress is covered by the run's disclosure). Validated below alongside
+        # the synthesizer-seat check so both refusals read the same.
+    elif source_type_flag is not None:
+        die("--source-type is only accepted with --output revised-draft "
+            "(it selects the redline format for the revised draft)")
+    if revision_seat is not None:
+        if output != "revised-draft":
+            die("--revision-seat is only accepted with --output revised-draft")
+        if revision_seat not in REGISTRY:
+            die(f"--revision-seat must be a registered seat ({', '.join(sorted(REGISTRY))}); "
+                f"got {revision_seat!r}")
+        board_names = {s.name for s in board}
+        if revision_seat not in board_names:
+            die(f"--revision-seat {revision_seat!r} is not one of this run's board seats "
+                f"({', '.join(sorted(board_names))}); the revision seat egresses to that "
+                "seat's provider, which the run's disclosure only covers for board seats")
+
     # Repo-grounding (design/run-board-repo-grounding.md): a local repo seats may
     # read read-only. Resolved + validated as a directory here; the scope/snapshot
     # and the consent/network safety policy are applied at run time (P2/P3).
@@ -524,6 +692,8 @@ def resolve_config(args) -> RunConfig:
         fs_scoped=fs_scoped,
         synthesize=synthesize,
         synthesizer_seat=synthesizer_seat,
+        source_type=source_type,
+        revision_seat=revision_seat,
         repo=repo,
         repo_include=repo_include,
         repo_exclude=repo_exclude,

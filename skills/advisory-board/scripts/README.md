@@ -5,7 +5,8 @@
 | Script | Does | Reference |
 | ------ | ---- | --------- |
 | `run_board.py` | The **conductor** (M1–M5): deterministic seat-adapter registry, `--dry-run`, toolchain currency (`toolchain` — check/update stale CLIs, propose fallback model ids), executable preflight (GO/NO-GO), a hash-bound egress/quarantine gate before any provider call, the **round-1 fan-out** (real spawn, §13 failure protocol, per-seat `round-1/` artifacts), **rounds 2…N** (cross-reading `board-packet-round-N.md`, debate fan-out, the `--rounds auto` convergence stop-rule, `run-metadata.tsv`), and the **canonical-verdict chain** (`verify` → `consensus` → `validate`). Runs **persist by default** under `~/.advisory-board/runs/<slug>-<date>/` (override: `$ADVISORY_BOARD_RUNS_ROOT` / `--runs-root`; exact dir: `--out`; throwaway `/tmp`: `--ephemeral`) and `history` lists them. Optionally **repo-grounds** the board: `--repo PATH` (with `--repo-include`/`--repo-exclude` globs) hands every seat a read-only, `.gitignore`-respecting, secret-denylisted **snapshot** of the repository so findings cite real `path:line`; consent binds to the scope hash and `repo-scope-manifest.json` records the scope, and in gate mode it enforces read-XOR-network (refuses an un-isolatable seat — see `references/data-handling.md`). Calls the scripts below; never reimplements them. Implemented as the [`_conductor/`](#package-layout) package — `run_board.py` is a thin façade (re-exports the API + the CLI entry). | `design/run-board-conductor.md` |
-| `board_verdict.py` | Validate `verdict.json` (`@1`/`@2`); gate CI on the verdict (`--gate`) — pass `0` / fail `1` / schema `2` / **abstain `3`** when the board is torn, the declared verdict contradicts the observed board, or a citation is refuted. The `amend` subcommand (v1.12) appends append-only human tuning (a confidence change, caveat, or severity note, each with provenance) without rewriting the board's own words. | `references/verdict-schema.md` |
+| `board_verdict.py` | Validate `verdict.json` (`@1`/`@2`); gate CI on the verdict (`--gate`) — pass `0` / fail `1` / schema `2` / **abstain `3`** when the board is torn, the declared verdict contradicts the observed board, or a citation is refuted. The `amend` subcommand (v1.12) appends append-only human tuning (a confidence change, caveat, or severity note, each with provenance) without rewriting the board's own words. Validates the v1.13 `changes` pointer (exactly `{artifact, sha256}`) strict-when-present. | `references/verdict-schema.md` |
+| `board_changes.py` | Validate `changes.json` — the v1.13 revision artifact of record (`advisory-board/changes@1`; the edit → finding mapping of `run --output revised-draft`). Strict schema check (locator shapes, `resolves`-list enum {blockers, concerns}, dense `n`, conductor-computed `status`) — schema `2` on a violation. Importable `validate()` + a small CLI. | `references/changes-schema.md` |
 | `verify_evidence.py` | Resolve a verdict's typed `evidence[]` and stamp each `verified`/`unverified`/`refuted` — `code` `path:line`/`symbol` against the source, `source` quotes against the **captured packet** (never a live fetch), and (M3, opt-in via `--allow-program NAME`) `command` citations by **program-pinned, no-shell re-execution** in an isolated cwd with a structural exit/`expect` match. | `references/verdict-schema.md` |
 | `render_verdict.py` | Render `final-consensus.md` **from** the canonical `verdict.json` (evidence trail + couldn't-verify bucket); `--handoff-data`/`--html` derive the HTML via `render_handoff.py`. `--shape` picks the view: `full-handoff` (default), `quick-verdict` (skim brief), or `implementation-sequence` (sequence-first — every next action in order with owners where the verdict names them, backed by the blockers and their evidence trails; md + HTML). | `references/verdict-schema.md`, `references/output-formats.md` |
 | `format_output.py` | Render `verdict.json` as a TL;DR, PR comment, Slack message, or normalized JSON. | `references/output-formats.md` |
@@ -40,6 +41,7 @@ dependency DAG — each imports only from those above it:
 | `delta.py` | The pure cross-run verdict delta (v1.12 #1): matches blockers/concerns across two runs (exact title > shared citations > guarded similarity) into cleared / still-open / new + trajectory. |
 | `revise.py` | `--revise` (v1.12 #1): load a prior run, recover its source (sha-verified), and build the injected prior-verdict digest + source diff (with the sensitivity-escalation gate). |
 | `ask.py` | `ask` (v1.12 #4): post-verdict cross-examination — reconstruct the run's board from its recipe, build a run-context packet from that run's own artifacts, re-consent, one-round fan-out, and write `addendum-N.md` + the addenda index / handoff refresh. |
+| `revision.py` | The revision seat (v1.13 #2, `run --output revised-draft`): generalizes the synthesizer spawn path to produce a board-derived, findings-mapped revised copy of the source (per-edit board endorsement is the later P4 pass). Enumerates the verdict's resolvable findings, spawns one board seat (mapping first, revised draft second), then MECHANICALLY cross-asserts every `{list, index, title}` finding ref against the verdict, reconciles each edit locator against the `difflib` diff (INV-1), enforces completeness, and builds `changes.json` (schema `advisory-board/changes@1`). |
 | `cli.py` | The argparse front end: the `cmd_*` handlers, the delegation shim, and `main()`. |
 
 The split is behavior-preserving — the test suite (`tests/`) imports `run_board`
@@ -107,6 +109,19 @@ python3 scripts/run_board.py ask "Does the dedup blocker still hold if we shard?
 # never rewrites the board's own confidence/blockers; renderers show the effective value
 # marked "(amended)"; a no-amendments verdict is unchanged.
 python3 scripts/board_verdict.py amend --run <out> --author tim --reason "overstated" --confidence medium
+
+# board-derived FIXED COPY (v1.13; per-edit endorsement is the later P4 pass): after synthesis,
+# spawn a revision seat to produce a revised copy of the source, each edit mapped by the model
+# to the finding it resolves, mechanically validated (coverage reconciliation + index/title
+# cross-assert). Requires a
+# verdict path (--synthesize). --source-type prose|code selects the redline format (else the
+# extension heuristic decides; unknown ext / stdin must pass the flag). The source file is
+# NEVER written (D6) — applying the revised draft is your act.
+# -> revised-draft.md (or .<orig-ext>, byte-clean) + changes.json (advisory-board/changes@1)
+#    + revision/<seat>.md+.raw; verdict.json gains a {artifact, sha256} changes pointer.
+python3 scripts/run_board.py run --source plan.md --out <out> --yes --synthesize --output revised-draft
+# validate the revision artifact of record (strict schema check; exit 2 on a violation)
+python3 scripts/board_changes.py <out>/changes.json
 
 # --- the canonical-verdict chain (after the agent fills verdict.json,
 #     or `run --synthesize` drafts it via the neutral synthesizer seat — M2) ---
