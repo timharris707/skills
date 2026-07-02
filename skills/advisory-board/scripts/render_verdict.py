@@ -60,6 +60,11 @@ from _conductor.delta import (  # noqa: E402  v1.12: mechanical cross-run delta 
     DELTA_CONTAINERS,
     verdict_delta,
 )
+from _conductor.redline import (  # noqa: E402  v1.13 P3: prose redline rows (stdlib-only)
+    REDLINE_MAX_LINES,
+    build_redline,
+)
+from _conductor.revise import SOURCE_MATERIAL_FILENAME  # noqa: E402  the persisted source copy
 
 STATUS_WORD = {"verified": "verified", "unverified": "unverified", "refuted": "REFUTED"}
 EVIDENCE_CONTAINERS = ("blockers", "dissent", "concerns")
@@ -124,6 +129,62 @@ def _evidence_trail(ev: dict) -> str:
     if ev.get("kind") == "judgment":
         badge = ""  # judgment has no external referent to resolve
     return _evidence_label(ev) + badge
+
+
+def _valid_snippet(snip) -> bool:
+    """True when `snip` is a well-formed captured snippet: a dict with a non-empty
+    `text` str and integer `from`/`to` (bool-guarded) with 1 ≤ from ≤ to. Anything
+    malformed (missing from/to, text-only, bool line number, from>to, non-dict)
+    renders the evidence line WITHOUT the snippet rather than crashing — the
+    standalone `render_verdict.py verdict.json` path never runs the schema
+    validator, so a hand-authored/fuzzed snippet must degrade, not traceback."""
+    if not isinstance(snip, dict):
+        return False
+    text = snip.get("text")
+    if not isinstance(text, str) or not text:
+        return False
+    frm, to = snip.get("from"), snip.get("to")
+    if isinstance(frm, bool) or not isinstance(frm, int) or frm < 1:
+        return False
+    if isinstance(to, bool) or not isinstance(to, int) or to < frm:
+        return False
+    return True
+
+
+def _snippet_fence(text: str) -> str:
+    """A CommonMark-safe code fence for `text`: a backtick run STRICTLY LONGER than
+    the longest backtick run inside the snippet (minimum 3). A captured source line
+    containing ``` (7 files in this repo's scripts/ do) would close a hardcoded
+    3-backtick fence early and derail the whole document; a longer fence can't be
+    closed by any run the text contains."""
+    longest = 0
+    run = 0
+    for ch in text:
+        if ch == "`":
+            run += 1
+            longest = max(longest, run)
+        else:
+            run = 0
+    return "`" * max(3, longest + 1)
+
+
+def _evidence_snippet_md_lines(ev: dict, indent: str = "     ") -> list:
+    """The fenced snippet block for an evidence entry that carries one (v1.13 P3),
+    or [] — so an entry without a snippet (or a malformed one) renders
+    byte-identically to the pre-snippet output. Labeled `path:from-to`, the verbatim
+    lines fenced with a backtick run longer than any inside them (so a snippet
+    containing ``` can't break out): the handoff is self-contained without the repo.
+    `indent` aligns it under the evidence bullet."""
+    snip = ev.get("snippet")
+    if not _valid_snippet(snip):
+        return []
+    text = str(snip["text"])
+    fence = f"{indent}{_snippet_fence(text)}"
+    label = f"{indent}{ev.get('path', '?')}:{snip['from']}-{snip['to']}:"
+    lines = [label, fence]
+    lines += [indent + line for line in text.split("\n")]
+    lines.append(fence)
+    return lines
 
 
 def _iter_evidence(data: dict):
@@ -352,6 +413,7 @@ def render_markdown(data: dict) -> str:
             for ev in (blocker.get("evidence") or []):
                 if isinstance(ev, dict):
                     out.append(f"   - evidence: {_evidence_trail(ev)}")
+                    out += _evidence_snippet_md_lines(ev)
             # A human severity note scoped to THIS blocker (exact --on title match).
             for note in _severity_notes_for(data, title):
                 out.append(f"   - severity note: {_flat(note['severity_note'])} "
@@ -516,6 +578,7 @@ def render_sequence_markdown(data: dict) -> str:
             for ev in (blocker.get("evidence") or []):
                 if isinstance(ev, dict):
                     out.append(f"   - evidence: {_evidence_trail(ev)}")
+                    out += _evidence_snippet_md_lines(ev)
             for note in _severity_notes_for(data, title):
                 out.append(f"   - severity note: {_flat(note['severity_note'])} "
                            f"— added by {_flat(note.get('author', '?'))} (amendment)")
@@ -703,7 +766,252 @@ def _token_totals_note(totals) -> str:
     return note
 
 
-def build_handoff_data(data: dict, run_dir=None) -> dict:
+# --------------------------------------------------------------------------- #
+# Revision redline / patch (v1.13 P3, D12). A full-handoff-only VIEW of the
+# board's revised draft, rendered ONLY when --run points at a sha-coherent
+# revised-draft chain. The chain is verified end to end (verdict → changes →
+# {source, revised}, PLUS source-material.txt ≡ changes.source.sha256) before any
+# byte is diffed — any mismatch/missing artifact/malformed json degrades to the
+# section being absent with one stderr warning (never a crash, never partial).
+# --------------------------------------------------------------------------- #
+
+
+def _redline_warn(reason: str) -> None:
+    """One stderr warning when a present-but-incoherent revised chain drops the
+    redline/patch section (revise.py's UNVERIFIED-posture precedent). Silent when
+    there is simply no revision (the common case)."""
+    print(f"note: revised-draft redline not rendered — {reason}", file=sys.stderr)
+
+
+def _sha256_bytes(raw: bytes) -> str:
+    return hashlib.sha256(raw).hexdigest()
+
+
+def _confined_path(run_dir: str, artifact: str):
+    """The `run_dir/artifact` path, realpath-confined to inside realpath(run_dir),
+    or None when the artifact escapes it. Defense in depth INDEPENDENT of the
+    validators (renderer robustness must not depend on validators having run): an
+    absolute or `../escape` artifact — or one reached through a parent-dir symlink —
+    resolves OUTSIDE run_dir and is refused here, so the renderer degrades to the
+    section being absent rather than reading arbitrary bytes. The islink checks the
+    callers already do catch a symlink AT the artifact path; this catches the
+    absolute/parent-escape cases those miss."""
+    root = os.path.realpath(run_dir)
+    target = os.path.realpath(os.path.join(run_dir, artifact))
+    root_prefix = root if root.endswith(os.sep) else root + os.sep
+    if target == root or target.startswith(root_prefix):
+        return target
+    return None
+
+
+def _load_revised_chain(data: dict, run_dir):
+    """(source_text, revised_text, source_type, changes) when `data` carries a
+    verdict→changes pointer AND the whole revised-draft chain is sha-coherent
+    under `run_dir`; (None, reason) otherwise. Verifies, in order:
+
+      * verdict.json.changes = {artifact, sha256} present and shaped;
+      * changes.json bytes match verdict.changes.sha256;
+      * changes.json validates (advisory-board/changes@1);
+      * source-material.txt bytes hash to changes.source.sha256 (the equivalence
+        the run persists but asserts NOWHERE — verified HERE, mirroring
+        revise.prior_source_text: real file only, no symlink, sha compare);
+      * revised-draft.<artifact> bytes match changes.revised.sha256.
+
+    Returns None-reason (not raising) so the caller degrades to a dropped section.
+    `run_dir` is required — the chain lives in files, and a verdict.json alone
+    can't be trusted to still match its run's bytes."""
+    changes_ptr = data.get("changes")
+    if not isinstance(changes_ptr, dict):
+        return None, None   # no revision on this verdict — silent, the common case
+    if not run_dir:
+        return None, ("the verdict points at a changes.json but no --run dir was "
+                      "given to resolve it against")
+    artifact = changes_ptr.get("artifact")
+    want_changes_sha = changes_ptr.get("sha256")
+    if (not isinstance(artifact, str) or not artifact
+            or not isinstance(want_changes_sha, str)):
+        return None, "verdict.changes pointer is malformed (need {artifact, sha256})"
+    # 1. changes.json bytes ≡ verdict.changes.sha256.
+    changes_path = _confined_path(run_dir, artifact)
+    if changes_path is None:
+        return None, (f"the verdict's changes pointer {artifact!r} resolves outside "
+                      "the run dir — refused")
+    if os.path.islink(os.path.join(run_dir, artifact)):
+        return None, f"{artifact} is a symlink — refused"
+    try:
+        with open(changes_path, "rb") as handle:
+            changes_raw = handle.read()
+    except OSError as exc:
+        return None, f"{artifact} not readable ({exc})"
+    if _sha256_bytes(changes_raw) != want_changes_sha:
+        return None, (f"{artifact} does not match the verdict's changes pointer "
+                      "sha256 (the revision artifact changed after the pointer was written)")
+    try:
+        changes = json.loads(changes_raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        return None, f"{artifact} is not valid JSON ({exc})"
+    # 2. changes.json validates against the @1 schema (loud beats garbage-in).
+    try:
+        import board_changes
+    except ImportError as exc:
+        return None, f"could not import board_changes to validate {artifact} ({exc})"
+    import contextlib
+    import io
+    buf = io.StringIO()
+    try:
+        with contextlib.redirect_stderr(buf):
+            board_changes.validate(changes)
+    except SystemExit:
+        detail = buf.getvalue().strip() or "schema error"
+        return None, f"{artifact} failed changes@1 validation ({detail})"
+    source_pin = changes.get("source") or {}
+    revised_pin = changes.get("revised") or {}
+    want_source_sha = source_pin.get("sha256")
+    revised_artifact = revised_pin.get("artifact")
+    want_revised_sha = revised_pin.get("sha256")
+    # 3. source-material.txt ≡ changes.source.sha256 — the equivalence the run
+    #    persists but never asserts. The recorded sha is over the LF-normalized
+    #    source TEXT (config.source.sha256), so hash the file's decoded text, not
+    #    its raw bytes.
+    src_path = os.path.join(run_dir, SOURCE_MATERIAL_FILENAME)
+    if os.path.islink(src_path):
+        return None, f"{SOURCE_MATERIAL_FILENAME} is a symlink — refused"
+    try:
+        with open(src_path, encoding="utf-8") as handle:
+            source_text = handle.read()
+    except (OSError, UnicodeDecodeError) as exc:
+        return None, f"{SOURCE_MATERIAL_FILENAME} not readable ({exc})"
+    if _sha256_bytes(source_text.encode("utf-8")) != want_source_sha:
+        return None, (f"{SOURCE_MATERIAL_FILENAME} does not match changes.source.sha256 "
+                      "(the persisted source is not the source the board reviewed)")
+    # 4. revised-draft.<artifact> ≡ changes.revised.sha256.
+    if not isinstance(revised_artifact, str) or not revised_artifact:
+        return None, "changes.revised.artifact is missing"
+    revised_path = _confined_path(run_dir, revised_artifact)
+    if revised_path is None:
+        return None, (f"changes.revised.artifact {revised_artifact!r} resolves "
+                      "outside the run dir — refused")
+    if os.path.islink(os.path.join(run_dir, revised_artifact)):
+        return None, f"{revised_artifact} is a symlink — refused"
+    try:
+        with open(revised_path, "rb") as handle:
+            revised_raw = handle.read()
+    except OSError as exc:
+        return None, f"{revised_artifact} not readable ({exc})"
+    if _sha256_bytes(revised_raw) != want_revised_sha:
+        return None, (f"{revised_artifact} does not match changes.revised.sha256 "
+                      "(the revised draft on disk is not the one the board endorsed)")
+    try:
+        revised_text = revised_raw.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        return None, f"{revised_artifact} is not valid UTF-8 ({exc})"
+    source_type = changes.get("source_type") or "prose"
+    return source_text, revised_text, source_type, changes
+
+
+def _redline_row_html(row: dict) -> str:
+    """One redline row → a RAW HTML fragment (fully escaped + brace-neutralized).
+
+    context/gap/delete/insert render the whole line; a replace row renders the
+    original with `<del>` on its changed WORDS then the revised with `<ins>` on
+    its changed words (D12: word-level within changed lines). Every text segment
+    is html.escaped and brace-neutralized (`_nb`) before it lands in the fragment,
+    so HTML-hostile source (`<script>`, `{{TOKEN}}`) can never survive into the
+    handoff. A blank line renders a non-breaking space so the row keeps height."""
+    kind = row["kind"]
+    if kind in ("context", "gap", "delete", "insert"):
+        cls = {"context": "rl-ctx", "gap": "rl-gap",
+               "delete": "rl-del", "insert": "rl-ins"}[kind]
+        text = _raw(row["text"]) or "&nbsp;"
+        return f'<div class="rl-row {cls}">{text}</div>'
+    # replace: two sub-rows (old with <del> spans, new with <ins> spans)
+    del_html = _segment_html(row["del_segments"], "del") or "&nbsp;"
+    ins_html = _segment_html(row["ins_segments"], "ins") or "&nbsp;"
+    return (f'<div class="rl-row rl-del">{del_html}</div>'
+            f'<div class="rl-row rl-ins">{ins_html}</div>')
+
+
+def _segment_html(segments, tag: str) -> str:
+    """Render `(changed, text)` segments: unchanged runs plain, changed runs
+    wrapped in `<del>`/`<ins>`. Each run's text is escaped + brace-neutralized."""
+    out = []
+    for changed, text in segments:
+        piece = _raw(text)
+        out.append(f"<{tag}>{piece}</{tag}>" if changed and text else piece)
+    return "".join(out)
+
+
+def build_redline_rows(source_text: str, revised_text: str) -> "tuple":
+    """(rows, truncated_note) for the prose redline block. `rows` is a list of
+    {"redline_html": <RAW fragment>} for the template's REDLINE block; a non-empty
+    `truncated_note` says how many rows were cut (with a pointer to the artifact)."""
+    raw_rows, truncated, total = build_redline(source_text, revised_text)
+    rows = [{"redline_html": _redline_row_html(r)} for r in raw_rows]
+    note = ""
+    if truncated:
+        more = total - REDLINE_MAX_LINES
+        note = (f"… {more} more changed line(s) — see revised-draft.md "
+                f"(showing the first {REDLINE_MAX_LINES} of {total}).")
+    return rows, note
+
+
+def build_patch_html(source_text: str, revised_text: str, changes: dict) -> "tuple":
+    """(patch_html, truncated_note) for the code fenced-patch block. The unified
+    diff is rendered as one escaped `<pre>` (the template's existing code styling),
+    capped at REDLINE_MAX_LINES diff lines with a pointer to the artifact. Built
+    from the SAME pinned strings as revised-draft.patch — a rendering, no new trust
+    surface."""
+    from _conductor.revision import build_unified_patch
+    name = (changes.get("source") or {}).get("name") or "source"
+    patch = build_unified_patch(source_text, revised_text, name)
+    lines = patch.splitlines()
+    note = ""
+    if len(lines) > REDLINE_MAX_LINES:
+        more = len(lines) - REDLINE_MAX_LINES
+        lines = lines[:REDLINE_MAX_LINES]
+        note = (f"… {more} more patch line(s) — see revised-draft.patch "
+                f"(showing the first {REDLINE_MAX_LINES}).")
+    body = "\n".join(lines)
+    return _raw(body), note
+
+
+def _revision_handoff_fields(data: dict, run_dir, shape: str = "full-handoff") -> dict:
+    """The redline/patch slots for the HTML handoff (v1.13 P3). All empty when
+    there is no sha-coherent revised chain, so BOTH template sections drop and the
+    page stays byte-identical to a non-revision run. At most ONE is populated: a
+    prose chain fills the redline rows, a code chain fills the patch pre (D12 —
+    two sibling sections, ins/del OR fenced patch, never both).
+
+    The redline/patch view lives ONLY in the full-handoff template (Item 4): for
+    the quick-verdict / implementation-sequence shapes the fields render nowhere, so
+    we return them empty WITHOUT touching the revised-draft chain on disk — no
+    changes.json / source-material / revised-draft reads, and NO spurious 'redline
+    not rendered' warning when a --run points at a present-but-incoherent chain."""
+    empty = {"redline_source_name": "", "redline_rows": [], "redline_note": "",
+             "patch_pre": "", "patch_note": ""}
+    if shape != "full-handoff":
+        return empty
+    loaded = _load_revised_chain(data, run_dir)
+    if loaded[0] is None:
+        if loaded[1]:                    # present-but-incoherent chain: warn once
+            _redline_warn(loaded[1])
+        return empty
+    source_text, revised_text, source_type, changes = loaded
+    fields = dict(empty)
+    name = (changes.get("source") or {}).get("name") or "source"
+    if source_type == "code":
+        patch_html, note = build_patch_html(source_text, revised_text, changes)
+        fields["patch_pre"] = patch_html
+        fields["patch_note"] = _plain(note) if note else ""
+    else:
+        rows, note = build_redline_rows(source_text, revised_text)
+        fields["redline_rows"] = rows
+        fields["redline_note"] = _plain(note) if note else ""
+        fields["redline_source_name"] = _plain(name)
+    return fields
+
+
+def build_handoff_data(data: dict, run_dir=None, shape: str = "full-handoff") -> dict:
     verdict = data.get("verdict", "")
     lens_preset = data.get("lens_preset")
     label, note = human_label(verdict, lens_preset, data.get("decision"))
@@ -851,6 +1159,12 @@ def build_handoff_data(data: dict, run_dir=None) -> dict:
             "rounds": rounds,
         })
     hd.update(_delta_handoff_fields(data))
+    # The revision redline/patch slots (v1.13 P3). Empty (both sections drop) on
+    # any verdict without a sha-coherent revised-draft chain, so a non-revision
+    # run stays byte-identical. Gated on the full-handoff shape (Item 4): the slim
+    # shapes render no redline/patch, so they do NO revised-chain I/O and emit no
+    # spurious redline warning.
+    hd.update(_revision_handoff_fields(data, run_dir, shape))
     return hd
 
 
@@ -942,7 +1256,7 @@ def main(argv=None) -> int:
         print(f"wrote {out_path} ({len(markdown)} bytes)")
 
     if args.handoff_data or args.html:
-        hd = build_handoff_data(data, run_dir=args.run_dir)
+        hd = build_handoff_data(data, run_dir=args.run_dir, shape=args.shape)
         if args.handoff_data:
             with open(args.handoff_data, "w", encoding="utf-8") as handle:
                 json.dump(hd, handle, indent=2, ensure_ascii=False)

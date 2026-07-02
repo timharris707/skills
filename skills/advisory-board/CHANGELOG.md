@@ -56,6 +56,50 @@ reserved for an explicit production-ready call. The verdict-JSON schema is versi
   top-level keys refused, exact field types, locator shape checks, `resolves`-list enum
   {blockers, concerns}). The conductor validates every `changes.json` with it before write; a
   failure takes the reject path.
+- **Prose redline in the full-handoff HTML (v1.13 P3, D12).** A `run --output revised-draft`
+  against a **prose** source now renders a word-level-within-changed-lines redline of the
+  original vs. the board's revised draft as a new section in `final-consensus.html`
+  (`--shape full-handoff` only). New `scripts/_conductor/redline.py`: a pure, stdlib-only view —
+  `difflib.SequenceMatcher.get_opcodes()` line-level (context/delete/insert/replace, long
+  unchanged runs collapsed to `REDLINE_CONTEXT_LINES` (2) on each side of a change plus a gap
+  row), then a second word-level `SequenceMatcher` pass inside each `replace` pair so only the
+  changed WORDS carry `<ins>`/`<del>` spans, not the whole line. Capped at `REDLINE_MAX_LINES`
+  (400) rendered rows, with a truncation row pointing at `revised-draft.md` for the rest.
+  `render_verdict.py` walks the **sha trust chain** before rendering a byte: `verdict.changes`
+  pointer → `changes.json` (sha-checked) → `source-material.txt` (hashed against
+  `changes.source.sha256` — the equivalence the run persists but never elsewhere asserts) and
+  `revised-draft.*` (sha-checked against `changes.revised.sha256`); any mismatch, missing
+  artifact, or malformed pointer **degrades to the section being absent** with one stderr
+  warning, never a crash and never a partial render. `references/handoff-template.html` gains
+  the `redline-sec` section (RAW token `REDLINE_HTML`, one row per redline line) behind the same
+  tempered-comment drop discipline as the delta/amendment sections — absent on any
+  non-revision run, byte-identical to before.
+- **Code patch artifact + HTML patch section (v1.13 P3, D12).** A `run --output revised-draft`
+  against a **code** source now also writes `revised-draft.patch` — a git-apply-able unified
+  diff (`a/<name>`/`b/<name>` headers, `git apply -p1`) built by the new
+  `_conductor/revision.build_unified_patch` from the **same sha-pinned strings** `changes.json`
+  already certifies (source over the original, revised over the byte-clean draft) — a redundant,
+  human-apply-able *rendering* of the change, not a new trust surface. It's the code sibling of
+  the prose redline: the full-handoff HTML gets a `patch-sec` section (RAW token `PATCH_PRE`)
+  instead of `redline-sec` for a code source — at most one of the two ever renders. A stale
+  `.patch` from a prior code run is cleaned up when a later run on the same `--out` is prose.
+  `run-card`/artifact-tree output (`_conductor/artifacts.py`) lists the patch for code runs.
+- **Grounded citation snippets (v1.13 P3, #12).** `verify_evidence.py` now captures the cited
+  lines onto a resolved `code` citation's evidence entry (`snippet: {from, to, text}`) so
+  `final-consensus.md` (both the full-handoff and implementation-sequence renders) embeds the
+  receipt itself as a fenced `path:from-to` code block, not just its coordinates — the handoff
+  stays self-contained even after a grounded run's repo snapshot is cleaned up. A `{path, line}`
+  citation captures the cited line ± `SNIPPET_CONTEXT_LINES` (2, clamped at file edges); a
+  `{path, symbol}` citation captures the first `SNIPPET_SYMBOL_LINES` (8) of the resolved region
+  from the symbol's first match. Capped at `SNIPPET_CHAR_LIMIT` (4000) chars, marked
+  `…[truncated]` on a cap hit. **Sha-gated on a grounded run:** when the run dir carries
+  `repo-scope-manifest.json` (new `verify_evidence.load_scope_manifest`), a manifest-listed file
+  captures a snippet only if its **live** sha256 still matches the manifest's — a file that
+  changed since the board reviewed it keeps its `verified`/`refuted` badge but gets **no**
+  snippet (never embed lines the board didn't see). An ungrounded `--source` (no manifest)
+  captures freely, matching `verify`'s existing trust model. A re-verify always drops any prior
+  `snippet` before re-resolving, so a stale capture from an earlier pass can never survive. The
+  console summary reports how many snippets were captured (and whether sha-gated).
 
 ### Changed
 - **`verdict.json`'s reserved `changes` key is now defined (v1.13).** `board_verdict.py`
@@ -64,6 +108,13 @@ reserved for an explicit production-ready call. The verdict-JSON schema is versi
   refusal). It is tool-authored: the synthesizer merge still strips a model-supplied `changes`
   (a model must not fabricate revision provenance). `references/verdict-schema.md` documents the
   pointer shape; the new `references/changes-schema.md` documents the full `changes@1` schema.
+- **Evidence gains an optional `snippet` field (v1.13 P3, #12).** `board_verdict.py` now
+  validates a `snippet` on any `evidence[]` item, strict-when-present: exactly `{from: <int ≥
+  1>, to: <int ≥ from>, text: <non-empty string>}`, unknown keys and bool-as-int both rejected.
+  It's tool-authored — written by `verify_evidence.py` at stamping time, the same discipline as
+  `status` — and absent means invisible: a verdict with no `snippet` fields validates and
+  renders byte-for-byte as before. `references/verdict-schema.md` documents the shape and who
+  writes it.
 
 ## [v1.12.0] - 2026-07-02 — The decision loop
 

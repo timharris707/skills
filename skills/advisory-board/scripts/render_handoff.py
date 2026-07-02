@@ -20,9 +20,11 @@ handoff-data.json shape (keys mirror the template's {{TOKENS}}, lowercased):
   Top level (scalars):  title, subtitle, date, board, rounds, verdict,
                         verdict_class, verdict_note, blockers_heading, disclaimer,
                         plan, metadata, dissent_flag
+  Top level (v1.13 P3): redline_source_name, redline_note, patch_pre, patch_note
   Lists of objects:     seats[], blockers[], dissents[], caveats[],
                         questions[], actions[], sequence[], seq_blockers[],
-                        amendments[]
+                        amendments[], redline_rows[]
+    redline_rows[]: redline_html   (a pre-escaped <del>/<ins> row fragment)
     seats[]:   seat_name, seat_lens, seat_model, seat_status, seat_status_class,
                seat_highlight, rounds[]
       rounds[]: round_label, round_verdict, round_verdict_class,
@@ -39,6 +41,13 @@ handoff-data.json shape (keys mirror the template's {{TOKENS}}, lowercased):
 
 Empty/omitted optional fields (seat_status, seat_highlight, round_confidence)
 render to nothing — the pill/callout is dropped, not left blank.
+
+Template-evolution invariant (settled v1.12 P4, extended v1.13 P3): a feature's
+<head> CSS may evolve freely — the committed examples carry head-CSS drift — but
+the rendered BODY must stay byte-identical for a run WITHOUT that feature. A new
+section MUST whole-drop (heading, markup, and any preceding authoring comment) to
+ZERO body bytes when its fields are empty, so it leaves no residue. The head-CSS
+exemption is deliberate; the body byte-identity is enforced by test.
 
 Label/enum fields are HTML-escaped by the renderer. Prose/body fields are passed
 through as HTML, so the data author must escape them and wrap inline code in
@@ -93,6 +102,10 @@ BLOCK_KEYS = {
     "DELTA CLEARED": "delta_cleared",
     "DELTA OPEN": "delta_open",
     "DELTA NEW": "delta_new",
+    # revision redline (v1.13 P3; prose sources, full handoff only). One row per
+    # redline line (context/del/ins/replace, pre-rendered as RAW HTML). Empty when
+    # there is no sha-coherent revised chain — the whole section drops below.
+    "REDLINE": "redline_rows",
 }
 
 # Tokens whose values are authored HTML fragments and pass through unescaped.
@@ -102,6 +115,10 @@ RAW_TOKENS = {
     "CAVEAT_CLAIM", "CAVEAT_IMPACT", "QUESTION", "ACTION",
     "SEQ_ACTION", "SEQ_BLOCKER_BODY", "SEQ_EVIDENCE_LINE",
     "AMEND_REASON", "BLOCKER_SEVERITY_NOTE",
+    # revision redline/patch (v1.13 P3): REDLINE_HTML is a per-row fragment the
+    # data author already escaped (<del>/<ins> spans + escaped text); PATCH_PRE is
+    # the escaped unified-diff body for the code fenced block.
+    "REDLINE_HTML", "PATCH_PRE",
 }
 
 
@@ -179,6 +196,24 @@ def drop_empty_optionals(out: str) -> str:
         r'\s*(?:<!--(?:(?!-->).)*?-->\s*)?'
         r'<section class="amend-sec">.*?<ol class="amend-list">\s*</ol>.*?</section>',
         "", out, flags=re.DOTALL)
+    # --- revision redline / patch (v1.13 P3). Two SIBLING sections, at most one
+    #     populated (prose → redline, code → patch); both drop on a non-revision
+    #     run. Same tempered-comment form as amend-sec: the regex optionally eats
+    #     the immediately-preceding authoring comment so no blank-line residue. ---
+    # First the optional truncation notes (empty when the section wasn't capped).
+    out = re.sub(r'\s*<p class="rl-note">\s*</p>', "", out)
+    out = re.sub(r'\s*<p class="patch-note">\s*</p>', "", out)
+    # Prose redline: the whole section drops when no rows rendered (the rl-body
+    # <div> is empty). rl-* classes exist only in the full handoff → no-op elsewhere.
+    out = re.sub(
+        r'\s*(?:<!--(?:(?!-->).)*?-->\s*)?'
+        r'<section class="redline-sec">.*?<div class="rl-body">\s*</div>.*?</section>',
+        "", out, flags=re.DOTALL)
+    # Code patch: the whole section drops when the <pre> body rendered empty.
+    out = re.sub(
+        r'\s*(?:<!--(?:(?!-->).)*?-->\s*)?'
+        r'<section class="patch-sec">.*?<pre class="patch-pre">\s*</pre>.*?</section>',
+        "", out, flags=re.DOTALL)
     return out
 
 
@@ -229,6 +264,13 @@ def render(data: dict, template: str) -> str:
     # gets an empty severity-notes list for the same reason (an old blocker row has
     # no `blocker_severity_notes`).
     data.setdefault("amendments", [])
+    # Same pre-v1.13 backfill for the revision redline/patch (v1.13 P3): an old
+    # handoff-data.json has none of these keys, so default the scalars to "" and
+    # the row list to [] — both sections drop below rather than dying on an
+    # unresolved {{REDLINE_*}}/{{PATCH_*}} token.
+    for key in ("redline_source_name", "redline_note", "patch_pre", "patch_note"):
+        data.setdefault(key, "")
+    data.setdefault("redline_rows", [])
     if isinstance(data.get("blockers"), list):
         # Copy each blocker row before defaulting its nested list, so an old
         # handoff-data.json passed in by the caller is never mutated.

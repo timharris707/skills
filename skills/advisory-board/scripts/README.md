@@ -7,8 +7,8 @@
 | `run_board.py` | The **conductor** (M1–M5): deterministic seat-adapter registry, `--dry-run`, toolchain currency (`toolchain` — check/update stale CLIs, propose fallback model ids), executable preflight (GO/NO-GO), a hash-bound egress/quarantine gate before any provider call, the **round-1 fan-out** (real spawn, §13 failure protocol, per-seat `round-1/` artifacts), **rounds 2…N** (cross-reading `board-packet-round-N.md`, debate fan-out, the `--rounds auto` convergence stop-rule, `run-metadata.tsv`), and the **canonical-verdict chain** (`verify` → `consensus` → `validate`). Runs **persist by default** under `~/.advisory-board/runs/<slug>-<date>/` (override: `$ADVISORY_BOARD_RUNS_ROOT` / `--runs-root`; exact dir: `--out`; throwaway `/tmp`: `--ephemeral`) and `history` lists them. Optionally **repo-grounds** the board: `--repo PATH` (with `--repo-include`/`--repo-exclude` globs) hands every seat a read-only, `.gitignore`-respecting, secret-denylisted **snapshot** of the repository so findings cite real `path:line`; consent binds to the scope hash and `repo-scope-manifest.json` records the scope, and in gate mode it enforces read-XOR-network (refuses an un-isolatable seat — see `references/data-handling.md`). Calls the scripts below; never reimplements them. Implemented as the [`_conductor/`](#package-layout) package — `run_board.py` is a thin façade (re-exports the API + the CLI entry). | `design/run-board-conductor.md` |
 | `board_verdict.py` | Validate `verdict.json` (`@1`/`@2`); gate CI on the verdict (`--gate`) — pass `0` / fail `1` / schema `2` / **abstain `3`** when the board is torn, the declared verdict contradicts the observed board, or a citation is refuted. The `amend` subcommand (v1.12) appends append-only human tuning (a confidence change, caveat, or severity note, each with provenance) without rewriting the board's own words. Validates the v1.13 `changes` pointer (exactly `{artifact, sha256}`) strict-when-present. | `references/verdict-schema.md` |
 | `board_changes.py` | Validate `changes.json` — the v1.13 revision artifact of record (`advisory-board/changes@1`; the edit → finding mapping of `run --output revised-draft`). Strict schema check (locator shapes, `resolves`-list enum {blockers, concerns}, dense `n`, conductor-computed `status`) — schema `2` on a violation. Importable `validate()` + a small CLI. | `references/changes-schema.md` |
-| `verify_evidence.py` | Resolve a verdict's typed `evidence[]` and stamp each `verified`/`unverified`/`refuted` — `code` `path:line`/`symbol` against the source, `source` quotes against the **captured packet** (never a live fetch), and (M3, opt-in via `--allow-program NAME`) `command` citations by **program-pinned, no-shell re-execution** in an isolated cwd with a structural exit/`expect` match. | `references/verdict-schema.md` |
-| `render_verdict.py` | Render `final-consensus.md` **from** the canonical `verdict.json` (evidence trail + couldn't-verify bucket); `--handoff-data`/`--html` derive the HTML via `render_handoff.py`. `--shape` picks the view: `full-handoff` (default), `quick-verdict` (skim brief), or `implementation-sequence` (sequence-first — every next action in order with owners where the verdict names them, backed by the blockers and their evidence trails; md + HTML). | `references/verdict-schema.md`, `references/output-formats.md` |
+| `verify_evidence.py` | Resolve a verdict's typed `evidence[]` and stamp each `verified`/`unverified`/`refuted` — `code` `path:line`/`symbol` against the source, `source` quotes against the **captured packet** (never a live fetch), and (M3, opt-in via `--allow-program NAME`) `command` citations by **program-pinned, no-shell re-execution** in an isolated cwd with a structural exit/`expect` match. A `code` citation that RESOLVES also **captures a snippet** onto the evidence entry (v1.13 P3, #12) — the cited lines, so the handoff is self-contained; gated by `repo-scope-manifest.json`'s sha when the run is grounded (see below). | `references/verdict-schema.md` |
+| `render_verdict.py` | Render `final-consensus.md` **from** the canonical `verdict.json` (evidence trail + couldn't-verify bucket, now with fenced `path:from-to` snippet blocks where captured — v1.13 P3); `--handoff-data`/`--html` derive the HTML via `render_handoff.py`. `--shape` picks the view: `full-handoff` (default), `quick-verdict` (skim brief), or `implementation-sequence` (sequence-first — every next action in order with owners where the verdict names them, backed by the blockers and their evidence trails; md + HTML). The full-handoff HTML also carries the revised-draft **redline/patch view** (v1.13 P3) when `--run` resolves a sha-coherent revised chain — see below. | `references/verdict-schema.md`, `references/output-formats.md` |
 | `format_output.py` | Render `verdict.json` as a TL;DR, PR comment, Slack message, or normalized JSON. | `references/output-formats.md` |
 | `render_handoff.py` | Render `final-consensus.html` from a `handoff-data.json` — deterministic, fails on any leftover placeholder. | `references/handoff-template.html` |
 | `render_plan.py` | Render a **planning-document HTML view** deterministically **from** its markdown (`design/<plan>.md`) — milestones / phases / checklists / per-phase testing + validation gate, a computed progress ring and milestone status rail, decisions/risks, and an inlined SVG diagram. The markdown is the source of truth; never hand-edit the HTML — regenerate it. Self-contained (Claude brand fonts embedded). Fails on any leftover placeholder. | `references/plan-template.html` (+ `plan-fonts.css`) |
@@ -41,7 +41,8 @@ dependency DAG — each imports only from those above it:
 | `delta.py` | The pure cross-run verdict delta (v1.12 #1): matches blockers/concerns across two runs (exact title > shared citations > guarded similarity) into cleared / still-open / new + trajectory. |
 | `revise.py` | `--revise` (v1.12 #1): load a prior run, recover its source (sha-verified), and build the injected prior-verdict digest + source diff (with the sensitivity-escalation gate). |
 | `ask.py` | `ask` (v1.12 #4): post-verdict cross-examination — reconstruct the run's board from its recipe, build a run-context packet from that run's own artifacts, re-consent, one-round fan-out, and write `addendum-N.md` + the addenda index / handoff refresh. |
-| `revision.py` | The revision seat (v1.13 #2, `run --output revised-draft`): generalizes the synthesizer spawn path to produce a board-derived, findings-mapped revised copy of the source (per-edit board endorsement is the later P4 pass). Enumerates the verdict's resolvable findings, spawns one board seat (mapping first, revised draft second), then MECHANICALLY cross-asserts every `{list, index, title}` finding ref against the verdict, reconciles each edit locator against the `difflib` diff (INV-1), enforces completeness, and builds `changes.json` (schema `advisory-board/changes@1`). |
+| `revision.py` | The revision seat (v1.13 #2, `run --output revised-draft`): generalizes the synthesizer spawn path to produce a board-derived, findings-mapped revised copy of the source (per-edit board endorsement is the later P4 pass). Enumerates the verdict's resolvable findings, spawns one board seat (mapping first, revised draft second), then MECHANICALLY cross-asserts every `{list, index, title}` finding ref against the verdict, reconciles each edit locator against the `difflib` diff (INV-1), enforces completeness, and builds `changes.json` (schema `advisory-board/changes@1`). Also holds `build_unified_patch` (v1.13 P3, D12) — a stdlib `difflib.unified_diff` `a/`/`b/`-headered, LF-terminated patch builder shared by the `revised-draft.patch` artifact and the HTML handoff's code patch section. |
+| `redline.py` | The prose redline VIEW (v1.13 P3, D12), pure and stdlib-only: `build_redline(original, revised)` runs `difflib.SequenceMatcher.get_opcodes()` line-level, then a second word-level pass inside each `replace` pair so only the changed WORDS carry `<ins>`/`<del>` spans. Returns un-escaped row structures — `render_verdict.py` owns HTML-escaping and `{{TOKEN}}`-neutralizing. Caps at `REDLINE_MAX_LINES` (400) rendered rows, with the full pre-cap count returned so the caller can say "N more"; collapses long unchanged runs to `REDLINE_CONTEXT_LINES` (2) of context on each side of a change plus a gap row, rather than echoing the whole file. |
 | `cli.py` | The argparse front end: the `cmd_*` handlers, the delegation shim, and `main()`. |
 
 The split is behavior-preserving — the test suite (`tests/`) imports `run_board`
@@ -122,6 +123,15 @@ python3 scripts/board_verdict.py amend --run <out> --author tim --reason "overst
 python3 scripts/run_board.py run --source plan.md --out <out> --yes --synthesize --output revised-draft
 # validate the revision artifact of record (strict schema check; exit 2 on a violation)
 python3 scripts/board_changes.py <out>/changes.json
+# a CODE source (--source-type code) additionally writes revised-draft.patch (a/ b/ headers,
+# git-apply-able: `git apply -p1 revised-draft.patch`); a PROSE source writes no patch — its
+# redline instead renders as a <ins>/<del> section in the full-handoff HTML below (v1.13 P3, D12).
+
+# render the redline/patch view: --run must point at THIS run's dir (renderer walks
+# verdict.changes -> changes.json -> {source-material.txt, revised-draft.*}, re-verifying
+# every hop's sha256 before diffing a byte; any mismatch drops the section + one stderr
+# warning, never a crash). Only the full-handoff shape (the default) carries it.
+python3 scripts/render_verdict.py <out>/verdict.json --run <out> --html <out>/final-consensus.html
 
 # --- the canonical-verdict chain (after the agent fills verdict.json,
 #     or `run --synthesize` drafts it via the neutral synthesizer seat — M2) ---
@@ -130,6 +140,21 @@ python3 scripts/board_changes.py <out>/changes.json
 #    re-execute command citations whose argv[0] is NAME (M3; opt-in, program-pinned,
 #    no-shell, isolated cwd, curated PATH, scrubbed env, process-group timeout —
 #    allowlist only read-only programs you trust; a re-run's output is persisted)
+#    A resolved `code` citation ALSO captures a snippet (v1.13 P3, #12) — the cited lines,
+#    onto evidence[].snippet — so the handoff is self-contained even after the run's repo
+#    snapshot is cleaned up. Snippet CONTENT capture is hard-gated (status is never
+#    affected): the cited file (and every intermediate dir) must be a real path, not a
+#    symlink, and must realpath-resolve INSIDE --source — an in-tree symlink pointing out
+#    of the root gets its normal badge but NO snippet, so it can't exfiltrate out-of-tree
+#    bytes into the handoff. Then the manifest gate, keyed on --run <out>:
+#      * run dir HAS repo-scope-manifest.json (grounded) → WHITELIST-ONLY: capture only a
+#        manifest-listed path whose LIVE sha still matches; an unlisted OR changed file
+#        keeps its verified/refuted badge but gets NO snippet;
+#      * manifest PRESENT but unusable (malformed / unreadable / symlinked) → NO snippets
+#        at all + one warning (fail closed — a grounded run's whitelist must be trustworthy);
+#      * run dir has NO manifest (ungrounded verify) → capture freely under the read gate
+#        above (verify's existing trust model: the human supplied --source).
+#    The console line reports how many snippets were captured.
 python3 scripts/run_board.py verify <out>/verdict.json --source ./src --run <out>
 # 2. render final-consensus.md FROM the verdict (+ --html for the HTML)
 python3 scripts/run_board.py consensus <out>/verdict.json --run <out> -o <out>/final-consensus.md

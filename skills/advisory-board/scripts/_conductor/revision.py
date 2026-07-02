@@ -70,6 +70,7 @@ __all__ = [
     "check_completeness",
     "build_changes",
     "validate_changes",
+    "build_unified_patch",
     "RevisionResult",
     "run_revision",
     "render_revision_raw",
@@ -78,6 +79,62 @@ __all__ = [
 
 
 CHANGES_SCHEMA = "advisory-board/changes@1"
+
+
+_NO_NEWLINE_MARKER = "\\ No newline at end of file\n"
+
+
+def build_unified_patch(original: str, revised: str, source_name: str) -> str:
+    """A git-apply-able unified diff (code sources, D12) from `original` to
+    `revised`, with `a/<name>` / `b/<name>` headers (applies clean with
+    `git apply -p1`). Stdlib `difflib.unified_diff` over `splitlines(keepends=
+    True)` so a trailing-newline-only edit is a real hunk (byte-honest, mirroring
+    the reconciliation diff in _opcode_hunks). LF line endings, and the whole
+    patch is terminated with a single trailing newline — the byte-clean discipline
+    the revised draft itself carries.
+
+    `difflib.unified_diff` does NOT emit git's ``\\ No newline at end of file``
+    marker, and a file whose final line lacks a trailing newline yields a diff
+    content line without its own ``\\n`` — so the next diff line concatenates onto
+    it and git rejects the patch ("corrupt patch" / "does not apply"). This
+    post-processes the raw diff to match git's exact emission:
+
+      * every content line (`` ``/`-`/`+`) is newline-terminated; and
+      * a ``\\ No newline at end of file`` line is inserted immediately after ANY
+        content line whose underlying token lacked a trailing ``\\n``.
+
+    That single rule reproduces git across all directions, because a difflib
+    content token lacks ``\\n`` ONLY when it is the final line of its file:
+      - original lacks a trailing NL → the `-`/` ` final line gets the marker;
+      - revised lacks a trailing NL  → the `+`/` ` final line gets the marker;
+      - both lack it                 → the shared ` ` context line (or both the
+                                       `-` and `+` lines on an EOF replace) get it;
+      - trailing-newline REMOVAL     → `-c\\n` then `+c` (marker after `+c`);
+      - trailing-newline ADDITION    → `-c` (marker after `-c`) then `+c\\n`.
+    Header lines (`---`/`+++`/`@@`) always carry their own ``\\n`` from difflib,
+    so they are never candidates.
+
+    The patch derives from the SAME two strings whose shas are already pinned in
+    changes.json (source.sha256 over the original, revised.sha256 over the revised
+    bytes), so it introduces NO new trust surface: it is a redundant, human-apply-
+    able RENDERING of the change the changes.json already certifies. `source_name`
+    is the source basename (changes.json.source.name) used for both a/ and b/."""
+    out = []
+    for line in difflib.unified_diff(
+        original.splitlines(keepends=True),
+        revised.splitlines(keepends=True),
+        fromfile=f"a/{source_name}",
+        tofile=f"b/{source_name}",
+    ):
+        if line.endswith("\n"):
+            out.append(line)
+            continue
+        # A content line ("-"/"+"/" ") whose token lacked a trailing newline: this
+        # is the final line of a file with no trailing newline. Terminate it, then
+        # emit git's marker on its own line (matches `git diff` byte-for-byte).
+        out.append(line + "\n")
+        out.append(_NO_NEWLINE_MARKER)
+    return "".join(out)
 
 
 # The two fenced sections, each with its OWN BEGIN/END marker pair. Section 1 is

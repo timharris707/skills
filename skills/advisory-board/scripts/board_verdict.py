@@ -41,6 +41,9 @@ REQUIRED = ("schema", "verdict", "confidence", "board", "rounds")
 SEAT_REQUIRED = ("seat", "model", "round_verdicts")
 EVIDENCE_KINDS = {"code", "source", "command", "judgment"}
 EVIDENCE_STATUS = {"verified", "unverified", "refuted"}
+# Optional captured snippet on an evidence entry (v1.13 P3). Strict-when-present:
+# a 1-based inclusive line range + the verbatim lines; unknown keys refused.
+SNIPPET_KEYS = {"from", "to", "text"}
 # Top-level keys whose items may each carry an `evidence[]` list.
 EVIDENCE_CONTAINERS = ("blockers", "dissent", "concerns")
 # Verdict-lifecycle fields (since v1.12) — optional and additive within @2:
@@ -80,6 +83,30 @@ def load(path: str) -> dict:
     return data
 
 
+def _validate_snippet(snip, where: str) -> None:
+    """A captured code snippet (v1.13 P3), strict-when-present:
+      * an object with EXACTLY {from, to, text} (unknown keys refused);
+      * `from` an int ≥ 1, `to` an int ≥ `from` (both real ints, not bools);
+      * `text` a non-empty string.
+    Same strictness the lifecycle fields get — a fuzzed/hand-authored snippet with
+    the wrong shape (or a bool masquerading as a line number) can't smuggle past."""
+    if not isinstance(snip, dict):
+        die(f"{where}.snippet must be an object with 'from', 'to' and 'text'")
+    unknown = set(snip) - SNIPPET_KEYS
+    if unknown:
+        die(f"{where}.snippet: unknown key(s): {', '.join(sorted(unknown))}")
+    missing = [k for k in ("from", "to", "text") if k not in snip]
+    if missing:
+        die(f"{where}.snippet missing field(s): {', '.join(missing)}")
+    frm, to = snip["from"], snip["to"]
+    if isinstance(frm, bool) or not isinstance(frm, int) or frm < 1:
+        die(f"{where}.snippet.from must be a positive integer; got {frm!r}")
+    if isinstance(to, bool) or not isinstance(to, int) or to < frm:
+        die(f"{where}.snippet.to must be an integer >= from ({frm}); got {to!r}")
+    if not isinstance(snip["text"], str) or not snip["text"]:
+        die(f"{where}.snippet.text must be a non-empty string")
+
+
 def _validate_evidence_list(items, where: str) -> None:
     """Structural check for a typed evidence[] list (schema @2)."""
     if not isinstance(items, list):
@@ -93,6 +120,12 @@ def _validate_evidence_list(items, where: str) -> None:
             die(f"{loc}: kind must be one of {', '.join(sorted(EVIDENCE_KINDS))}; got {kind!r}")
         if "status" in ev and ev["status"] not in EVIDENCE_STATUS:
             die(f"{loc}: status must be one of {', '.join(sorted(EVIDENCE_STATUS))}; got {ev['status']!r}")
+        # Optional captured snippet (v1.13 P3): the cited lines, embedded by
+        # verify_evidence at stamp time so the handoff is self-contained. Strict
+        # WHEN PRESENT (absent = invisible, old verdicts untouched); the same
+        # discipline as every lifecycle field.
+        if "snippet" in ev:
+            _validate_snippet(ev["snippet"], loc)
         if kind == "code":
             if not isinstance(ev.get("path"), str) or not ev["path"].strip():
                 die(f"{loc}: code evidence needs a non-empty 'path'")
@@ -159,6 +192,16 @@ def _validate_lifecycle(data: dict) -> None:
                 die(f"changes missing '{key}' (changes is the pointer {{artifact, sha256}})")
         if not isinstance(changes["artifact"], str) or not changes["artifact"].strip():
             die("changes.artifact must be a non-empty string")
+        # The renderer joins changes.artifact onto run_dir to load changes.json, so
+        # it must be a BARE filename: an absolute path or `..` component would read
+        # outside the run dir (the renderer's islink check misses absolute targets
+        # and parent-dir symlinks). Mirrors board_changes' bare-filename gate on
+        # revised.artifact — refuse the escape at the validator, confine at the load.
+        art = changes["artifact"]
+        if (os.sep in art or (os.altsep and os.altsep in art)
+                or os.path.isabs(art) or ".." in art.replace("\\", "/").split("/")):
+            die("changes.artifact must be a bare filename (no path separator, no "
+                f"'..', not absolute); got {art!r}")
         sha = changes["sha256"]
         if (not isinstance(sha, str) or len(sha) != 64
                 or any(c not in "0123456789abcdef" for c in sha)):

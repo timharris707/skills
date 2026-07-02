@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 
 SCHEMA = "advisory-board/changes@1"
@@ -82,6 +83,27 @@ def _is_sha256(value) -> bool:
 def _is_int(value) -> bool:
     """A real integer, not a bool (bool is an int subclass in Python)."""
     return isinstance(value, int) and not isinstance(value, bool)
+
+
+def _is_bare_filename(value) -> bool:
+    """True iff `value` is a BARE filename safe to join onto the run dir: a
+    non-empty string (after strip) with no path separator (os.sep / os.altsep), no
+    `..` component, and not absolute. `revised.artifact` and the verdict's
+    `changes.artifact` pointer are joined onto run_dir by the renderer; an absolute
+    or `../escape` value would read outside the run dir (the islink checks miss
+    absolute targets and parent-dir symlinks), so both layers refuse anything that
+    is not a bare filename — matching the fixed-filename precedent
+    (revise.prior_source_text)."""
+    if not isinstance(value, str):
+        return False
+    stripped = value.strip()
+    if not stripped or stripped != value:
+        return False
+    if os.sep in value or (os.altsep and os.altsep in value):
+        return False
+    if os.path.isabs(value):
+        return False
+    return ".." not in value.replace("\\", "/").split("/")
 
 
 def _validate_finding_ref(ref, where: str) -> None:
@@ -219,6 +241,13 @@ def _validate_source_pin(obj, where: str, artifact_field: str) -> None:
     label = artifact_field or "name"
     if not isinstance(obj.get(label), str) or not obj[label].strip():
         die(f"{where}.{label} must be a non-empty string")
+    # The `revised.artifact` is joined onto run_dir by the renderer, so it must be
+    # a BARE filename — an absolute path or `..` would read outside the run dir
+    # (the renderer's islink check misses absolute targets / parent-dir symlinks).
+    # `source.name` is display-only (never path-joined), so it is not constrained.
+    if label == "artifact" and not _is_bare_filename(obj[label]):
+        die(f"{where}.artifact must be a bare filename (no path separator, no '..', "
+            f"not absolute); got {obj[label]!r}")
     if not _is_sha256(obj.get("sha256")):
         die(f"{where}.sha256 must be 64 lowercase hex chars")
 

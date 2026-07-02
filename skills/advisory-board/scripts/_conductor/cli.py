@@ -99,6 +99,7 @@ from _conductor.synthesizer import (
 )
 from _conductor.revision import (
     REVISION_TEMPLATE_VERSION,
+    build_unified_patch,
     choose_revision_seat,
     render_revision_raw,
     revision_template_sha,
@@ -770,6 +771,10 @@ def _run_revision_step(config, verdict_data: dict, rounds_done: list, args, *,
     rejected_draft_path = os.path.join(config.out_dir, rejected_artifact)
     changes_path = os.path.join(config.out_dir, "changes.json")
     changes_rejected_path = os.path.join(config.out_dir, "changes-rejected.json")
+    # The apply-able unified patch (v1.13 P3, D12) — code sources only. It is a
+    # redundant, git-apply-able RENDERING of the same change changes.json already
+    # certifies (no new trust surface; both derive from the same pinned strings).
+    patch_path = os.path.join(config.out_dir, "revised-draft.patch")
 
     # P2 endorsement write-path guard (Blocker 4, belt-and-suspenders alongside
     # build_changes' internal assert): the model cannot author endorsements in P2,
@@ -786,8 +791,11 @@ def _run_revision_step(config, verdict_data: dict, rounds_done: list, args, *,
 
     if rr.changes is not None:
         # Drop stale rejected peers from a prior run only AFTER this run produced
-        # a successor (never destroy prior good state on an exception path).
-        for stale in (changes_rejected_path, rejected_draft_path):
+        # a successor (never destroy prior good state on an exception path). A
+        # stale .patch from a prior CODE run is dropped too when this run is prose
+        # (it writes no patch, so a leftover would misrepresent the current run).
+        for stale in (changes_rejected_path, rejected_draft_path,
+                      *(() if config.source_type == "code" else (patch_path,))):
             if os.path.exists(stale):
                 os.unlink(stale)
         # 1. The byte-clean revised draft — the revised source bytes and NOTHING
@@ -807,11 +815,29 @@ def _run_revision_step(config, verdict_data: dict, rounds_done: list, args, *,
         changes_sha = hashlib.sha256(
             (json.dumps(rr.changes, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
         ).hexdigest()
+        # 2b. revised-draft.patch — code sources only (D12): a git-apply-able
+        #     unified diff, a/<name> / b/<name>. It derives from the SAME strings
+        #     whose shas are already pinned in changes.json (source over the
+        #     original, revised over the byte-clean draft), so it adds no new
+        #     trust surface — a redundant, human-apply-able rendering of the
+        #     change. newline="" keeps the LF discipline byte-exact on disk.
+        patch_written = False
+        if config.source_type == "code":
+            patch_text = build_unified_patch(
+                config.source.text, rr.revised_text or "",
+                rr.changes["source"]["name"])
+            with open(patch_path, "w", encoding="utf-8", newline="") as handle:
+                handle.write(patch_text)
+            patch_written = True
+        elif os.path.exists(patch_path):
+            os.unlink(patch_path)   # a prose run never carries a patch
         # 3. The verdict → changes pointer (D10), with amend's write discipline.
         ok, detail = _write_verdict_changes_pointer(
             verdict_path, changes_sha, baseline_sha256=verdict_sha256)
         n_unresolved = len(rr.changes.get("unresolved") or [])
         print(f"\nwrote {draft_path} (byte-clean revised {config.source_type} — no header)")
+        if patch_written:
+            print(f"wrote {patch_path} (unified diff, a/ b/ headers — apply with `git apply -p1`)")
         print(f"wrote {changes_path} (advisory-board/changes@1 — validated; "
               f"{len(rr.changes['edits'])} edit(s), {n_unresolved} unresolved)")
         if n_unresolved:
@@ -826,8 +852,10 @@ def _run_revision_step(config, verdict_data: dict, rounds_done: list, args, *,
         return EXIT_OK
 
     # Failure path: keep the verdict + rounds, be loud that the revision did NOT
-    # deliver. Persist rejected artifacts so the human can inspect/hand-fix.
-    for stale in (changes_path, draft_path):
+    # deliver. Persist rejected artifacts so the human can inspect/hand-fix. A
+    # stale accepted patch from a prior run is dropped alongside the draft/changes
+    # so the reject state is not contradicted by a leftover apply-able patch.
+    for stale in (changes_path, draft_path, patch_path):
         if os.path.exists(stale):
             os.unlink(stale)
     if rr.revised_text is not None:
