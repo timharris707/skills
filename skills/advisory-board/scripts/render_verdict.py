@@ -52,6 +52,13 @@ from _verdict_labels import (  # noqa: E402  lens-aware label + framing (rendere
     lens_disclaimer,
     verdict_lead,
 )
+from _severity_filter import (  # noqa: E402  v1.14 P1: --filter tier exposure (renderer-only)
+    DEFAULT_FILTER,
+    FILTER_CHOICES,
+    elision_note,
+    show_concerns,
+    show_dissent,
+)
 from _conductor.constants import (  # noqa: E402  v1.11 cost transparency (stdlib-only module)
     PRICING_AS_OF,
     price_band_usd,
@@ -68,6 +75,16 @@ from _conductor.revise import SOURCE_MATERIAL_FILENAME  # noqa: E402  the persis
 
 STATUS_WORD = {"verified": "verified", "unverified": "unverified", "refuted": "REFUTED"}
 EVIDENCE_CONTAINERS = ("blockers", "dissent", "concerns")
+
+
+def _as_list(value) -> list:
+    """`value` when it is a list, else []. The standalone renderer path never runs
+    the schema validator, so a hand-authored/fuzzed verdict may carry a string (or
+    any non-list) where a container belongs. Treating a non-list as empty keeps
+    both the render loops and the elision COUNTS honest — a `"dissent": "notalist"`
+    string yields zero rendered entries and zero in the note, never `len(str)`
+    fabricated from characters (matches `_has_finding_at_severity`'s guard)."""
+    return value if isinstance(value, list) else []
 
 
 def load(path: str) -> dict:
@@ -370,7 +387,7 @@ def render_delta_markdown(data: dict) -> list:
     return out
 
 
-def render_markdown(data: dict) -> str:
+def render_markdown(data: dict, filt: str = DEFAULT_FILTER) -> str:
     out = ["# Advisory Board — Final Consensus"]
     if data.get("title"):
         out.append(data["title"])
@@ -420,8 +437,9 @@ def render_markdown(data: dict) -> str:
                            f"— added by {_flat(note.get('author', '?'))} (amendment)")
         out.append("")
 
-    dissent = data.get("dissent", [])
-    if dissent:
+    dissent = [d for d in _as_list(data.get("dissent")) if isinstance(d, dict)]
+    show_diss = show_dissent(filt)
+    if dissent and show_diss:
         out.append("## Hard dissent (preserved)")
         for entry in dissent:
             who = entry.get("who", "-")
@@ -429,9 +447,26 @@ def render_markdown(data: dict) -> str:
         out.append("")
 
     couldnt = _couldnt_verify_lines(data)
-    if couldnt:
+    show_conc = show_concerns(filt)
+    if couldnt and show_conc:
         out.append("## What the board couldn't verify")
         out += [f"- {line}" for line in couldnt]
+        out.append("")
+
+    # Loud elision (v1.14 P1): when --filter suppressed a findings section that
+    # WOULD have rendered, say so — with counts — rather than truncating silently.
+    # The RENDERER owns the counts: it names exactly the buckets THIS shape renders
+    # (dissent + the couldn't-verify LINES) and passes the count of each entry the
+    # filter hid. `all`/absent (and a verdict where nothing was dropped) emits
+    # nothing, keeping the default output byte-identical. Placed after the kept
+    # findings so it reads as "and here's what was hidden".
+    note = elision_note(
+        filt,
+        dissent_dropped=len(dissent) if not show_diss else 0,
+        couldnt_verify_dropped=len(couldnt) if not show_conc else 0,
+    )
+    if note:
+        out.append(f"_{note}_")
         out.append("")
 
     questions = data.get("open_questions", [])
@@ -475,7 +510,7 @@ def _couldnt_verify_lines(data: dict) -> list:
     amendment lines are appended, so with no caveat amendments the bucket is
     byte-identical to pre-v1.12."""
     lines = []
-    for caveat in (data.get("caveats") or []):
+    for caveat in _as_list(data.get("caveats")):
         if isinstance(caveat, str):
             lines.append(caveat)
         elif isinstance(caveat, dict):
@@ -535,11 +570,18 @@ def _action_line(action) -> str:
     return f"{text} — owner: {owner}" if owner else text
 
 
-def render_sequence_markdown(data: dict) -> str:
+def render_sequence_markdown(data: dict, filt: str = DEFAULT_FILTER) -> str:
     """The implementation-sequence view of the SAME verdict.json: the ordered next
     actions lead (with owners where the verdict names them), backed by the blockers
     the sequence must clear, each with its evidence trail. A deterministic VIEW —
-    it reorders what the verdict already says and adds nothing."""
+    it reorders what the verdict already says and adds nothing.
+
+    `filt` is accepted for API symmetry with render_markdown, but this shape renders
+    only next_actions (not findings) and blockers (the always-kept tier) — dissent
+    and the couldn't-verify bucket appear NOWHERE here — so no filter setting ever
+    drops a section from it, and it emits no elision line. Output is therefore
+    identical under every --filter value (the honest answer: nothing was hidden)."""
+    _ = filt  # no filterable section in this shape; see docstring
     out = ["# Advisory Board — Implementation Sequence"]
     if data.get("title"):
         out.append(data["title"])
@@ -1086,7 +1128,8 @@ def build_endorsement_summary_html(changes: dict) -> str:
     return "\n".join(lines)
 
 
-def build_handoff_data(data: dict, run_dir=None, shape: str = "full-handoff") -> dict:
+def build_handoff_data(data: dict, run_dir=None, shape: str = "full-handoff",
+                       filt: str = DEFAULT_FILTER) -> dict:
     verdict = data.get("verdict", "")
     lens_preset = data.get("lens_preset")
     label, note = human_label(verdict, lens_preset, data.get("decision"))
@@ -1114,8 +1157,40 @@ def build_handoff_data(data: dict, run_dir=None, shape: str = "full-handoff") ->
     rounds_str = str(data.get("rounds", ""))
     # The brief trims dissent to the first dissenter + a "+N more" pointer, and caps next
     # steps at the top 3 + a "…N more" pointer; the full handoff keeps the complete lists.
-    dissent = data.get("dissent") or []
-    actions = data.get("next_actions") or []
+    # _as_list + isinstance-dict guards a hand-authored/fuzzed non-list container so the
+    # slot list-comps below (and the elision count) never fabricate from a string.
+    dissent = [d for d in _as_list(data.get("dissent")) if isinstance(d, dict)]
+    actions = _as_list(data.get("next_actions"))
+    # Severity filter (v1.14 P1). The banner + confidence are NEVER filtered; only
+    # the findings sections are, and a genuinely dropped section is accounted for
+    # by a loud {{FILTER_NOTE}} line. `all`/absent keeps every list intact and the
+    # note empty, so the page stays byte-identical.
+    couldnt_lines = _couldnt_verify_lines(data)
+    show_diss = show_dissent(filt)
+    show_conc = show_concerns(filt)
+    # Thinning is SHAPE-OWNED: a slot is emptied only when THIS shape renders that
+    # bucket, so the handoff-data artifact never silently loses content its
+    # filter_note doesn't account for. A shape that never renders a bucket keeps
+    # the full list in its data (the faithful record), and the elision note counts
+    # exactly what was thinned — data and note always agree:
+    #   * full-handoff   — renders dissent AND the couldn't-verify bucket: both
+    #                      thin, both counted.
+    #   * quick-verdict  — renders dissent (the brief slot) but never caveats/
+    #                      concerns: only dissent thins; caveats stay intact and
+    #                      the note never mentions the bucket.
+    #   * implementation-sequence — renders neither (blockers + next_actions
+    #                      only): its data never varies with --filter and it
+    #                      never carries a note (matches render_sequence_markdown).
+    renders_dissent = shape in ("full-handoff", "quick-verdict")
+    renders_bucket = shape == "full-handoff"
+    dissent_shown = dissent if (show_diss or not renders_dissent) else []
+    couldnt_shown = couldnt_lines if (show_conc or not renders_bucket) else []
+    filter_note = elision_note(
+        filt,
+        dissent_dropped=len(dissent) if renders_dissent and not show_diss else 0,
+        couldnt_verify_dropped=(len(couldnt_lines)
+                                if renders_bucket and not show_conc else 0),
+    )
     # Footer provenance, in human terms — no internal file/script names. (The old
     # "Rendered from verdict.json by scripts/render_verdict.py" was a developer string
     # that leaked onto the page; same for the subtitle below.) The token/cost segment
@@ -1145,7 +1220,14 @@ def build_handoff_data(data: dict, run_dir=None, shape: str = "full-handoff") ->
         "disclaimer": _raw(disclaimer) if disclaimer else "",
         "plan": _raw(data.get("title", "")),
         "metadata": _raw(metadata),
-        "dissent_flag": "Dissent on the record" if data.get("dissent") else "",
+        # The dissent flag follows what is SHOWN: a filter that hides the dissent
+        # section hides its flag too (else a "Dissent on the record" banner with no
+        # dissent below it would mislead).
+        "dissent_flag": "Dissent on the record" if dissent_shown else "",
+        # The loud severity-filter elision line (v1.14 P1). "" for `all`/absent and
+        # for any run where the filter dropped nothing renderable — the slot then
+        # drops and the page is byte-identical. Plain text (renderer-escaped path).
+        "filter_note": _plain(filter_note),
         "seats": [],
         # blocker_summary / dissent_summary are the one-line plain-text forms the
         # quick-verdict brief renders; the full handoff keeps using blocker_body /
@@ -1154,22 +1236,30 @@ def build_handoff_data(data: dict, run_dir=None, shape: str = "full-handoff") ->
                       "blocker_body": _raw(b.get("body", "")),
                       "blocker_summary": _plain(_oneliner(b.get("body", "")))}
                      for b in data.get("blockers", [])],
+        # dissents / caveats reflect the SEVERITY FILTER (v1.14 P1): a suppressed
+        # tier renders an empty list, and on that filtered render (non-empty
+        # filter_note) render_handoff.drop_empty_optionals removes the emptied
+        # section WHOLE — heading included — while the {{FILTER_NOTE}} line
+        # carries the count. `all`/absent leaves both intact — byte-identical to
+        # before (an unfiltered render never drops a section shell).
         "dissents": [{"dissent_who": _plain(d.get("who", "-")),
                       "dissent_body": _raw(d.get("body", "")),
                       "dissent_summary": _plain(_oneliner(d.get("body", "")))}
-                     for d in data.get("dissent", [])],
+                     for d in dissent_shown],
         "caveats": [{"caveat_claim": _raw(line), "caveat_impact": ""}
-                    for line in _couldnt_verify_lines(data)],
+                    for line in couldnt_shown],
         "questions": [{"question": _raw(q)} for q in data.get("open_questions", [])],
-        "actions": [{"action": _raw(_action_line(a))} for a in data.get("next_actions", [])],
+        "actions": [{"action": _raw(_action_line(a))} for a in actions],
         # Brief-only trims. The full handoff uses dissents[]/actions[] (complete); the
         # quick-verdict template uses these capped variants + their "more" pointers.
+        # Gated on dissent_shown so a filter that hides dissent hides the brief's
+        # dissent line too (and the {{FILTER_NOTE}} in the brief accounts for it).
         "dissents_brief": ([{
-            "dissent_who": _plain(dissent[0].get("who", "-")),
-            "dissent_summary": _plain(_oneliner(dissent[0].get("body", ""))),
-            "dissent_more": _plain(f"(+{len(dissent) - 1} more in the full handoff)")
-                            if len(dissent) > 1 else "",
-        }] if dissent else []),
+            "dissent_who": _plain(dissent_shown[0].get("who", "-")),
+            "dissent_summary": _plain(_oneliner(dissent_shown[0].get("body", ""))),
+            "dissent_more": _plain(f"(+{len(dissent_shown) - 1} more in the full handoff)")
+                            if len(dissent_shown) > 1 else "",
+        }] if dissent_shown else []),
         "actions_brief": [{"action": _raw(_action_line(a))} for a in actions[:3]],
         "actions_more": _plain(f"…{len(actions) - 3} more in the full handoff")
                         if len(actions) > 3 else "",
@@ -1311,11 +1401,19 @@ def main(argv=None) -> int:
                              "implementation-sequence also switches the Markdown to the "
                              "sequence view (default filename implementation-sequence.md)")
     parser.add_argument("--run", dest="run_dir", help="a run dir; pulls per-round prose from its round-N/<seat>.md")
+    parser.add_argument("--filter", dest="filter", choices=FILTER_CHOICES, default=DEFAULT_FILTER,
+                        help="severity filter for the findings sections (default: all). "
+                             "'blockers' renders blockers only; 'blockers+dissent' adds dissent; "
+                             "'all' is today's full output. A dropped section is stated with counts "
+                             "(loud elision — never silent); the verdict banner and confidence are "
+                             "never filtered. The implementation-sequence shape renders no dissent/"
+                             "couldn't-verify section, so --filter never changes it.")
     args = parser.parse_args(argv)
 
     data = load(args.path)
     sequence_shape = args.shape == "implementation-sequence"
-    markdown = render_sequence_markdown(data) if sequence_shape else render_markdown(data)
+    markdown = (render_sequence_markdown(data, args.filter) if sequence_shape
+                else render_markdown(data, args.filter))
 
     # The Markdown is the implicit default deliverable: write it when --out is given, or
     # when no other output (--html / --handoff-data) was requested. Asking only for the
@@ -1331,7 +1429,7 @@ def main(argv=None) -> int:
         print(f"wrote {out_path} ({len(markdown)} bytes)")
 
     if args.handoff_data or args.html:
-        hd = build_handoff_data(data, run_dir=args.run_dir, shape=args.shape)
+        hd = build_handoff_data(data, run_dir=args.run_dir, shape=args.shape, filt=args.filter)
         if args.handoff_data:
             with open(args.handoff_data, "w", encoding="utf-8") as handle:
                 json.dump(hd, handle, indent=2, ensure_ascii=False)

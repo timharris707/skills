@@ -231,9 +231,22 @@ A schema violation exits `2`, distinct from a clean file that simply fails the g
 ```
 python3 scripts/board_verdict.py verdict.json --gate                    # fail on block
 python3 scripts/board_verdict.py verdict.json --gate --fail-on caution  # fail on caution or block
+python3 scripts/board_verdict.py verdict.json --gate --min-severity blocker  # fail only if a blocker rests on it
 ```
 
 Exit codes: **`0`** pass · **`1`** gate fail · **`2`** usage/schema error · **`3`** abstain.
+
+**`--min-severity blocker | concern` (v1.14).** An optional narrowing that **composes with**
+`--fail-on`, never replacing it. After the verdict token clears the `--fail-on` threshold, a
+**fail** additionally requires the verdict to carry a **finding** at or above the named tier —
+findings ranked `blocker` > `concern`; **`dissent[]` is a minority view, not a finding tier, and
+never counts**, and `caveats[]` (plain strings) are not findings either. So with
+`--min-severity blocker`, a `caution`/`block` verdict whose only findings are concerns/dissent
+does **not** fail even on a tripped threshold — it **passes** (with a reason naming the missing
+tier). The rule is one-directional: it can only turn a would-be **fail** into a **pass**; it never
+escalates a pass, and it never overrides an **abstain** — a refuted citation, a torn board, or a
+verdict-vs-board contradiction all still return `3` regardless. Absent, the gate is exactly as
+before (the verdict token alone decides). An unknown value is refused (exit `2`).
 
 **`abstain` ("human required").** A stochastic gate is safe when the board is decisive and
 dangerous exactly when it is torn. `--gate` returns the neutral exit `3` — neither pass nor

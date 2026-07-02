@@ -41,6 +41,7 @@ import verify_evidence as ve  # noqa: E402  (M5: evidence resolution)
 import render_verdict as rv  # noqa: E402  (M5: consensus render)
 import format_output as fo  # noqa: E402  (share formats; lens-aware verdict label)
 import _verdict_labels as vl  # noqa: E402  (lens-aware human label module)
+import _severity_filter as sf  # noqa: E402  (v1.14 P1: --filter tier exposure)
 from _conductor import grounding as grd  # noqa: E402  (repo-grounding: scope/snapshot/manifest)
 from _conductor.config import resolve_config as resolve_config  # noqa: E402
 from _conductor.config import (  # noqa: E402  (seat composition: ids, alias parsing)
@@ -13046,6 +13047,672 @@ class TestManifestShaGateSpelling(unittest.TestCase):
         self.assertEqual(ve._manifest_key("./f.py"), "f.py")
         self.assertEqual(ve._manifest_key("a/../f.py"), "f.py")
         self.assertEqual(ve._manifest_key("a/b.py"), "a/b.py")
+
+
+# ===================================================================== #
+# v1.14 P1 — severity filters (#8): --filter on the renderers + --min-severity
+# on the gate. A rich fixture (blockers + dissent + concerns + caveats) exercised
+# across every shape the filter touches, plus the gate composition matrix.
+# ===================================================================== #
+
+
+def _rich_verdict(**extra):
+    """A verdict carrying ALL four containers — blockers, dissent, concerns, and
+    caveats — so a filter/gate matrix can prove each tier is included/elided
+    correctly. Built on the shared _verdict/_seats helpers; unanimous block board."""
+    data = _verdict(
+        "block", "block", "block", title="Payments idempotency",
+        blockers=[{"title": "Atomic dedup", "body": "double-charge on concurrent claim"},
+                  {"title": "TTL race", "body": "expiry vs retry"}],
+        dissent=[{"who": "Codex", "body": "rollout aggressiveness is debatable"},
+                 {"who": "Gemini", "body": "prefer a feature flag first"}],
+        concerns=[{"title": "Backfill window", "body": "migration untested"}],
+        caveats=["Reviewed the plan, not the code.", "No client-behavior data."],
+        open_questions=["24h TTL vs client retry?"],
+        next_actions=["Spec the state machine.", "Decide Redis failure policy."])
+    data.update(extra)
+    return data
+
+
+class TestSeverityFilterHelper(unittest.TestCase):
+    """The pure _severity_filter module: tier membership + the loud elision line."""
+
+    def test_all_shows_every_tier(self):
+        self.assertTrue(sf.show_dissent("all"))
+        self.assertTrue(sf.show_concerns("all"))
+
+    def test_blockers_plus_dissent_hides_only_concerns(self):
+        self.assertTrue(sf.show_dissent("blockers+dissent"))
+        self.assertFalse(sf.show_concerns("blockers+dissent"))
+
+    def test_blockers_hides_dissent_and_concerns(self):
+        self.assertFalse(sf.show_dissent("blockers"))
+        self.assertFalse(sf.show_concerns("blockers"))
+
+    def test_all_and_default_elide_nothing(self):
+        # `all` (and the default) elides nothing, no matter what counts are passed.
+        self.assertEqual(sf.elision_note("all", dissent_dropped=2,
+                                         couldnt_verify_dropped=4), "")
+        self.assertEqual(sf.DEFAULT_FILTER, "all")
+
+    def test_elision_formats_the_counts_it_is_given(self):
+        # The helper is a pure formatter: it names the honest buckets (dissent +
+        # couldn't-verify LINES) from the counts the renderer computed — never a
+        # "concern" (concerns are not rendered as items in these shapes).
+        note = sf.elision_note("blockers", dissent_dropped=2, couldnt_verify_dropped=4)
+        self.assertEqual(note,
+                         "(filtered: 2 dissents, 4 couldn't-verify lines — --filter blockers)")
+        self.assertNotIn("concern", note)
+
+    def test_elision_singular_plural(self):
+        note = sf.elision_note("blockers", dissent_dropped=1, couldnt_verify_dropped=1)
+        self.assertIn("1 dissent", note)
+        self.assertNotIn("1 dissents", note)
+        self.assertIn("1 couldn't-verify line", note)
+        self.assertNotIn("1 couldn't-verify lines", note)
+
+    def test_zero_count_bucket_is_omitted(self):
+        # A bucket whose count is 0 never appears — only the dropped one is named.
+        # (The flag name "blockers+dissent" contains "dissent", so assert on the
+        # count clause, not the bare substring.)
+        note = sf.elision_note("blockers+dissent", dissent_dropped=0,
+                               couldnt_verify_dropped=4)
+        self.assertNotIn("0 dissent", note)
+        self.assertNotIn("dissent — ", note)   # no "N dissent(s)" count clause
+        self.assertEqual(note,
+                         "(filtered: 4 couldn't-verify lines — --filter blockers+dissent)")
+
+    def test_note_empty_when_nothing_dropped(self):
+        # Both counts zero -> no note even under the strictest filter (nothing hidden).
+        self.assertEqual(sf.elision_note("blockers", dissent_dropped=0,
+                                         couldnt_verify_dropped=0), "")
+
+    def test_unknown_filter_elides_nothing(self):
+        self.assertEqual(sf.elision_note("nonsense", dissent_dropped=2,
+                                         couldnt_verify_dropped=4), "")
+
+
+class TestFilterConsensusMarkdown(unittest.TestCase):
+    """--filter over render_markdown (the full consensus md)."""
+
+    def setUp(self):
+        self.data = _rich_verdict()
+
+    def test_all_byte_identical_to_absent(self):
+        # The D5 discipline: --filter all is byte-identical to no filter at all.
+        self.assertEqual(rv.render_markdown(self.data),
+                         rv.render_markdown(self.data, "all"))
+
+    def test_all_shows_every_section(self):
+        md = rv.render_markdown(self.data, "all")
+        self.assertIn("## Hard dissent (preserved)", md)
+        self.assertIn("## What the board couldn't verify", md)
+        self.assertIn("rollout aggressiveness", md)   # dissent body
+        self.assertIn("Reviewed the plan", md)        # a caveat
+        self.assertNotIn("(filtered:", md)            # no elision line under all
+
+    def test_blockers_elides_dissent_and_couldnt_verify(self):
+        md = rv.render_markdown(self.data, "blockers")
+        self.assertIn("Atomic dedup", md)                       # blockers kept
+        self.assertNotIn("## Hard dissent (preserved)", md)     # dissent gone
+        self.assertNotIn("## What the board couldn't verify", md)
+        self.assertNotIn("rollout aggressiveness", md)
+        self.assertNotIn("Reviewed the plan", md)
+        # The honest counts: 2 dissent entries + 2 couldn't-verify LINES (the 2
+        # caveats; no unverified/refuted evidence in this fixture). Never a
+        # "concern" — concerns are never rendered as items in this shape.
+        self.assertIn("(filtered: 2 dissents, 2 couldn't-verify lines — --filter blockers)", md)
+        self.assertNotIn("concern", md.split("(filtered")[1])
+
+    def test_blockers_plus_dissent_keeps_dissent_elides_bucket(self):
+        md = rv.render_markdown(self.data, "blockers+dissent")
+        self.assertIn("## Hard dissent (preserved)", md)
+        self.assertIn("rollout aggressiveness", md)
+        self.assertNotIn("## What the board couldn't verify", md)
+        self.assertNotIn("Reviewed the plan", md)
+        # Dissent kept at this tier -> not counted; only the 2 couldn't-verify lines.
+        # (The flag name "blockers+dissent" contains "dissent" — assert no COUNT clause.)
+        note = "(filtered: 2 couldn't-verify lines — --filter blockers+dissent)"
+        self.assertIn(note, md)
+        self.assertNotIn(" dissents", md.split("(filtered")[1])
+        self.assertNotIn(" dissent,", md.split("(filtered")[1])
+
+    def test_banner_and_confidence_never_filtered(self):
+        for filt in sf.FILTER_CHOICES:
+            md = rv.render_markdown(self.data, filt)
+            self.assertIn("## Verdict:", md)
+            self.assertIn("high confidence", md)
+            self.assertIn("Atomic dedup", md)   # blockers always shown
+
+    def test_no_couldnt_verify_bucket_no_false_count(self):
+        # concerns present but judgment-only evidence + no caveats -> the bucket
+        # never renders, so the note must not claim a filtered concern.
+        data = _verdict("block", "block", "block",
+                        blockers=[{"title": "b"}],
+                        dissent=[{"who": "x", "body": "y"}],
+                        concerns=[{"title": "c", "evidence":
+                                   [{"kind": "judgment", "detail": "no data"}]}])
+        md = rv.render_markdown(data, "blockers")
+        self.assertIn("(filtered: 1 dissent — --filter blockers)", md)
+        self.assertNotIn("concern", md.split("(filtered")[1])
+
+    def test_couldnt_verify_count_equals_the_lines_actually_suppressed(self):
+        # The bucket is caveats + unverified/refuted evidence: 1 caveat + 1 refuted
+        # + 2 unverified = 4 lines. The elided count must equal EXACTLY the number of
+        # lines the couldn't-verify section would have rendered under `all` — not a
+        # raw len(caveats) or len(concerns).
+        data = _verdict(
+            "block", "block", "block",
+            blockers=[{"title": "Atomic dedup", "body": "double-charge",
+                       "evidence": [
+                           {"kind": "code", "path": "pay.py", "line": 9,
+                            "status": "refuted"},
+                           {"kind": "code", "path": "pay.py", "line": 12,
+                            "status": "unverified"}]}],
+            caveats=["Reviewed the plan, not the code."],
+            evidence=[{"kind": "source", "url": "http://x", "quote": "q",
+                       "status": "unverified"}])
+        # Sanity: the shape really renders 4 lines under `all`.
+        suppressed = rv._couldnt_verify_lines(data)
+        self.assertEqual(len(suppressed), 4)
+        all_md = rv.render_markdown(data, "all")
+        self.assertEqual(all_md.count("\n- ", all_md.index("couldn't verify")), 4)
+        md = rv.render_markdown(data, "blockers")
+        self.assertNotIn("## What the board couldn't verify", md)
+        self.assertIn("4 couldn't-verify lines", md)
+        self.assertIn("(filtered: 4 couldn't-verify lines — --filter blockers)", md)
+
+    def test_malformed_string_containers_render_clean_no_fabricated_counts(self):
+        # Finding 2: the standalone renderer never runs the validator, so a
+        # hand-authored verdict may carry string-typed containers. These must render
+        # cleanly and the elision note must NOT fabricate counts from len(str).
+        data = _verdict("block", "block", "block",
+                        blockers=[{"title": "b"}],
+                        dissent="notalist", caveats="notalist")
+        md = rv.render_markdown(data, "blockers")  # must not raise
+        self.assertNotIn("## Hard dissent (preserved)", md)
+        self.assertNotIn("## What the board couldn't verify", md)
+        # "notalist" is 8 chars — the old code reported "8 dissents" from len(str).
+        self.assertNotIn("8 dissent", md)
+        self.assertNotIn("(filtered:", md)   # nothing droppable -> no note at all
+
+
+class TestFilterSequenceMarkdown(unittest.TestCase):
+    """implementation-sequence renders no dissent/couldn't-verify section, so
+    --filter changes nothing about it (and it emits no elision line)."""
+
+    def test_identical_across_all_filters(self):
+        data = _rich_verdict()
+        base = rv.render_sequence_markdown(data)
+        for filt in sf.FILTER_CHOICES:
+            self.assertEqual(rv.render_sequence_markdown(data, filt), base)
+
+    def test_no_elision_line_ever(self):
+        for filt in sf.FILTER_CHOICES:
+            self.assertNotIn("(filtered:",
+                             rv.render_sequence_markdown(_rich_verdict(), filt))
+
+
+class TestFilterFormatOutput(unittest.TestCase):
+    """--filter over the tldr / pr / slack shapes (format_output)."""
+
+    def setUp(self):
+        self.data = _rich_verdict()
+
+    def test_all_byte_identical_to_absent(self):
+        for r in (fo.as_tldr, fo.as_pr, fo.as_slack):
+            self.assertEqual(r(self.data), r(self.data, "all"), r.__name__)
+
+    def test_pr_all_shows_dissent(self):
+        pr = fo.as_pr(self.data, "all")
+        self.assertIn("### Dissent", pr)
+        self.assertIn("rollout aggressiveness", pr)
+        self.assertNotIn("(filtered:", pr)
+
+    def test_pr_blockers_elides_dissent_with_note(self):
+        pr = fo.as_pr(self.data, "blockers")
+        self.assertNotIn("### Dissent", pr)
+        self.assertNotIn("rollout aggressiveness", pr)
+        self.assertIn("### Blockers", pr)                   # blockers kept
+        self.assertIn("(filtered: 2 dissents — --filter blockers)", pr)
+
+    def test_pr_blockers_plus_dissent_keeps_dissent(self):
+        pr = fo.as_pr(self.data, "blockers+dissent")
+        self.assertIn("### Dissent", pr)
+        self.assertNotIn("(filtered:", pr)   # nothing dropped from the pr shape
+
+    def test_pr_note_never_claims_concern_or_caveat(self):
+        # The pr shape renders no couldn't-verify section, so its note reports only
+        # dropped dissent — never a concern/caveat it never shows.
+        pr = fo.as_pr(self.data, "blockers")
+        self.assertNotIn("concern", pr)
+        self.assertNotIn("caveat", pr)
+
+    def test_tldr_slack_unaffected_by_filter(self):
+        # Neither shape renders dissent/concerns/caveats, so every filter is a no-op
+        # and neither carries an elision line.
+        for filt in sf.FILTER_CHOICES:
+            self.assertEqual(fo.as_tldr(self.data, filt), fo.as_tldr(self.data))
+            self.assertEqual(fo.as_slack(self.data, filt), fo.as_slack(self.data))
+            self.assertNotIn("(filtered:", fo.as_tldr(self.data, filt))
+            self.assertNotIn("(filtered:", fo.as_slack(self.data, filt))
+
+    def test_banner_never_filtered(self):
+        for filt in sf.FILTER_CHOICES:
+            for r in (fo.as_tldr, fo.as_pr, fo.as_slack):
+                self.assertIn("DO NOT SHIP YET".title().upper(), r(self.data, filt).upper())
+
+
+class TestFilterFormatOutputJson(unittest.TestCase):
+    """--format json is a FAITHFUL echo; --filter (non-all) is refused, never a
+    silently thinned or annotated echo."""
+
+    def _write(self, data):
+        d = tempfile.mkdtemp(prefix="board-filter-json-")
+        self.addCleanup(shutil.rmtree, d, ignore_errors=True)
+        path = os.path.join(d, "verdict.json")
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump(data, fh)
+        return path
+
+    def _run(self, argv):
+        out, err = io.StringIO(), io.StringIO()
+        code = None
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            try:
+                code = fo.main(argv)
+            except SystemExit as exc:
+                code = exc.code if isinstance(exc.code, int) else 1
+        return code, out.getvalue(), err.getvalue()
+
+    def test_json_default_echoes_full_verdict(self):
+        path = self._write(_rich_verdict())
+        code, out, _ = self._run([path, "--format", "json"])
+        self.assertEqual(code, 0)
+        echoed = json.loads(out)
+        self.assertEqual(len(echoed["dissent"]), 2)      # nothing dropped
+        self.assertEqual(len(echoed["concerns"]), 1)
+        self.assertEqual(len(echoed["caveats"]), 2)
+
+    def test_json_filter_all_allowed(self):
+        # `all` is the default no-op; explicit `--filter all` with json still echoes.
+        path = self._write(_rich_verdict())
+        code, out, _ = self._run([path, "--format", "json", "--filter", "all"])
+        self.assertEqual(code, 0)
+        self.assertEqual(len(json.loads(out)["dissent"]), 2)
+
+    def test_json_filter_blockers_refused_exit_2(self):
+        path = self._write(_rich_verdict())
+        code, out, err = self._run([path, "--format", "json", "--filter", "blockers"])
+        self.assertEqual(code, 2)
+        self.assertEqual(out, "")                        # nothing emitted
+        self.assertIn("faithful", err)
+
+    def test_json_filter_blockers_dissent_refused(self):
+        path = self._write(_rich_verdict())
+        code, _, err = self._run([path, "--format", "json",
+                                  "--filter", "blockers+dissent"])
+        self.assertEqual(code, 2)
+        self.assertIn("--filter cannot combine with --format json", err)
+
+
+class TestFilterHandoffHtml(unittest.TestCase):
+    """--filter over the HTML shapes (full-handoff, quick-verdict, implementation-
+    sequence) via build_handoff_data + the render engine. The default render stays
+    byte-identical in its BODY (CSS additions are the accepted additive precedent)."""
+
+    def _html(self, data, shape, filt="all"):
+        hd = rv.build_handoff_data(data, shape=shape, filt=filt)
+        return rv._render_html(hd, shape)
+
+    def test_handoff_data_all_identical_to_absent(self):
+        data = _rich_verdict()
+        for shape in ("full-handoff", "quick-verdict", "implementation-sequence"):
+            self.assertEqual(rv.build_handoff_data(data, shape=shape, filt="all"),
+                             rv.build_handoff_data(data, shape=shape),
+                             shape)
+
+    def test_full_handoff_all_html_byte_identical_to_absent(self):
+        data = _rich_verdict()
+        self.assertEqual(self._html(data, "full-handoff", "all"),
+                         self._html(data, "full-handoff"))
+
+    def test_full_all_renders_dissent_and_caveats(self):
+        html = self._html(_rich_verdict(), "full-handoff", "all")
+        self.assertIn("rollout aggressiveness", html)   # dissent body
+        self.assertIn("Reviewed the plan", html)        # caveat
+        self.assertNotIn("filter-note\">(", html)       # no filter-note text
+
+    def test_full_blockers_drops_dissent_and_caveats(self):
+        html = self._html(_rich_verdict(), "full-handoff", "blockers")
+        self.assertNotIn("rollout aggressiveness", html)
+        self.assertNotIn("Reviewed the plan", html)
+        self.assertIn("Atomic dedup", html)             # blockers kept
+        # Honest buckets: 2 dissent entries + 2 couldn't-verify LINES (the 2 caveats).
+        # The apostrophe in "couldn't" is HTML-escaped in this path, so assert on the
+        # note fragments around it rather than the raw string. Split on the element's
+        # `filter-note">` open tag (not the bare class name, which also appears in CSS).
+        note = html.split('filter-note">')[1][:200]
+        self.assertIn("(filtered: 2 dissents, 2 couldn", note)
+        self.assertIn("t-verify lines — --filter blockers)", note)
+        self.assertNotIn("concern", note)
+
+    def test_full_blockers_dissent_keeps_dissent_drops_bucket(self):
+        html = self._html(_rich_verdict(), "full-handoff", "blockers+dissent")
+        self.assertIn("rollout aggressiveness", html)
+        self.assertNotIn("Reviewed the plan", html)
+        note = html.split('filter-note">')[1][:200]
+        self.assertIn("(filtered: 2 couldn", note)
+        self.assertIn("t-verify lines — --filter blockers+dissent)", note)
+        self.assertNotIn("concern", note)
+        self.assertNotIn("dissents", note)   # dissent kept -> not counted
+
+    def test_full_dissent_flag_dropped_when_dissent_filtered(self):
+        html = self._html(_rich_verdict(), "full-handoff", "blockers")
+        self.assertNotIn("Dissent on the record", html)
+
+    def test_quick_verdict_note_reports_only_dissent(self):
+        # The quick-verdict template shows no caveats/concerns, so filtering never
+        # drops that bucket from it — the note reports only the dropped dissent.
+        html = self._html(_rich_verdict(), "quick-verdict", "blockers")
+        self.assertIn("(filtered: 2 dissents — --filter blockers)", html)
+        note = html.split('filter-note">')[1][:200]
+        self.assertNotIn("concern", note)
+        self.assertNotIn("couldn", note)   # quick-verdict never shows the bucket
+
+    def test_quick_verdict_all_byte_identical_to_absent(self):
+        data = _rich_verdict()
+        self.assertEqual(self._html(data, "quick-verdict", "all"),
+                         self._html(data, "quick-verdict"))
+
+    def test_implementation_sequence_html_identical_across_filters(self):
+        data = _rich_verdict()
+        base = self._html(data, "implementation-sequence", "all")
+        for filt in sf.FILTER_CHOICES:
+            self.assertEqual(self._html(data, "implementation-sequence", filt), base)
+
+    def test_no_filter_note_residue_on_full_render(self):
+        html = self._html(_rich_verdict(), "full-handoff", "all")
+        self.assertNotIn('<p class="filter-note">', html)   # empty <p> dropped
+        self.assertNotIn("\n\n\n", html)
+
+    def test_malformed_string_containers_no_fabricated_filter_note(self):
+        # Finding 2 on the handoff path: string-typed containers must render cleanly
+        # (no crash) and never fabricate a count from len(str) in the FILTER_NOTE.
+        data = _verdict("block", "block", "block", blockers=[{"title": "b"}],
+                        dissent="notalist", caveats="notalist")
+        html = self._html(data, "full-handoff", "blockers")   # must not raise
+        self.assertNotIn("8 dissent", html)
+        self.assertNotIn("(filtered:", html)   # nothing droppable -> no note
+
+    def test_sequence_handoff_data_never_varies_with_filter(self):
+        # Shape-owned thinning (re-review finding): implementation-sequence renders
+        # neither dissent nor the couldn't-verify bucket, so its handoff-data
+        # ARTIFACT — not just its HTML — is identical across every filter, and it
+        # never carries a note. A thinned slot the shape never renders would be a
+        # silent loss the filter_note doesn't account for.
+        data = _rich_verdict()
+        base = rv.build_handoff_data(data, shape="implementation-sequence")
+        for filt in sf.FILTER_CHOICES:
+            self.assertEqual(
+                rv.build_handoff_data(data, shape="implementation-sequence", filt=filt),
+                base, filt)
+        self.assertEqual(base["filter_note"], "")
+
+    def test_quick_verdict_handoff_data_keeps_caveats_thins_dissent_with_note(self):
+        # Shape-owned thinning: quick-verdict renders dissent (the brief slot) but
+        # never the couldn't-verify bucket. Under `blockers` its dissent slots thin
+        # AND the note says so; the caveats slot stays the full, faithful record —
+        # an emptied caveats list with no note would be a silent lie in the artifact.
+        data = _rich_verdict()
+        hd = rv.build_handoff_data(data, shape="quick-verdict", filt="blockers")
+        all_hd = rv.build_handoff_data(data, shape="quick-verdict", filt="all")
+        self.assertEqual(hd["dissents"], [])
+        self.assertEqual(hd["dissents_brief"], [])
+        self.assertEqual(hd["dissent_flag"], "")
+        self.assertIn("2 dissents", hd["filter_note"])
+        self.assertNotIn("couldn", hd["filter_note"])   # bucket never mentioned
+        self.assertEqual(hd["caveats"], all_hd["caveats"])   # NOT thinned
+        self.assertTrue(hd["caveats"])
+
+    def test_handoff_actions_slot_guarded_from_malformed_next_actions(self):
+        # The actions slots go through the guarded local: a string-typed
+        # next_actions yields empty slots, never one row per character.
+        data = _verdict("block", "block", "block", blockers=[{"title": "b"}],
+                        next_actions="notalist")
+        hd = rv.build_handoff_data(data, shape="full-handoff", filt="all")
+        self.assertEqual(hd["actions"], [])
+        self.assertEqual(hd["actions_brief"], [])
+
+    def test_full_blockers_drops_section_shells_whole(self):
+        # Re-review #2 blocker: a filtered render must not leave a hollow
+        # "<h2>Dissent…</h2>" / "<h2>What the board couldn't verify</h2>" shell
+        # beside a note that says those very sections were removed. The emptied
+        # section drops WHOLE — divider comment, heading, shell — no residue.
+        html = self._html(_rich_verdict(), "full-handoff", "blockers")
+        self.assertNotIn("Dissent &amp; minority report", html)
+        self.assertNotIn("What the board couldn", html)          # static h2 gone
+        self.assertNotIn("DISSENT / MINORITY REPORT", html)      # divider comment gone
+        self.assertNotIn("BOARD COULDN", html)                   # divider comment gone
+        self.assertNotIn("\n\n\n", html)                         # no blank-gap residue
+
+    def test_full_blockers_dissent_keeps_dissent_drops_caveat_shell(self):
+        html = self._html(_rich_verdict(), "full-handoff", "blockers+dissent")
+        self.assertIn("Dissent &amp; minority report", html)     # kept tier renders whole
+        self.assertIn("rollout aggressiveness", html)
+        self.assertNotIn("What the board couldn", html)          # emptied shell gone
+
+    def test_unfiltered_bare_verdict_keeps_empty_shells_byte_identical(self):
+        # D5 gate: the shell-drop fires only on a render whose filter-note is
+        # non-empty. A verdict with no dissent/caveat DATA — unfiltered, or
+        # filtered with nothing to drop — keeps today's bytes exactly, i.e. the
+        # pre-existing empty shells stay.
+        bare = _verdict("caution", "caution", "caution", blockers=[{"title": "b"}])
+        for filt in ("all", "blockers"):
+            html = self._html(bare, "full-handoff", filt)
+            self.assertIn("Dissent &amp; minority report", html, filt)
+            self.assertIn("What the board couldn", html, filt)
+
+
+class TestFilterRenderVerdictCli(unittest.TestCase):
+    """render_verdict.py main() end-to-end: --filter reaches the markdown output and
+    an unknown value is refused."""
+
+    def _run(self, argv):
+        out, err = io.StringIO(), io.StringIO()
+        code = None
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            try:
+                code = rv.main(argv)
+            except SystemExit as exc:
+                code = exc.code if isinstance(exc.code, int) else 1
+        return code, out.getvalue(), err.getvalue()
+
+    def _write(self, data):
+        d = tempfile.mkdtemp(prefix="board-filter-cli-")
+        self.addCleanup(shutil.rmtree, d, ignore_errors=True)
+        path = os.path.join(d, "verdict.json")
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump(data, fh)
+        return path
+
+    def test_check_filter_blockers_elides_and_notes(self):
+        path = self._write(_rich_verdict())
+        code, out, _ = self._run([path, "--check", "--filter", "blockers"])
+        self.assertEqual(code, 0)
+        self.assertNotIn("Hard dissent", out)
+        self.assertIn("(filtered:", out)
+
+    def test_default_check_is_unfiltered(self):
+        path = self._write(_rich_verdict())
+        code, out, _ = self._run([path, "--check"])
+        self.assertEqual(code, 0)
+        self.assertIn("Hard dissent", out)
+        self.assertNotIn("(filtered:", out)
+
+    def test_unknown_filter_refused(self):
+        path = self._write(_rich_verdict())
+        code, _, _ = self._run([path, "--check", "--filter", "nonsense"])
+        self.assertEqual(code, 2)   # argparse choices -> exit 2
+
+
+class TestGateMinSeverity(unittest.TestCase):
+    """--min-severity composes WITH --fail-on: a fail must also rest on a finding at
+    or above the named tier; it only narrows a fail to a pass, never touching the
+    abstain integrity checks."""
+
+    def _v(self, overall, *finals, **extra):
+        return _verdict(overall, *finals, **extra)
+
+    def test_default_none_is_todays_behavior(self):
+        # A caution verdict with only concerns still FAILS on --fail-on caution when
+        # no --min-severity is given (unchanged behavior).
+        data = self._v("caution", "caution", "caution", concerns=[{"title": "c"}])
+        self.assertEqual(bv.gate_outcome(data, "caution")[0], "fail")
+        self.assertEqual(bv.gate_outcome(data, "caution", None)[0], "fail")
+
+    def test_min_blocker_downgrades_concerns_only_caution(self):
+        data = self._v("caution", "caution", "caution", concerns=[{"title": "c"}])
+        outcome, reason = bv.gate_outcome(data, "caution", "blocker")
+        self.assertEqual(outcome, "pass")
+        self.assertIn("no 'blocker'-severity finding", reason)
+
+    def test_min_blocker_still_fails_with_a_blocker(self):
+        data = self._v("caution", "caution", "caution", blockers=[{"title": "b"}])
+        self.assertEqual(bv.gate_outcome(data, "caution", "blocker")[0], "fail")
+
+    def test_min_blocker_downgrades_dissent_only_block(self):
+        # A block verdict whose only findings are dissent passes under min blocker.
+        data = self._v("block", "block", "block",
+                       dissent=[{"who": "x", "body": "y"}])
+        self.assertEqual(bv.gate_outcome(data, "block", "blocker")[0], "pass")
+
+    def test_min_concern_fails_on_a_concern(self):
+        data = self._v("caution", "caution", "caution", concerns=[{"title": "c"}])
+        self.assertEqual(bv.gate_outcome(data, "caution", "concern")[0], "fail")
+
+    def test_min_concern_fails_on_a_blocker(self):
+        # blocker is above concern -> satisfies --min-severity concern.
+        data = self._v("caution", "caution", "caution", blockers=[{"title": "b"}])
+        self.assertEqual(bv.gate_outcome(data, "caution", "concern")[0], "fail")
+
+    def test_min_concern_downgrades_dissent_only(self):
+        # dissent is not a finding tier -> does not satisfy --min-severity concern.
+        data = self._v("caution", "caution", "caution",
+                       dissent=[{"who": "x", "body": "y"}])
+        self.assertEqual(bv.gate_outcome(data, "caution", "concern")[0], "pass")
+
+    def test_min_severity_never_escalates_a_pass(self):
+        # A ship verdict below the threshold passes regardless of --min-severity.
+        data = self._v("ship", "ship", "ship", blockers=[{"title": "b"}])
+        self.assertEqual(bv.gate_outcome(data, "block", "blocker")[0], "pass")
+
+    def test_refuted_citation_still_abstains_with_min_severity(self):
+        data = self._v("caution", "caution", "caution", blockers=[
+            {"title": "x", "evidence": [
+                {"kind": "source", "url": "u", "quote": "q", "status": "refuted"}]}])
+        self.assertEqual(bv.gate_outcome(data, "block", "blocker")[0], "abstain")
+
+    def test_torn_board_still_abstains_with_min_severity(self):
+        data = self._v("block", "ship", "caution", "block", blockers=[{"title": "b"}])
+        self.assertEqual(bv.gate_outcome(data, "block", "blocker")[0], "abstain")
+
+    def test_de_escalation_still_abstains_with_min_severity(self):
+        # Declared ship but a majority of seats trip the block gate -> abstain,
+        # min-severity does not rescue it.
+        data = self._v("ship", "block", "block", "ship")
+        self.assertEqual(bv.gate_outcome(data, "block", "blocker")[0], "abstain")
+
+    def test_compose_with_fail_on_block(self):
+        # fail_on=block + min blocker: a block verdict with only concerns passes.
+        data = self._v("block", "block", "block", concerns=[{"title": "c"}])
+        self.assertEqual(bv.gate_outcome(data, "block", "blocker")[0], "pass")
+        # …but with a blocker it fails.
+        data2 = self._v("block", "block", "block", blockers=[{"title": "b"}])
+        self.assertEqual(bv.gate_outcome(data2, "block", "blocker")[0], "fail")
+
+    def test_has_finding_helper(self):
+        blk = self._v("block", "block", "block", blockers=[{"title": "b"}])
+        conc = self._v("block", "block", "block", concerns=[{"title": "c"}])
+        none = self._v("block", "block", "block", dissent=[{"who": "x", "body": "y"}])
+        self.assertTrue(bv._has_finding_at_severity(blk, "blocker"))
+        self.assertTrue(bv._has_finding_at_severity(blk, "concern"))
+        self.assertFalse(bv._has_finding_at_severity(conc, "blocker"))
+        self.assertTrue(bv._has_finding_at_severity(conc, "concern"))
+        self.assertFalse(bv._has_finding_at_severity(none, "blocker"))
+        self.assertFalse(bv._has_finding_at_severity(none, "concern"))
+
+
+class TestGateMinSeverityCli(unittest.TestCase):
+    """board_verdict.py main() --gate --min-severity end-to-end, incl. strict
+    validation of an unknown value (exit 2)."""
+
+    def _write(self, data):
+        d = tempfile.mkdtemp(prefix="board-minsev-")
+        self.addCleanup(shutil.rmtree, d, ignore_errors=True)
+        path = os.path.join(d, "verdict.json")
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump(data, fh)
+        return path
+
+    def test_min_blocker_downgrades_concerns_only_to_ok(self):
+        path = self._write(_verdict("caution", "caution", "caution",
+                                    concerns=[{"title": "c"}]))
+        self.assertEqual(run_bv([path, "--gate", "--fail-on", "caution",
+                                 "--min-severity", "blocker"])[0], bv.EXIT_OK)
+
+    def test_min_blocker_still_fails_with_blocker(self):
+        path = self._write(_verdict("block", "block", "block",
+                                    blockers=[{"title": "b"}]))
+        self.assertEqual(run_bv([path, "--gate",
+                                 "--min-severity", "blocker"])[0], bv.EXIT_GATE_FAIL)
+
+    def test_default_gate_unchanged_without_min_severity(self):
+        path = self._write(_verdict("caution", "caution", "caution",
+                                    concerns=[{"title": "c"}]))
+        # No --min-severity: today's behavior — caution trips --fail-on caution.
+        self.assertEqual(run_bv([path, "--gate", "--fail-on", "caution"])[0],
+                         bv.EXIT_GATE_FAIL)
+
+    def test_unknown_min_severity_refused_exit_2(self):
+        path = self._write(_verdict("block", "block", "block"))
+        code, _, _ = run_bv([path, "--gate", "--min-severity", "nonsense"])
+        self.assertEqual(code, bv.EXIT_SCHEMA)   # argparse choices -> exit 2
+
+
+class TestFilterPassthroughRunBoard(EnvMixin):
+    """run_board.py delegate subcommands forward --filter / --min-severity verbatim
+    (argparse.REMAINDER passthrough) — no per-flag plumbing, proven end to end."""
+
+    def _write(self, data):
+        d = tempfile.mkdtemp(prefix="board-passthrough-")
+        self.addCleanup(shutil.rmtree, d, ignore_errors=True)
+        path = os.path.join(d, "verdict.json")
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump(data, fh)
+        return path
+
+    def test_consensus_forwards_filter(self):
+        path = self._write(_rich_verdict())
+        out_md = os.path.join(os.path.dirname(path), "c.md")
+        code, out, err = run_cli(["consensus", path, "-o", out_md,
+                                  "--filter", "blockers"])
+        self.assertEqual(code, 0, err)
+        rendered = open(out_md, encoding="utf-8").read()
+        self.assertNotIn("Hard dissent", rendered)
+        self.assertIn("(filtered:", rendered)
+
+    def test_validate_forwards_min_severity(self):
+        # A concerns-only caution verdict: bare validate --gate --fail-on caution
+        # fails, but adding --min-severity blocker passes — proving the flag reached
+        # board_verdict.py through the delegate.
+        path = self._write(_verdict("caution", "caution", "caution",
+                                    concerns=[{"title": "c"}]))
+        code_fail, _, _ = run_cli(["validate", path, "--gate", "--fail-on", "caution"])
+        self.assertEqual(code_fail, bv.EXIT_GATE_FAIL)
+        code_ok, _, _ = run_cli(["validate", path, "--gate", "--fail-on", "caution",
+                                 "--min-severity", "blocker"])
+        self.assertEqual(code_ok, bv.EXIT_OK)
 
 
 if __name__ == "__main__":
