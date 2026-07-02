@@ -24,7 +24,7 @@ Hard rules, collected here so they are never missed (each is elaborated in conte
 - Run read-only unless the user explicitly asks for edits.
 - Rounds: 2. Cross-reading: summaries. Final artifact: full handoff (Markdown plus a self-contained HTML view).
 - Write run artifacts to a timestamped `/tmp/advisory-board-*` folder by default. Writing them into the reviewed project is itself a write, even on a read-only review: do that only when the user asks or agrees, prefer a dedicated `advisory-board/<timestamp>/` (or `docs/advisory-board/<timestamp>/`) folder, and never write into a tracked git tree without naming the location first.
-- Quick pass: 1 round with `summaries`. High-stakes: 3 rounds with `full` cross-reading. Three frontier models at high reasoning across several rounds can take minutes and meaningful tokens — flag a large run to the user before launching it.
+- Quick pass: 1 round with `summaries`. High-stakes: 3 rounds with `full` cross-reading. Three frontier models at high reasoning across several rounds can take minutes and meaningful tokens — flag a large run to the user before launching it, with numbers: `run_board.py run … --dry-run` prints a best-effort token/cost/time **estimate** for the exact run shape (an estimate, never a gate; subscription-backed CLIs may bill nothing per token). After the run, `run-metadata.md` records what each seat CLI actually reported, where known.
 
 ## Upfront Choices
 
@@ -128,7 +128,7 @@ Write:
 - `final-consensus.md` — the handoff in Markdown
 - `final-consensus.html` — a self-contained, human-readable view of the handoff. Render it deterministically with `scripts/render_handoff.py` from a `handoff-data.json` (recommended — guarantees no leftover placeholders or template drift), or fill `references/handoff-template.html` by hand. Choose the **shape** with `scripts/render_verdict.py --html … --shape full-handoff` (default — the complete record), `--shape quick-verdict` (a slim skim brief to lead with), or `--shape implementation-sequence` (the sequence-first view for whoever executes: every next action in order with owners where named, backed by the blockers and their evidence — md + HTML); see `references/output-formats.md`
 - `verdict.json` — the machine-readable verdict (`references/verdict-schema.md`); gate or reformat it with `scripts/`
-- `run-metadata.md` — provenance: commands, the model that actually answered per seat, auth mode (no secrets), per-seat status (ran / degraded / dropped), timings, and source paths. Use `references/run-metadata-template.md`.
+- `run-metadata.md` — provenance: commands, the model that actually answered per seat, auth mode (no secrets), per-seat status (ran / degraded / dropped), timings, and source paths. Use `references/run-metadata-template.md`. When a seat CLI reports its own token usage, the conductor also records per-seat tokens and a best-effort cost/time line ("if known" — most CLIs report nothing, and nothing is ever guessed).
 
 When a seat is degraded or dropped, show it on its HTML seat card (status pill) and in `verdict.json` (`dropped: true`) — never let a smaller board look like a full one. Derive lighter shares (TL;DR, PR comment, Slack, print/PDF) per `references/output-formats.md`.
 

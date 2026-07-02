@@ -16,6 +16,8 @@ from _conductor.constants import (
     EXIT_USAGE,
     SMOKE_PROMPT,
     die,
+    estimate_run,
+    render_estimate,
 )
 from _conductor.registry import REGISTRY
 from _conductor.convergence import (
@@ -238,6 +240,19 @@ def _execute_run(config, args) -> int:
         print()
         print("=== artifact tree it WOULD create ===")
         print(render_artifact_tree(config))
+        print()
+        # The preflight cost/time estimate (v1.11 #3a) — the "know before you
+        # convene" number SKILL.md's large-run flag points at. Pure function of
+        # the run shape (deterministic), best-effort, and never a gate.
+        print("=== estimate (best effort — never a gate) ===")
+        est_rounds = config.max_rounds if config.rounds == "auto" else int(config.rounds)
+        est = estimate_run(config.source.nbytes, [s.model for s in config.board],
+                           est_rounds, config.cross_reading)
+        for line in render_estimate(est):
+            print(f"  {line}")
+        if config.rounds == "auto":
+            print(f"  (--rounds auto: sized at the --max-rounds ceiling of {config.max_rounds}; "
+                  "the convergence stop-rule may finish earlier and cheaper)")
         print()
         print(f"[dry-run] no preflight, no packet written, no egress, no spawn. "
               f"content hash = sha256:{content_hash}")

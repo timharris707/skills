@@ -24,6 +24,11 @@ __all__ = [
     "FAILURE_INVALID",
     "FAILURE_NOOUTPUT",
     "FAILURE_MODEL",
+    "MODEL_PRICING_USD_PER_MTOK",
+    "PRICING_AS_OF",
+    "price_band_usd",
+    "estimate_run",
+    "render_estimate",
     "die",
     "now_date",
     "now_stamp",
@@ -100,6 +105,147 @@ FAILURE_AUTH = "AuthFailure"
 FAILURE_INVALID = "InvalidOutput"
 FAILURE_NOOUTPUT = "NoOutput"
 FAILURE_MODEL = "ModelNotFound"   # pinned model id did not resolve on the installed CLI
+
+
+# --------------------------------------------------------------------------- #
+# Cost & time transparency (v1.11 #3a): list prices + the preflight estimator.
+# Everything here is BEST-EFFORT and labeled an estimate — never a gate (§ roadmap
+# "always best-effort, never a gate"). Actual spend depends on caching, discounts,
+# and each provider's subscription vs API billing; the board's default posture is
+# subscription CLIs, where per-token dollars may not be billed at all.
+# --------------------------------------------------------------------------- #
+
+# Published list prices in USD per MILLION tokens, keyed by the model ids the
+# REGISTRY pins (registry.py — frontier ids stay inline per the model-id policy).
+# Table dated 2026-07-01, checked against the providers' published prices that
+# day. Prices move; re-check before trusting a large-run estimate. A `None`
+# entry means "not verified" — the estimator then reports that seat's cost as
+# unknown rather than inventing a number (never $0, never a guess). The local
+# ollama seat is genuinely $0 (no external egress, no metered billing).
+PRICING_AS_OF = "2026-07-01"
+MODEL_PRICING_USD_PER_MTOK = {
+    # (input $/MTok, output $/MTok) — uncached list rates; cache reads are cheaper
+    "claude-fable-5": (10.00, 50.00),          # Anthropic
+    "gpt-5.5": (5.00, 30.00),                  # OpenAI
+    "gemini-3.5-flash": (1.50, 9.00),          # Google
+    "Gemini 3.5 Flash (High)": (1.50, 9.00),   # antigravity display name — same model family
+    "llama3.3": (0.00, 0.00),                  # local seat — no per-token cost at all
+}
+
+
+def price_band_usd(model: str, tokens_in: "Optional[int]" = None,
+                   tokens_out: "Optional[int]" = None,
+                   tokens_total: "Optional[int]" = None) -> "Optional[tuple]":
+    """(low, high) USD estimate for one seat's REPORTED tokens, or None.
+
+    None when the model has no verified table entry or nothing was reported.
+    A known in/out split prices exactly at list (low == high); a total-only
+    count (codex) is banded between all-input and all-output pricing. Either
+    way it is an estimate — list prices, no caching/discount/subscription math.
+    """
+    prices = MODEL_PRICING_USD_PER_MTOK.get(model)
+    if not prices or prices[0] is None or prices[1] is None:
+        return None
+    p_in, p_out = prices
+    if tokens_in is not None and tokens_out is not None:
+        cost = (tokens_in * p_in + tokens_out * p_out) / 1_000_000
+        return (cost, cost)
+    if tokens_total is not None:
+        lo, hi = sorted((p_in, p_out))
+        return (tokens_total * lo / 1_000_000, tokens_total * hi / 1_000_000)
+    return None
+
+
+# Rough estimator constants — deliberately coarse (order-of-magnitude bands, not
+# precision): ~4 bytes/token for English/markdown, a fixed allowance for the round
+# template + lens framing, and an output band covering a typical 7-section review.
+_EST_BYTES_PER_TOKEN = 4
+_EST_PROMPT_OVERHEAD_TOKENS = 1_200
+_EST_REVIEW_OUT_TOKENS = (800, 2_600)      # (low, high) per seat per round
+_EST_SUMMARY_TOKENS = 400                  # per peer review under --cross-reading summaries
+_EST_MINUTES_PER_ROUND = (1.0, 5.0)        # frontier seats at high reasoning, parallel fan-out
+
+
+def estimate_run(source_bytes: int, models: list, rounds: int, cross_reading: str) -> dict:
+    """Pure preflight estimate: token band + cost band + rough minutes.
+
+    Inputs are the run's shape only (source size, the per-seat model ids, the
+    round count, the cross-reading mode) — no I/O, no clock, fully deterministic.
+    The returned numbers are labeled estimates wherever they are rendered; they
+    inform the human before launch and never gate anything.
+    """
+    seats = len(models)
+    rounds = max(1, int(rounds))
+    source_tokens = max(1, source_bytes // _EST_BYTES_PER_TOKEN)
+    out_lo, out_hi = _EST_REVIEW_OUT_TOKENS
+
+    # Cross-reading adds each peer's round-(N-1) review to every round-2+ packet.
+    peers = max(0, seats - 1)
+    if cross_reading == "full":
+        cross_lo, cross_hi = peers * out_lo, peers * out_hi
+    elif cross_reading == "none":
+        cross_lo = cross_hi = 0
+    else:   # summaries (the default)
+        cross_lo = cross_hi = peers * _EST_SUMMARY_TOKENS
+
+    base_in = source_tokens + _EST_PROMPT_OVERHEAD_TOKENS
+    per_seat_in_lo = base_in * rounds + cross_lo * (rounds - 1)
+    per_seat_in_hi = base_in * rounds + cross_hi * (rounds - 1)
+    per_seat_out_lo, per_seat_out_hi = out_lo * rounds, out_hi * rounds
+
+    tokens_low = seats * (per_seat_in_lo + per_seat_out_lo)
+    tokens_high = seats * (per_seat_in_hi + per_seat_out_hi)
+
+    cost_low = cost_high = 0.0
+    priced_any = False
+    unpriced = []
+    for model in models:
+        prices = MODEL_PRICING_USD_PER_MTOK.get(model)
+        if not prices or prices[0] is None or prices[1] is None:
+            if model not in unpriced:
+                unpriced.append(model)
+            continue
+        p_in, p_out = prices
+        cost_low += (per_seat_in_lo * p_in + per_seat_out_lo * p_out) / 1_000_000
+        cost_high += (per_seat_in_hi * p_in + per_seat_out_hi * p_out) / 1_000_000
+        priced_any = True
+
+    m_lo, m_hi = _EST_MINUTES_PER_ROUND
+    return {
+        "seats": seats,
+        "rounds": rounds,
+        "cross_reading": cross_reading,
+        "tokens_low": tokens_low,
+        "tokens_high": tokens_high,
+        "cost_low_usd": cost_low if priced_any else None,
+        "cost_high_usd": cost_high if priced_any else None,
+        "cost_is_partial": priced_any and bool(unpriced),
+        "unpriced_models": unpriced,
+        "minutes_low": rounds * m_lo,
+        "minutes_high": rounds * m_hi,
+    }
+
+
+def render_estimate(est: dict) -> list:
+    """Human lines for an estimate_run() result — explicit estimate wording."""
+    lines = [
+        f"tokens  : ~{est['tokens_low']:,}–{est['tokens_high']:,} across the board "
+        f"({est['seats']} seat(s) × {est['rounds']} round(s), cross-reading: {est['cross_reading']})",
+    ]
+    if est["cost_low_usd"] is None:
+        lines.append("cost    : unknown — no verified list price for "
+                     f"{', '.join(est['unpriced_models'])} (see constants.MODEL_PRICING_USD_PER_MTOK)")
+    else:
+        partial = ""
+        if est["cost_is_partial"]:
+            partial = f"  (excludes unpriced: {', '.join(est['unpriced_models'])})"
+        lines.append(f"cost    : ~${est['cost_low_usd']:.2f}–${est['cost_high_usd']:.2f} "
+                     f"at list prices dated {PRICING_AS_OF}{partial}")
+    lines.append(f"time    : roughly {est['minutes_low']:.0f}–{est['minutes_high']:.0f} minutes "
+                 "(seats run in parallel; deep reasoning rounds vary widely)")
+    lines.append("These are ESTIMATES, not measurements or a gate — subscription-backed CLIs "
+                 "may bill nothing per token; actuals land in run-metadata after the run.")
+    return lines
 
 
 def die(message: str, code: int = EXIT_USAGE) -> "NoReturn":  # type: ignore[name-defined]

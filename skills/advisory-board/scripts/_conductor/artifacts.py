@@ -6,7 +6,11 @@ import json
 import os
 from typing import Optional
 
-from _conductor.constants import SENSITIVITY_SCHEMA
+from _conductor.constants import (
+    PRICING_AS_OF,
+    SENSITIVITY_SCHEMA,
+    price_band_usd,
+)
 from _conductor.config import (
     RunConfig,
     SeatConfig,
@@ -31,12 +35,39 @@ __all__ = [
     "render_run_card",
     "render_sensitivity_json",
     "render_artifact_tree",
+    "seat_tokens_label",
+    "render_cost_time_section",
     "render_run_metadata",
     "RUN_METADATA_TSV_COLUMNS",
+    "RUN_METADATA_TSV_TOKEN_COLUMNS",
     "render_run_metadata_tsv",
     "write_pre_spawn_artifacts",
     "_write",
 ]
+
+
+def _has_tokens(r) -> bool:
+    """True when the seat CLI reported ANY usage for this seat-round."""
+    return r.tokens_in is not None or r.tokens_out is not None or r.tokens_total is not None
+
+
+def _tokens_total_or_none(r):
+    """The seat-round's combined token count when derivable, else None."""
+    if r.tokens_total is not None:
+        return r.tokens_total
+    if r.tokens_in is not None and r.tokens_out is not None:
+        return r.tokens_in + r.tokens_out
+    return None
+
+
+def seat_tokens_label(r) -> str:
+    """Human label for one seat-round's reported tokens ("unknown" when none)."""
+    if r.tokens_in is not None and r.tokens_out is not None:
+        total = _tokens_total_or_none(r)
+        return f"in {r.tokens_in:,} · out {r.tokens_out:,} · total {total:,}"
+    if r.tokens_total is not None:
+        return f"total {r.tokens_total:,} (combined count; the CLI reports no in/out split)"
+    return "unknown (the CLI reported no usage — not assumed)"
 
 
 def seat_network_status(seat: SeatConfig, config: RunConfig) -> str:
@@ -235,6 +266,57 @@ def render_synthesizer_section(synth) -> list:
     return lines
 
 
+def render_cost_time_section(rounds: list) -> list:
+    """The v1.11 cost/time trace for run-metadata.md — [] unless a seat REPORTED tokens.
+
+    Emitting nothing when every seat-round is unknown keeps a tokenless run's
+    run-metadata.md byte-identical to the pre-feature baseline (the standing
+    invariant). When any CLI did report usage: the known token sum, a list-price
+    cost band for the priceable part, and the measured wall clock — all labeled
+    best-effort/estimate, never a gate.
+    """
+    results = [r for round_results in (rounds or []) for r in round_results]
+    reported = [r for r in results if _has_tokens(r)]
+    if not reported:
+        return []
+    known_totals = [t for t in (_tokens_total_or_none(r) for r in reported) if t is not None]
+    tokens_sum = sum(known_totals)
+    cost_low = cost_high = 0.0
+    priced_any = False
+    for r in reported:
+        band = price_band_usd(r.model_requested, r.tokens_in, r.tokens_out, r.tokens_total)
+        if band is not None:
+            cost_low += band[0]
+            cost_high += band[1]
+            priced_any = True
+    # Parallel fan-out: each round's wall clock is its slowest seat's elapsed time.
+    wall_s = sum(max((r.elapsed_s for r in round_results), default=0.0)
+                 for round_results in (rounds or []))
+    rest = ("; the rest reported nothing and are counted as unknown, never guessed"
+            if len(known_totals) < len(results) else " (every seat-round reported; "
+            "unreported usage is counted as unknown, never guessed)")
+    lines = [
+        "",
+        "## Cost & time (best effort)",
+        "",
+        f"- Tokens reported by the seat CLIs: {tokens_sum:,} across "
+        f"{len(known_totals)} of {len(results)} seat-round(s){rest}.",
+    ]
+    if priced_any:
+        lines.append(
+            f"- Estimated cost of the reported tokens: ~${cost_low:.2f}–${cost_high:.2f} "
+            f"at list prices dated {PRICING_AS_OF} (an ESTIMATE — subscription-backed "
+            "CLIs may bill nothing per token; unknown/unpriced seat-rounds excluded).")
+    else:
+        lines.append(
+            "- Cost: unknown — no verified list price for the reporting seats' models "
+            "(see constants.MODEL_PRICING_USD_PER_MTOK).")
+    lines.append(
+        f"- Wall clock (measured): {wall_s / 60:.1f} min across {len(rounds or [])} round(s) "
+        "— seats fan out in parallel, so each round costs its slowest seat.")
+    return lines
+
+
 def render_run_metadata(config: RunConfig, preflight: list, approval: EgressApproval,
                         rounds: Optional[list] = None, convergence: Optional[dict] = None,
                         synthesizer=None) -> str:
@@ -306,6 +388,14 @@ def render_run_metadata(config: RunConfig, preflight: list, approval: EgressAppr
                 f"| {r.seat:<6} | {r.status:<8} | {answered} | {r.attempts} "
                 f"| {r.elapsed_s:.1f}s | {r.failure_class or '-'} |"
             )
+        # Per-seat token capture (v1.11 #3a) — rendered ONLY when a CLI actually
+        # reported usage this round, so a tokenless run (all seats unknown) keeps
+        # this file byte-identical to the pre-feature baseline.
+        token_rows = [r for r in round_results if _has_tokens(r)]
+        if token_rows:
+            lines += ["", "Tokens as reported by the seat CLIs (if known; capture is best-effort):"]
+            for r in token_rows:
+                lines.append(f"- {r.seat}: {seat_tokens_label(r)}")
         # Post-hoc egress accounting (R4): the pre-spawn scope hash bounds what a seat
         # COULD read; this records which in-scope paths each usable reply actually
         # referenced. Best-effort substring match — over-, not under-counts.
@@ -331,6 +421,9 @@ def render_run_metadata(config: RunConfig, preflight: list, approval: EgressAppr
         lines += render_convergence_section(convergence)
     if synthesizer is not None:
         lines += render_synthesizer_section(synthesizer)
+    # Cost & time (v1.11 #3a) — empty (and therefore absent) unless a seat CLI
+    # actually reported token usage, keeping tokenless runs byte-identical.
+    lines += render_cost_time_section(rounds)
     lines += [
         "",
         "## Notes",
@@ -374,23 +467,41 @@ RUN_METADATA_TSV_COLUMNS = (
     "prompt_sha256", "packet_sha256",
 )
 
+# Trailing token columns (v1.11 #3a), appended ONLY when at least one seat-round
+# actually reported usage. A tokenless run keeps the original header and rows
+# byte-identical to the pre-feature baseline (and existing consumers that read
+# the packet hash as the LAST column keep working); "-" marks an unknown cell.
+RUN_METADATA_TSV_TOKEN_COLUMNS = ("tokens_in", "tokens_out", "tokens_total")
+
 
 def render_run_metadata_tsv(rounds: list) -> str:
     """The diffable, machine-readable provenance companion to run-metadata.md
     (§12): one row per seat per round, including the parsed `VERDICT:` token (M1)
     so the movement trace is reproducible from the TSV. Tabs are stripped from any
-    field so the TSV can't be corrupted by a stray tab in a model id."""
+    field so the TSV can't be corrupted by a stray tab in a model id. When any
+    seat CLI reported token usage, three trailing columns (tokens_in, tokens_out,
+    tokens_total) are appended — see RUN_METADATA_TSV_TOKEN_COLUMNS."""
     def cell(v) -> str:
         return str(v).replace("\t", " ").replace("\n", " ")
-    out = ["\t".join(RUN_METADATA_TSV_COLUMNS)]
+    results = [r for round_results in (rounds or []) for r in round_results]
+    with_tokens = any(_has_tokens(r) for r in results)
+    columns = RUN_METADATA_TSV_COLUMNS + (RUN_METADATA_TSV_TOKEN_COLUMNS if with_tokens else ())
+    out = ["\t".join(columns)]
     for round_results in (rounds or []):
         for r in round_results:
-            out.append("\t".join(cell(v) for v in (
+            values = [
                 r.round_no, r.seat, r.provider, r.model_requested,
                 r.model_answered or "unknown", r.status, r.verdict or "-",
                 r.failure_class or "-", r.attempts, f"{r.elapsed_s:.2f}", r.exit_code,
                 "yes" if r.timed_out else "no", r.prompt_hash, r.round_packet_hash,
-            )))
+            ]
+            if with_tokens:
+                values += [
+                    r.tokens_in if r.tokens_in is not None else "-",
+                    r.tokens_out if r.tokens_out is not None else "-",
+                    r.tokens_total if r.tokens_total is not None else "-",
+                ]
+            out.append("\t".join(cell(v) for v in values))
     return "\n".join(out) + "\n"
 
 

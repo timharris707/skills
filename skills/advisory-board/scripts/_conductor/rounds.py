@@ -62,6 +62,14 @@ class SeatRoundResult:
     source_hash: str            # sha256 of the source material (same across seats)
     round_packet_hash: str      # sha256 of THIS round's full packet (round 1 == approval hash)
     argv_preview: str           # the invocation, prompt elided (the black-box recorder)
+    # Token usage as REPORTED BY THE CLI in the captured output (v1.11 #3a) — all
+    # nullable, and None is the common, honest outcome today (most CLIs print no
+    # usage; see registry.py's per-seat parse_usage). tokens_total may be present
+    # while in/out are not (codex reports one combined count). Never estimated
+    # here — estimates live in constants.estimate_run and are labeled as such.
+    tokens_in: Optional[int] = None
+    tokens_out: Optional[int] = None
+    tokens_total: Optional[int] = None
 
     @property
     def usable(self) -> bool:
@@ -115,6 +123,16 @@ def _run_seat_round(seat: SeatConfig, blob: "PacketBlob", config: RunConfig, *,
         break
 
     answered = adapter.model_answered(result.stdout, result.stderr) if status in ("ran", "degraded") else None
+    # Token capture runs for degraded AND dropped seats (a failed spawn may still
+    # have burned tokens) — but NOT for a timeout: the parsers' anchor guarantees
+    # ("the CLI's own footer terminates stderr" / "the envelope is the whole
+    # stdout") only hold for a process that finished printing. A killed process
+    # returns PARTIAL streams whose tail could be echoed prompt/review content
+    # quoting a usage line — exactly the poisoning the anchors exist to exclude.
+    if result.timed_out:
+        tokens_in = tokens_out = tokens_total = None
+    else:
+        tokens_in, tokens_out, tokens_total = adapter.parse_usage(result.stdout, result.stderr)
     return SeatRoundResult(
         seat=seat.id,
         provider=seat.provider,
@@ -133,6 +151,9 @@ def _run_seat_round(seat: SeatConfig, blob: "PacketBlob", config: RunConfig, *,
         source_hash=config.source.sha256,
         round_packet_hash=round_packet_hash,
         argv_preview=_argv_preview(last_argv),
+        tokens_in=tokens_in,
+        tokens_out=tokens_out,
+        tokens_total=tokens_total,
     )
 
 

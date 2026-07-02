@@ -50,6 +50,10 @@ from _verdict_labels import (  # noqa: E402  lens-aware label + framing (rendere
     lens_disclaimer,
     verdict_lead,
 )
+from _conductor.constants import (  # noqa: E402  v1.11 cost transparency (stdlib-only module)
+    PRICING_AS_OF,
+    price_band_usd,
+)
 
 STATUS_WORD = {"verified": "verified", "unverified": "unverified", "refuted": "REFUTED"}
 EVIDENCE_CONTAINERS = ("blockers", "dissent", "concerns")
@@ -421,6 +425,86 @@ def _round_review(run_dir, seat_name: str, round_no: int, verdict: str) -> str:
             f"Full review in `round-{round_no}/{seat_name.lower()}.md`.")
 
 
+def _seat_reported_token_totals(run_dir) -> "dict | None":
+    """Best-effort token totals from the run's run-metadata.tsv (v1.11 #3a), or None.
+
+    The conductor appends trailing token columns to run-metadata.tsv ONLY when a
+    seat CLI actually reported usage. No run dir, no TSV, no token columns, or no
+    known values → None, and the HTML footer stays byte-identical to the
+    tokenless baseline. Column positions are resolved by header name, never by
+    index, so this reads both TSV layouts.
+    """
+    if not run_dir:
+        return None
+    try:
+        with open(os.path.join(run_dir, "run-metadata.tsv"), encoding="utf-8") as handle:
+            lines = [ln for ln in handle.read().splitlines() if ln.strip()]
+    except OSError:
+        return None
+    if not lines:
+        return None
+    header = lines[0].split("\t")
+    if "tokens_total" not in header:
+        return None
+    idx = {name: i for i, name in enumerate(header)}
+
+    def _cell_int(row: list, name: str):
+        i = idx.get(name)
+        if i is None or i >= len(row):
+            return None
+        raw = row[i].strip().replace(",", "")
+        # isascii() guard: str.isdigit() accepts Unicode digit-class chars (e.g.
+        # "²") that int() rejects — a malformed cell must degrade to None, not raise.
+        return int(raw) if raw.isascii() and raw.isdigit() else None
+
+    tokens = rows = known_rows = 0
+    cost_low = cost_high = 0.0
+    priced_any = False
+    for ln in lines[1:]:
+        row = ln.split("\t")
+        rows += 1
+        tin = _cell_int(row, "tokens_in")
+        tout = _cell_int(row, "tokens_out")
+        ttotal = _cell_int(row, "tokens_total")
+        combined = ttotal if ttotal is not None else (
+            tin + tout if tin is not None and tout is not None else None)
+        if combined is None:
+            continue
+        known_rows += 1
+        tokens += combined
+        model_i = idx.get("model_requested")
+        model = row[model_i] if model_i is not None and model_i < len(row) else ""
+        band = price_band_usd(model, tin, tout, ttotal)
+        if band is not None:
+            cost_low += band[0]
+            cost_high += band[1]
+            priced_any = True
+    if not known_rows:
+        return None
+    return {
+        "tokens": tokens, "rows": rows, "known_rows": known_rows,
+        "cost_low": cost_low if priced_any else None,
+        "cost_high": cost_high if priced_any else None,
+    }
+
+
+def _token_totals_note(totals) -> str:
+    """One footer segment for the seat-reported totals ("" when unknown)."""
+    if not totals:
+        return ""
+    where_known = (" (where known — some seats reported no usage)"
+                   if totals["known_rows"] < totals["rows"] else "")
+    note = f"Seat-reported tokens{where_known}: {totals['tokens']:,}"
+    if totals["cost_low"] is not None:
+        if totals["cost_high"] - totals["cost_low"] < 0.005:
+            band = f"~${totals['cost_low']:.2f}"
+        else:
+            band = f"~${totals['cost_low']:.2f}–${totals['cost_high']:.2f}"
+        note += (f" · est. cost {band} at list prices dated {PRICING_AS_OF} "
+                 "(an estimate, not a bill)")
+    return note
+
+
 def build_handoff_data(data: dict, run_dir=None) -> dict:
     verdict = data.get("verdict", "")
     lens_preset = data.get("lens_preset")
@@ -449,11 +533,14 @@ def build_handoff_data(data: dict, run_dir=None) -> dict:
     actions = data.get("next_actions") or []
     # Footer provenance, in human terms — no internal file/script names. (The old
     # "Rendered from verdict.json by scripts/render_verdict.py" was a developer string
-    # that leaked onto the page; same for the subtitle below.)
+    # that leaked onto the page; same for the subtitle below.) The token/cost segment
+    # (v1.11 #3a) is "" — and the footer byte-identical to before — unless the run's
+    # TSV carries seat-reported usage; when present it is labeled an estimate.
     metadata = " · ".join(p for p in (
         f"Board: {board_str}" if board_str else "",
         f"{rounds_str} rounds" if rounds_str else "",
         data.get("date", ""),
+        _token_totals_note(_seat_reported_token_totals(run_dir)),
     ) if p)
     hd = {
         # non-RAW slots (the renderer escapes them) -> _plain; RAW slots -> _raw.

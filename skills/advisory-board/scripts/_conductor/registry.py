@@ -15,6 +15,9 @@ __all__ = [
     "_MODEL_BANNER_RE",
     "_PROMPT_ECHO_MARKER",
     "parse_model_answered",
+    "_usage_unknown",
+    "claude_usage",
+    "codex_usage",
     "claude_argv",
     "claude_version",
     "codex_argv",
@@ -69,6 +72,16 @@ __all__ = [
 # 2026-06-25; re-verify before a large run, they move fast.
 
 
+def _usage_unknown(stdout: str, stderr: str) -> tuple:
+    """Deliberately-unknown token-usage parser: (tokens_in, tokens_out, tokens_total).
+
+    Returns (None, None, None) — "unknown, flag it" — never a guessed count. The
+    default for every seat whose CLI does not print its own usage in the captured
+    output (mirrors _model_answered_none below: honest absence over fabrication).
+    """
+    return (None, None, None)
+
+
 @dataclass(frozen=True)
 class SeatAdapter:
     name: str
@@ -84,6 +97,11 @@ class SeatAdapter:
     isolates_network: bool               # can gate mode actually REMOVE this seat's network via a flag?
     model_answered: Callable[[str, str], Optional[str]]  # (stdout, stderr) -> real model id | None
     timeout_s: int = 900                 # hard cap; §13 default is 15 min (overridden per call)
+    # (stdout, stderr) -> (tokens_in, tokens_out, tokens_total), each Optional[int].
+    # Best-effort token capture (v1.11 #3a): parse ONLY what the CLI unambiguously
+    # reports about ITS OWN usage — a miss is (None, None, None) ("unknown — flag
+    # it"), never a number mined from review prose. Defaults to always-unknown.
+    parse_usage: Callable[[str, str], tuple] = _usage_unknown
     # --- toolchain currency + model self-heal (all optional; a seat without a
     #     package manager simply reports "unknown" and is never auto-updated) ---
     latest_argv: Optional[Callable[[], list]] = None     # () -> argv that prints the latest version
@@ -140,6 +158,76 @@ def parse_model_answered(stdout: str, stderr: str) -> Optional[str]:
         return None
     cand = m.group(1).strip()
     return cand or None
+
+
+# Per-CLI token-usage parsers (v1.11 #3a). Grounded live on 2026-07-01 against the
+# installed CLIs with the streams captured separately. The poisoning rule from
+# parse_model_answered applies with more force here: review prose (stdout) and the
+# echoed prompt (stderr) can legitimately QUOTE usage lines/JSON — e.g. when the
+# material under review is this very skill or a CLI transcript — so a parser may
+# only accept usage from a position review content cannot occupy. Anything less
+# anchored returns unknown; never guess numbers.
+
+
+def claude_usage(stdout: str, stderr: str) -> tuple:
+    """claude: usage from the --output-format json result envelope ONLY.
+
+    Plain `claude -p` (the board's argv, text mode) emits NO usage anywhere —
+    stdout is the review text, stderr is empty; --verbose adds nothing in text
+    mode (verified live on claude 2.1.191, 2026-07-01). Usage exists only in the
+    `--output-format json` result envelope: the ENTIRE stdout is one JSON object
+    carrying usage.input_tokens / usage.output_tokens. Parse only that
+    whole-document shape — a review merely quoting such JSON is embedded in prose
+    and fails the full-stdout json.loads, so it can never be mined. Today's
+    text-mode spawns therefore honestly return unknown; if the invocation ever
+    adopts the json envelope, capture lights up with no further change. Counts
+    are AS REPORTED: the envelope's input_tokens excludes cache reads/writes
+    (they ride separate usage fields, billed at different rates) — one more
+    reason every downstream dollar figure stays labeled an estimate.
+    """
+    try:
+        data = json.loads(stdout)
+    except (ValueError, RecursionError):   # not JSON — or adversarially deep nesting
+        return (None, None, None)
+    if not isinstance(data, dict):
+        return (None, None, None)
+    usage = data.get("usage")
+    if not isinstance(usage, dict):
+        return (None, None, None)
+    tin, tout = usage.get("input_tokens"), usage.get("output_tokens")
+    if (isinstance(tin, int) and not isinstance(tin, bool) and tin >= 0
+            and isinstance(tout, int) and not isinstance(tout, bool) and tout >= 0):
+        return (tin, tout, tin + tout)
+    return (None, None, None)
+
+
+# `codex exec` ends stderr with a token footer. Two shapes seen in the wild:
+# the current two-line form ("tokens used" newline "13,976" — verified live on
+# codex-cli 0.142.2, 2026-07-01) and the older one-line "tokens used: 13,976".
+_CODEX_TOKENS_USED_LINE_RE = re.compile(r"^tokens used:\s*([\d,]+)$", re.IGNORECASE)
+_CODEX_COUNT_RE = re.compile(r"^\d{1,3}(?:,\d{3})*$|^\d+$")
+
+
+def codex_usage(stdout: str, stderr: str) -> tuple:
+    """codex: the TOTAL from the "tokens used" footer that terminates stderr.
+
+    codex reports one combined count (input+output+reasoning), never a split —
+    so tokens_in/tokens_out stay None and only tokens_total is filled. Anchored
+    to the TAIL of stderr on purpose: codex mirrors the echoed prompt AND the
+    reply onto stderr, either of which could quote a "tokens used" line, but the
+    CLI's own footer is always the last thing printed. Only the final line pair
+    (or final one-line form) is trusted; anything else is unknown.
+    """
+    lines = [ln.strip() for ln in stderr.splitlines() if ln.strip()]
+    if not lines:
+        return (None, None, None)
+    if (len(lines) >= 2 and lines[-2].lower() == "tokens used"
+            and _CODEX_COUNT_RE.match(lines[-1])):
+        return (None, None, int(lines[-1].replace(",", "")))
+    m = _CODEX_TOKENS_USED_LINE_RE.match(lines[-1])
+    if m:
+        return (None, None, int(m.group(1).replace(",", "")))
+    return (None, None, None)
 
 
 # v1 is always read-only — every adapter hardcodes its provider's read-only mode
@@ -408,6 +496,7 @@ REGISTRY: dict = {
         supports_isolation=True,
         isolates_network=True,   # --disallowed-tools WebSearch WebFetch removes web reach
         model_answered=parse_model_answered,
+        parse_usage=claude_usage,   # json result envelope only; text mode (today) → unknown
         latest_argv=claude_latest_argv,
         parse_latest=parse_npm_latest,
         update_argv=claude_update_argv,
@@ -430,6 +519,7 @@ REGISTRY: dict = {
         supports_isolation=True,
         isolates_network=True,   # --sandbox read-only has no network (verified: DNS fails inside)
         model_answered=parse_model_answered,
+        parse_usage=codex_usage,   # "tokens used" stderr footer — a TOTAL only, never a split
         latest_argv=codex_latest_argv,
         parse_latest=parse_npm_latest,
         update_argv=codex_update_argv,
@@ -456,6 +546,8 @@ REGISTRY: dict = {
         supports_isolation=True,    # fs scoping via cwd; network is NOT removable (below)
         isolates_network=False,  # no known flag disables GoogleSearch grounding — surfaced loudly
         model_answered=parse_model_answered,
+        # parse_usage stays _usage_unknown: `gemini -p` prints no usage on either
+        # stream (verified live on gemini-cli 0.46.0, 2026-07-01) — never guess.
         latest_argv=gemini_latest_argv,
         parse_latest=parse_brew_latest,
         update_argv=gemini_update_argv,
@@ -482,6 +574,8 @@ REGISTRY: dict = {
         supports_isolation=True,    # cwd scoping + --sandbox terminal restrictions
         isolates_network=False,  # agent-first harness; web/grounding not removable — surfaced loudly
         model_answered=_model_answered_none,
+        # parse_usage stays _usage_unknown: `agy -p` prints no usage on either
+        # stream (verified live on agy 1.0.15, 2026-07-01) — never guess.
         latest_argv=antigravity_latest_argv,
         parse_latest=parse_brew_cask_latest,
         update_argv=antigravity_update_argv,
@@ -509,6 +603,9 @@ REGISTRY: dict = {
         supports_isolation=True,   # fs scoping via cwd; a local model has nothing external to scope
         isolates_network=True,     # local model: no external network at all (intrinsic, not a flag)
         model_answered=_model_answered_none,
+        # parse_usage stays _usage_unknown: plain `ollama run` prints only the
+        # completion (eval counts appear only under --verbose, which the board
+        # doesn't pass). Local seat, so the cost is $0 either way — never guess.
         latest_argv=ollama_latest_argv,
         parse_latest=parse_brew_latest,
         update_argv=ollama_update_argv,
