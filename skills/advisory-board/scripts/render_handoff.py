@@ -80,6 +80,11 @@ BLOCK_KEYS = {
     "SEQ STEP": "sequence",
     "SEQ BLOCKER": "seq_blockers",
     "SEQ EVIDENCE": "seq_evidence",
+    # delta vs the previous run (v1.12 --revise; full handoff only). All three
+    # lists are empty on a non-revise verdict — the whole section drops below.
+    "DELTA CLEARED": "delta_cleared",
+    "DELTA OPEN": "delta_open",
+    "DELTA NEW": "delta_new",
 }
 
 # Tokens whose values are authored HTML fragments and pass through unescaped.
@@ -93,6 +98,21 @@ RAW_TOKENS = {
 
 def drop_empty_optionals(out: str) -> str:
     """Remove the optional elements when their token rendered empty."""
+    # --- delta section (v1.12 --revise; delta-* classes exist only in the full
+    #     handoff template — NO-OPS elsewhere). Whole-section drop FIRST: a
+    #     non-revise verdict renders an empty delta-revises line, taking the
+    #     entire section (heading included) with it. Then the per-piece drops
+    #     for a revise verdict: empty trajectory/note lines, empty buckets. ---
+    out = re.sub(
+        r'\s*<section class="delta-sec">\s*<h2>[^<]*</h2>\s*'
+        r'<p class="delta-revises">\s*</p>.*?</section>',
+        "", out, flags=re.DOTALL)
+    out = re.sub(r'\s*<p class="delta-traj">\s*</p>', "", out)
+    out = re.sub(r'\s*<p class="delta-note">\s*</p>', "", out)
+    out = re.sub(
+        r'\s*<div class="delta-col">\s*<h4>[^<]*</h4>\s*'
+        r'<ul class="delta-list">\s*</ul>\s*</div>',
+        "", out)
     out = re.sub(r'\s*<span class="seat-status\s*">\s*</span>', "", out)
     out = re.sub(r'\s*<div class="highlight">\s*</div>', "", out)
     out = re.sub(r'\s*<span class="conf">confidence:\s*</span>', "", out)
@@ -171,6 +191,13 @@ def markdownify_reviews(data: dict) -> dict:
 
 def render(data: dict, template: str) -> str:
     data = markdownify_reviews(data)
+    # Pre-v1.12 handoff-data.json files carry no delta slots; default them so an
+    # old data file still renders (the empty section drops below) instead of
+    # dying on an unresolved {{DELTA_*}} token.
+    for key in ("delta_revises", "delta_trajectory", "delta_note"):
+        data.setdefault(key, "")
+    for key in ("delta_cleared", "delta_open", "delta_new"):
+        data.setdefault(key, [])
     out = render_item(template, data, BLOCK_KEYS, RAW_TOKENS)
     out = drop_empty_optionals(out)
     out = strip_comments(out)

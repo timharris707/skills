@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import subprocess
 import sys
@@ -34,6 +35,7 @@ from _conductor.grounding import (
     cleanup_snapshot,
     prepare_grounding,
 )
+from _conductor.revise import prepare_revision
 from _conductor.history import (
     collect_history,
     render_history_table,
@@ -211,6 +213,11 @@ def cmd_run(args) -> int:
     # live tree. The snapshot is a temp dir — always cleaned up, even on a NO-GO/error.
     if config.grounded:
         config.grounding = prepare_grounding(config, snapshot=not getattr(args, "dry_run", False))
+    # --revise (v1.12 #1): build the revision context BEFORE the packet, so the
+    # injected digest+diff bytes are inside the consent hash. Reads the prior run
+    # dir only — nothing egresses here.
+    if config.revise_of:
+        config.revision = prepare_revision(config)
     try:
         return _execute_run(config, args)
     finally:
@@ -474,6 +481,9 @@ def _execute_run(config, args) -> int:
     print("\nNext — synthesize, then run the deterministic M5 chain:")
     print(f"  1. Read {last_dir}/*.md and write {config.out_dir}/verdict.json "
           "(advisory-board/verdict@2; cite typed evidence on each blocker).")
+    if config.revision is not None:
+        print("     Include the lineage object this revise run pins:\n"
+              f"     \"previous_run\": {json.dumps(config.revision.previous_run)}")
     print(f"     (or re-run with --synthesize to spawn the neutral synthesizer seat)")
     print(f"  2. run_board.py verify {config.out_dir}/verdict.json --source <src> --run {config.out_dir}")
     print(f"  3. run_board.py consensus {config.out_dir}/verdict.json --run {config.out_dir} "
@@ -693,6 +703,16 @@ def add_run_options(parser: argparse.ArgumentParser) -> None:
                         help="re-run from a run-recipe.yaml. Reuses the recipe's recorded out dir "
                              "(rewriting that run's artifacts in place) unless --out/--runs-root/"
                              "--ephemeral name somewhere fresh.")
+    parser.add_argument("--revise", metavar="PRIOR_RUN_DIR|verdict.json",
+                        help="re-review a revised draft with the prior run's verdict as context "
+                             "(v1.12). --source is the REVISED draft; the round-1 prompts "
+                             "additionally carry a mechanical digest of the prior verdict plus "
+                             "the diff from the previously reviewed draft (recovered from the "
+                             "prior run dir, sha-verified; diff omitted loudly if unrecoverable). "
+                             "Every injected byte is inside the consent packet hash. The new "
+                             "verdict records previous_run lineage; final-consensus renders the "
+                             "cleared/still-open/new delta. Refused with --from-recipe (a revise "
+                             "recipe already records revise_of).")
     parser.add_argument("--synthesize", action="store_true",
                         help="after the rounds complete, spawn a no-lens synthesizer seat to draft "
                              "verdict.json from the final-round reviews (M2). §11-safe: the "

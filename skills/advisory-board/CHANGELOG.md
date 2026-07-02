@@ -11,6 +11,47 @@ reserved for an explicit production-ready call. The verdict-JSON schema is versi
 ## [Unreleased]
 
 ### Added
+- **`--revise <prior run dir | verdict.json>` (v1.12 #1) — re-review a revised draft with the
+  prior verdict as context.** `--source` is the revised draft; the round-1 prompts additionally
+  carry a fenced, neutralized block holding a MECHANICAL digest of the prior verdict (tokens,
+  titles, citations — never a summary, §11) plus the unified diff from the previously reviewed
+  draft to the current material (capped at 400 lines, loudly). The injected bytes live inside
+  the packet blobs, so the egress **consent hash covers them with no new machinery**, the
+  run card / dry-run disclose them, and the template-sha discipline holds: the version records
+  a `+revise@1` suffix (`advisory-board/round1@2+revise@1`, composing with grounded `@3`) while
+  a non-revise run's prompts, template sha, and recipe stay byte-identical. To make the diff
+  possible every run now persists `source-material.txt` (an exact source copy, post-approval —
+  the same bytes the persisted prompts already embed; `references/data-handling.md` notes it);
+  revising a pre-v1.12 run recovers the prior source from a persisted round-1 prompt,
+  **sha-verified against the recipe**, and degrades loudly to digest-only when unrecoverable.
+  The conductor pins `previous_run` lineage (run dir, prior verdict token, verdict sha256) into
+  the synthesizer skeleton — the one path lifecycle fields can enter a synthesized verdict —
+  and a revise run's recipe records `revise_of`, so `--from-recipe` replays the same lineage
+  (the flag pair itself is refused as contradictory). **Consent-surface hardening** (from the
+  adversarial security review): the pre-approval disclosure line, the egress manifest (its own
+  section, mirroring grounding's scope disclosure), and `sensitivity.json` all name the
+  injection and its provenance; a prior run with a **stricter declared sensitivity** (e.g.
+  `local-only`) refuses to revise under a looser run — material never silently escalates; the
+  injected material is **byte-neutralized** against fence-marker echoes (the round-2 defense,
+  whose marker family now covers the revise fence); recovery is labeled **sha-verified vs
+  UNVERIFIED** on every surface, symlinked prior artifacts are refused, and marker-parsing
+  prompt extraction is only trusted when the recipe records a `source_sha256` to verify
+  against (a prior source containing the marker line can never yield a silently truncated
+  diff).
+- **Cross-run delta in the consensus (v1.12 #1).** New pure `_conductor/delta.py` classifies
+  blockers/concerns across the two runs — cleared / still-open / new — by exact normalized
+  title, then shared concrete citations, then guarded stdlib title similarity (mechanical
+  only; a reworded finding with nothing shared honestly shows as cleared+new). Matching runs
+  as **global tier passes** (an exact title always beats an earlier item's fuzzy pairing), a
+  bare file path counts as a citation only when the evidence carries no line/symbol (a
+  single-file review must not collapse into all-still-open), and the similarity tier requires
+  a shared substantive token on top of the ratio floor. `final-consensus.md`
+  and the full-handoff HTML lead with a **trajectory banner** (prior → new verdict, lens-aware
+  labels) and the three buckets, derived at render time from `previous_run` (nothing new is
+  stored in verdict.json — D8 holds): the prior verdict.json is re-read and checked against
+  the recorded `verdict_sha256`, and the section degrades to an honest one-liner when the
+  prior run moved or its artifacts changed. Non-revise verdicts render byte-identically, and
+  pre-v1.12 `handoff-data.json` files still render.
 - **Verdict-lifecycle schema fields (v1.12 Phase 1)** — ONE additive evolution of
   `advisory-board/verdict@2` (the version string does not change; a verdict without the new
   fields is byte-for-byte the same schema as before): optional `previous_run` lineage (object;

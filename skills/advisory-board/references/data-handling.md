@@ -43,6 +43,8 @@ The exfil control in gate mode is **network isolation, not read-confinement**:
 
 Run artifacts persist by default under `~/.advisory-board/runs/<slug>-<date>/` (v1.11) instead of an ephemeral `/tmp` folder. Persistence changes **where artifacts sit on the local disk — nothing else**: the artifacts inherit the run's sensitivity handling exactly as decided above. A local-only run's artifacts are still local-only material; a redacted run's artifacts contain only the redacted bytes the consent hash covered. Nothing new egresses — `history` and the runs root are pure local disk reads, and no provider ever receives an artifact because it persisted. What changes in practice is *lifetime*: sensitive material now outlives the reboot that used to clean `/tmp`, so treat the runs root with the same care as the source material, and prefer `--ephemeral` (a throwaway `/tmp` run) or a deliberate `--out`/`--runs-root` location when the run's material shouldn't linger on disk.
 
+Since v1.12 the run dir also holds `source-material.txt` — an exact copy of the reviewed source, written post-approval so a later `--revise` can diff against it. It is the same bytes the persisted `prompts/*.prompt` already embed: the same consent envelope, the same sensitivity handling, no new exposure class.
+
 ## Always
 
 Never write secrets into any artifact. Redact keys, tokens, cookies, and private environment values from prompts, packets, metadata, and the handoff.

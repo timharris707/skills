@@ -11,6 +11,7 @@ from typing import Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from _conductor.grounding import GroundingContext
+    from _conductor.revise import RevisionContext
 
 from _conductor.constants import (
     DEFAULT_LENS,
@@ -107,10 +108,17 @@ class RunConfig:
                                      # preset resolves into rounds/cross_reading/reasoning above;
                                      # never recipe-persisted (recipes record the RESOLVED values),
                                      # rendered as one run-metadata line only when the flag was given
+    revise_of: Optional[str] = None  # --revise (v1.12 #1): the prior run dir (or its
+                                     # verdict.json) this run revises. Recipe-persisted
+                                     # (a revise recipe replays the same lineage).
     # Runtime-populated (NOT by resolve_config): the resolved+snapshotted+hashed read
     # surface, computed once at pre-spawn (cli.cmd_run) so every consent surface reads
     # one source of truth. None until then, and always None for an ungrounded run.
     grounding: "Optional[GroundingContext]" = None
+    # Runtime-populated (cli.cmd_run, before the packet is built so the consent hash
+    # covers the injected bytes): the prior verdict digest + source diff + lineage.
+    # None until then, and always None for a non-revise run.
+    revision: "Optional[RevisionContext]" = None
 
     @property
     def grounded(self) -> bool:
@@ -465,6 +473,23 @@ def resolve_config(args) -> RunConfig:
     repo_include = getattr(args, "repo_include", None) or (base or {}).get("repo_include") or None
     repo_exclude = getattr(args, "repo_exclude", None) or (base or {}).get("repo_exclude") or None
 
+    # --revise (v1.12 #1): the prior run this one revises. Validated lightly here
+    # (a plausible reference); the heavy lifting — prior verdict load, source
+    # recovery, digest+diff — happens at run time (cli.cmd_run: prepare_revision),
+    # so `init` can scaffold a revise recipe without touching prior artifacts.
+    if getattr(args, "revise", None) and getattr(args, "from_recipe", None):
+        die("--revise and --from-recipe are contradictory: a revise run's recipe "
+            "already records revise_of — replay that recipe directly, or start a "
+            "fresh --revise run against the prior run dir")
+    revise_of = getattr(args, "revise", None) or (base or {}).get("revise_of")
+    if revise_of is not None:
+        revise_of = os.path.expanduser(str(revise_of))
+        if not (os.path.isdir(revise_of)
+                or (os.path.isfile(revise_of)
+                    and os.path.basename(revise_of) == "verdict.json")):
+            die(f"--revise must name a prior run directory or its verdict.json; "
+                f"got {revise_of!r}")
+
     return RunConfig(
         title=title,
         date=date,
@@ -486,6 +511,7 @@ def resolve_config(args) -> RunConfig:
         repo_include=repo_include,
         repo_exclude=repo_exclude,
         tier=tier,
+        revise_of=revise_of,
     )
 
 

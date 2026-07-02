@@ -289,6 +289,12 @@ def build_skeleton(config: RunConfig, rounds_done: list) -> dict:
         "lens_preset": config.lens,
         "rounds": rounds_run,
         "board": board,
+        # --revise lineage (v1.12 #1): conductor-authoritative like everything else
+        # here. The synthesizer merge strips lifecycle keys from model CONTENT
+        # (LIFECYCLE_KEYS), so pinning previous_run in the skeleton is the ONLY way
+        # it can enter a synthesized verdict — exactly the intent.
+        **({"previous_run": config.revision.previous_run}
+           if config.revision is not None else {}),
     }
 
 

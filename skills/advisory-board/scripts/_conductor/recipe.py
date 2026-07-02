@@ -239,11 +239,12 @@ def config_to_recipe(config: RunConfig) -> dict:
         "lens": config.lens,
         "output": config.output,
         "out_dir": config.out_dir,
-        # Conditional on grounding (P4/D6): a non-grounded run records @2 + the @2
-        # sha byte-for-byte (the {repo_grounding} clause renders empty there), so
-        # existing recipes/hashes never churn; a grounded run records @3 + the @3 sha.
-        "prompt_template": prompt_template_version(config.grounded),
-        "prompt_template_sha256": prompt_template_sha(config.grounded),
+        # Conditional on grounding (P4/D6) and revision (v1.12 #1): a plain run
+        # records @2 + the @2 sha byte-for-byte (the conditional clauses render
+        # empty there), so existing recipes/hashes never churn; a grounded run
+        # records @3, a revise run appends +revise@1, each with the matching sha.
+        "prompt_template": prompt_template_version(config.grounded, bool(config.revise_of)),
+        "prompt_template_sha256": prompt_template_sha(config.grounded, bool(config.revise_of)),
         "synthesize": config.synthesize,
         "synthesizer_seat": config.synthesizer_seat,
         "synthesizer_template": SYNTHESIZER_TEMPLATE_VERSION if config.synthesize else None,
@@ -270,6 +271,10 @@ def config_to_recipe(config: RunConfig) -> dict:
             recipe["repo_include"] = list(config.repo_include)
         if config.repo_exclude:
             recipe["repo_exclude"] = list(config.repo_exclude)
+    # --revise lineage: persisted so a recipe replay re-prepares the same revision
+    # context. Only added on a revise run, so non-revise recipes stay byte-identical.
+    if config.revise_of:
+        recipe["revise_of"] = config.revise_of
     return recipe
 
 
