@@ -5,7 +5,7 @@
 - **Source:** 2026-07-01 four-agent review (feature surface · conductor architecture · artifacts/examples · market scan) + Tim's selection of items 1–14 from the ranked slate
 - **Owner:** Tim
 - **Baseline:** advisory-board/v1.10.0 · `main` @ `be4c9b2` · 676 tests green
-- **Status:** M1 (v1.11) in progress
+- **Status:** M1 SHIPPED (`advisory-board/v1.11.0`, 2026-07-01) · M2 (v1.12) next — opens with the verdict-lifecycle schema DECISION phase
 
 ## Overview
 
@@ -57,8 +57,8 @@ Testing: digest JSON golden file; timeout reaches the spawn call; new output-sha
 Gate: full suite.
 
 ### Phase 6 — Reconcile & release v1.11
-- [ ] CHANGELOG `v1.11.0` section reconciled and landed on `main` before tagging
-- [ ] Tag `advisory-board/v1.11.0` on Tim's **explicit go** → `release.yml` green, release body = changelog section
+- [x] CHANGELOG `v1.11.0` section reconciled and landed on `main` before tagging (runs-root re-homed to Changed, `history` to Added) _(PR #58)_
+- [x] Tag `advisory-board/v1.11.0` on Tim's **explicit go** (given 2026-07-01) → `release.yml` green, release published as Latest, body = changelog section
 Gate: `gh release view advisory-board/v1.11.0` shows Latest + full suite green.
 
 ## Milestone: v1.12 — The decision loop
