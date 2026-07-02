@@ -3443,6 +3443,158 @@ class TestSchemaV2Validation(unittest.TestCase):
             evidence=[{"kind": "code", "line": 1}]))  # missing path
 
 
+class TestVerdictLifecycle(unittest.TestCase):
+    """v1.12 Phase 1 — ONE additive evolution of verdict@2: optional
+    `previous_run` lineage, optional append-only `amendments[]` (each entry
+    carrying author/timestamp/reason provenance), and `changes` reserved for
+    the v1.13 revision artifact. Tool/human-authored, never model-emitted
+    (the synthesizer merge strips them); the gate never reads them."""
+
+    LIFECYCLE = {
+        "previous_run": {
+            "run_dir": "/runs/payments-2026-06-25",
+            "title": "Payments idempotency review",
+            "date": "2026-06-25",
+            "verdict": "block",
+            "verdict_sha256": "a" * 64,
+        },
+        "amendments": [
+            {"author": "tim", "timestamp": "2026-07-01T21:40:00",
+             "reason": "confidence overstated: migration path untested",
+             "field": "confidence", "from": "high", "to": "medium"},
+        ],
+    }
+
+    def _lifecycle(self):
+        return json.loads(json.dumps(self.LIFECYCLE))   # fresh copy per test
+
+    def _assert_rejects(self, data):
+        with self.assertRaises(SystemExit) as ctx:
+            bv.validate(data)
+        self.assertEqual(ctx.exception.code, bv.EXIT_SCHEMA)
+
+    # -- compatibility: invisible when absent, valid when present ------------
+
+    def test_old_fixture_carries_no_lifecycle_fields_and_validates(self):
+        with open(VERDICT_M5) as fh:
+            data = json.load(fh)
+        for key in bv.LIFECYCLE_FIELDS:
+            self.assertNotIn(key, data)
+        bv.validate(data)   # pre-v1.12 verdicts validate unchanged
+
+    def test_lifecycle_verdict_validates(self):
+        bv.validate(_verdict("ship", "ship", "ship", **self._lifecycle()))
+
+    def test_gate_ignores_lifecycle_fields(self):
+        # Lineage and provenance never move a gate: identical outcome tuples
+        # with and without the fields, on both fail-on lines.
+        for overall, finals in (("block", ("block", "block")),
+                                ("ship", ("ship", "ship")),
+                                ("caution", ("caution", "ship"))):
+            base = _verdict(overall, *finals)
+            withf = _verdict(overall, *finals, **self._lifecycle())
+            for fail_on in ("block", "caution"):
+                self.assertEqual(bv.gate_outcome(base, fail_on),
+                                 bv.gate_outcome(withf, fail_on))
+
+    def test_minimal_previous_run_is_enough(self):
+        bv.validate(_verdict("ship", "ship", "ship",
+                             previous_run={"run_dir": "/runs/x"}))
+
+    def test_empty_amendments_list_is_valid(self):
+        bv.validate(_verdict("ship", "ship", "ship", amendments=[]))
+
+    # -- strict when present --------------------------------------------------
+
+    def test_changes_key_is_reserved(self):
+        for value in ({}, [], None, "changes.json"):
+            self._assert_rejects(_verdict("ship", "ship", "ship", changes=value))
+
+    def test_previous_run_must_be_object(self):
+        self._assert_rejects(_verdict("ship", "ship", "ship",
+                                      previous_run="/runs/x"))
+
+    def test_previous_run_requires_run_dir(self):
+        self._assert_rejects(_verdict("ship", "ship", "ship", previous_run={}))
+        self._assert_rejects(_verdict("ship", "ship", "ship",
+                                      previous_run={"run_dir": "   "}))
+
+    def test_previous_run_verdict_token_checked(self):
+        # incl. unhashable values, which must die cleanly (exit 2), not TypeError
+        for bad in ("maybe", ["block"], {}, 2, None):
+            self._assert_rejects(_verdict("ship", "ship", "ship",
+                previous_run={"run_dir": "/runs/x", "verdict": bad}))
+
+    def test_previous_run_sha_shape_checked(self):
+        for bad in ("ABC" * 21 + "A", "g" * 64, "a" * 63, 123):
+            self._assert_rejects(_verdict("ship", "ship", "ship",
+                previous_run={"run_dir": "/runs/x", "verdict_sha256": bad}))
+
+    def test_amendments_must_be_list(self):
+        self._assert_rejects(_verdict("ship", "ship", "ship",
+            amendments={"author": "tim", "timestamp": "t", "reason": "r"}))
+
+    def test_amendment_requires_provenance_trio(self):
+        for entry in ({"author": "tim", "timestamp": "t"},           # no reason
+                      {"author": "tim", "reason": "r"},               # no timestamp
+                      {"timestamp": "t", "reason": "r"},              # no author
+                      {"author": "  ", "timestamp": "t", "reason": "r"},
+                      "not-an-object"):
+            self._assert_rejects(_verdict("ship", "ship", "ship",
+                                          amendments=[entry]))
+
+    def test_amendment_extra_effect_fields_allowed(self):
+        # Effect fields (what the amendment touches) are defined with the
+        # amend tooling (v1.12 P4); the schema only pins the provenance trio.
+        bv.validate(_verdict("ship", "ship", "ship", amendments=[
+            {"author": "tim", "timestamp": "2026-07-01T21:40:00",
+             "reason": "added caveat", "caveat": "check the migration path"}]))
+
+    # -- round-trip + layer boundaries ----------------------------------------
+
+    def test_verify_evidence_stamp_preserves_lifecycle_fields(self):
+        # A `code` citation (not judgment) so stamp() takes its real mutation
+        # path — with no source it stamps `unverified` — proving the write
+        # cycle runs AND leaves the lifecycle fields untouched.
+        data = _verdict("block", "block", "block",
+                        blockers=[{"title": "x", "evidence": [
+                            {"kind": "code", "path": "a.py", "line": 1}]}],
+                        **self._lifecycle())
+        ve.stamp(data, None, None)
+        self.assertEqual(data["blockers"][0]["evidence"][0]["status"], "unverified")
+        self.assertEqual(data["previous_run"], self.LIFECYCLE["previous_run"])
+        self.assertEqual(data["amendments"], self.LIFECYCLE["amendments"])
+
+    def test_renderers_ignore_lifecycle_fields(self):
+        # Until the features that display them land (delta view, amend
+        # provenance), a lifecycle-carrying verdict renders byte-identically.
+        base = _verdict("caution", "caution", "caution", title="T",
+                        blockers=[{"title": "b", "body": "x"}],
+                        next_actions=["do it"])
+        withf = json.loads(json.dumps(base))
+        withf.update(self._lifecycle())
+        self.assertEqual(rv.render_markdown(withf), rv.render_markdown(base))
+        self.assertEqual(rv.render_sequence_markdown(withf),
+                         rv.render_sequence_markdown(base))
+        self.assertEqual(rv.build_handoff_data(withf), rv.build_handoff_data(base))
+        for renderer in (fo.as_tldr, fo.as_pr, fo.as_slack):
+            self.assertEqual(renderer(withf), renderer(base))
+
+    def test_synthesizer_merge_strips_lifecycle_keys(self):
+        # A model reply must not fabricate lineage or an amendment trail.
+        skel = {"schema": "advisory-board/verdict@2", "title": "T", "date": "d",
+                "rounds": 2, "board": _seats("ship", "ship")}
+        content = {"verdict": "ship", "confidence": "high",
+                   "previous_run": {"run_dir": "/x"},
+                   "amendments": [{"author": "model", "timestamp": "t",
+                                   "reason": "fabricated"}],
+                   "changes": {"squatting": True}}
+        merged = rb.merge_synthesizer_content(skel, content)
+        for key in bv.LIFECYCLE_FIELDS:
+            self.assertNotIn(key, merged)
+        self.assertEqual(merged["verdict"], "ship")   # content fields still merge
+
+
 class TestGateAbstain(unittest.TestCase):
     def test_unanimous_block_fails(self):
         self.assertEqual(bv.gate_outcome(_verdict("block", "block", "block"), "block")[0], "fail")

@@ -102,6 +102,49 @@ packet, never a live URL fetch** (that would breach quarantine in gate mode). **
 (§9):** a `verified` stamp proves *the receipt resolves*, not that the inference is sound — it
 catches fabrication, not faulty reasoning.
 
+### Lifecycle fields (since v1.12 — optional, additive within `@2`)
+
+A verdict can now carry its own history. Both fields are **tool/human-authored** — written by
+the revise/amend tooling or by hand, never by a model: the synthesizer merge strips them from
+any model reply (a model must not fabricate an amendment trail or a prior-run link), and the
+gate never reads them (lineage and provenance don't move gates). A verdict without them is
+byte-for-byte the same schema as before — absent means absent, never `null`. Like evidence,
+lifecycle fields are validated **identically under either schema id**: an `@1` file carrying
+them (or a `changes` key) gets exactly the same checks as an `@2` file.
+
+- `previous_run` (optional object) — lineage to the run this verdict revises (written by
+  `--revise`, v1.12). `run_dir` (required, non-empty string: the prior run's artifact dir as
+  recorded at run time) plus optional `title` (string), `date` (string), `verdict`
+  (ship | caution | block — the prior verdict token), and `verdict_sha256` (64 lowercase hex:
+  the sha256 of the prior `verdict.json` bytes, binding lineage to *content*, not a movable
+  path).
+- `amendments[]` (optional list, **append-only by contract**) — human-owned tuning recorded
+  next to the board's words, never instead of them (`amend`, v1.12, appends; nothing ever
+  edits board fields in place). Each entry requires `author`, `timestamp` (ISO-8601 expected),
+  and `reason` — all non-empty strings; entries may carry additional effect fields (defined
+  with the `amend` tooling). Renderers that show an amended value show it **with** this
+  provenance.
+- `changes` — **reserved** for the v1.13 revision artifact (the edit → finding mapping of
+  `--output revised-draft`). Not yet defined: a verdict carrying a `changes` key is rejected
+  loudly today, so nothing squats on the name before it means something.
+
+```json
+"previous_run": {
+  "run_dir": "~/.advisory-board/runs/payments-idempotency-review-2026-06-25",
+  "date": "2026-06-25",
+  "verdict": "block",
+  "verdict_sha256": "9f2c…64 hex…"
+},
+"amendments": [
+  { "author": "tim", "timestamp": "2026-07-01T21:40:00", "reason": "confidence overstated: migration path untested", "field": "confidence", "from": "high", "to": "medium" }
+]
+```
+
+`format_output.py --format json` echoes the verdict faithfully, lifecycle fields included;
+every other renderer reads named fields only, so a lifecycle-carrying verdict renders
+identically until the feature that displays it (delta view in v1.12 `--revise`; amended-value
+provenance with `amend`).
+
 ## What `board_verdict.py` enforces
 
 Validation is strict so a malformed verdict can't quietly pass a gate. `scripts/board_verdict.py`
@@ -118,6 +161,10 @@ file *may* carry `evidence[]`, and a malformed item is rejected regardless of ve
 - if `unanimous` is present, it matches the seats' final-round verdicts.
 - every `evidence[]` item (on blockers/dissent/concerns or at the top level) is well-formed for
   its `kind`, and any `status` ∈ {verified, unverified, refuted}.
+- lifecycle fields, strictly **when present** (absent fields check nothing) and regardless of
+  schema version: `previous_run` is an object with a non-empty `run_dir` and type-checked
+  optional keys; every `amendments[]` entry is an object with non-empty
+  `author`/`timestamp`/`reason`; a `changes` key is rejected (reserved for v1.13).
 
 A schema violation exits `2`, distinct from a clean file that simply fails the gate (`1`).
 

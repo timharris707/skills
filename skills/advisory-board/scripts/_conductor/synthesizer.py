@@ -193,6 +193,13 @@ def synthesizer_template_sha() -> str:
 # emits with these names are dropped during the merge so the structural integrity
 # of `verdict.json` cannot be rewritten by a model reply.
 PROTECTED_SKELETON_KEYS = frozenset(("schema", "title", "date", "rounds", "board"))
+# Verdict-lifecycle fields (since v1.12) are tool/human-authored — lineage and
+# append-only human provenance, written by the revise/amend tooling, never by a
+# model. Stripped like the skeleton keys so a synthesizer reply cannot fabricate
+# an amendment trail or a prior-run link. A separate set (not folded into
+# PROTECTED_SKELETON_KEYS) so that set — and the prompt text enumerating it —
+# stays byte-stable.
+LIFECYCLE_KEYS = frozenset(("previous_run", "amendments", "changes"))
 
 
 def choose_synthesizer_seat(config: RunConfig, last_round_results: list,
@@ -447,14 +454,17 @@ def merge_synthesizer_content(skeleton: dict, content: dict) -> dict:
     """Merge the synthesizer's content fields into the conductor's skeleton.
 
     Keys in PROTECTED_SKELETON_KEYS are stripped from `content` before the merge
-    so a model reply cannot rewrite schema/title/date/rounds/board. Then the
-    conductor computes `unanimous` from the seats' final-round tokens and the
-    merged `verdict` — never trusting a model-asserted flag.
+    so a model reply cannot rewrite schema/title/date/rounds/board; LIFECYCLE_KEYS
+    are stripped for the same reason — lineage and amendments carry tool/human
+    provenance a model reply must not fabricate. Then the conductor computes
+    `unanimous` from the seats' final-round tokens and the merged `verdict` —
+    never trusting a model-asserted flag.
     """
     if not isinstance(content, dict):
         raise ValueError(f"synthesizer content must be a JSON object, got "
                          f"{type(content).__name__}")
-    safe = {k: v for k, v in content.items() if k not in PROTECTED_SKELETON_KEYS}
+    safe = {k: v for k, v in content.items()
+            if k not in PROTECTED_SKELETON_KEYS and k not in LIFECYCLE_KEYS}
     merged = {**skeleton, **safe}
     # `lens_preset` is conductor-authoritative (it names the run's board preset). It's
     # not in PROTECTED_SKELETON_KEYS — keeping that set, and the prompt's enumeration

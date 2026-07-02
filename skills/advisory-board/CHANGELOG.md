@@ -10,6 +10,26 @@ reserved for an explicit production-ready call. The verdict-JSON schema is versi
 
 ## [Unreleased]
 
+### Added
+- **Verdict-lifecycle schema fields (v1.12 Phase 1)** — ONE additive evolution of
+  `advisory-board/verdict@2` (the version string does not change; a verdict without the new
+  fields is byte-for-byte the same schema as before): optional `previous_run` lineage (object;
+  required non-empty `run_dir`, optional `title`/`date`/`verdict`/`verdict_sha256` — the sha
+  binds lineage to the prior verdict's *content*, not a movable path) and optional append-only
+  `amendments[]` (each entry requires the provenance trio `author`/`timestamp`/`reason`; effect
+  fields arrive with the `amend` tooling). Both are validated strictly WHEN PRESENT — like
+  evidence, identically under either schema id (`@1` included) — and are invisible when
+  absent; the gate never reads them. Every renderer reads named fields only, so
+  a lifecycle-carrying verdict renders identically — test-proven for the consensus markdown,
+  the implementation-sequence shape, the handoff data (the HTML's input), and the
+  tldr/pr/slack formats (`--format json` deliberately echoes the whole verdict, lifecycle
+  fields included). The top-level
+  `changes` key is RESERVED for the v1.13 revision artifact and refused loudly while undefined.
+  Lifecycle fields are tool/human-authored, never model reasoning: the synthesizer merge now
+  strips them (new `LIFECYCLE_KEYS`, alongside the protected skeleton keys) so a model reply
+  cannot fabricate an amendment trail or a prior-run link. This is the single schema evolution
+  v1.12's `--revise` / `ask` / `amend` build on — no further ad-hoc bumps.
+
 ## [v1.11.0] - 2026-07-01 — Transparency & foundations
 
 Know before you convene, and keep what you ran. A board run now tells you its **cost and
