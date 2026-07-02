@@ -38,6 +38,10 @@ cat >/dev/null 2>&1
 # (--config model=<id>), echoed back as the answered-model banner on stderr.
 is_review=0
 case "$*" in *"MATERIAL UNDER REVIEW"*) is_review=1 ;; esac
+# `ask` (v1.12): a post-verdict cross-examination prompt carries the PRIOR RUN
+# CONTEXT fence and gets a short free-form answer (NOT a 7-section review).
+is_ask=0
+case "$*" in *"PRIOR RUN CONTEXT"*) is_ask=1; is_review=0 ;; esac
 model=""
 for a in "$@"; do
   case "$a" in model=*) model="${a#model=}" ;; esac
@@ -90,6 +94,12 @@ REVIEW
   echo "VERDICT: $(verdict_token)"
 }
 
+emit_answer() {
+  # `ask` (v1.12): a short free-form answer to a post-verdict follow-up (not a review).
+  echo "model: ${model:-unknown}" >&2
+  echo "ASK ANSWER (codex): to your follow-up — the implementation risk I flagged is unchanged; the reviewed material still lacks that guard."
+}
+
 case "$mode" in
   nogo_smoke) exit 1 ;;
   empty)      exit 0 ;;
@@ -105,11 +115,11 @@ case "$mode" in
     exit 0 ;;
   degraded)
     echo "warning: sandbox note" >&2
-    if [ "$is_review" = "1" ]; then emit_review; else echo "ready"; fi
+    if [ "$is_review" = "1" ]; then emit_review; elif [ "$is_ask" = "1" ]; then emit_answer; else echo "ready"; fi
     exit 1 ;;
   # Unknown model: codex emits an invalid_request_error to STDERR (grounded 2026-06-25).
   model_not_found) echo '{"type":"error","error":{"type":"invalid_request_error","message":"The model is not supported when using Codex with a ChatGPT account."}}' >&2; exit 1 ;;
   *)
-    if [ "$is_review" = "1" ]; then emit_review; else echo "ready"; fi
+    if [ "$is_review" = "1" ]; then emit_review; elif [ "$is_ask" = "1" ]; then emit_answer; else echo "ready"; fi
     exit 0 ;;
 esac

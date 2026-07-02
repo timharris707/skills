@@ -85,8 +85,13 @@ class SeatRoundResult:
 
 def _run_seat_round(seat: SeatConfig, blob: "PacketBlob", config: RunConfig, *,
                     round_no: int, round_packet_hash: str,
-                    workdir: Optional[str], timeout: Optional[int]) -> SeatRoundResult:
+                    workdir: Optional[str], timeout: Optional[int],
+                    classify=classify_round1) -> SeatRoundResult:
     """Spawn one seat on its packet blob, classify, retry once per §13.
+
+    `classify` is the (result, adapter) -> (status, failure_class) shape gate; it
+    defaults to the round-1 review gate (classify_round1) and is swapped for the
+    lighter classify_ask on an `ask` fan-out (an answer is not a 7-section review).
 
     The prompt fed here is `blob.text` — the SAME canonical string used to compute
     the round's packet hash — so the bytes that actually leave (codex/gemini carry
@@ -115,7 +120,7 @@ def _run_seat_round(seat: SeatConfig, blob: "PacketBlob", config: RunConfig, *,
                                        workdir=workdir, network=config.network_on,
                                        grounded=config.grounded)
         result = spawn(adapter, last_argv, prompt=prompt, timeout=seat_timeout, cwd=workdir)
-        status, failure = classify_round1(result, adapter)
+        status, failure = classify(result, adapter)
         if status in ("ran", "degraded"):
             break
         if attempt == 1 and failure in RETRYABLE_FAILURES:
@@ -159,7 +164,7 @@ def _run_seat_round(seat: SeatConfig, blob: "PacketBlob", config: RunConfig, *,
 
 def run_round(config: RunConfig, blobs: list, approval: EgressApproval, *,
               round_no: int = 1, timeout: Optional[int] = None,
-              parallel: bool = True) -> list:
+              parallel: bool = True, classify=classify_round1) -> list:
     """Fan a round out across its seats. Returns SeatRoundResult in blob order.
 
     Round 1 re-asserts the egress hash one last time before the first spawn: the
@@ -220,7 +225,7 @@ def run_round(config: RunConfig, blobs: list, approval: EgressApproval, *,
         def _one(seat: SeatConfig) -> SeatRoundResult:
             return _run_seat_round(seat, by_seat[seat.id], config, round_no=round_no,
                                    round_packet_hash=round_packet_hash,
-                                   workdir=workdir, timeout=timeout)
+                                   workdir=workdir, timeout=timeout, classify=classify)
 
         results: dict = {}
         if parallel and len(seats) > 1:

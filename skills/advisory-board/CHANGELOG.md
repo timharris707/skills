@@ -21,6 +21,38 @@ reserved for an explicit production-ready call. The verdict-JSON schema is versi
   every seat bills its own subscription.
 
 ### Added
+- **`ask "<question>" --run <dir> [--seat <id>]` (v1.12 #4) — post-verdict cross-examination.**
+  Put a follow-up question to a COMPLETED run's board without a full re-review. `ask` loads the
+  run's recorded board from its `run-recipe.yaml`, builds a context packet **bounded to that run's
+  own artifacts** — the reviewed material (recovered from `source-material.txt`, sha-verified, or
+  degraded loudly), a MECHANICAL digest of the prior verdict (reused from `--revise`; tokens /
+  titles / citations, never a summary, §11), and **each addressed seat's own last USABLE review**
+  for continuity (a dropped-round `no usable review` placeholder is skipped in favor of the seat's
+  last real position — adversarial correctness fix) — then fans ONE round out to the addressed
+  seat(s) (`--seat <id>` targets one; the default is every seat). It writes `addendum-N.md` (the
+  Q&A + falsifiable per-seat prompt/packet hashes), an `addendum-N/` egress record (manifest +
+  `sensitivity.json` + the exact per-seat prompts), a machine `addenda.json` index, and refreshes
+  a managed **Post-verdict addenda** block in `final-consensus.md` (idempotent, rebuilt from the
+  index; block content is sentinel-neutralized and the splice only honors an ordered BEGIN→END
+  pair, so a marker-bearing question or a hand-corrupted file can never cascade corruption —
+  adversarial security fix). **Consent re-decides for the new
+  bytes**: the ask packet gets its own content hash through the SAME egress gate a fresh run uses
+  (public discloses and proceeds; non-public requires hash-bound `--yes`/interactive approval and
+  refuses non-interactively), and the effective sensitivity is the **strictest of the recipe's
+  value, the run's `sensitivity.json`, and an operator `--sensitivity` floor (tighten-only)** —
+  an ask never egresses under a looser posture than the material was handled with, a local-only
+  run with external seats is refused, and (from the adversarial security review) a run with **no
+  readable `sensitivity.json` never floats down to public**: its original posture is unknown, so
+  public floors to redacted, loudly, with the flooring recorded on the consent record — the disk
+  values live inside a (shareable, tamperable) run dir, so the posture cannot rest on them alone.
+  Grounding is forced OFF
+  (a grounded run's `ask` still egresses only artifacts, never a live repo read). The injected
+  run-context is **byte-neutralized** against fence-marker echoes (a new `PRIOR RUN CONTEXT` fence
+  family, since it embeds prior MODEL output), the question rides OUTSIDE that data fence as the
+  operator's instruction, and every recovered file is a **bounded read** (symlinked or out-of-tree
+  artifacts refused). The one-round fan-out reuses the round runner with a lighter classifier
+  (`classify_ask`) — an answer is free-form prose, not a 7-section review. Own template family +
+  sha (`advisory-board/ask@1`), recorded on the addendum's egress record.
 - **`--revise <prior run dir | verdict.json>` (v1.12 #1) — re-review a revised draft with the
   prior verdict as context.** `--source` is the revised draft; the round-1 prompts additionally
   carry a fenced, neutralized block holding a MECHANICAL digest of the prior verdict (tokens,

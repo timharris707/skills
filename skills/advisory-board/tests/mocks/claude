@@ -52,6 +52,11 @@ case "$prompt" in *"MATERIAL UNDER REVIEW"*) is_review=1 ;; esac
 is_synth=0
 case "$prompt" in *"You are the SYNTHESIZER"*) is_synth=1; is_review=0 ;; esac
 
+# `ask` (v1.12): a post-verdict cross-examination prompt carries the PRIOR RUN
+# CONTEXT fence and gets a short free-form answer (NOT a 7-section review).
+is_ask=0
+case "$prompt" in *"PRIOR RUN CONTEXT"*) is_ask=1; is_review=0 ;; esac
+
 # Which round is this? The round-N (N>=2) template header names the round; round 1
 # has no such marker. Used by the `moving` mode to shift its VERDICT across rounds.
 round=1
@@ -102,6 +107,12 @@ Challenge the TTL choice and the read-after-write guarantee.
 REVIEW
   echo ""
   echo "VERDICT: $(verdict_token)"
+}
+
+emit_answer() {
+  # `ask` (v1.12): a short free-form answer to a post-verdict follow-up (not a review).
+  echo "model: ${model:-unknown}" >&2
+  echo "ASK ANSWER (claude): on your follow-up — the prior concern still stands; see the reviewed material and my earlier review."
 }
 
 # `moving_cites` (M1 test): HOLD the verdict (caution) every round but introduce a
@@ -279,6 +290,7 @@ case "$mode" in
         *)                emit_synth_ok ;;
       esac
     elif [ "$is_review" = "1" ]; then emit_review
+    elif [ "$is_ask" = "1" ]; then emit_answer
     else echo "ready"; fi
     exit 1 ;;
   *)
@@ -290,6 +302,7 @@ case "$mode" in
         *)                emit_synth_ok ;;
       esac
     elif [ "$is_review" = "1" ]; then emit_review
+    elif [ "$is_ask" = "1" ]; then emit_answer
     else echo "ready"; fi
     exit 0 ;;
 esac

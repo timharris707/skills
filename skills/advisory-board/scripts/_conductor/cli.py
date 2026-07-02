@@ -36,6 +36,7 @@ from _conductor.grounding import (
     prepare_grounding,
 )
 from _conductor.revise import prepare_revision
+from _conductor.ask import run_ask
 from _conductor.history import (
     collect_history,
     render_history_table,
@@ -103,6 +104,7 @@ __all__ = [
     "cmd_doctor",
     "_maybe_update_tools",
     "cmd_run",
+    "cmd_ask",
     "cmd_history",
     "cmd_render",
     "cmd_consensus",
@@ -624,6 +626,21 @@ def cmd_history(args) -> int:
     return EXIT_OK
 
 
+def cmd_ask(args) -> int:
+    """`ask` (v1.12 #4): post-verdict cross-examination of a completed run.
+
+    Loads the run's recorded board, builds a context packet from that run's OWN
+    artifacts (reviewed material + mechanical verdict digest + each addressed seat's
+    prior review), RE-CONSENTS the new bytes, fans one round out to the addressed
+    seat(s), and writes addendum-N.md + a refreshed handoff pointer."""
+    return run_ask(
+        args.run_dir, args.question, getattr(args, "seat", None),
+        assume_yes=getattr(args, "yes", False),
+        skip_gate=getattr(args, "skip_sensitivity_gate", False),
+        sensitivity_floor=getattr(args, "sensitivity", None),
+    )
+
+
 def cmd_render(args) -> int:
     return _delegate("render_handoff.py", args.passthrough)
 
@@ -816,6 +833,26 @@ def build_parser() -> argparse.ArgumentParser:
                         help="runs root to list (default $ADVISORY_BOARD_RUNS_ROOT, "
                              "else ~/.advisory-board/runs)")
     p_hist.set_defaults(func=cmd_history)
+
+    p_ask = sub.add_parser("ask",
+                           help="post-verdict cross-examination: put a follow-up question to a "
+                                "completed run's board (writes addendum-N.md; re-consents egress)")
+    p_ask.add_argument("question", help="the follow-up question to put to the board")
+    p_ask.add_argument("--run", required=True, dest="run_dir", metavar="DIR",
+                       help="the completed run directory to question")
+    p_ask.add_argument("--seat", metavar="ID",
+                       help="address one seat only, by its run seat id (default: every seat "
+                            "in the run's recipe)")
+    p_ask.add_argument("--sensitivity", metavar="LEVEL",
+                       help="sensitivity floor for the ask egress (public|redacted|local-only); "
+                            "joins the stricter-of rule with the run's recorded posture — it "
+                            "can only TIGHTEN, never loosen")
+    p_ask.add_argument("--yes", action="store_true", dest="yes",
+                       help="auto-approve egress of the ask packet (non-public runs)")
+    p_ask.add_argument("--skip-sensitivity-gate", action="store_true",
+                       dest="skip_sensitivity_gate",
+                       help="OVERRIDE: bypass hash-bound approval (records the override)")
+    p_ask.set_defaults(func=cmd_ask)
 
     p_render = sub.add_parser("render", help="delegate to render_handoff.py (HTML from handoff-data.json)")
     p_render.add_argument("passthrough", nargs=argparse.REMAINDER)
