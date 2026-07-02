@@ -61,6 +61,11 @@ Subcommands:
               probes and smoke-pings only, never the user's material
   preflight   probe each seat (version / smoke ping) and print a GO/NO-GO table
   run         resolve -> preflight -> egress gate -> round-1 -> round-2 -> artifacts
+  history     list past runs from the persistent runs root (~/.advisory-board/runs by
+              default; $ADVISORY_BOARD_RUNS_ROOT / --runs-root relocate it) — read
+              from each run's verdict.json, degrading to `incomplete` for a
+              partial/legacy run. A run opts back into a throwaway /tmp dir with
+              `--ephemeral`; `--out DIR` still names an exact dir.
   verify      delegate to verify_evidence.py (resolve + stamp a verdict's evidence)
   consensus   delegate to render_verdict.py (final-consensus.md from verdict.json)
   render      delegate to render_handoff.py (final-consensus.html from handoff-data.json)
@@ -98,6 +103,7 @@ from _conductor.preflight import *  # noqa: F401,F403
 from _conductor.doctor import *  # noqa: F401,F403  (setup doctor: guided provider sweep)
 from _conductor.synthesizer import *  # noqa: F401,F403
 from _conductor.recipe import *  # noqa: F401,F403
+from _conductor.history import *  # noqa: F401,F403  (v1.11: the `history` run listing)
 from _conductor.artifacts import *  # noqa: F401,F403
 from _conductor.rounds import *  # noqa: F401,F403
 from _conductor.cli import *  # noqa: F401,F403

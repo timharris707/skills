@@ -26,12 +26,17 @@ from _conductor.convergence import (
     movement_detail_line,
 )
 from _conductor.config import (
+    default_runs_root,
     parse_board,
     resolve_config,
 )
 from _conductor.grounding import (
     cleanup_snapshot,
     prepare_grounding,
+)
+from _conductor.history import (
+    collect_history,
+    render_history_table,
 )
 from _conductor.toolchain import (
     check_toolchain,
@@ -96,6 +101,7 @@ __all__ = [
     "cmd_doctor",
     "_maybe_update_tools",
     "cmd_run",
+    "cmd_history",
     "cmd_render",
     "cmd_consensus",
     "cmd_verify",
@@ -258,8 +264,25 @@ def _execute_run(config, args) -> int:
               f"content hash = sha256:{content_hash}")
         return EXIT_OK
 
-    # 0. Toolchain currency (opt-in): update stale CLIs before probing, so a
-    #    freshly-renamed model id resolves instead of 404-ing the board.
+    # 0. Say where artifacts land, loudly, before anything else runs (v1.11: the
+    #    default moved from a throwaway /tmp dir to the persistent runs root — D5's
+    #    one loudly-documented default change). One line, always.
+    if getattr(args, "ephemeral", False):
+        where_note = "  (ephemeral — a /tmp dir the OS may clean; default runs persist)"
+    elif (getattr(args, "from_recipe", None) and not getattr(args, "out", None)
+          and os.path.isdir(config.out_dir)):
+        # A recipe re-run reuses the recipe's RECORDED dir — which now persists,
+        # so replaying rewrites that run's artifacts in place. Say so.
+        where_note = "  (recipe re-run — rewriting the recipe's recorded run dir; --out DIR for a fresh one)"
+    elif (getattr(args, "out", None) or getattr(args, "from_recipe", None)
+          or getattr(args, "runs_root", None)):
+        where_note = ""   # the user (or the recipe) chose — no default hint to give
+    else:
+        where_note = "  (persistent default — --out DIR, --runs-root DIR, or --ephemeral to relocate)"
+    print(f"run artifacts → {config.out_dir}{where_note}\n")
+
+    # 0b. Toolchain currency (opt-in): update stale CLIs before probing, so a
+    #     freshly-renamed model id resolves instead of 404-ing the board.
     _maybe_update_tools(config, args)
 
     # 1. Preflight — GO/NO-GO before anything else.
@@ -572,6 +595,19 @@ def _run_synthesis_step(config, rounds_done: list, args, last_dir: str, *,
     return EXIT_OK
 
 
+def cmd_history(args) -> int:
+    """`history` (v1.11 #5): list past runs from the persistent runs root.
+
+    Reads each run's verdict.json (falling back to run-recipe.yaml for a
+    partial/legacy run, which lists as `incomplete`) — a local disk read only,
+    nothing is spawned and nothing egresses. Exits 0 even when the root is
+    empty or absent: an empty history is an answer, not an error."""
+    root = getattr(args, "runs_root", None) or default_runs_root()
+    root = os.path.abspath(os.path.expanduser(root))
+    print(render_history_table(collect_history(root), root))
+    return EXIT_OK
+
+
 def cmd_render(args) -> int:
     return _delegate("render_handoff.py", args.passthrough)
 
@@ -625,9 +661,22 @@ def add_run_options(parser: argparse.ArgumentParser) -> None:
                              "hash-bound approval; local-only forbids external egress")
     parser.add_argument("--output",
                         choices=("quick-verdict", "full-handoff", "implementation-sequence"))
-    parser.add_argument("--out", help="output directory (default /tmp/advisory-board-<ts>)")
-    parser.add_argument("--title", help="run title (default derived from the source)")
-    parser.add_argument("--from-recipe", dest="from_recipe", help="re-run from a run-recipe.yaml")
+    parser.add_argument("--out", help="exact output directory (default: a persistent "
+                                      "<runs root>/<slug>-<date> — see --runs-root/--ephemeral)")
+    parser.add_argument("--runs-root", dest="runs_root", metavar="DIR",
+                        help="parent for the default per-run dir (default ~/.advisory-board/runs; "
+                             "$ADVISORY_BOARD_RUNS_ROOT overrides, this flag wins over both). "
+                             "Contradicts --out/--ephemeral (refused).")
+    parser.add_argument("--ephemeral", action="store_true",
+                        help="write artifacts to a throwaway /tmp/advisory-board-<ts> instead of "
+                             "the persistent runs root (the pre-v1.11 default). Contradicts "
+                             "--out/--runs-root (refused).")
+    parser.add_argument("--title", help="run title (default derived from the source; also names "
+                                        "the default run dir's <slug>)")
+    parser.add_argument("--from-recipe", dest="from_recipe",
+                        help="re-run from a run-recipe.yaml. Reuses the recipe's recorded out dir "
+                             "(rewriting that run's artifacts in place) unless --out/--runs-root/"
+                             "--ephemeral name somewhere fresh.")
     parser.add_argument("--synthesize", action="store_true",
                         help="after the rounds complete, spawn a no-lens synthesizer seat to draft "
                              "verdict.json from the final-round reviews (M2). §11-safe: the "
@@ -724,6 +773,13 @@ def build_parser() -> argparse.ArgumentParser:
              "auth -> model) with per-provider fix-it steps and a viable-board summary; "
              "probes and smoke-pings only — never your material")
     p_doctor.set_defaults(func=cmd_doctor)
+    p_hist = sub.add_parser("history",
+                            help="list past runs from the persistent runs root (date, title, "
+                                 "verdict, confidence, unanimous, seats, run dir)")
+    p_hist.add_argument("--runs-root", dest="runs_root", metavar="DIR",
+                        help="runs root to list (default $ADVISORY_BOARD_RUNS_ROOT, "
+                             "else ~/.advisory-board/runs)")
+    p_hist.set_defaults(func=cmd_history)
 
     p_render = sub.add_parser("render", help="delegate to render_handoff.py (HTML from handoff-data.json)")
     p_render.add_argument("passthrough", nargs=argparse.REMAINDER)
