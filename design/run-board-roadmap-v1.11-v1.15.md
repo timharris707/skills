@@ -66,8 +66,8 @@ Gate: `gh release view advisory-board/v1.11.0` shows Latest + full suite green.
 One-shot verdicts become an ongoing advisory relationship: re-review a revised draft with a verdict delta, ask the board follow-ups, and amend a verdict with recorded human provenance. All three touch the verdict lifecycle, so the milestone opens with a single additive schema evolution instead of three ad-hoc bumps.
 
 ### Phase 1 — Verdict-lifecycle schema design
-- [ ] DECISION: one additive evolution of `advisory-board/verdict@2` — optional `previous_run` lineage, optional `amendments[]` (append-only; author/timestamp/reason), and a reserved pointer for v1.13's `changes` — with a compatibility test proving existing verdicts still validate and gate identically
-- [ ] `references/verdict-schema.md` + `board_verdict.py` validation extended; no renderer breaks on absent fields
+- [x] DECISION: one additive evolution of `advisory-board/verdict@2` — optional `previous_run` lineage, optional `amendments[]` (append-only; author/timestamp/reason), and a reserved pointer for v1.13's `changes` — with a compatibility test proving existing verdicts still validate and gate identically. _Recorded as D8: fields live inside `@2` (no version bump); tool/human-authored — the synthesizer merge strips them; `changes` refused loudly until v1.13._ _(PR #61)_
+- [x] `references/verdict-schema.md` + `board_verdict.py` validation extended; no renderer breaks on absent fields — byte-identity test-proven on present fields too (consensus md, sequence, handoff data, tldr/pr/slack) _(PR #61)_
 Testing: old fixture verdicts validate unchanged; new-field round-trip.
 Gate: full suite.
 

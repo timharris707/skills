@@ -429,15 +429,15 @@ footer.colophon code { background: var(--surface-2); }
         </div>
       </div>
       <div class="gauge">
-        <svg class="ring" viewBox="0 0 120 120" width="118" height="118" role="img" aria-label="Overall progress 34%">
+        <svg class="ring" viewBox="0 0 120 120" width="118" height="118" role="img" aria-label="Overall progress 39%">
           <circle class="ring-track" cx="60" cy="60" r="52" fill="none" stroke-width="11"/>
           <circle class="ring-arc" cx="60" cy="60" r="52" fill="none" stroke-width="11"
                   stroke-linecap="round" transform="rotate(-90 60 60)"
-                  stroke-dasharray="326.7" stroke-dashoffset="215.6"/>
-          <text class="ring-pct" x="60" y="57" text-anchor="middle" dominant-baseline="middle">34%</text>
+                  stroke-dasharray="326.7" stroke-dashoffset="199.3"/>
+          <text class="ring-pct" x="60" y="57" text-anchor="middle" dominant-baseline="middle">39%</text>
           <text class="ring-sub" x="60" y="76" text-anchor="middle" dominant-baseline="middle">complete</text>
         </svg>
-        <div class="gauge-count"><b>13</b> / 38 tasks done</div>
+        <div class="gauge-count"><b>15</b> / 38 tasks done</div>
       </div>
     </div>
 
@@ -445,7 +445,7 @@ footer.colophon code { background: var(--surface-2); }
       
       <span class="rail-item done"><i class="dot"></i>M1</span>
       
-      <span class="rail-item todo"><i class="dot"></i>M2</span>
+      <span class="rail-item wip"><i class="dot"></i>M2</span>
       
       <span class="rail-item todo"><i class="dot"></i>M3</span>
       
@@ -657,16 +657,16 @@ footer.colophon code { background: var(--surface-2); }
 
     </article>
     
-    <article class="milestone todo">
+    <article class="milestone wip">
       <div class="ms-head">
         <div class="ms-num">2</div>
         <div class="ms-head-main">
           <h3 class="ms-title">v1.12 — The decision loop</h3>
           <div class="ms-meta">
-            <span class="badge todo"><span class="dot"></span>To do</span>
+            <span class="badge wip"><span class="dot"></span>In progress</span>
             <span class="ms-progress">
-              <span class="ms-bar"><span style="width:0%"></span></span>
-              0/9
+              <span class="ms-bar"><span style="width:22%"></span></span>
+              2/9
             </span>
           </div>
         </div>
@@ -677,17 +677,17 @@ footer.colophon code { background: var(--surface-2); }
       
 
       
-      <div class="phase todo">
+      <div class="phase done">
         <div class="phase-head">
           <span class="phase-dot"></span>
           <h4 class="phase-title">Phase 1 — Verdict-lifecycle schema design</h4>
-          <span class="phase-state">To do</span>
+          <span class="phase-state">Done</span>
         </div>
         <ul class="checklist">
           
-          <li class="todo"><span class="tick"></span><span class="task-text">DECISION: one additive evolution of <code>advisory-board/verdict@2</code> — optional <code>previous_run</code> lineage, optional <code>amendments[]</code> (append-only; author/timestamp/reason), and a reserved pointer for v1.13&#x27;s <code>changes</code> — with a compatibility test proving existing verdicts still validate and gate identically</span></li>
+          <li class="done"><span class="tick">✓</span><span class="task-text">DECISION: one additive evolution of <code>advisory-board/verdict@2</code> — optional <code>previous_run</code> lineage, optional <code>amendments[]</code> (append-only; author/timestamp/reason), and a reserved pointer for v1.13&#x27;s <code>changes</code> — with a compatibility test proving existing verdicts still validate and gate identically. <em>Recorded as D8: fields live inside <code>@2</code> (no version bump); tool/human-authored — the synthesizer merge strips them; <code>changes</code> refused loudly until v1.13.</em> <em>(PR #61)</em></span></li>
           
-          <li class="todo"><span class="tick"></span><span class="task-text"><code>references/verdict-schema.md</code> + <code>board_verdict.py</code> validation extended; no renderer breaks on absent fields</span></li>
+          <li class="done"><span class="tick">✓</span><span class="task-text"><code>references/verdict-schema.md</code> + <code>board_verdict.py</code> validation extended; no renderer breaks on absent fields — byte-identity test-proven on present fields too (consensus md, sequence, handoff data, tldr/pr/slack) <em>(PR #61)</em></span></li>
           
         </ul>
         
@@ -1201,6 +1201,11 @@ footer.colophon code { background: var(--surface-2); }
         <div class="entry-body">each milestone re-scopes in its first phase; drift is corrected in this file, not in heads.</div>
       </li>
       
+      <li>
+        <div class="entry-head"><span class="entry-tag">D8</span><span class="entry-title">Verdict-lifecycle fields live inside <code>@2</code>, not a new <code>@3</code></span></div>
+        <div class="entry-body"><code>previous_run</code> + <code>amendments[]</code> are optional, validated strictly only when present, and invisible when absent, so every existing consumer and file is untouched; <code>@3</code> stays reserved for a genuinely structural break. The fields are tool/human-authored: the synthesizer merge strips them (a model must not fabricate provenance), the gate never reads them, and the reserved <code>changes</code> key is refused loudly until v1.13 defines it.</div>
+      </li>
+      
     </ol>
   </section>
   
@@ -1288,7 +1293,7 @@ footer.colophon code { background: var(--surface-2); }
 
   <!-- ===================== COLOPHON ===================== -->
   <footer class="colophon">
-    Rendered from <code>run-board-roadmap-v1.11-v1.15.md</code> &middot; 5 milestones &middot; 13/38 tasks complete. The markdown plan is the source of truth &mdash; regenerate with <code>render_plan.py</code>; never hand-edit this file.
+    Rendered from <code>run-board-roadmap-v1.11-v1.15.md</code> &middot; 5 milestones &middot; 15/38 tasks complete. The markdown plan is the source of truth &mdash; regenerate with <code>render_plan.py</code>; never hand-edit this file.
   </footer>
 
 </div>
