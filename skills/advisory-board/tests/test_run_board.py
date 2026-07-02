@@ -6137,6 +6137,50 @@ class TestVerdictLabels(unittest.TestCase):
             bv.validate(_verdict("ship", "ship", "ship", lens_preset=42))
 
 
+class TestFormatOutputDictActions(unittest.TestCase):
+    """Regression: next_actions[] entries may be `{action, owner}` objects (the schema
+    says every renderer accepts both forms). render_verdict.py always normalized them;
+    format_output.py's slack format crashed (TypeError on the join) and the pr format
+    printed the raw dict repr. Both must render the same one-line form the sequence
+    shape uses, and plain-string entries must stay byte-identical."""
+
+    def _mixed(self):
+        return _verdict("caution", "caution", "caution", title="Relocation decision",
+                        next_actions=[
+                            "Build 6 months of runway",
+                            {"action": "Sign the two anchor clients", "owner": "Tim"},
+                        ])
+
+    def test_slack_renders_dict_actions_instead_of_crashing(self):
+        text = fo.as_slack(self._mixed())
+        self.assertIn("*Next:* Build 6 months of runway; "
+                      "Sign the two anchor clients — owner: Tim", text)
+
+    def test_pr_renders_dict_actions_as_one_line_not_dict_repr(self):
+        text = fo.as_pr(self._mixed())
+        self.assertIn("1. Sign the two anchor clients — owner: Tim", text)
+        self.assertNotIn("{'action'", text)
+
+    def test_string_actions_stay_byte_identical(self):
+        data = _verdict("ship", "ship", "ship", title="T",
+                        next_actions=["Do the thing", "Then the other"])
+        self.assertIn("*Next:* Do the thing; Then the other", fo.as_slack(data))
+        self.assertIn("1. Do the thing", fo.as_pr(data))
+
+    def test_slack_cli_end_to_end_on_dict_actions(self):
+        # The reported repro: --format slack over a verdict.json whose next_actions
+        # carry {action, owner} entries must exit 0, not TypeError.
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "verdict.json")
+            with open(path, "w") as fh:
+                json.dump(self._mixed(), fh)
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                code = fo.main([path, "--format", "slack"])
+            self.assertEqual(code, 0)
+            self.assertIn("owner: Tim", buf.getvalue())
+
+
 class TestLensAwareFraming(unittest.TestCase):
     """v1.7.x: the verdict banner leads with a plain "here's the call" answer and the
     consensus section drops the "ship" metaphor — for non-software lenses only. A

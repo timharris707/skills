@@ -10,7 +10,13 @@ reserved for an explicit production-ready call. The verdict-JSON schema is versi
 
 ## [Unreleased]
 
-_Nothing yet._
+### Fixed
+- **`format_output.py` crashed on owner-carrying `next_actions[]` entries.** The schema says a
+  `next_actions[]` entry is a string *or* `{action, owner}` and every renderer accepts both
+  forms — `render_verdict.py` did, but `--format slack` raised `TypeError` on the join and
+  `--format pr` printed the raw dict repr. Both short formats now render the same one-line
+  form the implementation-sequence shape uses (`text — owner: NAME`), via the one normalizer
+  in `render_verdict.py`; plain-string entries stay byte-identical.
 
 ## [v1.13.0] - 2026-07-02 — Transform: the board hands back a fixed copy
 

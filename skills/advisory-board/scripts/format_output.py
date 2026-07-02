@@ -17,6 +17,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _verdict_labels import human_label, is_software_lens, lens_disclaimer  # noqa: E402  lens-aware label + disclaimer
 from board_verdict import effective_confidence  # noqa: E402  the ONE amended-confidence source (v1.12 P4)
+from render_verdict import _action_line  # noqa: E402  the ONE next_actions[] normalizer (string or {action, owner})
 
 
 def die(message: str) -> None:
@@ -95,7 +96,7 @@ def as_pr(data: dict) -> str:
     actions = data.get("next_actions", [])
     if actions:
         out.append("### Next actions")
-        out += [f"1. {a}" for a in actions]
+        out += [f"1. {_action_line(a)}" for a in actions]
         out.append("")
     seats = ", ".join(f"{s.get('seat', '?')} ({s.get('model', '?')})" for s in data.get("board", []))
     rounds = data.get("rounds", "?")
@@ -117,7 +118,7 @@ def as_slack(data: dict) -> str:
         out += [f"• {b.get('title', 'blocker')}" for b in blockers]
     actions = data.get("next_actions", [])
     if actions:
-        out.append("*Next:* " + "; ".join(actions))
+        out.append("*Next:* " + "; ".join(_action_line(a) for a in actions))
     disclaimer = _disclaimer(data)
     if disclaimer:
         out.append(f"_{disclaimer}_")
