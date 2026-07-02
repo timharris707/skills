@@ -66,8 +66,8 @@ Gate: `gh release view advisory-board/v1.11.0` shows Latest + full suite green.
 One-shot verdicts become an ongoing advisory relationship: re-review a revised draft with a verdict delta, ask the board follow-ups, and amend a verdict with recorded human provenance. All three touch the verdict lifecycle, so the milestone opens with a single additive schema evolution instead of three ad-hoc bumps.
 
 ### Phase 1 — Verdict-lifecycle schema design
-- [ ] DECISION: one additive evolution of `advisory-board/verdict@2` — optional `previous_run` lineage, optional `amendments[]` (append-only; author/timestamp/reason), and a reserved pointer for v1.13's `changes` — with a compatibility test proving existing verdicts still validate and gate identically
-- [ ] `references/verdict-schema.md` + `board_verdict.py` validation extended; no renderer breaks on absent fields
+- [x] DECISION: one additive evolution of `advisory-board/verdict@2` — optional `previous_run` lineage, optional `amendments[]` (append-only; author/timestamp/reason), and a reserved pointer for v1.13's `changes` — with a compatibility test proving existing verdicts still validate and gate identically. _Recorded as D8: fields live inside `@2` (no version bump); tool/human-authored — the synthesizer merge strips them; `changes` refused loudly until v1.13._ _(PR #61)_
+- [x] `references/verdict-schema.md` + `board_verdict.py` validation extended; no renderer breaks on absent fields — byte-identity test-proven on present fields too (consensus md, sequence, handoff data, tldr/pr/slack) _(PR #61)_
 Testing: old fixture verdicts validate unchanged; new-field round-trip.
 Gate: full suite.
 
@@ -168,6 +168,7 @@ Gate: release Latest + full suite green.
 - **D5** Everything is opt-in or additive — the no-flags default run stays byte-identical to v1.10.0 artifacts (the regression guard for the whole roadmap), except the runs root moving out of `/tmp`, which is loudly documented and opt-out.
 - **D6** Transform never touches the source — `--output revised-draft` writes new artifacts only; applying the revision is the human's act.
 - **D7** Estimates date from the 2026-07-01 architecture review — each milestone re-scopes in its first phase; drift is corrected in this file, not in heads.
+- **D8** Verdict-lifecycle fields live inside `@2`, not a new `@3` — `previous_run` + `amendments[]` are optional, validated strictly only when present, and invisible when absent, so every existing consumer and file is untouched; `@3` stays reserved for a genuinely structural break. The fields are tool/human-authored: the synthesizer merge strips them (a model must not fabricate provenance), the gate never reads them, and the reserved `changes` key is refused loudly until v1.13 defines it.
 
 ## Risks
 - **R1** CLI-wiring merge conflicts across parallel v1.11 PRs — the five phases are file-disjoint except arg parsing; mitigation: sequential merges, each later branch rebases before merge.
@@ -180,6 +181,7 @@ Gate: release Latest + full suite green.
 ## Later
 Discovered mid-milestone (R6), deliberately not folded into the phase that found it:
 - `--rounds 1` (incl. via `--tier quick`) + `--digest-format json` is a silent no-op — structured digests only exist for round 2+, so the run succeeds with zero JSON digests written. Pre-existing (#13); decide whether to refuse loudly or document. _(found during #3b adversarial review, 2026-07-01)_
+- `board_verdict.py` membership checks on hand-authored files crash with a raw TypeError (exit 1, not the clean schema exit 2) when a token field holds an unhashable value — e.g. top-level `"verdict": []`, `round_verdicts` entries, evidence `kind`/`status`. Pre-existing idiom across the file (the new lifecycle checks guard against it); sweep the remaining membership checks with isinstance guards in one pass. _(found during v1.12 P1 adversarial review, 2026-07-01)_
 
 ## Dependency order
 ```svg

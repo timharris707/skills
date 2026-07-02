@@ -37,6 +37,15 @@ EVIDENCE_KINDS = {"code", "source", "command", "judgment"}
 EVIDENCE_STATUS = {"verified", "unverified", "refuted"}
 # Top-level keys whose items may each carry an `evidence[]` list.
 EVIDENCE_CONTAINERS = ("blockers", "dissent", "concerns")
+# Verdict-lifecycle fields (since v1.12) — optional and additive within @2:
+# `previous_run` (lineage to the run this one revises) and `amendments[]`
+# (append-only human tuning, each entry carrying its own provenance). They are
+# tool/human-authored, never model reasoning: the synthesizer merge strips them
+# (see _conductor/synthesizer.py LIFECYCLE_KEYS) and gate_outcome() never reads
+# them. `changes` is RESERVED for the v1.13 revision artifact and refused loudly
+# while undefined, so nothing squats on the name before it means something.
+LIFECYCLE_FIELDS = ("previous_run", "amendments", "changes")
+AMENDMENT_REQUIRED = ("author", "timestamp", "reason")
 
 EXIT_OK = 0
 EXIT_GATE_FAIL = 1
@@ -119,6 +128,55 @@ def iter_evidence_containers(data: dict):
     yield "verdict", data  # the top level may carry a bare evidence[]
 
 
+def _validate_lifecycle(data: dict) -> None:
+    """Lifecycle fields (since v1.12): validated strictly WHEN PRESENT, invisible
+    when absent — an existing verdict without them validates and gates
+    byte-identically. These fields carry lineage and human provenance, not board
+    reasoning, so gate_outcome() never reads them."""
+    if "changes" in data:
+        die("changes is reserved for the revision artifact (v1.13) and not yet "
+            "defined; remove it")
+
+    if "previous_run" in data:
+        prev = data["previous_run"]
+        if not isinstance(prev, dict):
+            die(f"previous_run must be an object when present; got {type(prev).__name__}")
+        run_dir = prev.get("run_dir")
+        if not isinstance(run_dir, str) or not run_dir.strip():
+            die("previous_run.run_dir must be a non-empty string")
+        for key in ("title", "date"):
+            if key in prev and not isinstance(prev[key], str):
+                die(f"previous_run.{key} must be a string when present; "
+                    f"got {type(prev[key]).__name__}")
+        # isinstance guard first: an unhashable value (list/dict) would TypeError
+        # on the `in` check and escape die()'s clean schema exit.
+        if "verdict" in prev and (not isinstance(prev["verdict"], str)
+                                  or prev["verdict"] not in SEVERITY):
+            die(f"previous_run.verdict must be one of {', '.join(SEVERITY)}; "
+                f"got {prev['verdict']!r}")
+        if "verdict_sha256" in prev:
+            sha = prev["verdict_sha256"]
+            if (not isinstance(sha, str) or len(sha) != 64
+                    or any(c not in "0123456789abcdef" for c in sha)):
+                die("previous_run.verdict_sha256 must be 64 lowercase hex chars "
+                    "when present (the sha256 of the prior verdict.json bytes)")
+
+    if "amendments" in data:
+        entries = data["amendments"]
+        if not isinstance(entries, list):
+            die(f"amendments must be a list when present; got {type(entries).__name__}")
+        for index, entry in enumerate(entries):
+            where = f"amendments[{index}]"
+            if not isinstance(entry, dict):
+                die(f"{where} must be an object")
+            missing = [key for key in AMENDMENT_REQUIRED if key not in entry]
+            if missing:
+                die(f"{where} missing field(s): {', '.join(missing)}")
+            for key in AMENDMENT_REQUIRED:
+                if not isinstance(entry[key], str) or not entry[key].strip():
+                    die(f"{where}: {key} must be a non-empty string")
+
+
 def validate(data: dict) -> None:
     """Strict schema check: a malformed verdict must not quietly pass a gate."""
     missing = [key for key in REQUIRED if key not in data]
@@ -197,6 +255,8 @@ def validate(data: dict) -> None:
     for label, obj in iter_evidence_containers(data):
         if "evidence" in obj:
             _validate_evidence_list(obj["evidence"], label)
+
+    _validate_lifecycle(data)
 
 
 # --------------------------------------------------------------------------- #
