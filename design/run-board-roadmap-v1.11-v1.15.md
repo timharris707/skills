@@ -5,7 +5,7 @@
 - **Source:** 2026-07-01 four-agent review (feature surface · conductor architecture · artifacts/examples · market scan) + Tim's selection of items 1–14 from the ranked slate
 - **Owner:** Tim
 - **Baseline:** advisory-board/v1.10.0 · `main` @ `be4c9b2` · 676 tests green
-- **Status:** M1 SHIPPED (`advisory-board/v1.11.0`, 2026-07-01) · M2 SHIPPED (`advisory-board/v1.12.0`, 2026-07-02) · M3 (v1.13) in flight — P1 decisions D9–D14 recorded, P2 revision seat merged (PR #67), P3 next
+- **Status:** M1 SHIPPED (`advisory-board/v1.11.0`, 2026-07-01) · M2 SHIPPED (`advisory-board/v1.12.0`, 2026-07-02) · M3 (v1.13) in flight — P1 D9–D14 · P2 revision seat (PR #67) · P3 redline + snippets (PR #68) · P4 endorsement + release next
 
 ## Overview
 
@@ -108,8 +108,8 @@ Testing: revision honors verdict scope; changes.json schema round-trip; source f
 Gate: full suite.
 
 ### Phase 3 — Redline rendering + inline citation snippets (#2, #12)
-- [ ] Redline view: stdlib `difflib` opcodes → ins/del spans in the HTML engine for prose sources; unified `.patch` artifact for code sources
-- [ ] Grounded runs: embed cited lines as fenced snippets in `final-consensus.md` so the handoff is self-contained (#12)
+- [x] Redline view: stdlib `difflib` opcodes → ins/del spans in the HTML engine for prose sources; unified `.patch` artifact for code sources _Sha-verified chain (pointer → changes → draft + source-material equivalence), word-level spans, git-marker-correct patches (`git apply` result-byte tested), body byte-identity enforced._ _(PR #68)_
+- [x] Grounded runs: embed cited lines as fenced snippets in `final-consensus.md` so the handoff is self-contained (#12) _Captured at verify time (repo bytes don't survive a run — self-contained AFTER verify); content read gate (symlink refusal + realpath containment) + whitelist-only manifest gate, fail-closed on unusable manifests. Board review: 2 finders + 2-seat board + `--revise` re-review (3 blockers cleared, 1 fail-open caught in the fix and closed). Suite 1118 → 1209._ _(PR #68)_
 Testing: redline golden files (prose + code); snippet embedding on a grounded fixture.
 Gate: full suite.
 
