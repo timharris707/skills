@@ -121,9 +121,20 @@ them (or a `changes` key) gets exactly the same checks as an `@2` file.
 - `amendments[]` (optional list, **append-only by contract**) — human-owned tuning recorded
   next to the board's words, never instead of them (`amend`, v1.12, appends; nothing ever
   edits board fields in place). Each entry requires `author`, `timestamp` (ISO-8601 expected),
-  and `reason` — all non-empty strings; entries may carry additional effect fields (defined
-  with the `amend` tooling). Renderers that show an amended value show it **with** this
-  provenance.
+  and `reason` — all non-empty strings. An entry then carries **at most one effect field** (an
+  invocation of `amend` records exactly one; a provenance-only entry with zero effects is also
+  valid):
+    - `field: "confidence"` with `from` and `to` (both low\|medium\|high) records a
+      **confidence change**. The **effective confidence** is the
+      `to` of the *last* such entry, falling back to the board's own `confidence` when there is
+      none — the top-level `confidence` is never rewritten, so the board's original call and
+      every human adjustment both stay on the record.
+    - `caveat: "<text>"` attaches a standing caveat (a non-empty string).
+    - `severity_note: "<text>"` attaches a note about a finding's severity, optionally scoped
+      with `on: "<finding title>"` (a blocker or concern title — the strict match is checked at
+      `amend` time; the schema only type-checks the string here, since a verdict shouldn't fail
+      validation over prose).
+  Renderers that show an amended value show it **with** this provenance.
 - `changes` — **reserved** for the v1.13 revision artifact (the edit → finding mapping of
   `--output revised-draft`). Not yet defined: a verdict carrying a `changes` key is rejected
   loudly today, so nothing squats on the name before it means something.
@@ -136,7 +147,9 @@ them (or a `changes` key) gets exactly the same checks as an `@2` file.
   "verdict_sha256": "9f2c…64 hex…"
 },
 "amendments": [
-  { "author": "tim", "timestamp": "2026-07-01T21:40:00", "reason": "confidence overstated: migration path untested", "field": "confidence", "from": "high", "to": "medium" }
+  { "author": "tim", "timestamp": "2026-07-01T21:40:00", "reason": "confidence overstated: migration path untested", "field": "confidence", "from": "high", "to": "medium" },
+  { "author": "tim", "timestamp": "2026-07-01T21:42:00", "reason": "flag for ops before rollout", "caveat": "requires a manual DB backfill first" },
+  { "author": "tim", "timestamp": "2026-07-01T21:44:00", "reason": "lower urgency after mitigation shipped", "severity_note": "downgraded — hotfix landed in #812", "on": "Atomic dedup" }
 ]
 ```
 
@@ -164,7 +177,18 @@ file *may* carry `evidence[]`, and a malformed item is rejected regardless of ve
 - lifecycle fields, strictly **when present** (absent fields check nothing) and regardless of
   schema version: `previous_run` is an object with a non-empty `run_dir` and type-checked
   optional keys; every `amendments[]` entry is an object with non-empty
-  `author`/`timestamp`/`reason`; a `changes` key is rejected (reserved for v1.13).
+  `author`/`timestamp`/`reason`, at most one effect field (`field`/`caveat`/`severity_note`),
+  and — when a `field` effect is present — `field == "confidence"` with `from`/`to` both in
+  {low, medium, high} (so the effective confidence can never resolve to garbage); a `changes`
+  key is rejected (reserved for v1.13).
+- confidence-amendment **chain consistency**: the `from` of each confidence change must equal
+  the effective confidence in force at that point (seeded from the board's own `confidence`),
+  so a hand-edited chain that would render false provenance is rejected (exit `2`). The `amend`
+  CLI produces a correct chain by construction — the trust boundary is the CLI, and this check
+  is the backstop for a file edited by hand. Note what is **not** cross-validated here: the
+  `on` finding-title match is an **amend-time** check only (a verdict shouldn't fail schema
+  validation over prose), and validation checks token shapes, not the prose of any `reason`,
+  `caveat`, or `severity_note`.
 
 A schema violation exits `2`, distinct from a clean file that simply fails the gate (`1`).
 
@@ -193,6 +217,26 @@ the seats lean the other way (blocking on a minority-but-correct concern is a le
 call) — only **de-escalation** below the observed board is distrusted. The decision reads
 **observed cross-seat agreement** (the `round_verdicts`), never the self-reported `confidence`.
 In CI, treat `3` as "don't auto-merge — a human must decide," distinct from a clean `block` (`1`).
+
+## Amending a verdict
+
+`amend` is the only sanctioned way to tune a completed verdict — it **appends** an
+`amendments[]` entry and never rewrites the board's fields (the top-level `confidence`, the
+blockers, the concerns all stay verbatim). Each invocation records **exactly one** effect plus
+its `author`/`reason`/`timestamp`; the timestamp comes from `$ADVISORY_BOARD_NOW_TS` when set
+(for reproducible runs), otherwise the local ISO-8601 now.
+
+```
+python3 scripts/board_verdict.py amend --run <dir> --author tim --reason "…" --confidence medium
+python3 scripts/board_verdict.py amend --run <dir> --author tim --reason "…" --caveat "needs a manual backfill"
+python3 scripts/board_verdict.py amend --run <dir> --author tim --reason "…" \
+        --severity-note "downgraded — hotfix landed" --on "Atomic dedup"
+```
+
+A no-op confidence change (the effective value is already the target) is refused, and `--on`
+must match an existing blocker or concern title exactly (the error lists the available titles).
+The file is re-validated and atomically replaced; the amended confidence and its provenance
+then surface in `summarize()` and in any renderer that reads `effective_confidence()`.
 
 ## The chain
 

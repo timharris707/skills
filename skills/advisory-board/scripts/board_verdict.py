@@ -6,6 +6,8 @@ Examples:
   board_verdict.py verdict.json --gate                     exit 1 if verdict is "block"
   board_verdict.py verdict.json --gate --fail-on caution   exit 1 if "caution" or "block"
   board_verdict.py verdict.json --json                     echo normalized JSON
+  board_verdict.py amend --run <dir> --author … --reason … --confidence medium
+                                                           append a human amendment (P4)
 
 Exit codes:
   0  ok / gate pass
@@ -23,9 +25,13 @@ Standard library only; no third-party dependencies.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import os
 import sys
+import tempfile
 from collections import Counter
+from datetime import datetime
 
 SEVERITY = {"ship": 0, "caution": 1, "block": 2}
 CONFIDENCE = {"low", "medium", "high"}
@@ -175,6 +181,64 @@ def _validate_lifecycle(data: dict) -> None:
             for key in AMENDMENT_REQUIRED:
                 if not isinstance(entry[key], str) or not entry[key].strip():
                     die(f"{where}: {key} must be a non-empty string")
+            # Effect fields (what an amendment touches, since v1.12 P4). Each is
+            # validated strictly WHEN PRESENT — an absent field checks nothing, so a
+            # zero-effect entry (P1 compat) still passes. At most ONE effect field
+            # per entry; the amend tooling enforces one-effect-per-invocation.
+            if "field" in entry:
+                # A `field` amendment records an effective-value change; only
+                # `confidence` is defined, and both endpoints must be valid so
+                # effective_confidence() can never surface garbage.
+                if entry["field"] != "confidence":
+                    die(f"{where}: field must be 'confidence' when present; "
+                        f"got {entry['field']!r}")
+                for key in ("from", "to"):
+                    if key not in entry:
+                        die(f"{where}: a confidence amendment needs both "
+                            f"'from' and 'to'")
+                    # isinstance guard first: an unhashable hand-edited value
+                    # (list/dict) would TypeError on the `in` check and escape
+                    # die()'s clean schema exit (mirrors previous_run.verdict above).
+                    if (not isinstance(entry[key], str)
+                            or entry[key] not in CONFIDENCE):
+                        die(f"{where}: {key} must be one of "
+                            f"{', '.join(sorted(CONFIDENCE))}; got {entry[key]!r}")
+            if "caveat" in entry and (not isinstance(entry["caveat"], str)
+                                      or not entry["caveat"].strip()):
+                die(f"{where}: caveat must be a non-empty string when present")
+            if "severity_note" in entry and (
+                    not isinstance(entry["severity_note"], str)
+                    or not entry["severity_note"].strip()):
+                die(f"{where}: severity_note must be a non-empty string when present")
+            # `on` scopes a severity_note to a finding; the strict title match is an
+            # amend-time check (a verdict shouldn't fail validation over prose), so
+            # here we only type-check.
+            if "on" in entry and (not isinstance(entry["on"], str)
+                                  or not entry["on"].strip()):
+                die(f"{where}: on must be a non-empty string when present")
+            effects = [k for k in ("field", "caveat", "severity_note") if k in entry]
+            if len(effects) > 1:
+                die(f"{where}: an amendment carries at most one effect field; "
+                    f"got {', '.join(effects)}")
+
+        # Chain consistency: walk the amendments in order tracking the effective
+        # confidence (seeded from the board's own, already validated above) and
+        # require each confidence change's `from` to equal the value in force at
+        # that point. The amend CLI produces a correct chain by construction; this
+        # catches a HAND-EDITED chain that would render false provenance, and turns
+        # it into a clean schema exit — so gated paths never see a broken chain,
+        # while effective_confidence() stays defensive for unvalidated render paths.
+        # A from == to entry is left structurally legal (the CLI refuses to create
+        # one; validate() doesn't care).
+        effective = data.get("confidence")
+        for index, entry in enumerate(entries):
+            if isinstance(entry, dict) and entry.get("field") == "confidence":
+                if entry.get("from") != effective:
+                    die(f"amendments[{index}]: confidence change claims from "
+                        f"{entry.get('from')!r} but the value in force here is "
+                        f"{effective!r} (the amendment chain is inconsistent — "
+                        "hand-edited?)")
+                effective = entry.get("to")
 
 
 def validate(data: dict) -> None:
@@ -257,6 +321,32 @@ def validate(data: dict) -> None:
             _validate_evidence_list(obj["evidence"], label)
 
     _validate_lifecycle(data)
+
+
+def effective_confidence(data: dict) -> tuple:
+    """The confidence in force after amendments, with its provenance.
+
+    Returns ``(value, entry_or_None)``: the LAST ``amendments[]`` entry that is a
+    WELL-FORMED confidence change wins (its ``to`` is the value); with no such
+    entry, ``(data["confidence"], None)`` — the board's own recorded confidence.
+
+    Defensive by design: renderers (format_output.py, render_verdict.py) call this
+    WITHOUT validate(), so an entry only counts when ``field == "confidence"`` AND
+    ``to`` is a real CONFIDENCE token. A malformed entry (missing/garbage ``to``,
+    non-dict) is ignored, so an unvalidated verdict falls back to the base
+    confidence instead of crashing. validate() separately guarantees a clean chain
+    for gated paths (see _validate_lifecycle). Renderers import this (via a same-dir
+    ``import board_verdict``) so the amended value and its provenance are read from
+    ONE place, not re-derived.
+    """
+    winner = None
+    for entry in data.get("amendments", []) or []:
+        if (isinstance(entry, dict) and entry.get("field") == "confidence"
+                and entry.get("to") in CONFIDENCE):
+            winner = entry
+    if winner is not None:
+        return winner["to"], winner
+    return data["confidence"], None
 
 
 # --------------------------------------------------------------------------- #
@@ -342,6 +432,27 @@ def _evidence_tally(data: dict) -> Counter:
     return tally
 
 
+def _amendments_summary(amendments: list) -> str:
+    """`N (a confidence change, b caveat, c severity note)` — a count plus a
+    per-kind breakdown, in a stable order. Zero-effect provenance-only entries
+    fall into an `other` bucket so the parts always sum to N."""
+    kinds = Counter()
+    for entry in amendments:
+        if not isinstance(entry, dict):
+            kinds["other"] += 1
+        elif entry.get("field") == "confidence":
+            kinds["confidence change"] += 1
+        elif "caveat" in entry:
+            kinds["caveat"] += 1
+        elif "severity_note" in entry:
+            kinds["severity note"] += 1
+        else:
+            kinds["other"] += 1
+    order = ("confidence change", "caveat", "severity note", "other")
+    parts = [f"{kinds[k]} {k}" for k in order if kinds.get(k)]
+    return f"{len(amendments)} ({', '.join(parts)})"
+
+
 def summarize(data: dict) -> str:
     board = data["board"]
     ran = [s for s in board if not s.get("dropped")]
@@ -350,11 +461,22 @@ def summarize(data: dict) -> str:
     if dropped:
         names = ", ".join(s.get("seat", "?") for s in dropped)
         seats_line += f", {len(dropped)} dropped ({names})"
+    amendments = data.get("amendments") or []
+    # Provenance is shown ONLY when amendments exist; with none, this branch is
+    # never taken and the verdict line is byte-identical to pre-v1.12 output.
+    conf_value, conf_entry = effective_confidence(data)
+    if amendments and conf_entry is not None:
+        confidence_label = (
+            f"{conf_value} confidence, amended from {conf_entry['from']} by "
+            f"{conf_entry['author']} @ {conf_entry['timestamp']}"
+        )
+    else:
+        confidence_label = f"{data['confidence']} confidence"
     lines = [
         f"title      : {data.get('title', '(untitled)')}",
         f"verdict    : {data['verdict']}"
         + (f" ({data['decision']})" if data.get("decision") else "")
-        + f"  ({data['confidence']} confidence)",
+        + f"  ({confidence_label})",
         f"unanimous  : {data.get('unanimous', 'n/a')}",
         f"rounds     : {data['rounds']}",
         f"seats      : {seats_line}",
@@ -364,10 +486,170 @@ def summarize(data: dict) -> str:
     if tally:
         parts = [f"{tally[k]} {k}" for k in ("verified", "unverified", "refuted", "unchecked") if tally.get(k)]
         lines.append(f"evidence   : {', '.join(parts)}")
+    if amendments:
+        lines.append(f"amendments : {_amendments_summary(amendments)}")
     return "\n".join(lines)
 
 
+# --------------------------------------------------------------------------- #
+# amend — human-owned, append-only verdict tuning (v1.12 P4)
+# --------------------------------------------------------------------------- #
+
+
+def _now_stamp() -> str:
+    """ISO-8601 timestamp, overridable for determinism. Mirrors
+    _conductor/constants.now_stamp but is inlined — this module is standalone."""
+    return (os.environ.get("ADVISORY_BOARD_NOW_TS")
+            or datetime.now().isoformat(timespec="seconds"))
+
+
+def _file_sha256(path: str) -> "str | None":
+    """sha256 of the file's raw bytes, or None if unreadable — the fingerprint the
+    optimistic change guard compares. None (missing/unreadable) never equals a real
+    digest, so the guard can't false-pass on a vanished target."""
+    try:
+        with open(path, "rb") as handle:
+            return hashlib.sha256(handle.read()).hexdigest()
+    except OSError:
+        return None
+
+
+def _cleanup(path: str) -> None:
+    """Remove a tmp file, ignoring its absence — leave no scratch behind on failure."""
+    try:
+        os.unlink(path)
+    except OSError:
+        pass
+
+
+def _finding_titles(data: dict) -> list:
+    """Every blocker/concern `title`, in order — the valid targets for `--on`."""
+    titles = []
+    for key in ("blockers", "concerns"):
+        for item in (data.get(key) or []):
+            if isinstance(item, dict) and isinstance(item.get("title"), str):
+                titles.append(item["title"])
+    return titles
+
+
+def cmd_amend(argv) -> int:
+    """Append ONE human amendment to a run's verdict.json. Append-only: never
+    rewrites existing entries, never touches board fields or data["confidence"]."""
+    parser = argparse.ArgumentParser(
+        prog="board_verdict.py amend",
+        description="Append a human amendment to a run's verdict.json (append-only).")
+    parser.add_argument("--run", required=True,
+                        help="run directory containing verdict.json")
+    parser.add_argument("--author", required=True, help="who is amending")
+    parser.add_argument("--reason", required=True, help="why (recorded verbatim)")
+    parser.add_argument("--confidence", choices=("low", "medium", "high"),
+                        help="record a confidence change (effective value)")
+    parser.add_argument("--caveat", help="attach a standing caveat")
+    parser.add_argument("--severity-note", dest="severity_note",
+                        help="attach a note about a finding's severity")
+    parser.add_argument("--on", dest="on",
+                        help="scope --severity-note to an existing finding title")
+    args = parser.parse_args(argv)
+
+    # Exactly one effect per invocation — the amendment trail stays one-fact-per-row.
+    effects = [name for name, present in (
+        ("--confidence", args.confidence is not None),
+        ("--caveat", args.caveat is not None),
+        ("--severity-note", args.severity_note is not None),
+    ) if present]
+    if len(effects) != 1:
+        if not effects:
+            die("amend needs exactly one effect: --confidence, --caveat, or "
+                "--severity-note")
+        die(f"amend takes exactly one effect per invocation; got {', '.join(effects)}")
+    if args.on is not None and args.severity_note is None:
+        die("--on scopes --severity-note; it can't be used on its own")
+
+    if not os.path.isdir(args.run):
+        die(f"--run: not a directory: {args.run}")
+    # Resolve through any symlink so we read AND write the real target: os.replace on
+    # a symlink path would swap the LINK for a regular file and orphan the target, so
+    # we operate on realpath (and keep tmp in its dir for same-dir atomicity).
+    path = os.path.realpath(os.path.join(args.run, "verdict.json"))
+    baseline = _file_sha256(path)  # for the pre-replace change guard (fix: lost-update)
+    data = load(path)  # validates before we touch it
+
+    entry = {
+        "author": args.author,
+        "timestamp": _now_stamp(),
+        "reason": args.reason,
+    }
+    if args.confidence is not None:
+        current, _ = effective_confidence(data)  # value BEFORE this amendment
+        if args.confidence == current:
+            die(f"confidence is already {current!r}; nothing to amend "
+                "(a no-op amendment is refused)")
+        entry.update({"field": "confidence", "from": current, "to": args.confidence})
+    elif args.caveat is not None:
+        entry["caveat"] = args.caveat
+    else:  # severity_note
+        entry["severity_note"] = args.severity_note
+        if args.on is not None:
+            titles = _finding_titles(data)
+            if args.on not in titles:
+                available = "; ".join(titles) if titles else "(none)"
+                die(f"--on {args.on!r} matches no blocker or concern title; "
+                    f"available titles: {available}")
+            entry["on"] = args.on
+
+    data.setdefault("amendments", []).append(entry)  # append-only
+    validate(data)  # re-check with the new entry in place
+
+    # Write to a UNIQUE tmp in the target's own directory (same-dir keeps os.replace
+    # atomic; unique avoids two concurrent amends clobbering one shared tmp), then
+    # replace. On any OSError — incl. an unwritable dir at mkstemp — clean any tmp and
+    # die cleanly rather than tracebacking.
+    dest_dir = os.path.dirname(path) or "."
+    try:
+        orig_mode = os.stat(path).st_mode & 0o777
+    except OSError:
+        orig_mode = 0o644
+    tmp = None
+    try:
+        fd, tmp = tempfile.mkstemp(dir=dest_dir, prefix=".verdict.json.amend.",
+                                   suffix=".tmp")
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            json.dump(data, handle, indent=2, ensure_ascii=False)
+            handle.write("\n")
+        # Preserve the original file's permission bits (mkstemp makes 0600, which
+        # would silently tighten verdict.json); fall back to 0644 if it was new.
+        os.chmod(tmp, orig_mode)
+        # Best-effort optimistic guard (a narrowing, NOT a lock): if the file changed
+        # since we loaded it, another amend raced us — refuse rather than lose theirs.
+        if _file_sha256(path) != baseline:
+            die("verdict.json changed while amending — re-run")
+        os.replace(tmp, path)
+    except OSError as exc:
+        if tmp is not None:
+            _cleanup(tmp)
+        die(f"cannot write verdict.json: {exc}")
+    except BaseException:
+        # die() raises SystemExit (the race guard): drop the tmp before it propagates.
+        if tmp is not None:
+            _cleanup(tmp)
+        raise
+
+    kind = ("confidence" if args.confidence is not None
+            else "caveat" if args.caveat is not None else "severity note")
+    print(f"amended: appended {kind} amendment by {args.author} to {path}")
+    print(summarize(data))
+    return EXIT_OK
+
+
 def main(argv=None) -> int:
+    if argv is None:
+        argv = sys.argv[1:]
+    # Route the `amend` subcommand BEFORE the legacy parser so every other
+    # invocation stays byte-identical. A file literally named "amend" is an
+    # accepted known edge (not special-cased).
+    if argv and argv[0] == "amend":
+        return cmd_amend(argv[1:])
+
     parser = argparse.ArgumentParser(description="Validate / gate an advisory-board verdict.json.")
     parser.add_argument("path", nargs="?", default="verdict.json", help="path to verdict.json (default: verdict.json)")
     parser.add_argument("--gate", action="store_true", help="exit 1 when the verdict meets the fail threshold (3 to abstain)")

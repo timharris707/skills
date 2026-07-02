@@ -21,12 +21,15 @@ handoff-data.json shape (keys mirror the template's {{TOKENS}}, lowercased):
                         verdict_class, verdict_note, blockers_heading, disclaimer,
                         plan, metadata, dissent_flag
   Lists of objects:     seats[], blockers[], dissents[], caveats[],
-                        questions[], actions[], sequence[], seq_blockers[]
+                        questions[], actions[], sequence[], seq_blockers[],
+                        amendments[]
     seats[]:   seat_name, seat_lens, seat_model, seat_status, seat_status_class,
                seat_highlight, rounds[]
       rounds[]: round_label, round_verdict, round_verdict_class,
                 round_confidence, round_review
-    blockers[]: blocker_title, blocker_body
+    blockers[]: blocker_title, blocker_body, blocker_severity_notes[]
+      blocker_severity_notes[]: blocker_severity_note   (human amendment, --on match)
+    amendments[]: amend_who, amend_when, amend_reason, amend_effect  (v1.12 P4)
     dissents[]: dissent_who, dissent_body
     caveats[]:  caveat_claim, caveat_impact
     questions[]: question      actions[]: action
@@ -80,6 +83,11 @@ BLOCK_KEYS = {
     "SEQ STEP": "sequence",
     "SEQ BLOCKER": "seq_blockers",
     "SEQ EVIDENCE": "seq_evidence",
+    # human-owned amendments (v1.12 P4; full handoff only). Empty on an un-amended
+    # verdict — the whole section drops below. BLOCKER SEVERITY NOTE is a note nested
+    # in a blocker (attached by an exact --on title match).
+    "AMENDMENT": "amendments",
+    "BLOCKER SEVERITY NOTE": "blocker_severity_notes",
     # delta vs the previous run (v1.12 --revise; full handoff only). All three
     # lists are empty on a non-revise verdict — the whole section drops below.
     "DELTA CLEARED": "delta_cleared",
@@ -93,6 +101,7 @@ RAW_TOKENS = {
     "SEAT_HIGHLIGHT", "ROUND_REVIEW", "BLOCKER_BODY", "DISSENT_BODY",
     "CAVEAT_CLAIM", "CAVEAT_IMPACT", "QUESTION", "ACTION",
     "SEQ_ACTION", "SEQ_BLOCKER_BODY", "SEQ_EVIDENCE_LINE",
+    "AMEND_REASON", "BLOCKER_SEVERITY_NOTE",
 }
 
 
@@ -154,6 +163,22 @@ def drop_empty_optionals(out: str) -> str:
     out = re.sub(
         r'\s*<section class="seq-sec seq-blockers-sec">.*?<ol class="seq-blockers">\s*</ol>.*?</section>',
         "", out, flags=re.DOTALL)
+    # --- amendments (amend-*) drops (v1.12 P4). Scoped to amend-* classes — NO-OPS for
+    #     the other templates. A blocker with no severity notes leaves its <ul> empty; a
+    #     verdict with no amendments leaves the amend-list <ol> empty and the whole
+    #     section (heading + intro) drops. Each optionally eats the immediately-preceding
+    #     authoring comment + its whitespace, so the drop leaves no blank-line residue
+    #     (the comment would otherwise strip to a stray whitespace-only line — the ONLY
+    #     new blocks that carry such a comment; the pre-existing drops above don't). ---
+    out = re.sub(
+        r'\s*(?:<!--(?:(?!-->).)*?-->\s*)?<ul class="blocker-sev-notes">\s*</ul>',
+        "", out, flags=re.DOTALL)
+    # A zero-effect (provenance-only) amendment leaves its effect pill empty — drop it.
+    out = re.sub(r'\s*<span class="amend-effect">\s*</span>', "", out)
+    out = re.sub(
+        r'\s*(?:<!--(?:(?!-->).)*?-->\s*)?'
+        r'<section class="amend-sec">.*?<ol class="amend-list">\s*</ol>.*?</section>',
+        "", out, flags=re.DOTALL)
     return out
 
 
@@ -198,6 +223,18 @@ def render(data: dict, template: str) -> str:
         data.setdefault(key, "")
     for key in ("delta_cleared", "delta_open", "delta_new"):
         data.setdefault(key, [])
+    # Same pre-v1.12 backfill for the amendments block (v1.12 P4): an old
+    # handoff-data.json has no `amendments` key, so default it to [] — the section
+    # drops below rather than dying on an unresolved {{AMEND_*}} token. Each blocker
+    # gets an empty severity-notes list for the same reason (an old blocker row has
+    # no `blocker_severity_notes`).
+    data.setdefault("amendments", [])
+    if isinstance(data.get("blockers"), list):
+        # Copy each blocker row before defaulting its nested list, so an old
+        # handoff-data.json passed in by the caller is never mutated.
+        data["blockers"] = [
+            {"blocker_severity_notes": [], **b} if isinstance(b, dict) else b
+            for b in data["blockers"]]
     out = render_item(template, data, BLOCK_KEYS, RAW_TOKENS)
     out = drop_empty_optionals(out)
     out = strip_comments(out)

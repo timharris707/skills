@@ -33,9 +33,10 @@
      items, delete the sample block (don't leave an empty shell).
 
   Repeatable blocks here: SEAT CARD (per seat) > ROUND (per round, nested in a
-  seat) ; BLOCKER (per consensus blocker) ; DISSENT (per dissenting point) ;
-  CAVEAT (per couldn't-verify item) ; QUESTION (per open question) ;
-  ACTION (per next action).
+  seat) ; BLOCKER (per consensus blocker) > BLOCKER SEVERITY NOTE (per human note
+  on it) ; DISSENT (per dissenting point) ; CAVEAT (per couldn't-verify item) ;
+  QUESTION (per open question) ; ACTION (per next action) ; AMENDMENT (per
+  human-owned change made after the board reported).
 
   SINGLE TOKENS
   -------------
@@ -49,7 +50,9 @@
                      should-I/shouldn't-I directive (e.g. "Go ahead, with conditions ·
                      unanimous"), or the board's authored decision verbatim.
   {{VERDICT_CLASS}}  One of: ship | caution | block  (colors the banner).
-  {{CONFIDENCE}}     OPTIONAL banner pill, e.g. "high confidence". Empty -> pill dropped.
+  {{CONFIDENCE}}     OPTIONAL banner pill, e.g. "high confidence". Shows the effective
+                     value; when a person changed it by hand it reads "medium confidence
+                     (amended)" (the full record is in the Amendments section). Empty -> dropped.
   {{VERDICT_NOTE}}   One-line explanation under the verdict headline.
   {{BLOCKERS_HEADING}}  Consensus-section header, lens-aware: "Consensus blockers —
                      must fix before ship" (software) or "What to resolve first" (else).
@@ -297,6 +300,31 @@
   .actions ol { margin: 0; padding-left: 20px; }
   .actions li { margin: 6px 0; }
 
+  /* ---- a note a person added by hand, attached to a blocker (amendment) ---- */
+  ol.blockers .blocker-sev-notes { margin: 8px 0 0; padding-left: 18px; }
+  ol.blockers .blocker-sev-notes li {
+    font-size: 14px; color: var(--accent-deep); margin: 3px 0; font-style: italic;
+  }
+
+  /* ---- changes a person made after the board reported (amendments) ----
+     Deliberately set apart from the board's own words: a gold left edge (the
+     human/chair color) says "a person changed this", not "the board said this". */
+  ol.amend-list { list-style: none; margin: 0; padding: 0; }
+  .amend-intro { margin: -6px 0 14px; font-size: 14px; font-style: italic; color: var(--ink-faint); }
+  ol.amend-list > li {
+    background: var(--surface); border: 1px solid var(--line-strong);
+    border-left: 4px solid var(--gold); border-radius: 0 11px 11px 0;
+    padding: 13px 18px; margin: 0 0 11px;
+  }
+  ol.amend-list .amend-who { font-weight: 700; }
+  ol.amend-list .amend-when { color: var(--ink-faint); font-size: 13px; }
+  ol.amend-list .amend-reason { margin: 4px 0 0; font-size: 15px; color: var(--ink-soft); }
+  ol.amend-list .amend-effect {
+    display: inline-block; margin-top: 8px; font-size: 13.5px; font-weight: 600;
+    color: var(--gold); background: #fff6e3; border: 1px solid #ecd9a3;
+    border-radius: 999px; padding: 2px 11px;
+  }
+
   /* ---- dark footer / colophon band ---- */
   footer.colophon { background: var(--dark); color: var(--on-dark-soft); padding: 26px 20px 32px; }
   footer.colophon .disclaimer {
@@ -457,6 +485,11 @@
       <li>
         <span class="b-title">{{BLOCKER_TITLE}}</span>
         <div class="b-body">{{BLOCKER_BODY}}</div>
+        <!-- OPTIONAL: notes a person added by hand about this item (amendments).
+             The whole list is dropped when there are none. -->
+        <ul class="blocker-sev-notes"><!-- BEGIN BLOCKER SEVERITY NOTE (duplicate per note) -->
+          <li>{{BLOCKER_SEVERITY_NOTE}}</li>
+        <!-- END BLOCKER SEVERITY NOTE --></ul>
       </li>
       <!-- END BLOCKER -->
     </ol>
@@ -515,6 +548,26 @@
         <!-- END ACTION -->
       </ol>
     </div>
+  </section>
+
+  <!-- ===================== AMENDMENTS (human-owned; v1.12 P4) ==============
+       Changes a person made to this review AFTER the board reported — a lower
+       confidence, an added caveat, a note on a finding. The board's own words
+       above are untouched; these are set apart (gold edge) as the human record.
+       The renderer drops this whole section when there are no amendments. -->
+  <section class="amend-sec">
+    <h2>Amendments</h2>
+    <p class="amend-intro">Applied by a person after the board reported — the board's own words above are unchanged.</p>
+    <ol class="amend-list">
+      <!-- BEGIN AMENDMENT (duplicate per amendment, in order) -->
+      <li>
+        <span class="amend-who">{{AMEND_WHO}}</span>
+        <span class="amend-when">· {{AMEND_WHEN}}</span>
+        <p class="amend-reason">{{AMEND_REASON}}</p>
+        <span class="amend-effect">{{AMEND_EFFECT}}</span>
+      </li>
+      <!-- END AMENDMENT -->
+    </ol>
   </section>
 
   </main>

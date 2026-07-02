@@ -19,10 +19,12 @@ import contextlib
 import io
 import json
 import os
+import re
 import shutil
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SCRIPTS = os.path.normpath(os.path.join(HERE, "..", "scripts"))
@@ -3577,22 +3579,30 @@ class TestVerdictLifecycle(unittest.TestCase):
         self.assertEqual(data["previous_run"], self.LIFECYCLE["previous_run"])
         self.assertEqual(data["amendments"], self.LIFECYCLE["amendments"])
 
-    def test_renderers_ignore_undisplayed_lifecycle_fields(self):
-        # `previous_run` gained its display with v1.12 P2 (the delta section) —
-        # see TestReviseDeltaRender. `amendments` stays undisplayed until the
-        # amend tooling (P4), so an amendments-carrying verdict still renders
-        # byte-identically everywhere.
+    def test_no_amendments_verdict_renders_byte_identically(self):
+        # The ENDURING invariant: a verdict with NO amendments key (P2 gave
+        # `previous_run` its own display) must render byte-identically to a
+        # control across every renderer — proving the amendment machinery adds
+        # nothing when there is nothing to add. (An amendments-carrying verdict
+        # DOES display them now — see TestAmendmentRenderProvenance below.)
         base = _verdict("caution", "caution", "caution", title="T",
                         blockers=[{"title": "b", "body": "x"}],
                         next_actions=["do it"])
-        withf = json.loads(json.dumps(base))
-        withf["amendments"] = self._lifecycle()["amendments"]
-        self.assertEqual(rv.render_markdown(withf), rv.render_markdown(base))
-        self.assertEqual(rv.render_sequence_markdown(withf),
-                         rv.render_sequence_markdown(base))
-        self.assertEqual(rv.build_handoff_data(withf), rv.build_handoff_data(base))
+        control = json.loads(json.dumps(base))
+        self.assertNotIn("amendments", base)
+        self.assertEqual(rv.render_markdown(base), rv.render_markdown(control))
+        self.assertEqual(rv.render_sequence_markdown(base),
+                         rv.render_sequence_markdown(control))
+        self.assertEqual(rv.build_handoff_data(base), rv.build_handoff_data(control))
         for renderer in (fo.as_tldr, fo.as_pr, fo.as_slack):
-            self.assertEqual(renderer(withf), renderer(base))
+            self.assertEqual(renderer(base), renderer(control))
+        # An empty amendments list is valid (P1) and must also be inert.
+        empty = json.loads(json.dumps(base))
+        empty["amendments"] = []
+        self.assertEqual(rv.render_markdown(empty), rv.render_markdown(control))
+        self.assertEqual(rv.build_handoff_data(empty), rv.build_handoff_data(control))
+        for renderer in (fo.as_tldr, fo.as_pr, fo.as_slack):
+            self.assertEqual(renderer(empty), renderer(control))
 
     def test_synthesizer_merge_strips_lifecycle_keys(self):
         # A model reply must not fabricate lineage or an amendment trail.
@@ -3607,6 +3617,859 @@ class TestVerdictLifecycle(unittest.TestCase):
         for key in bv.LIFECYCLE_FIELDS:
             self.assertNotIn(key, merged)
         self.assertEqual(merged["verdict"], "ship")   # content fields still merge
+
+
+class TestEffectiveConfidence(unittest.TestCase):
+    """effective_confidence(data) — the confidence in force after amendments,
+    with its provenance entry (or None). Renderers read from here (v1.12 P4)."""
+
+    def _conf(self, frm, to, **extra):
+        entry = {"author": "tim", "timestamp": "t", "reason": "r",
+                 "field": "confidence", "from": frm, "to": to}
+        entry.update(extra)
+        return entry
+
+    def test_no_amendments_returns_base_and_none(self):
+        data = _verdict("ship", "ship", "ship")   # confidence == "high"
+        self.assertEqual(bv.effective_confidence(data), ("high", None))
+
+    def test_missing_amendments_key_returns_base(self):
+        data = _verdict("ship", "ship", "ship")
+        data.pop("amendments", None)
+        self.assertEqual(bv.effective_confidence(data)[0], "high")
+
+    def test_last_confidence_amendment_wins(self):
+        data = _verdict("ship", "ship", "ship", amendments=[
+            self._conf("high", "medium"), self._conf("medium", "low")])
+        value, entry = bv.effective_confidence(data)
+        self.assertEqual(value, "low")
+        self.assertEqual(entry["from"], "medium")
+
+    def test_non_confidence_entries_are_skipped(self):
+        data = _verdict("ship", "ship", "ship", amendments=[
+            self._conf("high", "medium"),
+            {"author": "tim", "timestamp": "t", "reason": "r",
+             "caveat": "watch the rollout"}])
+        value, entry = bv.effective_confidence(data)
+        self.assertEqual(value, "medium")     # caveat entry doesn't move it
+        self.assertEqual(entry["to"], "medium")
+
+
+class TestAmendValidationMatrix(unittest.TestCase):
+    """_validate_lifecycle effect-field checks — strict WHEN PRESENT, additive
+    (a zero-effect entry stays valid, preserving P1 compatibility)."""
+
+    def _amend(self, **fields):
+        entry = {"author": "tim", "timestamp": "t", "reason": "r"}
+        entry.update(fields)
+        return _verdict("ship", "ship", "ship", amendments=[entry])
+
+    def _assert_rejects(self, data):
+        with self.assertRaises(SystemExit) as ctx:
+            bv.validate(data)
+        self.assertEqual(ctx.exception.code, bv.EXIT_SCHEMA)
+
+    def test_field_must_be_confidence(self):
+        self._assert_rejects(self._amend(field="verdict", **{"from": "high", "to": "low"}))
+
+    def test_confidence_field_needs_from_and_to(self):
+        self._assert_rejects(self._amend(field="confidence", to="low"))     # no from
+        self._assert_rejects(self._amend(field="confidence", **{"from": "high"}))  # no to
+
+    def test_bad_from_or_to_value_rejected(self):
+        self._assert_rejects(self._amend(field="confidence", **{"from": "high", "to": "sky"}))
+        self._assert_rejects(self._amend(field="confidence", **{"from": "sky", "to": "low"}))
+
+    def test_two_effect_fields_in_one_entry_rejected(self):
+        self._assert_rejects(self._amend(caveat="c",
+                                         field="confidence", **{"from": "high", "to": "low"}))
+        self._assert_rejects(self._amend(caveat="c", severity_note="s"))
+
+    def test_zero_effect_entry_still_valid(self):
+        bv.validate(self._amend())   # provenance-only, no effect — P1 compat
+
+    def test_non_string_caveat_rejected(self):
+        self._assert_rejects(self._amend(caveat=123))
+        self._assert_rejects(self._amend(caveat="  "))
+
+    def test_empty_severity_note_rejected(self):
+        self._assert_rejects(self._amend(severity_note=""))
+
+    def test_on_type_checked_but_not_matched_at_validate(self):
+        self._assert_rejects(self._amend(severity_note="s", on=""))
+        # a non-matching but non-empty `on` string is fine at validate time
+        # (strict title match is an amend-time concern)
+        bv.validate(self._amend(severity_note="s", on="no such finding"))
+
+
+class TestAmendCLI(unittest.TestCase):
+    """board_verdict.py amend — append-only human verdict tuning (v1.12 P4)."""
+
+    NOW = "2026-07-02T09:00:00"
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp(prefix="board-amend-")
+        self.addCleanup(shutil.rmtree, self.dir, ignore_errors=True)
+
+    def _write(self, data):
+        path = os.path.join(self.dir, "verdict.json")
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump(data, fh, indent=2, ensure_ascii=False)
+            fh.write("\n")
+        return path
+
+    def _base(self, **extra):
+        data = _verdict("caution", "caution", "ship", title="Payments review",
+                        blockers=[{"title": "Atomic dedup", "body": "x"}],
+                        concerns=[{"title": "Backfill window", "body": "y"}])
+        data.update(extra)
+        return data
+
+    def _load(self, path):
+        with open(path, encoding="utf-8") as fh:
+            return json.load(fh)
+
+    def _amend(self, *args):
+        with mock.patch.dict(os.environ, {"ADVISORY_BOARD_NOW_TS": self.NOW}):
+            return run_bv(["amend", "--run", self.dir,
+                           "--author", "tim", "--reason", "r", *args])
+
+    # -- round-trip: each of the three effects -------------------------------
+
+    def test_confidence_round_trip(self):
+        path = self._write(self._base())
+        code, out, err = self._amend("--confidence", "medium")
+        self.assertEqual(code, bv.EXIT_OK, err)
+        saved = self._load(path)
+        self.assertEqual(len(saved["amendments"]), 1)
+        entry = saved["amendments"][0]
+        self.assertEqual(entry, {"author": "tim", "timestamp": self.NOW,
+                                 "reason": "r", "field": "confidence",
+                                 "from": "high", "to": "medium"})
+        # board fields + top-level confidence untouched
+        self.assertEqual(saved["confidence"], "high")
+        self.assertEqual(saved["verdict"], "caution")
+        self.assertEqual(saved["blockers"], self._base()["blockers"])
+        bv.validate(saved)   # re-validates
+        with open(path, encoding="utf-8") as fh:
+            self.assertTrue(fh.read().endswith("\n"))
+
+    def test_caveat_round_trip(self):
+        path = self._write(self._base())
+        code, out, err = self._amend("--caveat", "needs a manual backfill")
+        self.assertEqual(code, bv.EXIT_OK, err)
+        entry = self._load(path)["amendments"][0]
+        self.assertEqual(entry["caveat"], "needs a manual backfill")
+        self.assertNotIn("field", entry)
+
+    def test_severity_note_round_trip(self):
+        path = self._write(self._base())
+        code, out, err = self._amend("--severity-note", "downgraded",
+                                     "--on", "Atomic dedup")
+        self.assertEqual(code, bv.EXIT_OK, err)
+        entry = self._load(path)["amendments"][0]
+        self.assertEqual(entry["severity_note"], "downgraded")
+        self.assertEqual(entry["on"], "Atomic dedup")
+
+    def test_severity_note_without_on(self):
+        path = self._write(self._base())
+        code, out, err = self._amend("--severity-note", "just a note")
+        self.assertEqual(code, bv.EXIT_OK, err)
+        entry = self._load(path)["amendments"][0]
+        self.assertNotIn("on", entry)
+
+    # -- from-chaining --------------------------------------------------------
+
+    def test_confidence_from_chains_off_prior_amendment(self):
+        path = self._write(self._base())
+        self.assertEqual(self._amend("--confidence", "medium")[0], bv.EXIT_OK)
+        self.assertEqual(self._amend("--confidence", "low")[0], bv.EXIT_OK)
+        amendments = self._load(path)["amendments"]
+        self.assertEqual(len(amendments), 2)
+        self.assertEqual(amendments[0]["to"], "medium")
+        self.assertEqual(amendments[1]["from"], "medium")   # chains off the first's `to`
+        self.assertEqual(amendments[1]["to"], "low")
+
+    # -- exactly-one-effect + required provenance -----------------------------
+
+    def test_zero_effects_dies(self):
+        self._write(self._base())
+        code, out, err = self._amend()
+        self.assertEqual(code, bv.EXIT_SCHEMA)
+        self.assertIn("exactly one effect", err)
+
+    def test_two_effects_dies(self):
+        self._write(self._base())
+        code, out, err = self._amend("--confidence", "medium", "--caveat", "c")
+        self.assertEqual(code, bv.EXIT_SCHEMA)
+
+    def test_missing_author_dies(self):
+        self._write(self._base())
+        with mock.patch.dict(os.environ, {"ADVISORY_BOARD_NOW_TS": self.NOW}):
+            code, out, err = run_bv(["amend", "--run", self.dir,
+                                     "--reason", "r", "--caveat", "c"])
+        self.assertEqual(code, bv.EXIT_SCHEMA)
+
+    def test_missing_reason_dies(self):
+        self._write(self._base())
+        with mock.patch.dict(os.environ, {"ADVISORY_BOARD_NOW_TS": self.NOW}):
+            code, out, err = run_bv(["amend", "--run", self.dir,
+                                     "--author", "tim", "--caveat", "c"])
+        self.assertEqual(code, bv.EXIT_SCHEMA)
+
+    # -- --on strictness ------------------------------------------------------
+
+    def test_on_matches_concern_title(self):
+        self._write(self._base())
+        code, out, err = self._amend("--severity-note", "s", "--on", "Backfill window")
+        self.assertEqual(code, bv.EXIT_OK, err)
+
+    def test_on_mismatch_dies_listing_titles(self):
+        self._write(self._base())
+        code, out, err = self._amend("--severity-note", "s", "--on", "Nonexistent")
+        self.assertEqual(code, bv.EXIT_SCHEMA)
+        self.assertIn("Atomic dedup", err)
+        self.assertIn("Backfill window", err)
+
+    def test_on_without_severity_note_dies(self):
+        self._write(self._base())
+        code, out, err = self._amend("--caveat", "c", "--on", "Atomic dedup")
+        self.assertEqual(code, bv.EXIT_SCHEMA)
+        self.assertIn("--on", err)
+
+    # -- no-op refusal --------------------------------------------------------
+
+    def test_noop_confidence_refused(self):
+        self._write(self._base())   # base confidence is "high"
+        code, out, err = self._amend("--confidence", "high")
+        self.assertEqual(code, bv.EXIT_SCHEMA)
+        self.assertIn("already", err)
+        # nothing written
+        self.assertNotIn("amendments", self._load(os.path.join(self.dir, "verdict.json")))
+
+    def test_noop_against_effective_value_refused(self):
+        # after amending to medium, a second --confidence medium is a no-op
+        self._write(self._base())
+        self.assertEqual(self._amend("--confidence", "medium")[0], bv.EXIT_OK)
+        code, out, err = self._amend("--confidence", "medium")
+        self.assertEqual(code, bv.EXIT_SCHEMA)
+
+    # -- output ---------------------------------------------------------------
+
+    def test_success_prints_summary(self):
+        self._write(self._base())
+        code, out, err = self._amend("--confidence", "medium")
+        self.assertIn("amended:", out)
+        self.assertIn("amendments :", out)
+
+
+class TestAmendSummaryAndGate(unittest.TestCase):
+    """summarize() provenance is invisible without amendments (load-bearing
+    byte-identity); the gate is untouched by any amendment (v1.12 P4)."""
+
+    def test_summarize_byte_identical_without_amendments(self):
+        data = _verdict("caution", "caution", "ship", title="T",
+                        blockers=[{"title": "b", "body": "x"}])
+        control = json.loads(json.dumps(data))
+        self.assertEqual(bv.summarize(data), bv.summarize(control))
+        # the confidence clause must be exactly the pre-v1.12 shape
+        self.assertIn("(high confidence)", bv.summarize(data))
+        self.assertNotIn("amendments :", bv.summarize(data))
+
+    def test_summarize_shows_effective_confidence_and_line(self):
+        data = _verdict("caution", "caution", "ship", title="T", amendments=[
+            {"author": "tim", "timestamp": "2026-07-01T21:40:00", "reason": "r",
+             "field": "confidence", "from": "high", "to": "medium"},
+            {"author": "tim", "timestamp": "2026-07-01T21:42:00", "reason": "r",
+             "caveat": "watch rollout"}])
+        text = bv.summarize(data)
+        self.assertIn("medium confidence, amended from high by tim @ 2026-07-01T21:40:00", text)
+        self.assertIn("amendments : 2 (1 confidence change, 1 caveat)", text)
+
+    def test_gate_unchanged_by_confidence_amendment_pass_and_fail(self):
+        # A confidence amendment never moves a gate, on either outcome.
+        for overall, finals in (("block", ("block", "block")),   # fails on block
+                                ("ship", ("ship", "ship"))):      # passes on block
+            base = _verdict(overall, *finals)
+            amended = _verdict(overall, *finals, amendments=[
+                {"author": "tim", "timestamp": "t", "reason": "r",
+                 "field": "confidence", "from": "high", "to": "low"}])
+            for fail_on in ("block", "caution"):
+                self.assertEqual(bv.gate_outcome(base, fail_on),
+                                 bv.gate_outcome(amended, fail_on))
+
+
+class TestAmendmentRenderProvenance(unittest.TestCase):
+    """v1.12 P4 stage 2 — renderers show amended values WITH provenance, and never
+    present an amended value as the board's own. Covers the consensus md, the
+    build_handoff_data dict + its HTML, and the short formats (tldr/pr/slack). The
+    board's own fields (data["confidence"], blockers, caveats) are never edited."""
+
+    def _conf(self, frm="high", to="medium", author="tim",
+              ts="2026-07-01T21:40:00"):
+        return {"author": author, "timestamp": ts, "reason": "overstated confidence",
+                "field": "confidence", "from": frm, "to": to}
+
+    def _caveat(self, text="watch the rollout", author="tim"):
+        return {"author": author, "timestamp": "2026-07-01T21:42:00",
+                "reason": "standing risk", "caveat": text}
+
+    def _sev(self, text="downgraded to a concern", on=None, author="tim"):
+        entry = {"author": author, "timestamp": "2026-07-01T21:44:00",
+                 "reason": "less severe than stated", "severity_note": text}
+        if on is not None:
+            entry["on"] = on
+        return entry
+
+    def _base(self, *amendments, **extra):
+        return _verdict("caution", "caution", "ship", title="Payments review",
+                        blockers=[{"title": "Atomic dedup", "body": "x"}],
+                        concerns=[{"title": "Backfill window", "body": "y"}],
+                        next_actions=["ship it"],
+                        amendments=list(amendments), **extra)
+
+    def _html(self, data):
+        import render_handoff as rh
+        return rh.render(rv.build_handoff_data(data),
+                         open(rh.default_template()).read())
+
+    # -- effective confidence + provenance ------------------------------------
+
+    def test_markdown_confidence_shows_effective_value_and_provenance(self):
+        md = rv.render_markdown(self._base(self._conf()))
+        # the EFFECTIVE value, with the amendment marked as human-owned provenance
+        self.assertIn("medium confidence — amended from high by tim, "
+                      "2026-07-01T21:40:00", md)
+        # never presents the amended value as a bare board confidence
+        self.assertNotIn("(medium confidence)", md)
+        # the board's recorded confidence is NOT edited
+        self.assertEqual(self._base(self._conf())["confidence"], "high")
+
+    def test_sequence_markdown_confidence_shows_provenance(self):
+        md = rv.render_sequence_markdown(self._base(self._conf()))
+        self.assertIn("medium confidence — amended from high by tim", md)
+
+    def test_last_confidence_amendment_wins_in_markdown(self):
+        md = rv.render_markdown(self._base(self._conf(to="medium"),
+                                           self._conf(frm="medium", to="low")))
+        self.assertIn("low confidence — amended from medium by tim", md)
+        self.assertNotIn("medium confidence — amended", md)
+
+    # -- caveat amendment marked human-added, alongside the board's caveats ----
+
+    def test_caveat_amendment_marked_human_added_alongside_board_caveats(self):
+        data = self._base(self._caveat("verify the migration path"),
+                          caveats=["A board-authored caveat"])
+        md = rv.render_markdown(data)
+        # board caveat still present, unchanged
+        self.assertIn("A board-authored caveat", md)
+        # human caveat present, marked as an amendment with its author
+        self.assertIn("verify the migration path — added by tim (amendment)", md)
+
+    def test_caveat_amendment_flows_into_handoff_caveats(self):
+        hd = rv.build_handoff_data(self._base(self._caveat("check backfill")))
+        joined = " ".join(c["caveat_claim"] for c in hd["caveats"])
+        self.assertIn("check backfill — added by tim (amendment)", joined)
+
+    # -- severity note: attached to its matching finding vs. section-only ------
+
+    def test_severity_note_attaches_to_matching_blocker(self):
+        md = rv.render_markdown(self._base(self._sev("less urgent", on="Atomic dedup")))
+        # attached inline to the blocker, marked as an amendment
+        blocker_block = md.split("Atomic dedup", 1)[1]
+        self.assertIn("severity note: less urgent — added by tim (amendment)",
+                      blocker_block)
+
+    def test_severity_note_without_on_lands_in_amendments_only(self):
+        md = rv.render_markdown(self._base(self._sev("general note", on=None)))
+        # not attached under any blocker line (no "severity note:" inline marker)
+        self.assertNotIn("severity note: general note", md)
+        # but present in the Amendments section
+        amend_section = md.split("## Amendments", 1)[1]
+        self.assertIn("general note", amend_section)
+
+    def test_unmatched_on_severity_note_lands_in_amendments_only(self):
+        # `on` is a valid string but matches no finding title (exact match only) —
+        # it must NOT attach to any blocker, only appear in the Amendments trail.
+        md = rv.render_markdown(self._base(self._sev("orphan", on="No Such Title")))
+        self.assertNotIn("severity note: orphan", md)
+        self.assertIn("orphan", md.split("## Amendments", 1)[1])
+
+    def test_severity_note_on_concern_lands_in_amendments_only(self):
+        # concerns have no dedicated md section, so a note on a concern title shows
+        # only in the Amendments trail (not attached to a blocker).
+        md = rv.render_markdown(self._base(self._sev("re a concern", on="Backfill window")))
+        self.assertNotIn("severity note: re a concern", md)
+        self.assertIn("re a concern", md.split("## Amendments", 1)[1])
+
+    # -- the Amendments section: content + ordering ---------------------------
+
+    def test_amendments_section_content_and_ordering(self):
+        data = self._base(self._conf(to="medium"),
+                          self._caveat("watch rollout"),
+                          self._sev("noted", on="Atomic dedup"))
+        md = rv.render_markdown(data)
+        self.assertIn("## Amendments", md)
+        section = md.split("## Amendments", 1)[1]
+        # every row carries author + timestamp + reason + effect
+        self.assertIn("**tim, 2026-07-01T21:40:00** — overstated confidence", section)
+        self.assertIn("Confidence: high → medium", section)
+        self.assertIn("Added caveat: watch rollout", section)
+        self.assertIn('Severity note on "Atomic dedup": noted', section)
+        # ordering follows the amendments[] order (confidence, then caveat, then note)
+        self.assertLess(section.index("Confidence: high → medium"),
+                        section.index("Added caveat: watch rollout"))
+        self.assertLess(section.index("Added caveat: watch rollout"),
+                        section.index('Severity note on "Atomic dedup": noted'))
+
+    def test_zero_effect_amendment_renders_as_provenance_note(self):
+        # a provenance-only entry (no effect field, P1 compat) shows its reason but
+        # no effect line.
+        entry = {"author": "tim", "timestamp": "2026-07-01T22:00:00",
+                 "reason": "for the record"}
+        md = rv.render_markdown(self._base(entry))
+        section = md.split("## Amendments", 1)[1]
+        self.assertIn("**tim, 2026-07-01T22:00:00** — for the record", section)
+        self.assertNotIn("Confidence:", section)
+        self.assertNotIn("Added caveat:", section)
+
+    # -- handoff data dict + rendered HTML ------------------------------------
+
+    def test_build_handoff_data_carries_amendments_and_effective_confidence(self):
+        hd = rv.build_handoff_data(self._base(self._conf()))
+        # the pill shows the effective value with a terse marker
+        self.assertEqual(hd["confidence"], "medium confidence (amended)")
+        self.assertEqual(len(hd["amendments"]), 1)
+        row = hd["amendments"][0]
+        self.assertEqual(row["amend_who"], "tim")
+        self.assertEqual(row["amend_when"], "2026-07-01T21:40:00")
+        self.assertEqual(row["amend_effect"], "Confidence: high → medium")
+
+    def test_handoff_html_renders_amended_tokens(self):
+        html_out = self._html(self._base(self._conf(),
+                                         self._sev("noted", on="Atomic dedup")))
+        self.assertIn("medium confidence (amended)", html_out)
+        self.assertIn("Amendments", html_out)
+        self.assertIn("Confidence: high → medium", html_out)
+        # the severity note is attached to its blocker, marked as an amendment
+        self.assertIn("noted — added by tim (amendment)", html_out)
+
+    def test_handoff_severity_note_flows_to_blocker_rows(self):
+        hd = rv.build_handoff_data(self._base(self._sev("noted", on="Atomic dedup")))
+        # matching blocker carries the note; the other has none
+        by_title = {b["blocker_title"]: b for b in hd["blockers"]}
+        notes = [n["blocker_severity_note"]
+                 for n in by_title["Atomic dedup"]["blocker_severity_notes"]]
+        self.assertEqual(notes, ["noted — added by tim (amendment)"])
+
+    def test_old_style_handoff_data_still_renders_via_backfill(self):
+        # A handoff-data.json written before P4 stage 2 has no `amendments` key and
+        # no `blocker_severity_notes` on its blockers; the render() backfill must
+        # default them so the OLD data file renders (section drops) rather than
+        # dying on an unresolved {{AMEND_*}} / {{BLOCKER_SEVERITY_NOTE}} token.
+        import render_handoff as rh
+        hd = rv.build_handoff_data(self._base())   # no amendments
+        del hd["amendments"]
+        for b in hd["blockers"]:
+            b.pop("blocker_severity_notes", None)
+        html_out = rh.render(hd, open(rh.default_template()).read())
+        # the section drops entirely and no placeholder survives
+        self.assertNotIn("{{", html_out)
+        self.assertNotIn('<section class="amend-sec">', html_out)
+
+    def test_non_amended_handoff_html_has_no_amendments_section(self):
+        html_out = self._html(self._base())   # no amendments
+        self.assertNotIn('<section class="amend-sec">', html_out)
+        self.assertNotIn("Amendments", html_out)
+
+    # -- short formats: effective confidence + terse marker -------------------
+
+    def test_short_formats_show_effective_confidence_marker(self):
+        data = self._base(self._conf())
+        line = fo.verdict_line(data)
+        self.assertIn("medium confidence (amended)", line)
+        for text in (fo.as_tldr(data), fo.as_pr(data), fo.as_slack(data)):
+            self.assertIn("medium confidence (amended)", text)
+            self.assertNotIn("high confidence", text)   # the amended value, not the board's
+
+    def test_short_formats_no_marker_without_amendment(self):
+        data = self._base()   # confidence high, no amendment
+        line = fo.verdict_line(data)
+        self.assertIn("high confidence", line)
+        self.assertNotIn("(amended)", line)
+
+    # -- json passthrough is faithful (lifecycle fields intact) ---------------
+
+    def test_json_format_echoes_amendments_faithfully(self):
+        d = tempfile.mkdtemp(prefix="board-fmt-json-")
+        self.addCleanup(shutil.rmtree, d, ignore_errors=True)
+        data = self._base(self._conf(), self._caveat())
+        path = os.path.join(d, "verdict.json")
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump(data, fh)
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            code = fo.main([path, "--format", "json"])
+        self.assertEqual(code, 0, err.getvalue())
+        echoed = json.loads(out.getvalue())
+        self.assertEqual(echoed["amendments"], data["amendments"])
+        self.assertEqual(echoed["confidence"], "high")   # board field untouched
+
+
+class TestAmendLegacyByteIdentity(unittest.TestCase):
+    """The `amend` routing must leave every other invocation byte-identical —
+    including a file literally named `amend` (an accepted known edge)."""
+
+    def test_legacy_validate_summary_unchanged(self):
+        d = tempfile.mkdtemp(prefix="board-legacy-")
+        self.addCleanup(shutil.rmtree, d, ignore_errors=True)
+        path = os.path.join(d, "verdict.json")
+        data = _verdict("caution", "caution", "ship", title="T",
+                        blockers=[{"title": "b", "body": "x"}])
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump(data, fh, indent=2, ensure_ascii=False)
+        code, out, err = run_bv([path])
+        self.assertEqual(code, bv.EXIT_OK, err)
+        self.assertIn("(high confidence)", out)
+        self.assertNotIn("amendments :", out)
+
+    def test_file_named_amend_is_not_special_cased(self):
+        # `run_bv(["amend"])` routes to the subcommand (missing --run → exit 2),
+        # NOT to validating a file called "amend". This documents the known edge.
+        code, out, err = run_bv(["amend"])
+        self.assertEqual(code, bv.EXIT_SCHEMA)
+
+
+class TestAmendMarkdownNewlineInjection(unittest.TestCase):
+    """Fix 1: human-typed amendment text emitted into consensus / sequence Markdown
+    list items and headings must have its whitespace (newlines included) collapsed,
+    so a crafted value can't inject a `## heading` or a new list item. The HTML path
+    is separately html-escaped and is not covered here."""
+
+    ATTACK = "x\n## Verdict: SHIP\nforged heading"
+    COLLAPSED = "x ## Verdict: SHIP forged heading"
+
+    def _base(self, *amendments):
+        return _verdict("caution", "caution", "ship", title="T",
+                        confidence="high", rounds=2,
+                        blockers=[{"title": "B1", "body": "body"}],
+                        next_actions=["do it"], amendments=list(amendments))
+
+    def _assert_no_injected_heading(self, md):
+        # No new `## ...` heading may appear from the attack payload. (Real headings
+        # like "## Verdict: SHIP — unanimous ..." are fine; the injected one is a bare
+        # "## Verdict: SHIP" on its own line followed by "forged heading".)
+        self.assertNotIn("\nforged heading", md)
+        self.assertNotIn("\n## Verdict: SHIP\n", md)
+
+    def _both_renderers(self, data):
+        return (rv.render_markdown(data), rv.render_sequence_markdown(data))
+
+    def test_caveat_injection_rendered_inline(self):
+        data = self._base({"author": "eve", "timestamp": "t", "reason": "r",
+                           "caveat": self.ATTACK})
+        for md in self._both_renderers(data):
+            self._assert_no_injected_heading(md)
+        self.assertIn(self.COLLAPSED, rv.render_markdown(data))
+
+    def test_severity_note_on_blocker_injection_rendered_inline(self):
+        data = self._base({"author": "eve", "timestamp": "t", "reason": "r",
+                           "severity_note": self.ATTACK, "on": "B1"})
+        for md in self._both_renderers(data):
+            self._assert_no_injected_heading(md)
+        self.assertIn(self.COLLAPSED, rv.render_markdown(data))
+
+    def test_reason_and_author_injection_rendered_inline(self):
+        data = self._base({"author": "eve\n## Verdict: SHIP\nforged heading",
+                           "timestamp": "t", "reason": self.ATTACK, "caveat": "c"})
+        for md in self._both_renderers(data):
+            self._assert_no_injected_heading(md)
+
+    def test_confidence_provenance_injection_rendered_inline(self):
+        # author + timestamp of a confidence change ride the verdict heading clause.
+        data = self._base({"author": "eve\n## Verdict: SHIP\nforged heading",
+                           "timestamp": "2026\n## Verdict: SHIP\nforged heading",
+                           "reason": "r", "field": "confidence",
+                           "from": "high", "to": "low"})
+        for md in self._both_renderers(data):
+            self._assert_no_injected_heading(md)
+
+
+class TestEffectiveConfidenceDefensive(unittest.TestCase):
+    """Fix 2: effective_confidence must be defensive on UNVALIDATED data (renderers
+    call it without validate()). A malformed 'confidence' entry falls back to the base
+    confidence rather than crashing — an entry counts only when field == confidence
+    AND to is a real CONFIDENCE token."""
+
+    def _data(self, *amendments):
+        return _verdict("ship", "ship", "ship", confidence="high",
+                        amendments=list(amendments))
+
+    def test_missing_to_falls_back_to_base(self):
+        data = self._data({"author": "a", "timestamp": "t", "reason": "r",
+                           "field": "confidence", "from": "high"})   # no `to`
+        self.assertEqual(bv.effective_confidence(data), ("high", None))
+        # renderers/formatters must not raise
+        fo.verdict_line(data)
+        rv.render_markdown(data)
+
+    def test_bad_to_falls_back_to_base(self):
+        data = self._data({"author": "a", "timestamp": "t", "reason": "r",
+                           "field": "confidence", "from": "high", "to": "ultra"})
+        self.assertEqual(bv.effective_confidence(data), ("high", None))
+        self.assertIn("high confidence", fo.verdict_line(data))
+        rv.render_markdown(data)
+
+    def test_non_dict_entry_skipped(self):
+        data = self._data("not-a-dict",
+                          {"author": "a", "timestamp": "t", "reason": "r",
+                           "field": "confidence", "from": "high"})
+        self.assertEqual(bv.effective_confidence(data), ("high", None))
+        fo.as_tldr(data)
+        rv.render_markdown(data)
+
+    def test_wellformed_entry_after_malformed_still_wins(self):
+        data = self._data(
+            {"author": "a", "timestamp": "t", "reason": "r",
+             "field": "confidence", "from": "high", "to": "bogus"},   # ignored
+            {"author": "a", "timestamp": "t", "reason": "r",
+             "field": "confidence", "from": "high", "to": "medium"})   # counts
+        value, entry = bv.effective_confidence(data)
+        self.assertEqual(value, "medium")
+        self.assertEqual(entry["to"], "medium")
+
+
+class TestAmendChainConsistency(unittest.TestCase):
+    """Fix 9: validate() rejects a hand-edited inconsistent confidence chain — each
+    change's `from` must equal the value in force at that point (seeded from the
+    board's own confidence). The amend CLI builds a correct chain by construction;
+    this closes the hand-edit gap so gated paths never see false provenance."""
+
+    def _conf(self, frm, to):
+        return {"author": "tim", "timestamp": "t", "reason": "r",
+                "field": "confidence", "from": frm, "to": to}
+
+    def _reject(self, data):
+        with self.assertRaises(SystemExit) as ctx:
+            bv.validate(data)
+        self.assertEqual(ctx.exception.code, bv.EXIT_SCHEMA)
+        return ctx
+
+    def test_inconsistent_chain_rejected_naming_index(self):
+        data = _verdict("ship", "ship", "ship", confidence="high", amendments=[
+            self._conf("high", "medium"),
+            self._conf("high", "low")])   # from should be 'medium'
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            with self.assertRaises(SystemExit) as ctx:
+                bv.validate(data)
+        self.assertEqual(ctx.exception.code, bv.EXIT_SCHEMA)
+        # the message names the offending index (1) and the actual prior value
+        self.assertIn("amendments[1]", err.getvalue())
+        self.assertIn("medium", err.getvalue())
+
+    def test_consistent_chain_passes(self):
+        data = _verdict("ship", "ship", "ship", confidence="high", amendments=[
+            self._conf("high", "medium"),
+            self._conf("medium", "low")])
+        bv.validate(data)   # no raise
+
+    def test_first_from_must_equal_base_confidence(self):
+        data = _verdict("ship", "ship", "ship", confidence="high", amendments=[
+            self._conf("low", "medium")])   # base is 'high', not 'low'
+        self._reject(data)
+
+    def test_non_confidence_entries_do_not_break_the_walk(self):
+        # A caveat between two confidence changes doesn't move the effective value.
+        data = _verdict("ship", "ship", "ship", confidence="high", amendments=[
+            self._conf("high", "medium"),
+            {"author": "tim", "timestamp": "t", "reason": "r", "caveat": "c"},
+            self._conf("medium", "low")])
+        bv.validate(data)   # no raise
+
+    def test_unhashable_from_to_exits_cleanly_not_traceback(self):
+        # Fix 8: an unhashable hand-edited from/to must exit 2, not TypeError.
+        data = _verdict("ship", "ship", "ship", confidence="high", amendments=[
+            {"author": "tim", "timestamp": "t", "reason": "r",
+             "field": "confidence", "from": ["high"], "to": {"x": 1}}])
+        self._reject(data)
+
+
+class TestAmendWriteSafety(unittest.TestCase):
+    """Fixes 3/4/5/10 — the amend write path: symlink survival, the optimistic
+    lost-update guard, clean errors on a bad --run target, and file-mode
+    preservation with a unique tmp."""
+
+    NOW = "2026-07-02T09:00:00"
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp(prefix="board-amend-safety-")
+        self.addCleanup(shutil.rmtree, self.dir, ignore_errors=True)
+
+    def _base(self):
+        return _verdict("caution", "caution", "ship", title="Payments review",
+                        confidence="high",
+                        blockers=[{"title": "Atomic dedup", "body": "x"}])
+
+    def _write(self, run_dir, data=None):
+        os.makedirs(run_dir, exist_ok=True)
+        path = os.path.join(run_dir, "verdict.json")
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump(data or self._base(), fh, indent=2, ensure_ascii=False)
+            fh.write("\n")
+        return path
+
+    def _amend(self, run_dir, *args):
+        with mock.patch.dict(os.environ, {"ADVISORY_BOARD_NOW_TS": self.NOW}):
+            return run_bv(["amend", "--run", run_dir,
+                           "--author", "tim", "--reason", "r", *args])
+
+    # -- Fix 5: bad --run target -------------------------------------------------
+
+    def test_run_pointing_at_a_file_dies_cleanly(self):
+        f = os.path.join(self.dir, "not-a-dir")
+        with open(f, "w") as fh:
+            fh.write("x")
+        code, out, err = self._amend(f, "--caveat", "c")
+        self.assertEqual(code, bv.EXIT_SCHEMA)
+        self.assertIn("error:", err)
+        self.assertIn("not a directory", err)
+
+    # -- Fix 3: symlinked verdict.json survives os.replace -----------------------
+
+    def test_symlinked_verdict_json_survives(self):
+        real = os.path.join(self.dir, "real")
+        self._write(real)
+        link_dir = os.path.join(self.dir, "linked")
+        os.makedirs(link_dir)
+        link = os.path.join(link_dir, "verdict.json")
+        os.symlink(os.path.join(real, "verdict.json"), link)
+        code, out, err = self._amend(link_dir, "--caveat", "watch it")
+        self.assertEqual(code, bv.EXIT_OK, err)
+        # the link is still a link (not replaced by a regular file) ...
+        self.assertTrue(os.path.islink(link))
+        # ... and the amendment landed on the real target through the link.
+        with open(os.path.join(real, "verdict.json"), encoding="utf-8") as fh:
+            saved = json.load(fh)
+        self.assertEqual(saved["amendments"][0]["caveat"], "watch it")
+
+    # -- Fix 4: optimistic lost-update guard ------------------------------------
+
+    def test_concurrent_change_between_load_and_write_refused(self):
+        run = os.path.join(self.dir, "race")
+        path = self._write(run)
+        # A competing amend writes AFTER we snapshot the baseline (baseline is taken
+        # before _now_stamp), simulated by mutating the file inside _now_stamp.
+        competitor = _verdict("caution", "caution", "ship", title="Payments review",
+                              confidence="high",
+                              blockers=[{"title": "Atomic dedup", "body": "x"}],
+                              amendments=[{"author": "other", "timestamp": "t2",
+                                           "reason": "theirs", "caveat": "theirs"}])
+        real_now = bv._now_stamp
+
+        def racing_now():
+            with open(path, "w", encoding="utf-8") as fh:
+                json.dump(competitor, fh, indent=2, ensure_ascii=False)
+                fh.write("\n")
+            return self.NOW
+        with mock.patch.object(bv, "_now_stamp", racing_now):
+            code, out, err = run_bv(["amend", "--run", run, "--author", "tim",
+                                     "--reason", "mine", "--caveat", "mine"])
+        self.assertEqual(code, bv.EXIT_SCHEMA)
+        self.assertIn("changed while amending", err)
+        # the competitor's write is intact; ours was refused, not silently lost.
+        with open(path, encoding="utf-8") as fh:
+            saved = json.load(fh)
+        self.assertEqual([a.get("caveat") for a in saved.get("amendments", [])],
+                         ["theirs"])
+        # no scratch tmp left behind
+        leftover = [n for n in os.listdir(run) if n.startswith(".verdict.json.amend.")]
+        self.assertEqual(leftover, [])
+
+    # -- Fix 10: unique tmp + file-mode preservation ----------------------------
+
+    def test_file_mode_preserved_across_amend(self):
+        run = os.path.join(self.dir, "mode")
+        path = self._write(run)
+        os.chmod(path, 0o640)
+        before = _stat.S_IMODE(os.stat(path).st_mode)
+        code, out, err = self._amend(run, "--caveat", "c")
+        self.assertEqual(code, bv.EXIT_OK, err)
+        after = _stat.S_IMODE(os.stat(path).st_mode)
+        self.assertEqual(before, after)
+        # no scratch tmp left behind
+        leftover = [n for n in os.listdir(run) if n.startswith(".verdict.json.amend.")]
+        self.assertEqual(leftover, [])
+
+    @unittest.skipIf(os.geteuid() == 0, "root bypasses directory write permissions")
+    def test_unwritable_run_dir_dies_cleanly(self):
+        run = os.path.join(self.dir, "ro")
+        self._write(run)
+        os.chmod(run, 0o500)
+        self.addCleanup(os.chmod, run, 0o700)   # restore so cleanup can rmtree
+        code, out, err = self._amend(run, "--caveat", "c")
+        self.assertEqual(code, bv.EXIT_SCHEMA)
+        self.assertIn("cannot write verdict.json", err)
+
+
+class TestNoAmendmentsHandoffNoBlankResidue(unittest.TestCase):
+    """Fix 6: a NO-amendments full-handoff render must leave NO whitespace-only line
+    where the new optional blocks (blocker-severity-notes, the amendments section)
+    were dropped. The new drop regexes eat the immediately-preceding authoring
+    comment so it can't strip to a blank line. Durable (no origin/main dependency):
+    it asserts the absence of the residue the bug produced."""
+
+    # A whitespace-only LINE: a run bounded by two newlines that is all blanks. This
+    # is the residue shape (NOT the ordinary indent that leads a real content line).
+    _BLANK_LINE = re.compile(r"\n[ \t]+\n")
+
+    def _render(self, data):
+        import render_handoff
+        hd = rv.build_handoff_data(data)
+        template = open(render_handoff.default_template(), encoding="utf-8").read()
+        return render_handoff.render(hd, template)
+
+    def test_blocker_has_no_blank_line_before_close_li(self):
+        with open(VERDICT_M5, encoding="utf-8") as fh:
+            data = json.load(fh)
+        self.assertNotIn("amendments", data)   # fixture has none — the scenario
+        out = self._render(data)
+        # Inside a blocker <li> (between its b-body and </li>) there must be no
+        # whitespace-only line — the exact residue the dropped sev-notes <ul> + its
+        # authoring comment used to leave.
+        for seg in re.findall(r'<div class="b-body">.*?</div>(.*?)</li>',
+                              out, re.DOTALL):
+            self.assertIsNone(self._BLANK_LINE.search(seg),
+                              f"blank-line residue in blocker <li>: {seg!r}")
+
+    def test_dropped_amendments_section_leaves_no_blank_residue(self):
+        with open(VERDICT_M5, encoding="utf-8") as fh:
+            data = json.load(fh)
+        out = self._render(data)
+        self.assertNotIn('class="amend-sec"', out)   # section fully dropped
+        # The gap where the section (and its preceding comment) lived — between the
+        # LAST section close and </main> — must have no whitespace-only line.
+        tail = out[out.rindex("</section>") + len("</section>"):]
+        tail = tail[:tail.index("</main>")]
+        self.assertIsNone(self._BLANK_LINE.search(tail),
+                          f"blank-line residue before </main>: {tail!r}")
+
+    def test_no_amendments_body_byte_identical_across_two_verdicts(self):
+        # Style-normalized (the new CSS is an intended additive change), the rendered
+        # body must be stable for structurally different no-amendments verdicts —
+        # i.e. the drops leave clean output, not shape-dependent residue.
+        second = _verdict("ship", "ship", "ship", title="Second",
+                          confidence="high", rounds=3,
+                          blockers=[{"title": "Only", "body": "one"}],
+                          dissent=[{"who": "S0", "body": "d"}],
+                          caveats=["untested"], open_questions=["q?"],
+                          next_actions=["a", "b"])
+        for data in (json.load(open(VERDICT_M5, encoding="utf-8")), second):
+            out = self._render(data)
+            # No amendment markup surfaced, and no double-blank-line collapse missed.
+            self.assertNotIn('class="amend-sec"', out)
+            self.assertNotIn('class="blocker-sev-notes"', out)
+            self.assertNotIn("\n\n\n", out)
 
 
 class TestDeltaMatching(unittest.TestCase):

@@ -21,6 +21,37 @@ reserved for an explicit production-ready call. The verdict-JSON schema is versi
   every seat bills its own subscription.
 
 ### Added
+- **`board_verdict.py amend --run <dir> --author … --reason … <effect>` (v1.12 #5) —
+  human-owned, append-only verdict tuning.** Tune a completed verdict without touching the
+  board's words: `amend` **appends** an `amendments[]` entry and never rewrites `confidence`,
+  blockers, or concerns. Exactly **one effect per invocation** — `--confidence {low,medium,high}`
+  (records `field: confidence` with `from` = the effective value *before* this amendment and
+  `to` = the new one; a no-op is refused), `--caveat TEXT`, or `--severity-note TEXT` optionally
+  scoped by `--on "<finding title>"` (a **strict** match against an existing blocker/concern
+  title — a mismatch dies listing the available titles). Provenance (`author`/`reason`/
+  `timestamp`) is required; the timestamp honors `$ADVISORY_BOARD_NOW_TS` for reproducible runs,
+  else the local ISO-8601 now. The file is re-validated and **atomically** rewritten. A new
+  module-level `effective_confidence(data)` (the last confidence amendment wins, else the board's
+  own value) is the single source renderers read; `summarize()` now shows the effective
+  confidence **with** its provenance and an `amendments:` breakdown line — but **only when
+  amendments exist**, so an un-amended verdict prints byte-identically. `_validate_lifecycle`
+  now checks the effect fields strictly **when present** (additive; a zero-effect entry from P1
+  still validates). The gate is untouched — an amendment never moves a gate outcome. **All
+  renderers now display amended values WITH provenance and never as the board's own:** the
+  consensus Markdown (and the implementation-sequence view) show the effective confidence with an
+  "amended from … by …" clause, mark caveat amendments as human-added alongside the board's own
+  caveats, attach a severity note to its matching blocker (exact `--on` title match — unmatched /
+  `on`-less notes land only in the trail), and carry a new **Amendments** section with the full
+  ordered trail (author, timestamp, reason, effect; a zero-effect entry renders as a
+  provenance-only note); the HTML handoff gains a visually distinct (gold-edged, human-owned)
+  Amendments section plus an effective-confidence pill marked `(amended)`, both wired through the
+  pre-v1.12 backfill so a new token never breaks an old template and vice versa; and `tldr` / `pr`
+  / `slack` append a terse `(amended)` marker to the effective confidence (`--format json` still
+  echoes the verdict verbatim). A verdict with **no** amendments renders byte-identically to
+  before in the consensus Markdown, the implementation-sequence Markdown, and the `tldr`/`pr`/
+  `slack` short formats; the HTML handoff's rendered body is likewise byte-identical (the only
+  change is additive, inert CSS for the amendment styling — the dropped optional blocks leave no
+  whitespace residue) — all test-enforced.
 - **`ask "<question>" --run <dir> [--seat <id>]` (v1.12 #4) — post-verdict cross-examination.**
   Put a follow-up question to a COMPLETED run's board without a full re-review. `ask` loads the
   run's recorded board from its `run-recipe.yaml`, builds a context packet **bounded to that run's
