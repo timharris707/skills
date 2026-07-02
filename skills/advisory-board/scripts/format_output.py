@@ -16,6 +16,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _verdict_labels import human_label, is_software_lens, lens_disclaimer  # noqa: E402  lens-aware label + disclaimer
+from board_verdict import effective_confidence  # noqa: E402  the ONE amended-confidence source (v1.12 P4)
 
 
 def die(message: str) -> None:
@@ -45,10 +46,17 @@ def verdict_line(data: dict) -> str:
     # doesn't become a shouted "STOP AND RETHINK".
     if data.get("decision") or is_software_lens(lens_preset):
         label = label.upper()
-    # Drop the confidence clause when untracked (matching the HTML clean-drop), keeping the
-    # stance — never emit a literal "? confidence".
-    confidence = data.get("confidence")
-    inner = f"{confidence} confidence, {stance}" if confidence else stance
+    # Show the EFFECTIVE confidence (the value in force after any human amendment), with a
+    # terse "(amended)" marker when a person changed it — the full provenance lives in the
+    # consensus md / HTML, these short formats stay short. Drop the clause entirely when
+    # untracked (matching the HTML clean-drop), keeping the stance — never a literal
+    # "? confidence".
+    value, entry = effective_confidence(data) if "confidence" in data else (None, None)
+    if value:
+        conf = f"{value} confidence" + (" (amended)" if entry else "")
+        inner = f"{conf}, {stance}"
+    else:
+        inner = stance
     return f"{label} ({inner})"
 
 

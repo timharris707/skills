@@ -45,6 +45,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _render_engine import die  # noqa: E402  shared with the other renderers
+from board_verdict import effective_confidence  # noqa: E402  the ONE amended-confidence source (v1.12 P4)
 from _verdict_labels import (  # noqa: E402  lens-aware label + framing (renderer-only)
     blockers_heading,
     human_label,
@@ -137,6 +138,103 @@ def _iter_evidence(data: dict):
             yield ev
 
 
+# --------------------------------------------------------------------------- #
+# Amendments (v1.12 P4): human-owned, append-only verdict tuning. Renderers show
+# the EFFECTIVE value WITH provenance — never an amended value as the board's own.
+# The verdict dict is NEVER mutated; every function here derives its display.
+# --------------------------------------------------------------------------- #
+
+
+def _flat(text) -> str:
+    """Collapse every whitespace run (newlines included) in human-typed amendment
+    text to a single space. Amendment strings (author, reason, caveat, severity
+    note, `on`) land inside Markdown list items / headings, where a raw newline
+    would let a crafted value inject a `## heading` or a new list. Applied at EVERY
+    Markdown emission point for amendment-sourced text; the HTML path is separately
+    escaped (html.escape), so it does not use this."""
+    return " ".join(str(text).split())
+
+
+def _confidence_clause(data: dict) -> str:
+    """The `(… confidence[ — amended …])` parenthetical for a verdict heading, or "".
+
+    Byte-identical to pre-v1.12 (`(high confidence)`) with no confidence amendment:
+    a NO-amendments verdict is unchanged. With one, it shows the EFFECTIVE value and
+    its provenance so an amended confidence never reads as the board's own call. When
+    confidence is untracked (no board value AND no amendment) the clause drops."""
+    value, entry = effective_confidence(data) if "confidence" in data else (None, None)
+    if not value:
+        return ""
+    if entry is not None:
+        return (f" ({value} confidence — amended from {_flat(entry['from'])} by "
+                f"{_flat(entry['author'])}, {_flat(entry['timestamp'])})")
+    return f" ({value} confidence)"
+
+
+def _amendment_caveat_lines(data: dict) -> list:
+    """Standing caveats added by a human amendment, each marked human-added with its
+    author — so they read alongside the board's own caveats but never as the board's.
+    [] with no caveat amendments, so the couldn't-verify bucket is byte-identical."""
+    lines = []
+    for entry in (data.get("amendments") or []):
+        if isinstance(entry, dict) and "caveat" in entry:
+            lines.append(f"{_flat(entry['caveat'])} — added by "
+                         f"{_flat(entry.get('author', '?'))} (amendment)")
+    return lines
+
+
+def _severity_notes_for(data: dict, title: str) -> list:
+    """Severity-note amendments scoped to a finding by an EXACT `on` title match.
+    A note without `on` (or with an unmatched `on`) never attaches here — it lands
+    in the Amendments section only. [] when nothing matches (findings unchanged)."""
+    notes = []
+    for entry in (data.get("amendments") or []):
+        if (isinstance(entry, dict) and "severity_note" in entry
+                and entry.get("on") == title):
+            notes.append(entry)
+    return notes
+
+
+def _amendment_effect(entry: dict) -> str:
+    """One-line human description of what an amendment did — for the Amendments trail.
+    A zero-effect (provenance-only) entry has no effect to show and returns ""."""
+    if entry.get("field") == "confidence":
+        return f"Confidence: {entry.get('from', '?')} → {entry.get('to', '?')}"
+    if "caveat" in entry:
+        return f"Added caveat: {entry['caveat']}"
+    if "severity_note" in entry:
+        on = entry.get("on")
+        scope = f' on "{on}"' if on else ""
+        return f"Severity note{scope}: {entry['severity_note']}"
+    return ""
+
+
+def render_amendments_markdown(data: dict) -> list:
+    """The '## Amendments' lines — the full human-owned trail (author, timestamp,
+    reason, and the effect), one entry per amendment, IN ORDER. [] when there are no
+    amendments, so a verdict without them renders byte-identically. A zero-effect
+    entry renders as a provenance-only note (its reason, no effect line)."""
+    amendments = data.get("amendments") or []
+    if not amendments:
+        return []
+    out = ["## Amendments",
+           "_Human-owned tuning applied after the board reported. "
+           "The board's own words above are unchanged._"]
+    for entry in amendments:
+        if not isinstance(entry, dict):
+            continue
+        who = _flat(entry.get("author", "?"))
+        when = _flat(entry.get("timestamp", "?"))
+        out.append(f"- **{who}, {when}** — {_flat(entry.get('reason', ''))}")
+        # _amendment_effect composes amendment text (caveat / note / from→to); flatten
+        # the whole line so a newline in any part can't break out of the list item.
+        effect = _flat(_amendment_effect(entry))
+        if effect:
+            out.append(f"  - {effect}")
+    out.append("")
+    return out
+
+
 def _load_previous_verdict(data: dict):
     """(prior verdict dict, None) when `previous_run` points at a readable
     verdict.json that matches the recorded verdict_sha256 (when recorded);
@@ -221,10 +319,10 @@ def render_markdown(data: dict) -> str:
     out.append("")
 
     label, note = human_label(data.get("verdict"), data.get("lens_preset"), data.get("decision"))
-    # The confidence clause is dropped entirely when confidence is untracked — matching the
-    # HTML handoff's clean-drop of the pill — rather than emitting a literal "? confidence".
-    confidence = data.get("confidence")
-    conf_clause = f" ({confidence} confidence)" if confidence else ""
+    # The confidence clause shows the EFFECTIVE value (amended value + provenance when a
+    # human tuned it), or the board's own; it drops entirely when confidence is untracked —
+    # matching the HTML handoff's clean-drop of the pill — never a literal "? confidence".
+    conf_clause = _confidence_clause(data)
     out.append(f"## Verdict: {label} — {_stance(data)}{conf_clause}")
     # Lead with the plain should-I/shouldn't-I answer on a non-software lens. The heading
     # keeps the calibrated label (the machine-friendly anchor); this bold line answers
@@ -254,6 +352,10 @@ def render_markdown(data: dict) -> str:
             for ev in (blocker.get("evidence") or []):
                 if isinstance(ev, dict):
                     out.append(f"   - evidence: {_evidence_trail(ev)}")
+            # A human severity note scoped to THIS blocker (exact --on title match).
+            for note in _severity_notes_for(data, title):
+                out.append(f"   - severity note: {_flat(note['severity_note'])} "
+                           f"— added by {_flat(note.get('author', '?'))} (amendment)")
         out.append("")
 
     dissent = data.get("dissent", [])
@@ -282,6 +384,10 @@ def render_markdown(data: dict) -> str:
         out += [f"- {_action_line(a)}" for a in actions]
         out.append("")
 
+    # The human-owned amendment trail (v1.12 P4). Empty on a verdict with no
+    # amendments, so nothing changes for those.
+    out += render_amendments_markdown(data)
+
     if any(True for _ in _iter_evidence(data)):
         out.append("---")
         out.append("_Evidence status is a resolution check — it confirms the cited line exists "
@@ -302,7 +408,10 @@ def render_markdown(data: dict) -> str:
 
 
 def _couldnt_verify_lines(data: dict) -> list:
-    """The honesty bucket: authored caveats plus any unverified/refuted citation."""
+    """The honesty bucket: authored caveats plus any unverified/refuted citation, then
+    any human-added caveat amendments (each marked human-added with its author). The
+    amendment lines are appended, so with no caveat amendments the bucket is
+    byte-identical to pre-v1.12."""
     lines = []
     for caveat in (data.get("caveats") or []):
         if isinstance(caveat, str):
@@ -314,6 +423,7 @@ def _couldnt_verify_lines(data: dict) -> list:
     for ev in _iter_evidence(data):
         if ev.get("status") in ("unverified", "refuted"):
             lines.append(f"{_evidence_label(ev)} {_resolution_verb(ev)}.")
+    lines += _amendment_caveat_lines(data)
     return lines
 
 
@@ -377,8 +487,7 @@ def render_sequence_markdown(data: dict) -> str:
     # The verdict context stays on top — a sequence without the board's call would
     # misrepresent a block as a green light. Same labels/lead/note as the consensus.
     label, note = human_label(data.get("verdict"), data.get("lens_preset"), data.get("decision"))
-    confidence = data.get("confidence")
-    conf_clause = f" ({confidence} confidence)" if confidence else ""
+    conf_clause = _confidence_clause(data)
     out.append(f"## Verdict: {label} — {_stance(data)}{conf_clause}")
     lead = verdict_lead(data.get("verdict"), data.get("lens_preset"), data.get("decision"))
     if lead and not data.get("decision"):
@@ -407,7 +516,13 @@ def render_sequence_markdown(data: dict) -> str:
             for ev in (blocker.get("evidence") or []):
                 if isinstance(ev, dict):
                     out.append(f"   - evidence: {_evidence_trail(ev)}")
+            for note in _severity_notes_for(data, title):
+                out.append(f"   - severity note: {_flat(note['severity_note'])} "
+                           f"— added by {_flat(note.get('author', '?'))} (amendment)")
         out.append("")
+
+    # The human-owned amendment trail (v1.12 P4). Empty without amendments.
+    out += render_amendments_markdown(data)
 
     if any(isinstance(ev, dict) for b in blockers if isinstance(b, dict)
            for ev in (b.get("evidence") or [])):
@@ -604,10 +719,14 @@ def build_handoff_data(data: dict, run_dir=None) -> dict:
     # the absent-preset default). Empty string when absent so the template slot resolves
     # to nothing and the footer line is dropped.
     disclaimer = lens_disclaimer(lens_preset)
-    # The board's confidence, rendered as a small banner pill ("high confidence"). Empty
-    # when absent so the pill is dropped. Same value feeds both the full and brief banners.
-    confidence = data.get("confidence")
-    confidence_str = f"{confidence} confidence" if confidence else ""
+    # The EFFECTIVE confidence, rendered as a small banner pill ("high confidence"). When
+    # a human amended it, the pill shows the amended value with a terse "(amended)" marker —
+    # the full provenance rides the dedicated Amendments section below, keeping the pill
+    # small. Empty when absent so the pill is dropped. Same value feeds full + brief banners.
+    conf_value, conf_entry = (effective_confidence(data) if "confidence" in data
+                              else (None, None))
+    confidence_str = (f"{conf_value} confidence" + (" (amended)" if conf_entry else "")
+                      if conf_value else "")
     board_str = " · ".join(s.get("seat", "?") for s in data.get("board", []))
     rounds_str = str(data.get("rounds", ""))
     # The brief trims dissent to the first dissenter + a "+N more" pointer, and caps next
@@ -684,7 +803,25 @@ def build_handoff_data(data: dict, run_dir=None) -> dict:
             "seq_evidence": [{"seq_evidence_line": _evidence_html(ev)}
                              for ev in (b.get("evidence") or []) if isinstance(ev, dict)],
         } for b in data.get("blockers", [])],
+        # The human-owned amendment trail (v1.12 P4). Empty on a verdict with no
+        # amendments, so the template's amendment section drops and the page is
+        # byte-identical to before. Each row: who/when, the reason, and the effect.
+        "amendments": [{
+            "amend_who": _plain(entry.get("author", "?")),
+            "amend_when": _plain(entry.get("timestamp", "?")),
+            "amend_reason": _raw(entry.get("reason", "")),
+            "amend_effect": _plain(_amendment_effect(entry)),
+        } for entry in (data.get("amendments") or []) if isinstance(entry, dict)],
     }
+    # Blocker severity notes: attach a human severity note to its matching blocker
+    # (exact --on title match). Appended onto the already-built blocker rows so a
+    # verdict with no severity notes leaves them untouched.
+    for row, blocker in zip(hd["blockers"], data.get("blockers", [])):
+        row["blocker_severity_notes"] = [
+            {"blocker_severity_note": _raw(
+                f"{note['severity_note']} — added by "
+                f"{note.get('author', '?')} (amendment)")}
+            for note in _severity_notes_for(data, blocker.get("title", ""))]
     for seat in data.get("board", []):
         name = seat.get("seat", "?")
         # Match the round artifact file on the machine id when present (a duplicate/aliased
