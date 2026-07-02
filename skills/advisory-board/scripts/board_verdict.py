@@ -48,8 +48,10 @@ EVIDENCE_CONTAINERS = ("blockers", "dissent", "concerns")
 # (append-only human tuning, each entry carrying its own provenance). They are
 # tool/human-authored, never model reasoning: the synthesizer merge strips them
 # (see _conductor/synthesizer.py LIFECYCLE_KEYS) and gate_outcome() never reads
-# them. `changes` is RESERVED for the v1.13 revision artifact and refused loudly
-# while undefined, so nothing squats on the name before it means something.
+# them. `changes` (v1.13) is the tool-authored pointer to the revision artifact —
+# a strict `{artifact, sha256}` object validated when present (the "changes"
+# block in validate() below), and — like the others — stripped from synthesizer
+# merges (LIFECYCLE_KEYS) so no model can forge it.
 LIFECYCLE_FIELDS = ("previous_run", "amendments", "changes")
 AMENDMENT_REQUIRED = ("author", "timestamp", "reason")
 
@@ -139,9 +141,29 @@ def _validate_lifecycle(data: dict) -> None:
     when absent — an existing verdict without them validates and gates
     byte-identically. These fields carry lineage and human provenance, not board
     reasoning, so gate_outcome() never reads them."""
+    # `changes` (v1.13): a TOOL-AUTHORED pointer to the revision artifact
+    # (changes.json), written by the conductor's revision step with amend's
+    # discipline — NEVER by a model (the synthesizer merge strips it, see
+    # synthesizer.LIFECYCLE_KEYS). Strict-when-present, exactly {artifact, sha256}
+    # and nothing else: an acyclic pin (verdict → changes → {source, revised}).
     if "changes" in data:
-        die("changes is reserved for the revision artifact (v1.13) and not yet "
-            "defined; remove it")
+        changes = data["changes"]
+        if not isinstance(changes, dict):
+            die(f"changes must be an object when present; got {type(changes).__name__}")
+        unknown = set(changes) - {"artifact", "sha256"}
+        if unknown:
+            die(f"changes: unknown key(s): {', '.join(sorted(unknown))} "
+                "(changes is exactly {artifact, sha256} — the revision-artifact pointer)")
+        for key in ("artifact", "sha256"):
+            if key not in changes:
+                die(f"changes missing '{key}' (changes is the pointer {{artifact, sha256}})")
+        if not isinstance(changes["artifact"], str) or not changes["artifact"].strip():
+            die("changes.artifact must be a non-empty string")
+        sha = changes["sha256"]
+        if (not isinstance(sha, str) or len(sha) != 64
+                or any(c not in "0123456789abcdef" for c in sha)):
+            die("changes.sha256 must be 64 lowercase hex chars (the sha256 of the "
+                "changes.json bytes)")
 
     if "previous_run" in data:
         prev = data["previous_run"]
@@ -613,7 +635,12 @@ def cmd_amend(argv) -> int:
     try:
         fd, tmp = tempfile.mkstemp(dir=dest_dir, prefix=".verdict.json.amend.",
                                    suffix=".tmp")
-        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+        # newline="" writes byte-exact (no platform \n → \r\n translation), so the
+        # optimistic-concurrency guard — which reads the file in BINARY
+        # (_file_sha256) — compares the same bytes it wrote. Without it a Windows
+        # text-mode rewrite would diverge the on-disk bytes from the loaded baseline
+        # and false-trip the guard. JSON is \n-only, so this is a POSIX no-op.
+        with os.fdopen(fd, "w", encoding="utf-8", newline="") as handle:
             json.dump(data, handle, indent=2, ensure_ascii=False)
             handle.write("\n")
         # Preserve the original file's permission bits (mkstemp makes 0600, which

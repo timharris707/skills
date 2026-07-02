@@ -19,6 +19,10 @@ from _conductor.synthesizer import (
     SYNTHESIZER_TEMPLATE_VERSION,
     synthesizer_template_sha,
 )
+from _conductor.revision import (
+    REVISION_TEMPLATE_VERSION,
+    revision_template_sha,
+)
 
 __all__ = [
     "_scalar_to_yaml",
@@ -275,6 +279,16 @@ def config_to_recipe(config: RunConfig) -> dict:
     # context. Only added on a revise run, so non-revise recipes stay byte-identical.
     if config.revise_of:
         recipe["revise_of"] = config.revise_of
+    # --output revised-draft (v1.13 #2): persist the RESOLVED source_type + the
+    # revision seat + the template version/sha, so a --from-recipe replay reproduces
+    # the same redline format and template. Only added for a revised-draft run, so
+    # every other recipe stays byte-identical (source_type is None otherwise, and
+    # `output` already carried the shape).
+    if config.output == "revised-draft":
+        recipe["source_type"] = config.source_type
+        recipe["revision_seat"] = config.revision_seat
+        recipe["revision_template"] = REVISION_TEMPLATE_VERSION
+        recipe["revision_template_sha256"] = revision_template_sha()
     return recipe
 
 
@@ -338,6 +352,14 @@ def validate_recipe(recipe: dict) -> None:
             die(f"recipe: 'synthesizer_seat' {ss!r} is not a provider in this recipe's board "
                 f"({pretty}); the synthesizer egresses to that seat's provider, which "
                 "the run's disclosure only covers for board seats")
+    # --output revised-draft fields (optional; present only for a revised-draft recipe).
+    if "source_type" in recipe and recipe["source_type"] not in ("prose", "code"):
+        die(f"recipe: 'source_type' must be prose or code; got {recipe['source_type']!r}")
+    if recipe.get("revision_seat") is not None:
+        rs = recipe["revision_seat"]
+        if not isinstance(rs, str) or rs not in REGISTRY:
+            die(f"recipe: 'revision_seat' must be one of {', '.join(sorted(REGISTRY))} or null; "
+                f"got {rs!r}")
     # Repo-grounding fields (optional; present only for a grounded recipe).
     if "repo" in recipe and not (isinstance(recipe["repo"], str) and recipe["repo"].strip()):
         die(f"recipe: 'repo' must be a non-empty string path; got {recipe['repo']!r}")

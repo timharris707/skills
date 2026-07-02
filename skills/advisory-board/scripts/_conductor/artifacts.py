@@ -100,7 +100,8 @@ def render_run_card(config: RunConfig) -> str:
         f"  sensitivity   : {config.sensitivity}",
         f"  rounds        : {config.rounds}    cross-reading: {config.cross_reading}",
         f"  lens preset   : {config.lens}",
-        f"  output        : {config.output}",
+        f"  output        : {config.output}"
+        + (f"  (source type: {config.source_type})" if config.output == "revised-draft" else ""),
         f"  synthesizer   : {synth_line}",
         f"  source        : {config.source.ref} "
         f"({config.source.nbytes} bytes, {config.source.nlines} lines, sha256:{config.source.sha256[:12]}…)",
@@ -111,6 +112,23 @@ def render_run_card(config: RunConfig) -> str:
         f"  EGRESS        : {disclosure_line(config)}",
         f"                  consent = {consent_mode_for(config.sensitivity)}",
     ]
+    if config.output == "revised-draft":
+        # Pre-spawn seat PROJECTION — deliberately mirrors the synthesizer line
+        # above (--seat → claude-if-seated → board[0]). Like the synthesizer, it
+        # omits choose_revision_seat's "first usable seat" step: the card renders
+        # before any round runs, so usability is unknown here. Keep the two in
+        # lockstep — a change to one projection should change the other.
+        chosen = config.revision_seat or (
+            "claude" if any(s.name == "claude" for s in config.board) else config.board[0].name)
+        provider = next((s.provider for s in config.board if s.name == chosen),
+                        config.board[0].provider)
+        lines += [
+            f"  revision      : after synthesis — seat={chosen} → {provider} produces a "
+            f"revised {config.source_type} copy",
+            "                  + changes.json (edit→finding mapping). Source is never "
+            "written (D6); no new egress",
+            "                  (the revision seat sees only source the run already sent).",
+        ]
     if config.grounding is not None:
         g = config.grounding
         lines += [
@@ -230,6 +248,15 @@ def render_artifact_tree(config: RunConfig) -> str:
         parts += [
             "  prompts/synthesizer.prompt",
             "  synthesizer/<seat>.md   synthesizer/<seat>.raw",
+        ]
+    if config.output == "revised-draft":
+        # The revised-draft filename depends on source_type: prose → .md, code →
+        # the source's own extension (byte-clean, so a saved code file stays valid).
+        draft = "revised-draft.md" if config.source_type != "code" else "revised-draft.<orig-ext>"
+        parts += [
+            "  prompts/revision.prompt",
+            "  revision/<seat>.md   revision/<seat>.raw",
+            f"  {draft}   changes.json",
         ]
     parts += [
         "  logs/<seat>-round-N.stderr",

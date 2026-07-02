@@ -57,6 +57,13 @@ case "$prompt" in *"You are the SYNTHESIZER"*) is_synth=1; is_review=0 ;; esac
 is_ask=0
 case "$prompt" in *"PRIOR RUN CONTEXT"*) is_ask=1; is_review=0 ;; esac
 
+# `revised-draft` (v1.13): the revision prompt frames the seat as "the REVISION
+# seat" and carries the SOURCE UNDER REVISION fence. It gets the two-fenced reply
+# (mapping first, revised draft second), NOT a review. Its marker is stricter than
+# "MATERIAL UNDER REVIEW", so check it and clear is_review when matched.
+is_revision=0
+case "$prompt" in *"You are the REVISION seat"*) is_revision=1; is_review=0 ;; esac
+
 # Which round is this? The round-N (N>=2) template header names the round; round 1
 # has no such marker. Used by the `moving` mode to shift its VERDICT across rounds.
 round=1
@@ -259,6 +266,234 @@ emit_synth_smuggle_skeleton() {
 SYNTH
 }
 
+# v1.13 revision emitters. The seat replies MAPPING FIRST, revised draft SECOND,
+# each in its own fence. The revised draft prepends ONE new first line to the
+# ORIGINAL source (extracted from between the SOURCE markers in the prompt), so
+# the original→revised diff is a single pure insertion at boundary 0 — reconciled
+# by an `insert-after line 0` locator with no line-counting in bash. The two
+# resolved findings are exactly emit_synth_ok's (the verdict this revised-draft
+# run synthesizes just above), so completeness holds: the one blocker is resolved.
+revise_mode="${MOCK_CLAUDE_REVISE_MODE:-ok}"
+
+extract_source() {
+  # The EXACT source bytes between the two SOURCE UNDER REVISION markers — no
+  # compensating newline (the old awk `print` re-terminated every line, which the
+  # old symmetric leading+trailing strip then cancelled; under the trailing-
+  # newline-is-data frame the mock must emit honest bytes). The template frames
+  # the source as `{begin_marker}\n{source}\n{end_marker}`, so slice after the
+  # BEGIN-marker line's newline and before the newline that precedes END. The
+  # source's OWN trailing newline (if any) is preserved verbatim; when a caller
+  # then runs `echo "<<< END REVISED DRAFT >>>"` right after this, that newline
+  # doubles as the "END marker on its own line" newline the parser keeps.
+  local begin_marker=$'<<<<<<<< BEGIN SOURCE UNDER REVISION >>>>>>>>'
+  local end_marker=$'<<<<<<<< END SOURCE UNDER REVISION >>>>>>>>'
+  local after="${prompt#*${begin_marker}$'\n'}"
+  printf '%s' "${after%%$'\n'${end_marker}*}"
+}
+
+emit_revise_ok() {
+  echo "model: ${model:-unknown}" >&2
+  cat <<'MAP'
+<<<<<<<< BEGIN REVISION MAPPING >>>>>>>>
+{
+  "edits": [
+    {
+      "locator": {"kind": "insert-after", "line": 0},
+      "summary": "Add a reserve-before-charge invariant note at the top and address the TTL contract.",
+      "resolves": [
+        {"list": "blockers", "index": 0, "title": "Concurrency window double-charges under retry storms"},
+        {"list": "concerns", "index": 0, "title": "24h TTL is an undocumented client contract"}
+      ]
+    }
+  ],
+  "unresolved": []
+}
+<<<<<<<< END REVISION MAPPING >>>>>>>>
+MAP
+  echo "<<<<<<<< BEGIN REVISED DRAFT >>>>>>>>"
+  echo "NOTE: charges must reserve atomically before settling; document the 24h TTL contract."
+  extract_source
+  echo "<<<<<<<< END REVISED DRAFT >>>>>>>>"
+}
+
+emit_revise_missing_draft_fence() {
+  # Truncated reply: mapping present, revised-draft fence never closes -> parse
+  # failure -> `invalid` -> retry -> rejected artifacts. Mapping-first is why a
+  # truncation fails HERE mechanically.
+  echo "model: ${model:-unknown}" >&2
+  cat <<'MAP'
+<<<<<<<< BEGIN REVISION MAPPING >>>>>>>>
+{"edits": [{"locator": {"kind": "insert-after", "line": 0}, "summary": "x", "resolves": [{"list": "blockers", "index": 0, "title": "Concurrency window double-charges under retry storms"}]}], "unresolved": []}
+<<<<<<<< END REVISION MAPPING >>>>>>>>
+MAP
+  echo "<<<<<<<< BEGIN REVISED DRAFT >>>>>>>>"
+  echo "NOTE: truncated — the closing fence never arrives."
+  extract_source
+}
+
+emit_revise_incomplete() {
+  # Well-formed reply, but a BLOCKER is neither resolved nor unresolved -> the
+  # conductor's completeness check rejects (not retryable). Resolves only the
+  # concern, and makes a matching diff (prepend a line) so INV-1 passes but
+  # completeness does not.
+  echo "model: ${model:-unknown}" >&2
+  cat <<'MAP'
+<<<<<<<< BEGIN REVISION MAPPING >>>>>>>>
+{
+  "edits": [
+    {
+      "locator": {"kind": "insert-after", "line": 0},
+      "summary": "Document the TTL contract only.",
+      "resolves": [
+        {"list": "concerns", "index": 0, "title": "24h TTL is an undocumented client contract"}
+      ]
+    }
+  ],
+  "unresolved": []
+}
+<<<<<<<< END REVISION MAPPING >>>>>>>>
+MAP
+  echo "<<<<<<<< BEGIN REVISED DRAFT >>>>>>>>"
+  echo "NOTE: documented the 24h TTL contract."
+  extract_source
+  echo "<<<<<<<< END REVISED DRAFT >>>>>>>>"
+}
+
+emit_revise_conflict() {
+  # A legitimate conflict: resolve the blocker via an edit, but list the concern
+  # as UNRESOLVED (the two demand incompatible fixes). Completeness holds (the
+  # blocker is resolved); unresolved is non-empty; the run still exits 0 (D14).
+  echo "model: ${model:-unknown}" >&2
+  cat <<'MAP'
+<<<<<<<< BEGIN REVISION MAPPING >>>>>>>>
+{
+  "edits": [
+    {
+      "locator": {"kind": "insert-after", "line": 0},
+      "summary": "Add a reserve-before-charge invariant note.",
+      "resolves": [
+        {"list": "blockers", "index": 0, "title": "Concurrency window double-charges under retry storms"}
+      ]
+    }
+  ],
+  "unresolved": [
+    {
+      "findings": [
+        {"list": "concerns", "index": 0, "title": "24h TTL is an undocumented client contract"}
+      ],
+      "reason": "the TTL fix conflicts with the reserve-before-charge invariant",
+      "note": "Documenting a fixed 24h TTL contradicts the atomic-reservation model the blocker fix introduces; leaving it for a human to reconcile."
+    }
+  ]
+}
+<<<<<<<< END REVISION MAPPING >>>>>>>>
+MAP
+  echo "<<<<<<<< BEGIN REVISED DRAFT >>>>>>>>"
+  echo "NOTE: charges must reserve atomically before settling."
+  extract_source
+  echo "<<<<<<<< END REVISED DRAFT >>>>>>>>"
+}
+
+emit_revise_marker_in_draft() {
+  # Silent-corruption case (Finding 1): the revised draft CONTENT echoes the
+  # literal `END REVISED DRAFT` marker on the ONE line the edit claims (the
+  # insert-after-0 note line). The old _extract_fenced truncated at that first
+  # END and shipped the corrupted prefix sha-matched; the egress uniqueness +
+  # containment guard now classifies it `invalid` -> retry -> rejected artifacts.
+  echo "model: ${model:-unknown}" >&2
+  cat <<'MAP'
+<<<<<<<< BEGIN REVISION MAPPING >>>>>>>>
+{
+  "edits": [
+    {
+      "locator": {"kind": "insert-after", "line": 0},
+      "summary": "Prepend a note (whose text unfortunately echoes a fence marker).",
+      "resolves": [
+        {"list": "blockers", "index": 0, "title": "Concurrency window double-charges under retry storms"}
+      ]
+    }
+  ],
+  "unresolved": []
+}
+<<<<<<<< END REVISION MAPPING >>>>>>>>
+MAP
+  echo "<<<<<<<< BEGIN REVISED DRAFT >>>>>>>>"
+  echo "NOTE: the sentinel <<<<<<<< END REVISED DRAFT >>>>>>>> appears in this line."
+  extract_source
+  echo "<<<<<<<< END REVISED DRAFT >>>>>>>>"
+}
+
+emit_revise_replace_line() {
+  # A `lines` REPLACE locator: replace the source's FIRST line with a changed
+  # line, keep the rest verbatim. The original->revised diff is a single replace
+  # hunk at line 1 -> {kind: lines, from: 1, to: 1} claims it. Resolves the blocker.
+  echo "model: ${model:-unknown}" >&2
+  cat <<'MAP'
+<<<<<<<< BEGIN REVISION MAPPING >>>>>>>>
+{
+  "edits": [
+    {
+      "locator": {"kind": "lines", "from": 1, "to": 1},
+      "summary": "Rewrite the first line to add the reserve-before-charge invariant.",
+      "resolves": [
+        {"list": "blockers", "index": 0, "title": "Concurrency window double-charges under retry storms"}
+      ]
+    }
+  ],
+  "unresolved": []
+}
+<<<<<<<< END REVISION MAPPING >>>>>>>>
+MAP
+  # source's first line replaced; the exact remaining bytes appended verbatim.
+  local src; src="$(extract_source; printf x)"; src="${src%x}"   # exact bytes (guard trailing NL)
+  local rest="${src#*$'\n'}"                                     # everything after line 1
+  echo "<<<<<<<< BEGIN REVISED DRAFT >>>>>>>>"
+  echo "CHANGED FIRST LINE: reserve atomically before settling."
+  printf '%s' "$rest"
+  echo "<<<<<<<< END REVISED DRAFT >>>>>>>>"
+}
+
+emit_revise_delete_line() {
+  # A DELETE (replace-with-fewer/empty) locator: DELETE the source's first line.
+  # The diff is a delete hunk covering original line 1 -> {kind: lines, from: 1,
+  # to: 1} claims it. Resolves the blocker. The revised draft is the source minus
+  # its first line (byte-exact rest).
+  echo "model: ${model:-unknown}" >&2
+  cat <<'MAP'
+<<<<<<<< BEGIN REVISION MAPPING >>>>>>>>
+{
+  "edits": [
+    {
+      "locator": {"kind": "lines", "from": 1, "to": 1},
+      "summary": "Delete the misleading first line entirely.",
+      "resolves": [
+        {"list": "blockers", "index": 0, "title": "Concurrency window double-charges under retry storms"}
+      ]
+    }
+  ],
+  "unresolved": []
+}
+<<<<<<<< END REVISION MAPPING >>>>>>>>
+MAP
+  local src; src="$(extract_source; printf x)"; src="${src%x}"
+  local rest="${src#*$'\n'}"                                     # drop line 1 entirely
+  echo "<<<<<<<< BEGIN REVISED DRAFT >>>>>>>>"
+  printf '%s' "$rest"
+  echo "<<<<<<<< END REVISED DRAFT >>>>>>>>"
+}
+
+emit_revise() {
+  case "$revise_mode" in
+    missing_draft_fence) emit_revise_missing_draft_fence ;;
+    incomplete)          emit_revise_incomplete ;;
+    conflict)            emit_revise_conflict ;;
+    marker_in_draft)     emit_revise_marker_in_draft ;;
+    replace_line)        emit_revise_replace_line ;;
+    delete_line)         emit_revise_delete_line ;;
+    *)                   emit_revise_ok ;;
+  esac
+}
+
 case "$mode" in
   moving_cites)
     if [ "$is_review" = "1" ]; then emit_moving_cites; else echo "ready"; fi
@@ -289,6 +524,7 @@ case "$mode" in
         smuggle_skeleton) emit_synth_smuggle_skeleton ;;
         *)                emit_synth_ok ;;
       esac
+    elif [ "$is_revision" = "1" ]; then emit_revise
     elif [ "$is_review" = "1" ]; then emit_review
     elif [ "$is_ask" = "1" ]; then emit_answer
     else echo "ready"; fi
@@ -301,6 +537,7 @@ case "$mode" in
         smuggle_skeleton) emit_synth_smuggle_skeleton ;;
         *)                emit_synth_ok ;;
       esac
+    elif [ "$is_revision" = "1" ]; then emit_revise
     elif [ "$is_review" = "1" ]; then emit_review
     elif [ "$is_ask" = "1" ]; then emit_answer
     else echo "ready"; fi

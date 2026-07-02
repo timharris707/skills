@@ -10,6 +10,61 @@ reserved for an explicit production-ready call. The verdict-JSON schema is versi
 
 ## [Unreleased]
 
+### Added
+- **`run --output revised-draft` (v1.13 #2) — the revision seat + `changes.json`.** After
+  synthesis produces a validated `verdict.json`, a board seat is spawned to produce a
+  **board-derived, findings-mapped revised copy of the source**, each edit mapped by the model
+  to the finding it resolves, mechanically validated (coverage reconciliation + index/title
+  cross-assert). (Per-edit board *endorsement* — the seats voting on each edit — is
+  the later v1.13 P4 pass; `endorsements` is empty and conductor-asserted empty in P2.) The revision seat generalizes the synthesizer spawn path (versioned template
+  `advisory-board/revision@1` + sha, DATA-fence + neutralizer, board-seat choice, two-attempt
+  retry on timeout|invalid, black-box `revision/<seat>.raw`, rejected-artifact-plus-exit-0
+  posture). The single spawn returns the **edit→finding mapping first and the revised source
+  second**, so a truncated reply fails mechanically on the missing closing fence. §11 holds:
+  the conductor **enumerates** the verdict's resolvable findings (blockers + concerns, by
+  composite `{list, index, title}` locator) and hands them to the model; the model reasons the
+  edits and the revised text; the conductor then **mechanically** cross-asserts every
+  `resolves`/`findings` ref against the verdict (the `{list, index, title}` composite —
+  index bounds-checked and `verdict[list][index].title == title`, D9), reconciles each edit
+  locator 1:1 against the
+  `difflib` diff (INV-1: every diff hunk claimed, every locator overlaps a real hunk),
+  enforces completeness (every blocker resolved-or-`unresolved`; concerns best-effort), and
+  computes `n`/`status`/the shas itself — never trusting a model assertion. Artifacts (gated on
+  revised-draft; nothing else changes): `revised-draft.md` (prose) or `revised-draft.<orig-ext>`
+  (code), **byte-clean — the revised source bytes and nothing else, no metadata header** (a
+  header corrupts code on save); `changes.json` (schema `advisory-board/changes@1`, the artifact
+  of record); and `revision/<seat>.md`+`.raw`. `verdict.json` gains a tool-authored
+  `changes = {artifact, sha256}` pointer (written with `amend`'s re-read + sha-guard + atomic
+  discipline; acyclic verdict → changes → {source, revised}). Conflicting findings degrade
+  loudly as `unresolved` entries (surfaced on the run card, never fatal, never move the exit
+  code — D14). A revision failure never discards the completed rounds/verdict:
+  `revised-draft-rejected.*` + `changes-rejected.json` + a loud warning + exit 0 (`--strict-exit`
+  → exit 4, the synthesizer's code).
+- **`--output revised-draft` resolve-time contract.** Requires a verdict path (`--synthesize`,
+  or a `--from-recipe` replay of a synthesized revised-draft recipe) — refused at resolve time
+  otherwise (exit 2). New `--source-type prose|code` (accepted only with revised-draft) selects
+  the redline format downstream; the resolved value comes from `--source-type` or a conservative
+  extension heuristic (prose: `.md/.markdown/.txt/.rst/.adoc`; code: a known-extension list) —
+  an unknown extension or a stdin source without the flag is refused. New `--revision-seat SEAT`
+  mirrors `--synthesizer-seat` (must be a board seat). A source over **65536 bytes** (env override
+  `ADVISORY_BOARD_REVISION_MAX_BYTES`) is refused loudly — better a loud refusal than a silently
+  short board-derived copy. The resolved `source_type` and revision seat/template are recorded
+  in `run-recipe.yaml` so a `--from-recipe` replay reproduces exactly.
+- **`scripts/board_changes.py` — the `advisory-board/changes@1` validator.** An importable
+  `validate()` plus a small CLI (validate a `changes.json`), stdlib-only, mirroring
+  `board_verdict.py` discipline (clean `die()`, exit 2 on schema violation, strict — unknown
+  top-level keys refused, exact field types, locator shape checks, `resolves`-list enum
+  {blockers, concerns}). The conductor validates every `changes.json` with it before write; a
+  failure takes the reject path.
+
+### Changed
+- **`verdict.json`'s reserved `changes` key is now defined (v1.13).** `board_verdict.py`
+  accepts `changes`, when present, as **exactly** `{artifact: <non-empty str>, sha256: <64-char
+  lowercase hex>}` — strict-when-present, unknown keys refused (replacing the blanket "reserved"
+  refusal). It is tool-authored: the synthesizer merge still strips a model-supplied `changes`
+  (a model must not fabricate revision provenance). `references/verdict-schema.md` documents the
+  pointer shape; the new `references/changes-schema.md` documents the full `changes@1` schema.
+
 ## [v1.12.0] - 2026-07-02 — The decision loop
 
 ### Changed

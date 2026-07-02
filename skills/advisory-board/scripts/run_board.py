@@ -102,6 +102,7 @@ from _conductor.egress import *  # noqa: F401,F403
 from _conductor.preflight import *  # noqa: F401,F403
 from _conductor.doctor import *  # noqa: F401,F403  (setup doctor: guided provider sweep)
 from _conductor.synthesizer import *  # noqa: F401,F403
+from _conductor.revision import *  # noqa: F401,F403  (v1.13: revision seat + changes@1)
 from _conductor.recipe import *  # noqa: F401,F403
 from _conductor.delta import *  # noqa: F401,F403  (v1.12: mechanical verdict delta)
 from _conductor.revise import *  # noqa: F401,F403  (v1.12: --revise prior-run context)

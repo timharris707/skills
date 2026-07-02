@@ -135,9 +135,18 @@ them (or a `changes` key) gets exactly the same checks as an `@2` file.
       `amend` time; the schema only type-checks the string here, since a verdict shouldn't fail
       validation over prose).
   Renderers that show an amended value show it **with** this provenance.
-- `changes` — **reserved** for the v1.13 revision artifact (the edit → finding mapping of
-  `--output revised-draft`). Not yet defined: a verdict carrying a `changes` key is rejected
-  loudly today, so nothing squats on the name before it means something.
+- `changes` (optional object, **tool-authored** — v1.13) — a pointer to the run's revision
+  artifact (`changes.json`), written by the conductor's revision step (`--output revised-draft`)
+  with the same re-read + sha-guard + atomic-write discipline `amend` uses. It is **exactly**
+  `{artifact, sha256}` and nothing else: `artifact` (non-empty string — the on-disk artifact
+  name, `"changes.json"`) and `sha256` (64 lowercase hex — the sha256 of the `changes.json`
+  bytes). Strict-when-present: a `changes` with any other key, a missing key, or a malformed sha
+  is rejected (exit `2`). It is a one-way, acyclic pin — verdict → changes → {source, revised} —
+  so a shared `verdict.json` proves whether an endorsed revision existed and pins its bytes;
+  `changes.json` never references the verdict by hash. Like every lifecycle field it is
+  model-forbidden: the synthesizer merge strips a model-supplied `changes` (a model must not
+  fabricate revision provenance). See `references/changes-schema.md` for the `changes.json`
+  schema itself.
 
 ```json
 "previous_run": {
@@ -180,7 +189,9 @@ file *may* carry `evidence[]`, and a malformed item is rejected regardless of ve
   `author`/`timestamp`/`reason`, at most one effect field (`field`/`caveat`/`severity_note`),
   and — when a `field` effect is present — `field == "confidence"` with `from`/`to` both in
   {low, medium, high} (so the effective confidence can never resolve to garbage); a `changes`
-  key is rejected (reserved for v1.13).
+  key, when present, is **exactly** `{artifact: <non-empty string>, sha256: <64 lowercase hex>}`
+  (the v1.13 revision-artifact pointer — unknown keys, a missing key, or a malformed sha are
+  rejected).
 - confidence-amendment **chain consistency**: the `from` of each confidence change must equal
   the effective confidence in force at that point (seeded from the board's own `confidence`),
   so a hand-edited chain that would render false provenance is rejected (exit `2`). The `amend`
