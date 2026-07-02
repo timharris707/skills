@@ -11,6 +11,18 @@ reserved for an explicit production-ready call. The verdict-JSON schema is versi
 ## [Unreleased]
 
 ### Added
+- **`--tier quick|standard|deep` (v1.11 #3b)** — one flag for the run's whole cost/depth
+  posture, applied as a BASE beneath explicit flags: `quick` = 1 round, `summaries`
+  cross-reading, reduced per-seat reasoning (claude `high`, codex `medium`); `standard` =
+  today's defaults (a deliberate no-op); `deep` = 3 rounds, `full` cross-reading at the
+  registry's max-tier reasoning (codex stays at `xhigh`, its hard API ceiling —
+  test-guarded). Model ids are deliberately NOT a tier knob (no unverified "budget" id may
+  404 the board); reasoning is keyed by provider so duplicate/aliased seats move together,
+  and seats without an effort knob (gemini/antigravity/ollama) are untouched at every tier.
+  `--rounds`/`--cross-reading` always win over the tier; `run-metadata.md` gets a one-line
+  tier provenance note only when the flag was given (a no-tier run stays byte-identical);
+  `run-recipe.yaml` records the RESOLVED values, never the tier name, so `--from-recipe`
+  replays exactly — the pair is refused as contradictory.
 - **`--digest-format markdown|json`** on `run` (default `markdown` — existing behavior untouched):
   with `json`, each round-2+ structured digest is ALSO written as typed JSON —
   `board-packet-round-N.json` (`advisory-board/board-packet-digest@1`) next to the `.md` — carrying

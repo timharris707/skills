@@ -8,6 +8,7 @@ Copy into `run-metadata.md` for the run and fill it in. This is the provenance t
 Date: <YYYY-MM-DD>   ·   Rounds run: <n>   ·   Cross-reading: none | summaries | full
 Output: quick verdict | full handoff | implementation sequence
 Lens preset: <preset, or "custom">
+Tier: <only when --tier was given — the tier name plus the base values it set; explicit flags override>
 
 ## Seats
 

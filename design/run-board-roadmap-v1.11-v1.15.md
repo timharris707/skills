@@ -31,8 +31,8 @@ Gate: `cd skills/advisory-board && python3 -m unittest discover -s tests -t test
 
 ### Phase 2 — `--tier quick|standard|deep` presets (#3b)
 One flag that sets the whole cost/depth posture.
-- [ ] Tier presets resolved in `config.py` **before** per-flag overrides (quick: 1 round, `summaries`, budget models; standard: today's defaults; deep: 3 rounds, `full`, max effort); explicit flags always win; `run-recipe.yaml` records the **resolved values**, never the tier name, so replay stays exact
-- [ ] Docs: SKILL.md flag row + cost guidance; tier shown in run-metadata provenance
+- [x] Tier presets resolved in `config.py` **before** per-flag overrides (quick: 1 round, `summaries`, reduced per-seat reasoning — claude `high`, codex `medium`; standard: today's defaults; deep: 3 rounds, `full`, registry max-tier reasoning, codex capped at `xhigh`); explicit flags always win; `run-recipe.yaml` records the **resolved values**, never the tier name, so replay stays exact. _Deviation (per D7): quick dials reasoning, NOT "budget models" — model ids stay pinned; an unverified budget id could 404 the board._ _(PR #57)_
+- [x] Docs: SKILL.md cost-posture bullet + cost guidance; tier shown in run-metadata provenance (+ template note; the `--digest-format json` refusal names the tier when the tier caused it) _(PR #57)_
 Testing: precedence matrix (tier vs explicit flags vs recipe replay); no-tier runs unchanged.
 Gate: full suite.
 
@@ -176,6 +176,10 @@ Gate: release Latest + full suite green.
 - **R4** Fix-it reads as the board rewriting your work — artifact-only output, explicit opt-in flag, endorsement recorded per seat, and the human applies changes themselves (D6).
 - **R5** Rubric-first destabilizes the default path — strictly opt-in behind `--rubric`; the byte-identical default-run guard (D5) is the regression net; own design phase before code.
 - **R6** Fourteen items invite scope creep — anything discovered mid-milestone goes to a "later" note in this file, not into the current phase; the roadmap only grows by PR.
+
+## Later
+Discovered mid-milestone (R6), deliberately not folded into the phase that found it:
+- `--rounds 1` (incl. via `--tier quick`) + `--digest-format json` is a silent no-op — structured digests only exist for round 2+, so the run succeeds with zero JSON digests written. Pre-existing (#13); decide whether to refuse loudly or document. _(found during #3b adversarial review, 2026-07-01)_
 
 ## Dependency order
 ```svg
