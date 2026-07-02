@@ -84,7 +84,7 @@ Testing: packet content bounded to the named run; seat targeting; re-consent req
 Gate: full suite.
 
 ### Phase 4 — Amendments: human-owned verdict tuning (#11)
-- [ ] `board_verdict.py amend --run <dir>` appends to `amendments[]` (confidence change, added caveat, severity note) — never edits board fields in place; gate and renderers show amended values **with** provenance
+- [x] `board_verdict.py amend --run <dir>` appends to `amendments[]` (confidence change, added caveat, severity note) — never edits board fields in place; gate and renderers show amended values **with** provenance. _Hardened per adversarial review — parallel finder subagents plus a dogfooded two-seat board run (gpt-5.5 xhigh + Opus 4.8, unanimous caution), all findings fixed: markdown newline injection collapsed, defensive `effective_confidence`, symlink-preserving unique-tmp atomic write + sha256 concurrency guard, chain-consistency validation (hand-edited false provenance refused), full-handoff HTML byte-identity restored._ _(PR #66)_
 Testing: amend round-trip; gate reflects amendment; render marks human provenance.
 Gate: full suite.
 
@@ -185,6 +185,8 @@ Discovered mid-milestone (R6), deliberately not folded into the phase that found
 - Delta-render trust: `previous_run.run_dir` in a verdict.json is an arbitrary local path the renderer reads at render time (sha-gated when `verdict_sha256` is recorded, but the field is optional) — a hostile shared verdict could point it anywhere for a spoofed/cosmetic delta or a file-exists oracle. Consider requiring the sha for delta rendering, or a run_dir sanity check. _(v1.12 P2 security review, LOW, 2026-07-01)_
 - Delta similarity tier can still pair parallel-but-different titles ("Add index on users" / "Add index on orders" share a token + high ratio). Mechanical limit, honestly rendered (both lists shown); revisit only if real runs mis-pair. _(v1.12 P2 correctness review, LOW, 2026-07-01)_
 - `revise.py` shares three hardening gaps whose `ask`-side twins were fixed in P3: `_prior_sensitivity` crashes (raw AttributeError) on a non-object `sensitivity.json`; `_load_prior_verdict` crashes (raw TypeError) on a scalar-JSON verdict; `prior_source_text`'s prompt extraction checks `islink` per file but not a symlinked `prompts/` PARENT dir (sha-gated, so not exploitable today — the attacker would already need the exact bytes). Sweep all three with the ask-side patterns (isinstance guards + realpath containment) in one pass. _(v1.12 P3 adversarial review, LOW, 2026-07-02)_
+- `board_verdict.py load()` catches only FileNotFoundError/JSONDecodeError — a path through a non-directory (NotADirectoryError), an unreadable file (PermissionError), etc. still crash legacy invocations with a raw traceback instead of the clean exit 2 (`amend` now pre-checks its own `--run`; the legacy positional path does not). Widen to OSError in the same sweep as the membership-check note above. _(v1.12 P4 adversarial review, LOW, 2026-07-02)_
+- `render_handoff.py drop_empty_optionals`: the PRE-existing optional-block drops (seat-status / highlight / conf) leave a whitespace-only line behind because their regexes don't consume the preceding template authoring comment — the P4 blocks got the tempered-comment fix; old vs new output is identical (both carry the artifact), so this is cosmetic template-engine debt only. _(v1.12 P4 compat review, LOW, 2026-07-02)_
 
 ## Dependency order
 ```svg
