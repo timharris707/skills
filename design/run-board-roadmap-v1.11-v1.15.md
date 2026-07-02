@@ -5,7 +5,7 @@
 - **Source:** 2026-07-01 four-agent review (feature surface · conductor architecture · artifacts/examples · market scan) + Tim's selection of items 1–14 from the ranked slate
 - **Owner:** Tim
 - **Baseline:** advisory-board/v1.10.0 · `main` @ `be4c9b2` · 676 tests green
-- **Status:** M1 SHIPPED (`advisory-board/v1.11.0`, 2026-07-01) · M2 SHIPPED (`advisory-board/v1.12.0`, 2026-07-02) · M3 SHIPPED (`advisory-board/v1.13.0`, 2026-07-02 — P1 D9–D14 · P2 PR #67 · P3 PR #68 · P4 PR #69) · M4 (v1.14) next — severity filters first
+- **Status:** M1 SHIPPED (`advisory-board/v1.11.0`, 2026-07-01) · M2 SHIPPED (`advisory-board/v1.12.0`, 2026-07-02) · M3 SHIPPED (`advisory-board/v1.13.0`, 2026-07-02) · M4 (v1.14) release in flight — P1 PR #71 · P2 PR #73 · P3 PR #75 · tag next
 
 ## Overview
 
@@ -134,7 +134,7 @@ Testing: metric pure-function matrix incl. adversarial same-provider boards.
 Gate: full suite.
 
 ### Phase 3 — Live progress view (#10)
-- [ ] Status events (seat × round state transitions) written to a `status.json` in the run dir as they happen; terminal per-seat progress lines from it; optional self-refreshing HTML tracker page reading the same file
+- [x] Status events (seat × round state transitions) written to a `status.json` in the run dir as they happen; terminal per-seat progress lines from it; optional self-refreshing HTML tracker page reading the same file _`advisory-board/status@1`, atomic lock-serialized best-effort tracker, RH-1 (no status.* before egress approval), abnormal exits stamp `interrupted` + static page, zero byte-drift proven. Review: finder (thread hammer clean) + board (unanimous SHIP WITH CHANGES, 2 blockers) → fixes → `--revise`: unanimous SHIP, "mergeable as-is" — first re-review in the train with no new gating defect. Suite 1404 → 1426._ _(PR #75)_
 Testing: event sequence golden on a mocked run; tracker renders from fixture status.
 Gate: full suite.
 

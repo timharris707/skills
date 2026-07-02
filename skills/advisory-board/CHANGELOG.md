@@ -10,6 +10,10 @@ reserved for an explicit production-ready call. The verdict-JSON schema is versi
 
 ## [Unreleased]
 
+_Nothing yet._
+
+## [v1.14.0] - 2026-07-02 — Signal quality & run experience
+
 ### Added
 - **Severity filters (v1.14 #8 / P1) — trim what a render shows, and what the gate fails on, by finding severity.** The verdict schema already separates severities (`blockers[]` / `dissent[]` / `concerns[]` / plain-string `caveats[]`); this is **exposure, not new modeling**.
   - **`--filter blockers|blockers+dissent|all` on `render_verdict.py` and `format_output.py`.** `all` (the default) is today's full output — **byte-identical to no flag everywhere** (D5). `blockers` renders blockers only; `blockers+dissent` adds dissent. Every dropped section is stated with counts — a **loud elision line**, e.g. `(filtered: 2 dissents, 4 couldn't-verify lines — --filter blockers)` — never a silent truncation; the renderer computes the counts (the helper only formats), naming the honest buckets that shape renders (dissent entries + couldn't-verify lines), so each count equals exactly what the filter dropped and is auditable against the verdict. The **verdict banner and confidence are never filtered.** Per shape: the consensus md and full-handoff HTML filter their dissent + couldn't-verify sections (on the filtered render a suppressed HTML section drops **whole — heading included**, never a hollow shell, and the new optional `{{FILTER_NOTE}}` line carries the count); the quick-verdict HTML and `format_output`'s `pr` shape render dissent but no couldn't-verify bucket, so they filter dissent only; the **implementation-sequence** shape renders only actions + blockers, so `--filter` never changes it; `tldr`/`slack` render no dissent/caveats and are unaffected.
