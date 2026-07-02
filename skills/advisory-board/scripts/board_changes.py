@@ -25,6 +25,15 @@ finding by its `{list, index, title}` composite (list ∈ {blockers, concerns},
 index a 0-based position; the conductor cross-asserts index+title against the
 verdict at write time — the shape check here is bounds-independent).
 
+`endorsements[]` (D13/P4) carries the per-target board vote, one row per seat per
+target: `{seat, edit_n|unresolved_n, position, note?, dropped?}`. Each row names
+exactly one target (an edit by `edit_n` OR an unresolved conflict by
+`unresolved_n`), a `position` ∈ {ENDORSE, OBJECT, ABSTAIN}, an optional `note`
+(recorded for OBJECT and drop reasons), and an optional `dropped: true` marker for
+a seat whose endorsement spawn failed (its rows are the ABSTAIN fallback). The
+conductor BUILDS these rows from the seats' parsed tokens — the model never authors
+a row — but the validator still checks the built shape exactly.
+
 The conductor runs `validate()` before writing `changes.json`; anything invalid
 takes the reject path (`changes-rejected.json`). Standard library only.
 """
@@ -61,7 +70,14 @@ TOP_LEVEL_REQUIRED = (
 )
 EDIT_KEYS = {"n", "locator", "summary", "resolves", "status"}
 UNRESOLVED_KEYS = {"findings", "reason", "note"}
-ENDORSEMENT_KEYS = {"seat", "edit_n", "position", "note"}
+# An endorsement row (D13/P4). Every row names its SEAT, exactly ONE target (an
+# edit by `edit_n` OR an unresolved conflict by `unresolved_n` — a seat may object
+# to how a conflict was characterized), and a `position` ∈ ENDORSE/OBJECT/ABSTAIN.
+# `note` is optional (recorded for OBJECT, or the drop reason). `dropped` is an
+# optional `true` marker recorded when the seat's endorsement spawn failed and its
+# rows are the ABSTAIN fallback.
+ENDORSEMENT_KEYS = {"seat", "edit_n", "unresolved_n", "position", "note", "dropped"}
+ENDORSEMENT_POSITIONS = ("ENDORSE", "OBJECT", "ABSTAIN")
 FINDING_REF_KEYS = {"list", "index", "title"}
 LINES_LOCATOR_KEYS = {"kind", "from", "to"}
 INSERT_LOCATOR_KEYS = {"kind", "line"}
@@ -210,25 +226,48 @@ def _validate_unresolved(entry, index: int) -> None:
 
 
 def _validate_endorsement(entry, index: int) -> None:
-    # endorsements[] is empty in @1 P2 (P4 fills it); validated defensively so a
-    # forward-authored file with rows still passes the structural check.
+    # An endorsement row (D13/P4). The conductor BUILDS these from the seats' parsed
+    # tokens — the model never authors a row — but the validator is the last strict
+    # gate before write, so it checks the built shape exactly. Each row names its
+    # seat, EXACTLY ONE target (`edit_n` XOR `unresolved_n`), and a position; `note`
+    # and the `dropped` marker are optional.
     where = f"endorsements[{index}]"
     if not isinstance(entry, dict):
         die(f"{where} must be an object")
-    missing = [k for k in ("seat", "edit_n", "position") if k not in entry]
-    if missing:
-        die(f"{where} missing field(s): {', '.join(missing)}")
+    if "seat" not in entry or "position" not in entry:
+        die(f"{where} missing field(s): "
+            f"{', '.join(k for k in ('seat', 'position') if k not in entry)}")
     unknown = set(entry) - ENDORSEMENT_KEYS
     if unknown:
         die(f"{where}: unknown key(s): {', '.join(sorted(unknown))}")
     if not isinstance(entry["seat"], str) or not entry["seat"].strip():
         die(f"{where}.seat must be a non-empty string")
-    if not _is_int(entry["edit_n"]) or entry["edit_n"] < 1:
-        die(f"{where}.edit_n must be a positive integer; got {entry['edit_n']!r}")
-    if entry["position"] not in ("ENDORSE", "OBJECT", "ABSTAIN"):
+    # Exactly one target: an edit (`edit_n`) OR an unresolved conflict
+    # (`unresolved_n`). Neither and both are refused — a row must vote on one target.
+    has_edit = "edit_n" in entry
+    has_unres = "unresolved_n" in entry
+    if has_edit == has_unres:
+        die(f"{where} must name exactly one of 'edit_n' or 'unresolved_n'")
+    target_field = "edit_n" if has_edit else "unresolved_n"
+    if not _is_int(entry[target_field]) or entry[target_field] < 1:
+        die(f"{where}.{target_field} must be a positive integer; got {entry[target_field]!r}")
+    if entry["position"] not in ENDORSEMENT_POSITIONS:
         die(f"{where}.position must be ENDORSE|OBJECT|ABSTAIN; got {entry['position']!r}")
     if "note" in entry and not isinstance(entry["note"], str):
         die(f"{where}.note must be a string when present")
+    # `dropped`, when present, is a strict `true` marker (a dropped endorsement
+    # seat's ABSTAIN fallback). `false`/other values are refused — its presence IS
+    # the signal, so it is only ever recorded as true. A dropped row must ALSO be
+    # what the conductor emits: an ABSTAIN carrying the drop reason in `note` —
+    # a hand-authored dropped ENDORSE/OBJECT would otherwise count as a vote in
+    # the rendered tally while claiming the seat never voted.
+    if "dropped" in entry:
+        if entry["dropped"] is not True:
+            die(f"{where}.dropped must be true when present; got {entry['dropped']!r}")
+        if entry["position"] != "ABSTAIN":
+            die(f"{where}: a dropped row must have position ABSTAIN; got {entry['position']!r}")
+        if not isinstance(entry.get("note"), str) or not entry["note"].strip():
+            die(f"{where}: a dropped row must carry the drop reason in a non-empty note")
 
 
 def _validate_source_pin(obj, where: str, artifact_field: str) -> None:
@@ -296,6 +335,29 @@ def validate(data: dict) -> None:
         die("endorsements must be a list")
     for index, entry in enumerate(endorsements):
         _validate_endorsement(entry, index)
+    # Cross-row endorsement checks (need the whole doc, like the dense-n edit check
+    # above): every vote must target an EXISTING edit/unresolved entry (upper bound),
+    # and no (seat, target-kind, n) may repeat — one seat votes on each target at
+    # most once. The conductor never emits an out-of-range or duplicate row (it
+    # builds exactly one row per seat per target from _expected_targets), so this is
+    # a strict gate against a hand-authored or corrupted file, not a pipeline path.
+    n_edits = len(edits)
+    n_unresolved = len(unresolved)
+    seen_rows: set = set()
+    for index, entry in enumerate(endorsements):
+        where = f"endorsements[{index}]"
+        if "edit_n" in entry:
+            kind, n, bound = "edit_n", entry["edit_n"], n_edits
+        else:
+            kind, n, bound = "unresolved_n", entry["unresolved_n"], n_unresolved
+        if n > bound:
+            die(f"{where}.{kind} = {n} is out of range; there {'is' if bound == 1 else 'are'} "
+                f"{bound} {kind[:-2].replace('_', ' ')} target(s)")
+        key = (entry["seat"], kind, n)
+        if key in seen_rows:
+            die(f"{where} is a duplicate endorsement row: seat {entry['seat']!r} already "
+                f"voted on {kind}={n} (one vote per seat per target)")
+        seen_rows.add(key)
 
 
 def load(path: str) -> dict:

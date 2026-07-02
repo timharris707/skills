@@ -64,6 +64,12 @@ case "$prompt" in *"PRIOR RUN CONTEXT"*) is_ask=1; is_review=0 ;; esac
 is_revision=0
 case "$prompt" in *"You are the REVISION seat"*) is_revision=1; is_review=0 ;; esac
 
+# `endorsement` (v1.13 P4): the endorsement prompt frames the seat as "an
+# ENDORSEMENT seat" and asks for one ENDORSE/OBJECT/ABSTAIN per target. It gets a
+# single fenced JSON `positions` reply, NOT a review or a revision.
+is_endorse=0
+case "$prompt" in *"You are an ENDORSEMENT seat"*) is_endorse=1; is_review=0 ;; esac
+
 # Which round is this? The round-N (N>=2) template header names the round; round 1
 # has no such marker. Used by the `moving` mode to shift its VERDICT across rounds.
 round=1
@@ -494,6 +500,108 @@ emit_revise() {
   esac
 }
 
+# v1.13 P4 endorsement emitters. The prompt enumerates the exact targets ("- edit_n
+# = N" / "- unresolved_n = N" lines under "The targets, by their stable ids:"). The
+# mock parses those lines and emits one position per target — no target-counting in
+# python needed. MOCK_CLAUDE_ENDORSE_MODE switches: ok (all ENDORSE) | object (all
+# ENDORSE except an OBJECT+note on the FIRST target) | abstain (all ABSTAIN) |
+# missing_target (drop the LAST target -> invalid -> retry -> dropped) | garbage
+# (non-JSON) | missing_fence (no closing fence). `endorse_source` is the prompt.
+endorse_mode="${MOCK_CLAUDE_ENDORSE_MODE:-ok}"
+
+# Emit the JSON `positions` entries for every target line in the prompt. $1 selects
+# the mode. Writes comma-separated JSON objects (no trailing comma).
+emit_endorse_positions() {
+  local pmode="$1" first=1 idx=0
+  # Pull the target roster lines: "- edit_n = N" and "- unresolved_n = N".
+  while IFS= read -r line; do
+    case "$line" in
+      *"- edit_n = "*|*"- unresolved_n = "*)
+        idx=$((idx + 1))
+        # missing_target: silently skip the target whose 1-based index is the LAST
+        # (we don't know the count up-front in one pass, so skip index 999 sentinel;
+        # handled specially below via a two-pass count instead).
+        local field num
+        case "$line" in
+          *"- edit_n = "*)       field="edit_n";       num="${line##*- edit_n = }" ;;
+          *"- unresolved_n = "*) field="unresolved_n"; num="${line##*- unresolved_n = }" ;;
+        esac
+        num="${num%% *}"
+        local pos="ENDORSE" note=""
+        case "$pmode" in
+          abstain) pos="ABSTAIN" ;;
+          object)  if [ "$idx" -eq 1 ]; then pos="OBJECT"; note=', "note": "this edit oversteps the finding"'; fi ;;
+        esac
+        if [ "$first" -eq 1 ]; then first=0; else printf ',\n'; fi
+        printf '    {"%s": %s, "position": "%s"%s}' "$field" "$num" "$pos" "$note"
+        ;;
+    esac
+  done <<EOF_TARGETS
+$prompt
+EOF_TARGETS
+  printf '\n'
+}
+
+# missing_target mode needs the LAST target dropped; do it by counting first.
+emit_endorse_positions_drop_last() {
+  local total=0
+  while IFS= read -r line; do
+    case "$line" in *"- edit_n = "*|*"- unresolved_n = "*) total=$((total + 1)) ;; esac
+  done <<EOF_COUNT
+$prompt
+EOF_COUNT
+  local first=1 idx=0
+  while IFS= read -r line; do
+    case "$line" in
+      *"- edit_n = "*|*"- unresolved_n = "*)
+        idx=$((idx + 1))
+        [ "$idx" -ge "$total" ] && continue   # drop the last target
+        local field num
+        case "$line" in
+          *"- edit_n = "*)       field="edit_n";       num="${line##*- edit_n = }" ;;
+          *"- unresolved_n = "*) field="unresolved_n"; num="${line##*- unresolved_n = }" ;;
+        esac
+        num="${num%% *}"
+        if [ "$first" -eq 1 ]; then first=0; else printf ',\n'; fi
+        printf '    {"%s": %s, "position": "ENDORSE"}' "$field" "$num"
+        ;;
+    esac
+  done <<EOF_TARGETS2
+$prompt
+EOF_TARGETS2
+  printf '\n'
+}
+
+emit_endorse() {
+  echo "model: ${model:-unknown}" >&2
+  case "$endorse_mode" in
+    garbage)
+      echo "<<<<<<<< BEGIN ENDORSEMENT >>>>>>>>"
+      echo "{ positions: not-valid-json"
+      echo "<<<<<<<< END ENDORSEMENT >>>>>>>>"
+      ;;
+    missing_fence)
+      echo "<<<<<<<< BEGIN ENDORSEMENT >>>>>>>>"
+      echo '{ "positions": [ {"edit_n": 1, "position": "ENDORSE"} ] }'
+      # no closing fence -> parse failure -> invalid -> retry -> dropped
+      ;;
+    missing_target)
+      echo "<<<<<<<< BEGIN ENDORSEMENT >>>>>>>>"
+      printf '{ "positions": [\n'
+      emit_endorse_positions_drop_last
+      printf '] }\n'
+      echo "<<<<<<<< END ENDORSEMENT >>>>>>>>"
+      ;;
+    *)
+      echo "<<<<<<<< BEGIN ENDORSEMENT >>>>>>>>"
+      printf '{ "positions": [\n'
+      emit_endorse_positions "$endorse_mode"
+      printf '] }\n'
+      echo "<<<<<<<< END ENDORSEMENT >>>>>>>>"
+      ;;
+  esac
+}
+
 case "$mode" in
   moving_cites)
     if [ "$is_review" = "1" ]; then emit_moving_cites; else echo "ready"; fi
@@ -525,6 +633,7 @@ case "$mode" in
         *)                emit_synth_ok ;;
       esac
     elif [ "$is_revision" = "1" ]; then emit_revise
+    elif [ "$is_endorse" = "1" ]; then emit_endorse
     elif [ "$is_review" = "1" ]; then emit_review
     elif [ "$is_ask" = "1" ]; then emit_answer
     else echo "ready"; fi
@@ -538,6 +647,7 @@ case "$mode" in
         *)                emit_synth_ok ;;
       esac
     elif [ "$is_revision" = "1" ]; then emit_revise
+    elif [ "$is_endorse" = "1" ]; then emit_endorse
     elif [ "$is_review" = "1" ]; then emit_review
     elif [ "$is_ask" = "1" ]; then emit_answer
     else echo "ready"; fi

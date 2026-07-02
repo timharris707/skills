@@ -23,6 +23,10 @@ from _conductor.revision import (
     REVISION_TEMPLATE_VERSION,
     revision_template_sha,
 )
+from _conductor.endorsement import (
+    ENDORSEMENT_TEMPLATE_VERSION,
+    endorsement_template_sha,
+)
 
 __all__ = [
     "_scalar_to_yaml",
@@ -289,6 +293,16 @@ def config_to_recipe(config: RunConfig) -> dict:
         recipe["revision_seat"] = config.revision_seat
         recipe["revision_template"] = REVISION_TEMPLATE_VERSION
         recipe["revision_template_sha256"] = revision_template_sha()
+        # Endorsement pass (D13): the RESOLVED endorse boolean, so a replay
+        # reproduces the same posture (a --no-endorse run replays with no
+        # endorsement pass). The endorsement template version/sha are recorded only
+        # when the pass actually runs (endorse True), mirroring the synthesizer
+        # template's "only when it runs" conditional — a --no-endorse recipe stays
+        # slim and carries no endorsement template fields.
+        recipe["endorse"] = config.endorse
+        if config.endorse:
+            recipe["endorsement_template"] = ENDORSEMENT_TEMPLATE_VERSION
+            recipe["endorsement_template_sha256"] = endorsement_template_sha()
     return recipe
 
 
@@ -357,9 +371,15 @@ def validate_recipe(recipe: dict) -> None:
         die(f"recipe: 'source_type' must be prose or code; got {recipe['source_type']!r}")
     if recipe.get("revision_seat") is not None:
         rs = recipe["revision_seat"]
-        if not isinstance(rs, str) or rs not in REGISTRY:
-            die(f"recipe: 'revision_seat' must be one of {', '.join(sorted(REGISTRY))} or null; "
-                f"got {rs!r}")
+        # revision_seat is a UNIQUE seat id (a provider name, or `provider#N` / an
+        # alias on a duplicate-provider board) — the same axis --model/--timeout use.
+        # Shape-only here (a non-empty string); resolve_config.resolve_revision_seat_id
+        # does the authoritative board-membership + disambiguation check once the
+        # board is resolved, so a bad selector still fails loudly there.
+        if not isinstance(rs, str) or not rs.strip():
+            die(f"recipe: 'revision_seat' must be a seat id string or null; got {rs!r}")
+    if "endorse" in recipe and not isinstance(recipe["endorse"], bool):
+        die(f"recipe: 'endorse' must be true or false; got {recipe['endorse']!r}")
     # Repo-grounding fields (optional; present only for a grounded recipe).
     if "repo" in recipe and not (isinstance(recipe["repo"], str) and recipe["repo"].strip()):
         die(f"recipe: 'repo' must be a non-empty string path; got {recipe['repo']!r}")

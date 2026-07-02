@@ -120,8 +120,18 @@ def render_run_card(config: RunConfig) -> str:
         # lockstep — a change to one projection should change the other.
         chosen = config.revision_seat or (
             "claude" if any(s.name == "claude" for s in config.board) else config.board[0].name)
-        provider = next((s.provider for s in config.board if s.name == chosen),
-                        config.board[0].provider)
+        # Project `chosen` (an id, or a bare name that maps to a seat) onto the actual
+        # board seat the pass would drop — matching by unique id first, else by name
+        # using the SAME dict-collapse choose_revision_seat's `by_name` uses (last seat
+        # of that name wins), so the projected seat is the one that actually revises on
+        # a default duplicate-provider board. Its UNIQUE id — not its name — is what the
+        # endorsement count excludes below: two seats can share a name but only ONE
+        # revises, so a name-axis exclusion would drop a full voting member.
+        by_name = {s.name: s for s in config.board}
+        chosen_seat = (next((s for s in config.board if s.id == chosen), None)
+                       or by_name.get(chosen) or config.board[0])
+        chosen_id = chosen_seat.id
+        provider = chosen_seat.provider
         # A code source also gets an apply-able revised-draft.patch; a prose
         # source's redline lives in the HTML handoff instead (D12).
         extra_artifact = (" + revised-draft.patch" if config.source_type == "code"
@@ -133,6 +143,23 @@ def render_run_card(config: RunConfig) -> str:
             "never written (D6); no new egress",
             "                  (the revision seat sees only source the run already sent).",
         ]
+        # Endorsement pass (D13): ON by default. The non-revision seats vote on each
+        # edit + unresolved entry. The count is a PROJECTION (like the revision-seat
+        # line): the board minus the projected revision seat, before any seat is
+        # known dropped. Counted on the seat-ID axis (like endorsement_seats), so a
+        # duplicate-provider board doesn't undercount — dropping ONE seat, not every
+        # seat that shares the reviser's provider name. --no-endorse opts out.
+        if config.endorse:
+            n_endorse = sum(1 for s in config.board if s.id != chosen_id)
+            lines.append(
+                f"  endorsement   : ON — {n_endorse} non-revision seat(s) vote "
+                "ENDORSE/OBJECT/ABSTAIN on each edit + conflict (→ changes.json.endorsements; "
+                "each is sent the source + the board-generated revised draft under the run's "
+                "existing disclosure — same category as round-2 sharing, no new exposure class)")
+        else:
+            lines.append(
+                "  endorsement   : off (--no-endorse) — the fixed copy is findings-mapped, "
+                "not board-endorsed")
     if config.grounding is not None:
         g = config.grounding
         lines += [
@@ -267,6 +294,14 @@ def render_artifact_tree(config: RunConfig) -> str:
             "  revision/<seat>.md   revision/<seat>.raw",
             draft_line,
         ]
+        # Endorsement pass (D13): its per-seat artifacts mirror revision/. Listed
+        # only when the pass runs (ON by default; --no-endorse drops these lines so
+        # the tree stays truthful about what a --no-endorse run writes).
+        if config.endorse:
+            parts += [
+                "  prompts/endorsement-<seat>.prompt",
+                "  endorsement/<seat>.md   endorsement/<seat>.raw",
+            ]
     parts += [
         "  logs/<seat>-round-N.stderr",
         "  verdict.json   final-consensus.md   handoff-data.json   final-consensus.html",

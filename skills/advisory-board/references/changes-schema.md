@@ -3,24 +3,27 @@
 When you run a board with `--output revised-draft` (v1.13), the conductor — after synthesis has
 produced a validated `verdict.json` — spawns a **revision seat** to produce a board-derived,
 findings-mapped **revised copy of the source**, each edit mapped by the model to the finding it
-resolves, mechanically validated (coverage reconciliation + index/title cross-assert). (It is a
-*findings-mapped revision*, not yet *board-endorsed*: the per-edit endorsement pass — where the non-revision
-seats vote ENDORSE/OBJECT/ABSTAIN on each edit — lands in v1.13 P4. Until then `endorsements` is
-empty and the draft is derived from the board's findings, not voted on.) That produces three
-artifacts in the run dir:
+resolves, mechanically validated (coverage reconciliation + index/title cross-assert). Then, unless
+`--no-endorse`, the **endorsement pass** runs (v1.13 P4, D13): every NON-revision board seat votes
+`ENDORSE` / `OBJECT` / `ABSTAIN` on each edit and each unresolved conflict, so the fixed copy is
+**board-endorsed**, not merely findings-mapped. (A `--no-endorse` run keeps `endorsements` empty and
+the draft is findings-mapped only.) That produces these artifacts in the run dir:
 
 - **`revised-draft.md`** (prose) or **`revised-draft.<orig-ext>`** (code) — the revised source,
   **byte-clean**: the revised bytes and nothing else, no metadata header of any kind (a header
   would corrupt code the moment it is saved). Applying it is *your* act — the source file is
   never written (D6).
-- **`changes.json`** — the machine-readable **edit → finding mapping**, the artifact of record.
-- **`revision/<seat>.md`** + **`revision/<seat>.raw`** — the black-box record of the spawn
+- **`changes.json`** — the machine-readable **edit → finding mapping** plus the per-edit board
+  `endorsements`, the artifact of record.
+- **`revision/<seat>.md`** + **`revision/<seat>.raw`** — the black-box record of the revision spawn
   (mirrors `synthesizer/`).
+- **`endorsement/<seat>.md`** + **`endorsement/<seat>.raw`** — the black-box record of each
+  endorsement spawn (present only when the endorsement pass ran; mirrors `revision/`).
 
 `verdict.json` gains a tiny tool-authored pointer at `changes = {artifact, sha256}` binding the
 verdict to this file's bytes (see `references/verdict-schema.md`). The two together prove a
-findings-mapped revision existed for that verdict and pin its exact bytes (per-edit *endorsement*
-is the later P4 pass).
+board-endorsed (or, under `--no-endorse`, findings-mapped) revision existed for that verdict and
+pin its exact bytes — including the endorsement rows, which are inside those bytes.
 
 ## Schema (`advisory-board/changes@1`)
 
@@ -58,15 +61,26 @@ is the later P4 pass).
       "note": "One finding wants a firm 30-day commitment; the other wants the window removed. Both cannot be satisfied in one draft; left for a human to reconcile."
     }
   ],
-  "endorsements": []
+  "endorsements": [
+    { "seat": "codex",  "edit_n": 1,       "position": "ENDORSE" },
+    { "seat": "gemini", "edit_n": 1,       "position": "OBJECT", "note": "the 30-day figure still isn't sourced" },
+    { "seat": "codex",  "edit_n": 2,       "position": "ENDORSE" },
+    { "seat": "gemini", "edit_n": 2,       "position": "ABSTAIN" },
+    { "seat": "codex",  "unresolved_n": 1, "position": "ENDORSE" },
+    { "seat": "gemini", "unresolved_n": 1, "position": "ENDORSE" }
+  ]
 }
 ```
+
+(A `--no-endorse` run carries `"endorsements": []` instead — byte-identical to the field the
+revision seat's own build produces.)
 
 ### Fields
 
 Everything structural is **conductor-computed** — the model authors only `summary`, `resolves`,
 and (on an `unresolved` entry) `reason`/`note`; the conductor computes `n`, `status`, the shas,
-`source_type`, `revision_seat`, `title`, and the empty `endorsements` list.
+`source_type`, `revision_seat`, `title`, and the `endorsements` rows (built from the endorsement
+seats' tokens — the model never authors an endorsement row).
 
 - `schema` — always `advisory-board/changes@1`.
 - `title` — the run title (same one the verdict and other artifacts carry).
@@ -85,7 +99,9 @@ and (on an `unresolved` entry) `reason`/`note`; the conductor computes `n`, `sta
 - `source_type` — `prose` | `code`. Resolved at run time from `--source-type` or the extension
   heuristic; drives the redline format (P3: word-level `<ins>/<del>` for prose, a unified
   `.patch` for code).
-- `revision_seat` — the board seat whose CLI/adapter produced the revision.
+- `revision_seat` — the board seat whose CLI/adapter produced the revision, named by
+  its **unique seat id** (== the provider name on boards without duplicate providers;
+  `claude#2` on a duplicate-provider board) — the same axis as `endorsements[].seat`.
 - `edits[]` — the applied edits, in edit order:
   - `n` — 1-based, dense, in edit order (conductor-assigned).
   - `locator` — where the edit changed the **original** source. Two shapes:
@@ -108,8 +124,47 @@ and (on an `unresolved` entry) `reason`/`note`; the conductor computes `n`, `sta
   entry names the `findings[]` in tension (same `{list, index, title}` composite,
   cross-asserted), a `reason`, and a one-paragraph `note`. Legitimate output, surfaced loudly
   (the run card prints the count) — a non-empty `unresolved` **never** moves the exit code.
-- `endorsements[]` — empty in P2; filled by the endorsement pass (v1.13 P4) with
-  `{seat, edit_n, position, note}` rows.
+- `endorsements[]` — the per-target board vote (v1.13 P4, D13). One row per NON-revision seat per
+  target (each edit AND each unresolved conflict), **conductor-built** from the seats' parsed tokens
+  (the model authors a token, never a row). Empty on a `--no-endorse` run. See the dedicated section
+  below for the row shapes.
+
+### Endorsement rows (`endorsements[]`, D13)
+
+The endorsement pass runs on every `--output revised-draft` run **unless `--no-endorse`**. After the
+revision succeeds (all mechanical checks passed), each non-revision board seat gets ONE spawn, all
+fanned out concurrently (≈ one extra round of wall-clock), and votes on every edit and every
+unresolved conflict. The seats emit parseable `ENDORSE` / `OBJECT` / `ABSTAIN` **tokens**; the
+conductor builds the rows. **Objections are recorded, never resolved** — there is no discussion
+round and no revision loop; the human reads them and decides (D6).
+
+Each row names its `seat` (the run's **unique seat id** — `claude`, or `claude#2` on a
+duplicate-provider board — so two same-provider seats stay distinguishable), exactly ONE target,
+and a `position`:
+
+- **Edit target** — `{ "seat": ..., "edit_n": N, "position": "ENDORSE|OBJECT|ABSTAIN" }`, where
+  `edit_n` echoes an edit's `n`.
+- **Unresolved-conflict target** — `{ "seat": ..., "unresolved_n": N, "position": ... }`, where
+  `unresolved_n` is the **1-based position** of the entry in `unresolved[]` (a seat may object to
+  how a conflict was characterized — D13).
+- `note` — optional; recorded for an `OBJECT` (the reason the human reads), and carrying the drop
+  reason on a dropped row. Dropped from `ENDORSE`/`ABSTAIN` rows.
+- `dropped` — optional `true` marker on a row whose seat's endorsement spawn failed. A failed or
+  unparseable spawn (after the standard two-attempt retry on `Timeout | InvalidOutput`) records that
+  seat as one `ABSTAIN` row per target with `"dropped": true` and the reason in `note`. The
+  endorsement pass **never fails the run**, never discards the revision, and never moves exit codes;
+  if ALL endorsement seats drop, `changes.json` still writes those rows with one loud warning.
+
+A **single-seat board** (the revision seat is the only seat) has zero endorsement seats:
+`endorsements` stays `[]` with a note — not a crash. (In practice a real run needs ≥ 2 seats, so
+the smallest board still leaves exactly one endorsement seat.)
+
+The row shapes are validated strictly by `board_changes.py`: exactly one of `edit_n`/`unresolved_n`
+(both or neither is refused), a positive-integer target in range, `position ∈ {ENDORSE, OBJECT,
+ABSTAIN}`, `note` a string when present, and `dropped` only ever `true` — and a dropped row must
+be exactly what the conductor emits: `position: ABSTAIN` with the drop reason in a non-empty
+`note` (a dropped ENDORSE/OBJECT would count as a vote while claiming the seat never voted).
+Duplicate `(seat, target)` rows and unknown keys are refused.
 
 ### What the conductor mechanically checks (never model-asserted)
 
