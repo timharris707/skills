@@ -10,6 +10,18 @@ reserved for an explicit production-ready call. The verdict-JSON schema is versi
 
 ## [Unreleased]
 
+## [v1.11.0] - 2026-07-01 — Transparency & foundations
+
+Know before you convene, and keep what you ran. A board run now tells you its **cost and
+time up front** (`--dry-run` estimate) and records what each seat actually spent where the
+CLI reports it; one flag — **`--tier quick|standard|deep`** — sets the whole cost/depth
+posture; run artifacts land in a **persistent runs root** with a `history` listing instead
+of evaporating from `/tmp`; a **setup doctor** walks a brand-new machine to its first
+viable board; and the round-2+ structured digest is available as **typed JSON** for
+tooling, alongside per-seat `--timeout` and a real `implementation-sequence` render. A
+default run — no new flags, tokens unreported — stays byte-identical to v1.10.0 artifacts
+except the (loudly documented, opt-out) runs-root move.
+
 ### Added
 - **`--tier quick|standard|deep` (v1.11 #3b)** — one flag for the run's whole cost/depth
   posture, applied as a BASE beneath explicit flags: `quick` = 1 round, `summaries`
@@ -75,15 +87,14 @@ reserved for an explicit production-ready call. The verdict-JSON schema is versi
   the run dir's TSV). With no usage reported — every mocked/default run today —
   all three artifacts stay **byte-identical** to the pre-feature baseline
   (guarded by tests).
+- **`run_board.py history`** — a table of past runs (date, title, verdict, confidence,
+  unanimous, seats, run dir) read from each run's `verdict.json` under the runs root, with the
+  same lens-aware human verdict labels the consensus artifacts use. Partial/legacy runs (missing
+  or malformed `verdict.json`) degrade to `run-recipe.yaml` and list as `incomplete` — the
+  listing never crashes. Local disk read only; honors `--runs-root` / `$ADVISORY_BOARD_RUNS_ROOT`.
+  New `scripts/_conductor/history.py` module.
 
-### Fixed
-- **Snapshot leak checks are now process-local (test-only).** Three tests asserted a
-  before/after glob of the machine-wide tempdir for `advisory-board-repo-*`, so any
-  concurrent suite (sibling worktree, parallel CI) creating or removing its own snapshots
-  flaked them. A `_private_tempdir` helper now redirects `TMPDIR` to a fresh per-test dir
-  for the run, and the tests assert *that* dir holds no snapshot afterward; the
-  failure-path test additionally probes mid-prepare that the snapshot really landed there,
-  so the check can't pass vacuously.
+### Changed
 - **Persistent runs root (v1.11 #5) — runs stop evaporating.** Default run artifacts now land
   under `~/.advisory-board/runs/<slug>-<date>/` (slug from the run's resolved title, date from
   the deterministic run date; a same-day collision gets a `-2` suffix, never an overwrite)
@@ -97,12 +108,15 @@ reserved for an explicit production-ready call. The verdict-JSON schema is versi
   it somewhere fresh. Artifact *content* is unchanged —
   persistence is a disk-location move only, and persisted artifacts inherit the run's
   sensitivity handling (`references/data-handling.md` gets a "Persisted run artifacts" section).
-- **`run_board.py history`** — a table of past runs (date, title, verdict, confidence,
-  unanimous, seats, run dir) read from each run's `verdict.json` under the runs root, with the
-  same lens-aware human verdict labels the consensus artifacts use. Partial/legacy runs (missing
-  or malformed `verdict.json`) degrade to `run-recipe.yaml` and list as `incomplete` — the
-  listing never crashes. Local disk read only; honors `--runs-root` / `$ADVISORY_BOARD_RUNS_ROOT`.
-  New `scripts/_conductor/history.py` module.
+
+### Fixed
+- **Snapshot leak checks are now process-local (test-only).** Three tests asserted a
+  before/after glob of the machine-wide tempdir for `advisory-board-repo-*`, so any
+  concurrent suite (sibling worktree, parallel CI) creating or removing its own snapshots
+  flaked them. A `_private_tempdir` helper now redirects `TMPDIR` to a fresh per-test dir
+  for the run, and the tests assert *that* dir holds no snapshot afterward; the
+  failure-path test additionally probes mid-prepare that the snapshot really landed there,
+  so the check can't pass vacuously.
 
 ## [v1.10.0] - 2026-07-01 — Claude seat on Fable 5 at max effort
 
