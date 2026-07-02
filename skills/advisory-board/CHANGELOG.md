@@ -10,6 +10,8 @@ reserved for an explicit production-ready call. The verdict-JSON schema is versi
 
 ## [Unreleased]
 
+## [v1.12.0] - 2026-07-02 — The decision loop
+
 ### Changed
 - **Claude seat: Opus 4.8 registered as the one sanctioned fallback.** The seat's default
   stays `claude-fable-5` at `--effort max` (the depth flagship); `fallback_models` now names
