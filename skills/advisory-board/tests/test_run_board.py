@@ -5095,6 +5095,32 @@ def _run_args(**over):
     return _argparse.Namespace(**base)
 
 
+def _private_tempdir(tc):
+    """Point tempfile at a fresh private dir for the rest of this test; return it.
+
+    The snapshot leak checks used to diff a glob of gettempdir() — machine-wide
+    (/var/folders/…/T on macOS) — before/after the run, so ANY concurrent suite
+    (a sibling worktree, parallel CI) creating or removing its own
+    advisory-board-repo-* snapshots flaked them. Redirecting TMPDIR makes the
+    check process-local: grounding's mkdtemp lands HERE, and "no snapshot
+    leaked" is simply "this dir holds no advisory-board-repo-* entries after
+    the run"."""
+    private = tempfile.mkdtemp(prefix="ab-private-tmp-")
+    old = os.environ.get("TMPDIR")
+
+    def _restore():
+        if old is None:
+            os.environ.pop("TMPDIR", None)
+        else:
+            os.environ["TMPDIR"] = old
+        tempfile.tempdir = None  # drop the cache so gettempdir() recomputes from the env
+        __import__("shutil").rmtree(private, ignore_errors=True)
+    tc.addCleanup(_restore)
+    os.environ["TMPDIR"] = private
+    tempfile.tempdir = None  # drop the cache so gettempdir() honors the override now
+    return private
+
+
 class TestRepoGroundingScope(unittest.TestCase):
     """P1 — scope resolution, secret-scan, manifest, and read-only snapshot."""
 
@@ -5454,11 +5480,12 @@ class TestRepoGroundingConsent(unittest.TestCase):
         with open(src, "w") as fh:
             fh.write("review\n")
         cfg = resolve_config(_run_args(source=src, repo=root))
-        pattern = os.path.join(tempfile.gettempdir(), "advisory-board-repo-*")
-        before = set(_glob.glob(pattern))
+        pattern = os.path.join(_private_tempdir(self), "advisory-board-repo-*")
+        mid = []
         orig = grd.build_scope_manifest
 
         def _boom(*a, **k):
+            mid.extend(_glob.glob(pattern))  # runs post-snapshot: prove it landed HERE
             raise RuntimeError("boom mid-prepare")
         grd.build_scope_manifest = _boom
         try:
@@ -5466,7 +5493,9 @@ class TestRepoGroundingConsent(unittest.TestCase):
                 grd.prepare_grounding(cfg, snapshot=True)
         finally:
             grd.build_scope_manifest = orig
-        self.assertEqual(before, set(_glob.glob(pattern)),
+        self.assertEqual(len(mid), 1,
+                         "the snapshot must exist (in the private tempdir) mid-prepare")
+        self.assertEqual(_glob.glob(pattern), [],
                          "a failed prepare_grounding must leave no snapshot behind")
 
     def test_manifest_footer_names_scope_binding_when_grounded(self):
@@ -6049,7 +6078,7 @@ class TestRepoGroundingD4(EnvMixin):
         with open(src, "w") as fh:
             fh.write("ready?\n")
         out = tempfile.mkdtemp(prefix="board-d4-")
-        before = set(_glob.glob(os.path.join(tempfile.gettempdir(), "advisory-board-repo-*")))
+        private = _private_tempdir(self)  # process-local leak check (no cross-suite races)
         code, sout, _ = run_cli(["run", "--source", src, "--repo", root,
                                  "--board", "claude,codex,gemini", "--mode", "gate",
                                  "--sensitivity", "public", "--yes", "--out", out])
@@ -6057,8 +6086,8 @@ class TestRepoGroundingD4(EnvMixin):
         self.assertTrue(os.path.exists(os.path.join(out, "egress-manifest.md")))
         self.assertIn("REFUSED", sout)
         self.assertIn("gemini", sout)
-        after = set(_glob.glob(os.path.join(tempfile.gettempdir(), "advisory-board-repo-*")))
-        self.assertEqual(before, after, "the D4 refusal must not leak a snapshot tempdir")
+        self.assertEqual(_glob.glob(os.path.join(private, "advisory-board-repo-*")), [],
+                         "the D4 refusal must not leak a snapshot tempdir")
 
     def test_snapshot_has_no_out_of_root_symlink(self):
         # Phase-1 confinement: a symlink resolving outside the repo root is never in
@@ -6200,7 +6229,7 @@ class TestRepoGroundingP5Verify(EnvMixin):
         with open(src, "w") as fh:
             fh.write("is this ready to ship?\n")
         out = tempfile.mkdtemp(prefix="board-p5b-")
-        before = set(_glob.glob(os.path.join(tempfile.gettempdir(), "advisory-board-repo-*")))
+        private = _private_tempdir(self)  # process-local leak check (no cross-suite races)
         code, _, _ = run_cli(["run", "--source", src, "--repo", root,
                               "--board", "claude,codex", "--mode", "advisory",
                               "--sensitivity", "public", "--out", out])
@@ -6209,8 +6238,8 @@ class TestRepoGroundingP5Verify(EnvMixin):
         manifest = json.load(open(os.path.join(out, "repo-scope-manifest.json")))
         self.assertEqual(manifest["root"], root)
         # the snapshot tempdir is gone — so we MUST verify against the live tree, not it.
-        after = set(_glob.glob(os.path.join(tempfile.gettempdir(), "advisory-board-repo-*")))
-        self.assertEqual(before, after, "the run tears down its snapshot; verify uses the live repo")
+        self.assertEqual(_glob.glob(os.path.join(private, "advisory-board-repo-*")), [],
+                         "the run tears down its snapshot; verify uses the live repo")
         self.assertTrue(os.path.isfile(os.path.join(root, "src", "main.py")),
                         "the live repo fixture persists past the run")
         return root, out
