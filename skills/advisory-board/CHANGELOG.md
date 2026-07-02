@@ -10,6 +10,16 @@ reserved for an explicit production-ready call. The verdict-JSON schema is versi
 
 ## [Unreleased]
 
+### Changed
+- **Claude seat: Opus 4.8 registered as the one sanctioned fallback.** The seat's default
+  stays `claude-fable-5` at `--effort max` (the depth flagship); `fallback_models` now names
+  `claude-opus-4-8` — probe-and-propose only when Fable 404s, never auto-applied — and
+  SKILL.md documents it as the sanctioned per-run downgrade when Claude usage matters more
+  than Fable-tier depth (`--model claude=claude-opus-4-8`; Opus 4.8 accepts the same
+  `--effort max`, grounded live 2026-07-02 on CLI 2.1.191). SKILL.md also notes the
+  zero-Claude-usage posture: seat a board without the Claude seat (`--board codex,gemini`) —
+  every seat bills its own subscription.
+
 ### Added
 - **`--revise <prior run dir | verdict.json>` (v1.12 #1) — re-review a revised draft with the
   prior verdict as context.** `--source` is the revised draft; the round-1 prompts additionally
