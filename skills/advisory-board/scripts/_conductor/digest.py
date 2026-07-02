@@ -28,11 +28,13 @@ from _conductor.convergence import citations, parse_verdict
 __all__ = [
     "CANONICAL_SECTIONS",
     "DIGEST_SECTION_BUDGET",
+    "DIGEST_JSON_SCHEMA",
     "classify_header",
     "parse_sections",
     "verdict_agreement",
     "shared_citations",
     "build_structured_digest",
+    "build_structured_digest_data",
 ]
 
 
@@ -219,3 +221,44 @@ def build_structured_digest(usable: list, round_no: int = 2,
                 "",
             ]
     return "\n".join(parts).rstrip() + "\n"
+
+
+# The typed-JSON serialization of the SAME digest (`--digest-format json`). One
+# schema id, bumped only if the shape changes.
+DIGEST_JSON_SCHEMA = "advisory-board/board-packet-digest@1"
+
+
+def build_structured_digest_data(usable: list, round_no: int = 2,
+                                 section_budget: int = DIGEST_SECTION_BUDGET) -> dict:
+    """The structured digest as TYPED data — the machine-readable twin of
+    build_structured_digest, for `--digest-format json`.
+
+    Serializes exactly the parsed signals the markdown digest already computes
+    (§11: the conductor plumbs, the models reason — NO new reasoning, no semantic
+    clustering): the per-seat VERDICT tokens and the agreement summary, the shared
+    (≥2-seat) citation set, and each canonical topic with every seat's
+    head-excerpted take, in the same order and with the same excerpt budgets as the
+    markdown. Seats with no parseable headers land in `unparsed[]` (the markdown's
+    graceful-fallback bucket). Deterministic: pure over the usable reviews."""
+    prev_round = round_no - 1
+    _line, agreement = verdict_agreement(usable)
+    seat_sections = [(r.seat, parse_sections(r.stdout)) for r in usable]
+    sections = []
+    for label, _kw in CANONICAL_SECTIONS:
+        takes = [{"seat": seat, "excerpt": _excerpt(secs[label], section_budget)}
+                 for seat, secs in seat_sections if secs.get(label)]
+        if takes:
+            sections.append({"label": label, "takes": takes})
+    unparsed = [{"seat": r.seat, "excerpt": _excerpt(r.stdout, section_budget * 3)}
+                for r in usable if not dict(seat_sections).get(r.seat)]
+    return {
+        "schema": DIGEST_JSON_SCHEMA,
+        "round": round_no,
+        "built_from_round": prev_round,
+        "cross_reading": "summaries",
+        "verdicts": [{"seat": r.seat, "verdict": r.verdict} for r in usable],
+        "agreement": agreement,
+        "shared_citations": shared_citations(usable),
+        "sections": sections,
+        "unparsed": unparsed,
+    }

@@ -7,7 +7,7 @@
 | `run_board.py` | The **conductor** (M1–M5): deterministic seat-adapter registry, `--dry-run`, toolchain currency (`toolchain` — check/update stale CLIs, propose fallback model ids), executable preflight (GO/NO-GO), a hash-bound egress/quarantine gate before any provider call, the **round-1 fan-out** (real spawn, §13 failure protocol, per-seat `round-1/` artifacts), **rounds 2…N** (cross-reading `board-packet-round-N.md`, debate fan-out, the `--rounds auto` convergence stop-rule, `run-metadata.tsv`), and the **canonical-verdict chain** (`verify` → `consensus` → `validate`). Optionally **repo-grounds** the board: `--repo PATH` (with `--repo-include`/`--repo-exclude` globs) hands every seat a read-only, `.gitignore`-respecting, secret-denylisted **snapshot** of the repository so findings cite real `path:line`; consent binds to the scope hash and `repo-scope-manifest.json` records the scope, and in gate mode it enforces read-XOR-network (refuses an un-isolatable seat — see `references/data-handling.md`). Calls the scripts below; never reimplements them. Implemented as the [`_conductor/`](#package-layout) package — `run_board.py` is a thin façade (re-exports the API + the CLI entry). | `design/run-board-conductor.md` |
 | `board_verdict.py` | Validate `verdict.json` (`@1`/`@2`); gate CI on the verdict (`--gate`) — pass `0` / fail `1` / schema `2` / **abstain `3`** when the board is torn, the declared verdict contradicts the observed board, or a citation is refuted. | `references/verdict-schema.md` |
 | `verify_evidence.py` | Resolve a verdict's typed `evidence[]` and stamp each `verified`/`unverified`/`refuted` — `code` `path:line`/`symbol` against the source, `source` quotes against the **captured packet** (never a live fetch), and (M3, opt-in via `--allow-program NAME`) `command` citations by **program-pinned, no-shell re-execution** in an isolated cwd with a structural exit/`expect` match. | `references/verdict-schema.md` |
-| `render_verdict.py` | Render `final-consensus.md` **from** the canonical `verdict.json` (evidence trail + couldn't-verify bucket); `--handoff-data`/`--html` derive the HTML via `render_handoff.py`. | `references/verdict-schema.md` |
+| `render_verdict.py` | Render `final-consensus.md` **from** the canonical `verdict.json` (evidence trail + couldn't-verify bucket); `--handoff-data`/`--html` derive the HTML via `render_handoff.py`. `--shape` picks the view: `full-handoff` (default), `quick-verdict` (skim brief), or `implementation-sequence` (sequence-first — every next action in order with owners where the verdict names them, backed by the blockers and their evidence trails; md + HTML). | `references/verdict-schema.md`, `references/output-formats.md` |
 | `format_output.py` | Render `verdict.json` as a TL;DR, PR comment, Slack message, or normalized JSON. | `references/output-formats.md` |
 | `render_handoff.py` | Render `final-consensus.html` from a `handoff-data.json` — deterministic, fails on any leftover placeholder. | `references/handoff-template.html` |
 | `render_plan.py` | Render a **planning-document HTML view** deterministically **from** its markdown (`design/<plan>.md`) — milestones / phases / checklists / per-phase testing + validation gate, a computed progress ring and milestone status rail, decisions/risks, and an inlined SVG diagram. The markdown is the source of truth; never hand-edit the HTML — regenerate it. Self-contained (Claude brand fonts embedded). Fails on any leftover placeholder. | `references/plan-template.html` (+ `plan-fonts.css`) |
@@ -32,6 +32,7 @@ dependency DAG — each imports only from those above it:
 | `toolchain.py` | Toolchain currency (design §7a): check/update/install CLIs on consent and propose a fallback model id. |
 | `egress.py` | The egress packet + gate (design §8, §12): packet assembly (both rounds), the content hash, tiered consent, the manifest, and the pre-spawn hard stop. |
 | `preflight.py` | Executable preflight (design §7): per-seat probes, the GO/NO-GO table, and board guidance. |
+| `doctor.py` | Setup doctor (`doctor`): sweeps **every** registered provider via `check_tool` + `preflight_seat` (never re-implements the probes), renders per-provider fix-it steps and the viable-board summary (≥ 2 seats GO) + a suggested first command. No user material egresses. |
 | `recipe.py` | The restricted-YAML codec for `run-recipe.yaml` plus recipe↔config conversion/validation. |
 | `artifacts.py` | Renderers/writers for the pre-spawn artifacts: run-card, `sensitivity.json`, the artifact tree, and the run-metadata stamp (md + tsv). |
 | `rounds.py` | The round fan-out (design §11/§12/§13): `run_round`/`_run_seat_round` and the per-seat round artifacts/renderers. |
@@ -43,6 +44,10 @@ exactly as before and exercises the same public surface.
 ## Quick start
 
 ```
+# first run on a new machine? sweep EVERY provider (installed -> version -> auth -> model),
+# get per-provider fix-it steps + which boards are viable today (probes/smoke-pings only)
+python3 scripts/run_board.py doctor
+
 # check each seat CLI vs its latest release (read-only): current / STALE / missing / unknown
 python3 scripts/run_board.py toolchain
 
@@ -60,6 +65,12 @@ python3 scripts/run_board.py preflight --source plan.md
 # -> round-{1,2}/<seat>.md + .raw, board-packet-round-2.md, run-metadata.tsv
 # (stops at the last round's boundary; synthesis -> verdict.json is the agent's job, §11)
 python3 scripts/run_board.py run --source plan.md --sensitivity public --rounds 2 --cross-reading summaries
+
+# per-seat timeouts + a typed digest: a bare --timeout caps every seat, SEAT=SECONDS caps one
+# (targeted by id like --model/--lens; unknown ids fail loudly). --digest-format json ALSO
+# writes each round's structured digest as board-packet-round-N.json next to the .md —
+# the same parsed signals (verdict tokens, agreement, shared citations, per-topic takes).
+python3 scripts/run_board.py run --source plan.md --timeout 600 --timeout ollama=1200 --digest-format json
 
 # repo-grounded run: seats read a read-only snapshot of ./myrepo and cite real path:line.
 # gate mode enforces read-XOR-network — drop any un-isolatable seat (gemini/antigravity).

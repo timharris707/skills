@@ -1565,6 +1565,210 @@ class TestGracefulDegradation(EnvMixin):
 
 
 # --------------------------------------------------------------------------- #
+# Setup doctor (v1.11 #7) — guided provider sweep, all probes mocked
+# --------------------------------------------------------------------------- #
+
+
+def _health(provider, *, installed=True, go=True, vendor="X", model="m"):
+    """Synthetic ProviderHealth for the pure summary/fix-step tests."""
+    tool = rb.ToolStatus(provider, "mgr",
+                         "1.0.0" if installed else None, "1.0.0",
+                         True if installed else None, None,
+                         present=installed,
+                         install_argv=None if installed else ["brew", "install", provider],
+                         auth_hint="sign in")
+    probe = None
+    if installed:
+        probe = rb.SeatPreflight(provider, True, "reachable", go,
+                                 "ran" if go else "dropped", go,
+                                 "version ok; smoke " + ("ran" if go else "dropped"),
+                                 provider=provider)
+    return rb.ProviderHealth(provider=provider, vendor=vendor, model=model,
+                             tool=tool, probe=probe,
+                             install_cmd=f"brew install {provider}",
+                             update_cmd=f"brew upgrade {provider}",
+                             auth_hint="sign in")
+
+
+class TestDoctorSummary(unittest.TestCase):
+    """The viable-board summary is a pure function over the sweep results."""
+
+    def test_all_go_is_viable_with_no_board_flag(self):
+        s = rb.summarize_doctor([_health(p) for p in
+                                 ("claude", "codex", "gemini", "antigravity", "ollama")])
+        self.assertTrue(s["viable"])
+        self.assertEqual(s["go"], ["claude", "codex", "gemini", "antigravity", "ollama"])
+        self.assertIsNone(s["board"])           # default trio GO -> no --board suggestion
+        self.assertEqual(s["total"], 5)
+
+    def test_two_go_is_viable_with_explicit_board(self):
+        s = rb.summarize_doctor([_health("claude"),
+                                 _health("codex", installed=False),
+                                 _health("gemini", go=False),
+                                 _health("antigravity", installed=False),
+                                 _health("ollama")])
+        self.assertTrue(s["viable"])
+        self.assertEqual(s["board"], "claude,ollama")
+        self.assertEqual(s["missing"], ["codex", "antigravity"])
+        self.assertEqual(s["unusable"], ["gemini"])
+
+    def test_board_suggestion_caps_at_three_in_sweep_order(self):
+        s = rb.summarize_doctor([_health("claude"), _health("codex", installed=False),
+                                 _health("gemini"), _health("antigravity"),
+                                 _health("ollama")])
+        self.assertEqual(s["board"], "claude,gemini,antigravity")
+
+    def test_one_go_is_not_viable(self):
+        s = rb.summarize_doctor([_health("claude"),
+                                 _health("codex", go=False),
+                                 _health("gemini", installed=False)])
+        self.assertFalse(s["viable"])
+        self.assertIsNone(s["board"])
+        self.assertEqual(s["go"], ["claude"])
+
+    def test_zero_installed_is_not_viable(self):
+        s = rb.summarize_doctor([_health(p, installed=False)
+                                 for p in ("claude", "codex", "gemini")])
+        self.assertFalse(s["viable"])
+        self.assertEqual(s["missing"], ["claude", "codex", "gemini"])
+        self.assertEqual(s["go"], [])
+
+
+class TestDoctorFixSteps(unittest.TestCase):
+    def test_not_installed_gets_install_then_auth(self):
+        steps = rb.fix_steps(_health("codex", installed=False))
+        self.assertEqual(steps[0], "install: brew install codex")
+        self.assertIn("then auth: sign in", steps[1])
+
+    def test_go_but_stale_gets_update_nudge(self):
+        h = _health("claude")
+        h.tool.current = False          # stale, yet GO
+        steps = rb.fix_steps(h)
+        self.assertEqual(len(steps), 1)
+        self.assertIn("update the stale CLI: brew upgrade claude", steps[0])
+
+    def test_go_and_current_needs_nothing(self):
+        self.assertEqual(rb.fix_steps(_health("claude")), [])
+
+    def test_smoke_silent_points_at_auth(self):
+        steps = rb.fix_steps(_health("codex", go=False))
+        self.assertTrue(any(s.startswith("auth/setup: sign in") for s in steps))
+
+    def test_version_unreadable_suggests_reinstall(self):
+        h = _health("claude", go=False)
+        h.probe.binary_ok = False       # on PATH, but --version fails
+        steps = rb.fix_steps(h)
+        self.assertEqual(len(steps), 1)
+        self.assertIn("reinstall: brew install claude", steps[0])
+
+    def test_model_not_found_offers_update_and_fallback(self):
+        h = _health("gemini", go=False)
+        h.probe.detail = f"version ok; model 'g-old' did not resolve ({rb.FAILURE_MODEL})"
+        h.probe.model_proposal = "g-fallback"
+        steps = rb.fix_steps(h)
+        self.assertIn("model 'm' did not resolve — update the CLI: brew upgrade gemini", steps[0])
+        self.assertIn("--model gemini=g-fallback", steps[1])
+        # the model-404 step already says "update" — no duplicate stale nudge
+        h.tool.current = False
+        self.assertEqual(len(rb.fix_steps(h)), 2)
+
+
+class TestDoctorSweep(EnvMixin):
+    """End-to-end `doctor` against the mock CLIs — no live probes, no egress."""
+
+    def test_all_go_sweeps_every_registered_provider(self):
+        code, out, _ = run_cli(["doctor"])
+        self.assertEqual(code, rb.EXIT_OK)
+        for provider in ("claude", "codex", "gemini", "antigravity", "ollama"):
+            self.assertIn(f"## {provider} —", out)
+        self.assertEqual(out.count("verdict GO"), 5)      # one GO verdict per provider
+        self.assertNotIn("verdict NO-GO", out)
+        self.assertIn("5 of 5 providers GO", out)
+        self.assertIn("no --board flag needed", out)
+
+    def test_no_egress_statement_in_output(self):
+        _, out, _ = run_cli(["doctor"])
+        self.assertIn("No user material egresses", out)
+        self.assertIn("smoke-pings only", out)
+
+    def test_suggested_first_command_is_a_dry_run_on_the_sample(self):
+        _, out, _ = run_cli(["doctor"])
+        self.assertIn("--dry-run", out)
+        self.assertIn("sample-plan.md", out)     # the bundled sample source
+        self.assertIn("run_board.py run --source", out)
+
+    def test_stale_cli_shows_update_step_and_current_does_not(self):
+        # default mock npm/brew "latest" is 9.9.9 -> every CLI reads STALE
+        _, out, _ = run_cli(["doctor"])
+        self.assertIn("STALE", out)
+        self.assertIn("update the stale CLI: claude update", out)
+        # pin claude's latest to its installed version -> current, no nudge
+        os.environ["MOCK_NPM_CLAUDE"] = "2.0.0"
+        _, out, _ = run_cli(["doctor"])
+        self.assertNotIn("update the stale CLI: claude update", out)
+
+    def test_some_nogo_still_viable_with_explicit_board(self):
+        os.environ["MOCK_GEMINI_MODE"] = "nogo_smoke"
+        code, out, _ = run_cli(["doctor"])
+        self.assertEqual(code, rb.EXIT_OK)       # 4 of 5 still GO
+        self.assertIn("NO-GO", out)
+        self.assertIn("installed but not usable yet: gemini", out)
+        self.assertIn("auth/setup: run `gemini` once", out)   # the seat's auth hint
+        self.assertIn("--board claude,codex,antigravity", out)  # trio broken -> explicit board
+
+    def test_not_installed_provider_gets_install_steps(self):
+        import dataclasses
+        real = rb.REGISTRY["codex"]
+        rb.REGISTRY["codex"] = dataclasses.replace(
+            real, version_argv=lambda: ["no-such-binary-xyz", "--version"])
+        try:
+            code, out, _ = run_cli(["doctor"])
+        finally:
+            rb.REGISTRY["codex"] = real
+        self.assertEqual(code, rb.EXIT_OK)       # the other four are GO
+        self.assertIn("cli     not installed", out)
+        self.assertIn("install: npm install -g @openai/codex", out)
+        self.assertIn("then auth: run `codex` once", out)
+        self.assertIn("not installed: codex", out)
+
+    def test_model_not_found_block_shows_fallback_proposal(self):
+        os.environ["MOCK_GEMINI_MODE"] = "model_proposal"
+        code, out, _ = run_cli(["doctor"])
+        self.assertEqual(code, rb.EXIT_OK)
+        self.assertIn("did NOT resolve", out)
+        self.assertIn("--model gemini=gemini-3-flash-preview", out)
+
+    def test_below_two_go_exits_nogo_with_fallback_guidance(self):
+        for seat in ("CODEX", "GEMINI", "AGY", "OLLAMA"):
+            os.environ[f"MOCK_{seat}_MODE"] = "nogo_smoke"
+        code, out, _ = run_cli(["doctor"])
+        self.assertEqual(code, rb.EXIT_PREFLIGHT_NOGO)
+        self.assertIn("NOT viable yet", out)
+        self.assertIn("at least 2 independent voices", out)
+        self.assertIn("--board a=claude,b=claude", out)     # same-provider fallback
+        self.assertIn("board-composition.md", out)
+        self.assertIn("Once two seats are GO", out)
+
+    def test_probe_provider_absent_cli_skips_the_smoke(self):
+        import dataclasses
+        absent = dataclasses.replace(rb.REGISTRY["codex"],
+                                     version_argv=lambda: ["no-such-binary-xyz", "--version"])
+        h = rb.probe_provider("codex", adapter=absent)
+        self.assertFalse(h.installed)
+        self.assertIsNone(h.probe)               # no smoke spawn for an absent CLI
+        self.assertFalse(h.go)
+        self.assertEqual(h.model, "gpt-5.5")
+
+    def test_run_doctor_streams_results_in_registry_order(self):
+        seen = []
+        healths = rb.run_doctor(["claude", "ollama"],
+                                on_result=lambda h: seen.append(h.provider))
+        self.assertEqual(seen, ["claude", "ollama"])
+        self.assertEqual([h.provider for h in healths], ["claude", "ollama"])
+        self.assertTrue(all(h.go for h in healths))
+
+
+# --------------------------------------------------------------------------- #
 # M3 — round-1 success shape check + failure classifier + model-answered parser
 # --------------------------------------------------------------------------- #
 
@@ -1806,6 +2010,104 @@ class TestRound1RunLevel(EnvMixin):
         # the dropped seats' .md records the failure, not a fake review
         with open(os.path.join(out, "round-1", "codex.md")) as fh:
             self.assertIn("no usable review", fh.read())
+
+
+class TestPerSeatTimeout(EnvMixin):
+    """v1.11 `--timeout SECONDS | SEAT=SECONDS`: a bare value applies to every seat
+    (the old single-value behavior), `id=SECONDS` overrides one seat — targeted by
+    id exactly like --model/--lens, with the same loud unknown-id failure — and the
+    resolved value reaches the actual spawn call. Run-only; never in the recipe."""
+
+    # A review long enough (and cue-rich enough) to pass check_round1_shape.
+    REVIEW = ("## 1. Verdict\nProceed with care; the plan is sound but thin on rollback.\n"
+              "## 2. Strongest objections\nThe retry race is unhandled under load.\n"
+              "## 5. Risks and stale assumptions\nThe cache invariant is asserted, not shown.\n"
+              "## 6. Concrete evidence\nsee `x.py:1` for the guardrail\n"
+              "VERDICT: ship\n")
+
+    def test_bare_timeout_applies_to_all_seats(self):
+        c = _config(timeout=["300"])
+        self.assertEqual([s.timeout_s for s in c.board], [300, 300, 300])
+
+    def test_per_seat_override_wins_over_bare_default(self):
+        c = _config(timeout=["300", "codex=600"])
+        t = {s.id: s.timeout_s for s in c.board}
+        self.assertEqual(t, {"claude": 300, "codex": 600, "gemini": 300})
+
+    def test_no_timeout_leaves_seats_unset(self):
+        c = _config()
+        self.assertEqual([s.timeout_s for s in c.board], [None, None, None])
+
+    def test_alias_targeting(self):
+        c = _config(board="econ=claude,codex", lens="business-decision",
+                    timeout=["econ=120"])
+        t = {s.id: s.timeout_s for s in c.board}
+        self.assertEqual(t, {"econ": 120, "codex": None})
+
+    def test_unknown_seat_id_dies(self):
+        # Matches the --model/--lens behavior: a typo'd/off-board id is a loud
+        # failure, never a silently-ignored override.
+        with self.assertRaises(SystemExit) as cm:
+            _config(timeout=["grok=60"])
+        self.assertEqual(cm.exception.code, rb.EXIT_USAGE)
+
+    def test_malformed_values_die(self):
+        for bad in (["abc"], ["codex=xyz"], ["0"], ["codex=0"], ["codex=-5"],
+                    ["=5"], ["codex="]):
+            with self.assertRaises(SystemExit):
+                _config(timeout=bad)
+
+    def test_two_different_bare_defaults_die(self):
+        with self.assertRaises(SystemExit):
+            _config(timeout=["300", "600"])
+
+    def _spawn_recorder(self, seen):
+        def fake_spawn(adapter, argv, *, prompt=None, timeout=None, cwd=None):
+            seen[adapter.name] = timeout
+            return rb.SpawnResult(0, self.REVIEW, "", 0.01, False)
+        return fake_spawn
+
+    def _fan_out(self, config):
+        blobs = rb.build_packet(config)
+        approval = rb.EgressApproval(True, "hash-bound", rb.packet_hash(blobs),
+                                     "2026-06-25T12:00:00", "test")
+        return rb.run_round1(config, blobs, approval)
+
+    def test_timeout_reaches_spawn_per_seat(self):
+        # The load-bearing thread: the per-seat values resolved onto SeatConfig are
+        # the timeouts the spawn call actually receives (mocked spawn, real fan-out).
+        from _conductor import rounds as rounds_mod
+        seen: dict = {}
+        real_spawn = rounds_mod.spawn
+        rounds_mod.spawn = self._spawn_recorder(seen)
+        try:
+            results = self._fan_out(_config(timeout=["120", "gemini=45"]))
+        finally:
+            rounds_mod.spawn = real_spawn
+        self.assertEqual(seen, {"claude": 120, "codex": 120, "gemini": 45})
+        self.assertTrue(all(r.usable for r in results))
+
+    def test_unset_timeout_spawns_with_adapter_cap(self):
+        from _conductor import rounds as rounds_mod
+        seen: dict = {}
+        real_spawn = rounds_mod.spawn
+        rounds_mod.spawn = self._spawn_recorder(seen)
+        try:
+            self._fan_out(_config())
+        finally:
+            rounds_mod.spawn = real_spawn
+        expected = {name: rb.REGISTRY[name].timeout_s
+                    for name in ("claude", "codex", "gemini")}
+        self.assertEqual(seen, expected)
+
+    def test_cli_accepts_bare_and_per_seat_forms_end_to_end(self):
+        # argparse append wiring: the old bare form and the new id=SECONDS form
+        # coexist on a real (mocked-CLI) run.
+        out = tempfile.mkdtemp(prefix="board-timeout-")
+        code, _, _ = run_cli(["run", "--source", SAMPLE, "--out", out, "--yes",
+                              "--timeout", "30", "--timeout", "gemini=25"])
+        self.assertEqual(code, rb.EXIT_OK)
+        self.assertTrue(os.path.exists(os.path.join(out, "round-2", "claude.md")))
 
 
 class TestSpawnProcessGroupKill(EnvMixin):
@@ -2694,6 +2996,7 @@ class TestAutoRounds(EnvMixin):
 class TestStructuredDigest(unittest.TestCase):
     EXAMPLE_DIR = os.path.join(REPO_ROOT, "examples", "payments-idempotency-review", "round-1")
     GOLDEN = os.path.join(FIXTURES, "example-structured-digest.md")
+    GOLDEN_JSON = os.path.join(FIXTURES, "example-structured-digest.json")
 
     def _example_usable(self):
         out = []
@@ -2809,6 +3112,42 @@ class TestStructuredDigest(unittest.TestCase):
             golden = fh.read()
         self.assertEqual(rb.build_structured_digest(self._example_usable(), round_no=2), golden)
 
+    # ---- the typed-JSON twin (--digest-format json) ----
+    def test_golden_digest_json_of_example(self):
+        # Byte-golden with the exact serialization cmd_run writes (indent=2, utf-8,
+        # trailing newline) — pins shape, key order, and content.
+        payload = rb.build_structured_digest_data(self._example_usable(), round_no=2)
+        with open(self.GOLDEN_JSON) as fh:
+            self.assertEqual(json.dumps(payload, indent=2, ensure_ascii=False) + "\n",
+                             fh.read())
+
+    def test_digest_json_serializes_the_markdown_signals(self):
+        # No new reasoning: every JSON take/agreement/citation is literally a signal
+        # the markdown digest already carries (same excerpts, same strings).
+        usable = self._example_usable()
+        payload = rb.build_structured_digest_data(usable, round_no=2)
+        md = rb.build_structured_digest(usable, round_no=2)
+        self.assertEqual(payload["schema"], "advisory-board/board-packet-digest@1")
+        self.assertEqual((payload["round"], payload["built_from_round"]), (2, 1))
+        self.assertEqual(payload["cross_reading"], "summaries")
+        for section in payload["sections"]:
+            self.assertIn(f"### {section['label']}", md)
+            for take in section["takes"]:
+                self.assertIn(take["excerpt"], md)
+        self.assertIn(payload["agreement"], md)
+        for citation in payload["shared_citations"]:
+            self.assertIn(f"`{citation}`", md)
+        self.assertEqual(payload["unparsed"], [])   # all three example reviews parse
+
+    def test_digest_json_verdict_tokens_and_unparsed_fallback(self):
+        usable = [_sr("a", 1, "## 1. Verdict\nship\nVERDICT: ship"),
+                  _sr("b", 1, "a wall of prose with no headers whatsoever " * 8)]
+        payload = rb.build_structured_digest_data(usable)
+        self.assertEqual(payload["verdicts"], [{"seat": "a", "verdict": "ship"},
+                                               {"seat": "b", "verdict": None}])
+        self.assertEqual([u["seat"] for u in payload["unparsed"]], ["b"])
+        self.assertTrue(payload["unparsed"][0]["excerpt"].startswith("a wall of prose"))
+
     def test_example_covers_all_seats_and_topics_within_budget(self):
         usable = self._example_usable()
         d = rb.build_structured_digest(usable, round_no=2)
@@ -2840,6 +3179,35 @@ class TestStructuredDigestE2E(EnvMixin):
         self.assertIn("split", packet)
         self.assertIn("### Verdict", packet)
         self.assertNotIn("no section headers found", packet)
+        # regression guard: without --digest-format json, no .json twin appears —
+        # the default run's artifact set is unchanged.
+        self.assertFalse(os.path.exists(os.path.join(out, "board-packet-round-2.json")))
+
+    def test_digest_format_json_writes_typed_packet_alongside_md(self):
+        out = tempfile.mkdtemp(prefix="board-m4json-")
+        code, _, _ = run_cli(["run", "--source", SAMPLE, "--out", out, "--yes",
+                              "--digest-format", "json"])
+        self.assertEqual(code, rb.EXIT_OK)
+        # the markdown packet is untouched; the JSON twin appears NEXT TO it.
+        self.assertTrue(os.path.exists(os.path.join(out, "board-packet-round-2.md")))
+        with open(os.path.join(out, "board-packet-round-2.json")) as fh:
+            payload = json.load(fh)
+        self.assertEqual(payload["schema"], "advisory-board/board-packet-digest@1")
+        self.assertEqual(payload["round"], 2)
+        self.assertEqual([v["seat"] for v in payload["verdicts"]],
+                         ["claude", "codex", "gemini"])
+        self.assertTrue(payload["sections"])
+        self.assertIn("agreement", payload)
+
+    def test_digest_format_json_requires_summaries(self):
+        # `full` is verbatim reviews and `none` has no packet — there is no
+        # structured digest to serialize, so the combination dies loudly up front.
+        for cross in ("full", "none"):
+            out = tempfile.mkdtemp(prefix="board-m4json-bad-")
+            code, _, err = run_cli(["run", "--source", SAMPLE, "--out", out, "--yes",
+                                    "--digest-format", "json", "--cross-reading", cross])
+            self.assertEqual(code, rb.EXIT_USAGE)
+            self.assertIn("summaries", err)
 
 
 # --------------------------------------------------------------------------- #
@@ -4151,6 +4519,163 @@ class TestQuickVerdictShape(unittest.TestCase):
                         blockers=[{"title": "use {{X}} here", "body": "b"}])
         out = self._qv(data)  # must not raise SystemExit on a literal {{X}}
         self.assertNotIn("{{X}}", out)
+
+
+class TestImplementationSequenceShape(unittest.TestCase):
+    """v1.11: `--shape implementation-sequence` is a REAL sequence-first render, not a
+    full-handoff alias — the ordered next_actions[] lead (owners where the verdict
+    names them; the FULL list, never the brief's cap of 3), backed by the blockers
+    each step must clear with their evidence trails. Markdown + HTML, both
+    deterministic from verdict.json, rendered by the same template machinery as the
+    other shapes."""
+
+    GOLDEN_MD = os.path.join(FIXTURES, "implementation-sequence.md")
+
+    def _rich(self):
+        return _verdict(
+            "caution", "caution", "caution", title="Relocation decision",
+            date="2026-06-25",
+            lens_preset="business-decision",
+            blockers=[
+                {"title": "Runway", "body": "The numbers don't close at current burn.",
+                 "evidence": [
+                     {"kind": "code", "path": "plan.md", "line": 12, "status": "verified"},
+                     {"kind": "judgment", "detail": "no client-churn data"}]},
+                {"title": "Anchor clients", "body": "Two of three are unsigned."},
+            ],
+            dissent=[{"who": "Codex", "body": "I'd wait a quarter."}],
+            open_questions=["What does churn look like after the move?"],
+            next_actions=[
+                "Build 6 months of runway",
+                {"action": "Sign the two anchor clients", "owner": "Tim"},
+                "Re-run the numbers at the new cost base",
+                "Bring the revised plan back to the board",
+            ],
+        )
+
+    def _seq_html(self, data):
+        import render_handoff as rh
+        return rh.render(rv.build_handoff_data(data),
+                         open(rh.implementation_sequence_template()).read())
+
+    # --- Markdown (snapshot + shape) ----------------------------------------- #
+
+    def test_sequence_markdown_snapshot(self):
+        with open(self.GOLDEN_MD) as fh:
+            golden = fh.read()
+        self.assertEqual(rv.render_sequence_markdown(self._rich()), golden)
+
+    def test_sequence_markdown_orders_actions_and_names_owner(self):
+        md = rv.render_sequence_markdown(self._rich())
+        self.assertIn("# Advisory Board — Implementation Sequence", md)
+        self.assertIn("## The sequence — in order", md)
+        self.assertIn("1. Build 6 months of runway", md)
+        self.assertIn("2. Sign the two anchor clients — owner: Tim", md)
+        self.assertIn("4. Bring the revised plan back to the board", md)
+        # blockers back the sequence, with their evidence trails
+        self.assertIn("## What the sequence must clear", md)
+        self.assertIn("1. Runway — The numbers don't close at current burn.", md)
+        self.assertIn("- evidence: `plan.md:12` (code) — verified", md)
+        # sequence-first view carries the verdict context but not the heavy sections
+        self.assertIn("## Verdict:", md)
+        self.assertNotIn("Hard dissent", md)
+        self.assertNotIn("Open questions", md)
+
+    def test_sequence_markdown_zero_actions_is_deterministic(self):
+        data = _verdict("ship", "ship", "ship", title="Launch?",
+                        lens_preset="business-decision",
+                        blockers=[{"title": "B", "body": "b"}])
+        md = rv.render_sequence_markdown(data)
+        self.assertIn("_The verdict lists no next actions — see the full handoff._", md)
+
+    # --- HTML ----------------------------------------------------------------- #
+
+    def test_seq_html_renders_clean_full_list_owner_and_evidence(self):
+        out = self._seq_html(self._rich())
+        self.assertNotIn("{{", out)
+        self.assertIn("The sequence — in order", out)
+        # ALL FOUR steps render, in verdict order (the brief would cap at 3)
+        first = out.index("Build 6 months of runway")
+        second = out.index("Sign the two anchor clients")
+        fourth = out.index("Bring the revised plan back to the board")
+        self.assertTrue(first < second < fourth)
+        # exactly one owner pill (the other steps' empty spans are dropped)
+        self.assertEqual(out.count('<span class="seq-owner">'), 1)
+        self.assertIn('<span class="seq-owner">Tim</span>', out)
+        # evidence trails, locator in <code>, status word kept
+        self.assertIn("<code>plan.md:12</code> (code) — verified", out)
+        self.assertIn("judgment — no client-churn data", out)
+        # lens-aware blockers heading (same header machinery as the other shapes)
+        self.assertIn("<h2>What to resolve first</h2>", out)
+        # sequence-first: none of the heavy full-handoff sections
+        self.assertNotIn("Board reviews — round by round", out)
+        self.assertNotIn("Dissent on the record", out)
+        self.assertNotIn("Open questions", out)
+
+    def test_seq_html_zero_actions_and_zero_blockers_drop_sections(self):
+        data = _verdict("ship", "ship", "ship", title="Launch?",
+                        lens_preset="business-decision")
+        out = self._seq_html(data)
+        self.assertNotIn("seq-steps-sec", out)
+        self.assertNotIn("seq-blockers-sec", out)
+        self.assertNotIn("{{", out)
+
+    def test_seq_html_no_evidence_drops_the_trail_list(self):
+        data = _verdict("caution", "caution", title="Plan?",
+                        lens_preset="business-decision",
+                        blockers=[{"title": "B", "body": "no receipts"}],
+                        next_actions=["step one"])
+        out = self._seq_html(data)
+        self.assertNotIn('<ul class="seq-ev">', out)
+
+    def test_full_handoff_ignores_the_new_sequence_keys(self):
+        # The added handoff-data keys are additive: the default template renders
+        # clean (and cap-free keys never leak into it).
+        import render_handoff as rh
+        out = rh.render(rv.build_handoff_data(self._rich()),
+                        open(rh.default_template()).read())
+        self.assertNotIn("{{", out)
+        self.assertNotIn("seq-steps", out)
+        # owner-carrying dict actions render as one line, not a dict repr
+        self.assertIn("Sign the two anchor clients — owner: Tim", out)
+        self.assertNotIn("{'action'", out)
+
+    # --- --shape CLI wiring ---------------------------------------------------- #
+
+    def _write_verdict(self, d):
+        vpath = os.path.join(d, "verdict.json")
+        with open(vpath, "w") as fh:
+            json.dump(self._rich(), fh)
+        return vpath
+
+    def test_shape_flag_writes_sequence_md_and_html(self):
+        d = tempfile.mkdtemp()
+        self.addCleanup(lambda: __import__("shutil").rmtree(d, ignore_errors=True))
+        vpath = self._write_verdict(d)
+        md = os.path.join(d, "implementation-sequence.md")
+        html_path = os.path.join(d, "implementation-sequence.html")
+        with contextlib.redirect_stdout(io.StringIO()):
+            rv.main([vpath, "-o", md, "--html", html_path,
+                     "--shape", "implementation-sequence"])
+        md_text = open(md).read()
+        self.assertTrue(md_text.startswith("# Advisory Board — Implementation Sequence"))
+        html_text = open(html_path).read()
+        self.assertIn('<ol class="seq-steps">', html_text)
+        self.assertNotIn("Board reviews — round by round", html_text)
+
+    def test_shape_flag_default_md_filename_is_sequence(self):
+        # With no -o, the sequence shape lands at implementation-sequence.md — it
+        # must not overwrite (or masquerade as) final-consensus.md.
+        d = tempfile.mkdtemp()
+        self.addCleanup(lambda: __import__("shutil").rmtree(d, ignore_errors=True))
+        vpath = self._write_verdict(d)
+        cwd = os.getcwd()
+        os.chdir(d)
+        self.addCleanup(lambda: os.chdir(cwd))
+        with contextlib.redirect_stdout(io.StringIO()):
+            rv.main([vpath, "--shape", "implementation-sequence"])
+        self.assertTrue(os.path.exists(os.path.join(d, "implementation-sequence.md")))
+        self.assertFalse(os.path.exists(os.path.join(d, "final-consensus.md")))
 
 
 class TestM5ChainDelegation(EnvMixin):

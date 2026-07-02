@@ -21,7 +21,7 @@ handoff-data.json shape (keys mirror the template's {{TOKENS}}, lowercased):
                         verdict_class, verdict_note, blockers_heading, disclaimer,
                         plan, metadata, dissent_flag
   Lists of objects:     seats[], blockers[], dissents[], caveats[],
-                        questions[], actions[]
+                        questions[], actions[], sequence[], seq_blockers[]
     seats[]:   seat_name, seat_lens, seat_model, seat_status, seat_status_class,
                seat_highlight, rounds[]
       rounds[]: round_label, round_verdict, round_verdict_class,
@@ -30,6 +30,9 @@ handoff-data.json shape (keys mirror the template's {{TOKENS}}, lowercased):
     dissents[]: dissent_who, dissent_body
     caveats[]:  caveat_claim, caveat_impact
     questions[]: question      actions[]: action
+    sequence[]: seq_action, seq_owner        (implementation-sequence view)
+    seq_blockers[]: seq_blocker_title, seq_blocker_body, seq_evidence[]
+      seq_evidence[]: seq_evidence_line
 
 Empty/omitted optional fields (seat_status, seat_highlight, round_confidence)
 render to nothing — the pill/callout is dropped, not left blank.
@@ -72,6 +75,11 @@ BLOCK_KEYS = {
     "QUESTION": "questions",
     "ACTION": "actions",
     "ACTION BRIEF": "actions_brief",
+    # implementation-sequence view (implementation-sequence-template.html): the full
+    # ordered step list, and the blockers with a nested evidence-trail list.
+    "SEQ STEP": "sequence",
+    "SEQ BLOCKER": "seq_blockers",
+    "SEQ EVIDENCE": "seq_evidence",
 }
 
 # Tokens whose values are authored HTML fragments and pass through unescaped.
@@ -79,6 +87,7 @@ RAW_TOKENS = {
     "SUBTITLE", "BOARD", "VERDICT_NOTE", "DISCLAIMER", "PLAN", "METADATA",
     "SEAT_HIGHLIGHT", "ROUND_REVIEW", "BLOCKER_BODY", "DISSENT_BODY",
     "CAVEAT_CLAIM", "CAVEAT_IMPACT", "QUESTION", "ACTION",
+    "SEQ_ACTION", "SEQ_BLOCKER_BODY", "SEQ_EVIDENCE_LINE",
 }
 
 
@@ -112,6 +121,18 @@ def drop_empty_optionals(out: str) -> str:
     # Drop an empty actions section (the qv-actions <ol> rendered empty).
     out = re.sub(
         r'\s*<section class="qv-sec qv-actions-sec">.*?<ol class="qv-actions">\s*</ol>.*?</section>',
+        "", out, flags=re.DOTALL)
+    # --- implementation-sequence (seq-*) drops. Scoped to seq-* classes — NO-OPS for
+    #     the other templates. An action with no owner leaves its owner span empty;
+    #     a blocker with no evidence leaves its <ul> empty; a verdict with no
+    #     next_actions / blockers leaves that whole section's list empty. ---
+    out = re.sub(r'\s*<span class="seq-owner">\s*</span>', "", out)
+    out = re.sub(r'\s*<ul class="seq-ev">\s*</ul>', "", out)
+    out = re.sub(
+        r'\s*<section class="seq-sec seq-steps-sec">.*?<ol class="seq-steps">\s*</ol>.*?</section>',
+        "", out, flags=re.DOTALL)
+    out = re.sub(
+        r'\s*<section class="seq-sec seq-blockers-sec">.*?<ol class="seq-blockers">\s*</ol>.*?</section>',
         "", out, flags=re.DOTALL)
     return out
 
@@ -170,6 +191,16 @@ def quick_verdict_template() -> str:
     return os.path.join(
         os.path.dirname(os.path.abspath(__file__)),
         "..", "references", "quick-verdict-template.html",
+    )
+
+
+def implementation_sequence_template() -> str:
+    """The sequence-first "implementation-sequence" template — same handoff-data;
+    the full ordered next actions (with owners) lead, backed by the blockers each
+    step must clear with their evidence trails."""
+    return os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        "..", "references", "implementation-sequence-template.html",
     )
 
 

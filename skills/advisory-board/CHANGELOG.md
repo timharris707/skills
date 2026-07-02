@@ -10,6 +10,38 @@ reserved for an explicit production-ready call. The verdict-JSON schema is versi
 
 ## [Unreleased]
 
+### Added
+- **`--digest-format markdown|json`** on `run` (default `markdown` — existing behavior untouched):
+  with `json`, each round-2+ structured digest is ALSO written as typed JSON —
+  `board-packet-round-N.json` (`advisory-board/board-packet-digest@1`) next to the `.md` — carrying
+  the same parsed signals the markdown digest already computes: per-seat `VERDICT` tokens + the
+  agreement summary, the shared (≥2-seat) citation set, every canonical topic with each seat's
+  head-excerpted take, and the unparsed-review fallbacks. A serialization of what exists, not new
+  reasoning (§11); requires `--cross-reading summaries` (refused loudly otherwise). Golden-file
+  tested against the committed payments example.
+- **Per-seat `--timeout`**: `--timeout SECONDS | SEAT=SECONDS`, repeatable. A bare value applies to
+  every seat (the old single-value syntax keeps working unchanged); `SEAT=SECONDS` overrides one
+  seat, targeted by id exactly like `--model`/`--lens` — an unknown id fails loudly. The resolved
+  value threads config → rounds → spawn (tested at the spawn call), and the synthesizer honors its
+  seat's value. Run-only; deliberately not recipe-persisted.
+- **`--output implementation-sequence` is now a real, distinct render** (previously it fell back to
+  the full handoff). `render_verdict.py --shape implementation-sequence` renders a sequence-first
+  view of the same `verdict.json`: the ordered `next_actions[]` lead — the full list, with the
+  owner named where the verdict carries one — backed by the blockers each step must clear with
+  their evidence trails. Emits `implementation-sequence.md` plus a matching self-contained HTML
+  shape (`references/implementation-sequence-template.html`, same template machinery and brand as
+  the other shapes), deterministic from `verdict.json` like every render. `next_actions[]` entries
+  may now be `{action, owner}` objects; plain strings render byte-identically everywhere.
+- **Setup doctor** (`run_board.py doctor`, #7) — guided onboarding for a brand-new machine: sweeps
+  **every** registered provider (claude, codex, gemini, antigravity, ollama), not just a chosen
+  board, reusing the toolchain currency probe (installed → version vs latest) and the preflight
+  seat probe (auth → default model resolves → smoke) per provider. Prints a per-provider status
+  block with concrete fix-it steps (install command, auth command, model fallback, stale-CLI
+  update), then a viable-board summary (≥ 2 seats GO) with a suggested first command (a `--dry-run`
+  on the bundled sample source). No user material egresses — probes and smoke-pings only, and the
+  output says so. Exits non-zero when no board is viable, so scripts can branch on it.
+  (`scripts/_conductor/doctor.py`; probe logic stays in `preflight.py`/`toolchain.py`.)
+
 ### Fixed
 - **Snapshot leak checks are now process-local (test-only).** Three tests asserted a
   before/after glob of the machine-wide tempdir for `advisory-board-repo-*`, so any
