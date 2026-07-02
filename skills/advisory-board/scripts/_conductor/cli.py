@@ -457,6 +457,23 @@ def _execute_run(config, args) -> int:
         "movements": movements,
     }
 
+    # Independence / echo score (v1.14 #9): a pure metric over the FINAL round
+    # transition's parsed signals (verdict flips, citation overlap, the self-reported
+    # BASIS token). Only meaningful with ≥2 rounds; echo_score returns `not_computed`
+    # for a single-round run, so we only attach it when there IS a final transition.
+    # The same-provider discount is derived INSIDE echo_score from the scored (overlap)
+    # seats' own `.provider`, so a seat dropping before the final round can never make
+    # the discount read a population the metric did not score.
+    if len(rounds_done) >= 2:
+        from _conductor.echo_score import echo_score
+        echo = echo_score(rounds_done[-2], rounds_done[-1])
+        convergence["echo"] = echo
+        # A machine-readable sidecar for the full-handoff HTML pill (read best-effort
+        # by render_verdict.build_handoff_data). A single-round run never reaches here,
+        # so the file is absent there and the pill drops → byte-identical (D5).
+        _write(os.path.join(config.out_dir, "echo-score.json"),
+               json.dumps(echo, indent=2, ensure_ascii=False) + "\n")
+
     # Provenance after the last fan-out (carries every round's outcome + the M1
     # convergence trace: per-transition movement and why the loop stopped).
     _write(os.path.join(config.out_dir, "run-metadata.md"),

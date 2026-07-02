@@ -23,8 +23,10 @@ from typing import Optional
 
 __all__ = [
     "VERDICT_TOKENS",
+    "BASIS_TOKENS",
     "DEFAULT_CONVERGE_THRESHOLD",
     "parse_verdict",
+    "parse_basis",
     "citations",
     "seat_movement",
     "board_movement",
@@ -104,6 +106,45 @@ def parse_verdict(text: Optional[str]) -> Optional[str]:
         hits = [t for t in VERDICT_TOKENS if _WORD[t].search(rest)]
         if len(hits) != 1:
             continue   # zero tokens, or the 3-token echo / a hedge naming two
+        first = _FIRST_WORD.search(rest)
+        if first and first.group(0).lower() == hits[0]:   # the token leads the value
+            found = hits[0]
+    return found
+
+
+# The independence/basis vocabulary (v1.14 #9 — echo score). ROUND-2+ seats emit a
+# machine-readable `BASIS:` line stating what their revised position rests on. It is a
+# self-reported signal for the echo-score metric, NOT a verdict signal: it never gates
+# and never overrides the one VERDICT token. Parsed with the SAME failure-tolerant
+# discipline as parse_verdict — a line naming zero or >1 of the tokens is ignored, and
+# a seat that omits the line yields None ("unknown"), never a guess.
+BASIS_TOKENS = ("independent", "evidence", "deference")
+
+_BASIS_LINE = re.compile(r"\bBASIS\b\s*[*_]*\s*:\s*(.+?)\s*$", re.IGNORECASE)
+_BASIS_WORD = {t: re.compile(rf"\b{t}\b", re.IGNORECASE) for t in BASIS_TOKENS}
+
+
+def parse_basis(text: Optional[str]) -> Optional[str]:
+    """The seat's self-reported round-2+ basis token (independent|evidence|deference),
+    or None if it emitted no clean BASIS line (v1.14 #9). Mirrors parse_verdict exactly:
+    the token must be the FIRST alphabetic word of the value (so a prose line like
+    `Basis: mostly my own evidence` is NOT read as `evidence`), a line naming zero or
+    more than one token is ignored, a markdown-QUOTED/indented/code-spanned line is
+    skipped (a peer's echoed BASIS cannot override the seat's own), and the last clean
+    line wins. None means 'unknown' — the metric never guesses a basis a seat did not
+    state. This token is self-reported: it flags the seat's OWN account of its
+    independence, it does not verify it."""
+    found = None
+    for line in (text or "").splitlines():
+        m = _BASIS_LINE.search(line)
+        if not m:
+            continue
+        if _is_quoted_verdict_line(line, m):
+            continue   # a blockquoted/indented/code-spanned BASIS is not the seat's own
+        rest = m.group(1)
+        hits = [t for t in BASIS_TOKENS if _BASIS_WORD[t].search(rest)]
+        if len(hits) != 1:
+            continue   # zero tokens, or a hedge naming two/all three
         first = _FIRST_WORD.search(rest)
         if first and first.group(0).lower() == hits[0]:   # the token leads the value
             found = hits[0]

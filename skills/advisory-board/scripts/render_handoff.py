@@ -155,6 +155,16 @@ def drop_empty_optionals(out: str) -> str:
     out = re.sub(
         r'\s*(?:<!--(?:(?!-->).)*?-->\s*)?<p class="filter-note">\s*</p>',
         "", out, flags=re.DOTALL)
+    # Independence/echo pill (v1.14 #9 / P2): drop the whole <p class="echo-pill …">
+    # when it rendered empty — a single-round run, or any run whose run dir carries no
+    # echo-score.json (old run dirs / pre-P2 handoff-data). The class attr carries the band
+    # ({{ECHO_CLASS}} = "echo-low"/…), empty when the pill is absent, so the empty form
+    # is `<p class="echo-pill ">…</p>` (trailing space); [^"]* absorbs it. The authoring
+    # comment above is eaten too, so the drop leaves no blank-line residue → the page is
+    # byte-identical to a pre-P2 render.
+    out = re.sub(
+        r'\s*(?:<!--(?:(?!-->).)*?-->\s*)?<p class="echo-pill[^"]*">\s*</p>',
+        "", out, flags=re.DOTALL)
     # On a FILTERED render — and only there — an emptied full-handoff dissent /
     # couldn't-verify section drops WHOLE (divider comment, authoring comment,
     # heading, shell): a hollow "<h2>Dissent…</h2>" beside a filter-note saying
@@ -318,6 +328,11 @@ def render(data: dict, template: str) -> str:
     # render and on any pre-v1.14 handoff-data.json — the {{FILTER_NOTE}} line then
     # drops below, keeping an unfiltered page byte-identical.
     data.setdefault("filter_note", "")
+    # v1.14 P2 (#9): the independence/echo pill. Empty on a single-round run and on
+    # any pre-P2 handoff-data.json — the {{ECHO_PILL}}/{{ECHO_CLASS}} slots then drop
+    # below, keeping such a page byte-identical.
+    data.setdefault("echo_pill", "")
+    data.setdefault("echo_class", "")
     if isinstance(data.get("blockers"), list):
         # Copy each blocker row before defaulting its nested list, so an old
         # handoff-data.json passed in by the caller is never mutated.

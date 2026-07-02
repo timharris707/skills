@@ -478,6 +478,45 @@ def default_run_dir(title: str, date: str, root: Optional[str] = None) -> str:
     return path
 
 
+def _warn_on_template_drift(recipe: dict) -> None:
+    """Loud, non-fatal provenance warning on `--from-recipe`.
+
+    `--from-recipe` reproduces the resolved CONFIG exactly, but the egressed prompts
+    are always built from the CURRENT template code, never from bytes stored in the
+    recipe (there is one round-2 template; a template bump — e.g. v1.14 #9's `BASIS:`
+    line — changes what a replay egresses). So a recipe recorded before a template edit
+    will NOT reproduce byte-for-byte. That is legitimate (the replay's prompts are still
+    consented at the egress gate), but it must never be silent: warn to stderr naming the
+    recorded sha and the current sha so the drift is visible. Never changes exit codes or
+    refuses the run.
+
+    A recipe missing `prompt_template_sha256` predates template provenance — warn on that
+    too, one clear line. The check compares like-for-like: the CURRENT combined sha for
+    the SAME grounded/revise posture the recipe encodes (grounding via `repo`, revise via
+    `revise_of`), so a mismatch means the template CODE changed, not the run shape."""
+    # Deferred import: prompts is heavy and only needed on the recipe path.
+    from _conductor.prompts import prompt_template_sha
+    recorded = recipe.get("prompt_template_sha256")
+    if recorded is None:
+        print("warning: this recipe predates template provenance (no "
+              "'prompt_template_sha256'); --from-recipe replays prompts built from the "
+              "CURRENT templates, so it may not reproduce the original run byte-for-byte. "
+              "The new run's recipe will record the current template id + sha.",
+              file=sys.stderr)
+        return
+    grounded = bool(recipe.get("repo"))
+    revised = bool(recipe.get("revise_of"))
+    current = prompt_template_sha(grounded, revised)
+    if recorded != current:
+        print("warning: prompt-template drift on --from-recipe replay. "
+              f"recipe recorded prompt_template_sha256={recorded}; current template "
+              f"sha={current}. --from-recipe reproduces the resolved CONFIG exactly, but "
+              "prompts are built from the CURRENT templates (still consented at the egress "
+              "gate) — this replay will NOT reproduce the original prompt bytes. The new "
+              "run's recipe records the current id + sha, making the drift visible.",
+              file=sys.stderr)
+
+
 def resolve_config(args) -> RunConfig:
     # Deferred import: resolve_config is the one config->recipe edge;
     # importing at module scope would create a config<->recipe cycle.
@@ -504,6 +543,7 @@ def resolve_config(args) -> RunConfig:
 
     if getattr(args, "from_recipe", None):
         base = recipe_to_config(args.from_recipe)
+        _warn_on_template_drift(base)
     else:
         base = None
 

@@ -16,6 +16,7 @@ __all__ = [
     "REPO_GROUNDING_CLAUSE",
     "REPO_EVIDENCE_ASK",
     "VERDICT_LINE_INSTRUCTION",
+    "BASIS_LINE_INSTRUCTION",
     "REVISION_CONTEXT_BLOCK",
     "PROMPT_TEMPLATE_VERSION",
     "PROMPT_TEMPLATE_VERSION_GROUNDED",
@@ -26,6 +27,7 @@ __all__ = [
     "prompt_template_version",
     "round2_template_version",
     "prompt_template_sha",
+    "round2_template_sha",
     "ask_template_sha",
     "build_round1_prompt",
     "build_ask_prompt",
@@ -107,6 +109,30 @@ VERDICT_LINE_INSTRUCTION = (
     "(ship = proceed as planned · caution = proceed only with the changes above · "
     "block = do not proceed. The conductor reads only this one token, never your "
     "prose, so it must name exactly one of the three.)"
+)
+
+
+# The independence/basis token (v1.14 #9 — echo score). ROUND-2+ ONLY: it makes the
+# `epistemics.md` independence check ("when a seat changes position after reading the
+# others, it must say WHY — evidence vs deference") machine-parseable. Each seat states,
+# on its own labeled line, whether its round-2 position rests on its OWN evidence, on a
+# specific argument/fact ANOTHER seat surfaced, or only on the others agreeing. It is a
+# SECOND parsed token, but it is self-reported and advisory: it feeds the echo-score
+# metric (echo_score.py), it never gates and never overrides the one VERDICT token
+# (which stays the only verdict signal, principle #1). A seat that omits it parses as
+# `unknown` — never guessed. Placed just BEFORE the VERDICT line so both machine tokens
+# sit at the tail of the reply, VERDICT genuinely last.
+BASIS_LINE_INSTRUCTION = (
+    "\n\nAlso, on the SECOND-TO-LAST line of your reply (immediately above the VERDICT "
+    "line), state\nwhat your round-{round_no} position rests on as a single "
+    "machine-readable token — exactly\nthis line, nothing else on it:\n"
+    "BASIS: <independent | evidence | deference>\n"
+    "(independent = it rests on your OWN evidence, or you held your prior view · "
+    "evidence = you\nchanged toward another seat because of a specific argument, file, "
+    "or fact THEY surfaced —\nname it in point 2 above · deference = you changed only "
+    "because the others agreed. Deference\nis not a reason (see epistemics.md): if that "
+    "is all you have, hold your prior view and say\n`independent`. This token is "
+    "self-reported and does not change the verdict; name exactly one.)"
 )
 
 
@@ -217,7 +243,11 @@ CLAUDE_OUTPUT_OVERRIDE = (
 # {repo_grounding}/{repo_evidence_ask} placeholders are empty there (D6).
 PROMPT_TEMPLATE_VERSION = "advisory-board/round1@2"
 PROMPT_TEMPLATE_VERSION_GROUNDED = "advisory-board/round1@3"
-ROUND2_TEMPLATE_VERSION_GROUNDED = "advisory-board/round2@3"
+# round2@4 = the v1.14 #9 BASIS (independence) line, added UNCONDITIONALLY to the
+# round-2 template (it changes the round-2 bytes on EVERY run — unlike the P4 grounding
+# clause, which is conditional). So the round-2 base bumps @2 → @3 and the grounded
+# variant @3 → @4. Round 1 is untouched (still round1@2/@3): BASIS is round-2+ only.
+ROUND2_TEMPLATE_VERSION_GROUNDED = "advisory-board/round2@4"
 # --revise composes with either base (plain or grounded), so it is a SUFFIX on
 # the version string, not a linear bump: `advisory-board/round1@2+revise@1` /
 # `@3+revise@1`. A non-revise run records the bare base, byte-identically.
@@ -277,6 +307,18 @@ def prompt_template_sha(grounded: bool = False, revised: bool = False) -> str:
     blob = "\x00".join((_sha_template(ROUND1_TEMPLATE, grounded, revised),
                         CLAUDE_OUTPUT_OVERRIDE,
                         _sha_template(ROUND2_TEMPLATE, grounded, revised),
+                        ROUND2_PEERS_BLOCK, ROUND2_SOLO_BLOCK)).encode("utf-8")
+    return hashlib.sha256(blob).hexdigest()
+
+
+def round2_template_sha(grounded: bool = False) -> str:
+    """The sha of the ROUND-2 surface alone (the template + its peer/solo blocks).
+    Recorded in the recipe alongside the combined `prompt_template_sha256` so the
+    template v1.14 #9 actually changed — round 2 — is named on its own, not only via
+    the round-1 id. Additive: it does not alter the combined sha. The round-2 template
+    carries no revise variant (the revision clause is round-1 only), so there is no
+    `revised` axis here."""
+    blob = "\x00".join((_sha_template(ROUND2_TEMPLATE, grounded, False),
                         ROUND2_PEERS_BLOCK, ROUND2_SOLO_BLOCK)).encode("utf-8")
     return hashlib.sha256(blob).hexdigest()
 
@@ -407,7 +449,7 @@ Work read-only. Reconsider your position in light of the above. Produce:
 4. Recommended execution sequence.
 5. Invariants and guardrails.
 6. Risks, stale assumptions, and missing evidence.
-7. Concrete evidence (cite paths/lines or quote exactly).{repo_evidence_ask}{output_override}""" + VERDICT_LINE_INSTRUCTION + "\n"
+7. Concrete evidence (cite paths/lines or quote exactly).{repo_evidence_ask}{output_override}""" + BASIS_LINE_INSTRUCTION + VERDICT_LINE_INSTRUCTION + "\n"
 
 # The shared cross-reading section (summaries|full); for `none` the seat sees only
 # its own previous-round review and is asked to refine independently.
@@ -424,7 +466,7 @@ independently; the other seats' reviews are not shared):
 <<<<<<<< END YOUR ROUND-{prev_round} REVIEW >>>>>>>>
 """
 
-ROUND2_TEMPLATE_VERSION = "advisory-board/round2@2"
+ROUND2_TEMPLATE_VERSION = "advisory-board/round2@3"   # v1.14 #9 BASIS line (see @4 note above)
 
 
 def build_round2_packet(usable: list, cross_reading: str, round_no: int = 2,

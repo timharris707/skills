@@ -32,7 +32,17 @@ It carries four jobs: **(a) availability** — the repo at the working dir is re
 
 This lets the synthesizer/reader tell grounded findings from unchecked ones. It adds **no new machine-parsed token**: `VERDICT:` stays the only line the conductor parses (principle #1 / §11); these labels are prose for the human and the synthesizer.
 
-These bump the recorded template versions to `round1@3` / `round2@3` — but **only when the clause is actually present**. A non-grounded run still records `@2` with the `@2` sha, so existing recipes never churn.
+These bump the recorded template versions to `round1@3` / `round2@4` — but **only when the clause is actually present**. (The round-2 base is `round2@3` and the grounded variant is `round2@4` once the v1.14 `BASIS` line below is counted — the grounding clause adds the `@3 → @4` step on top of that unconditional base; see the `BASIS:` section next.) A non-grounded run still records `round1@2` (round 1's shape is untouched) with its sha, so existing round-1 recipes never churn.
+
+## The independence / basis line — round 2+ (`BASIS:`)
+
+The round-2+ template asks each seat for a **second machine-readable token** that makes the `epistemics.md` independence check parseable (v1.14 #9 — the echo score). On the second-to-last line of its reply (immediately above `VERDICT:`), a seat states what its revised position rests on:
+
+```text
+BASIS: <independent | evidence | deference>
+```
+
+`independent` = its own evidence, or it held its prior view · `evidence` = it changed toward another seat because of a specific argument/file/fact *they* surfaced · `deference` = it changed only because the others agreed (which `epistemics.md` says is not a reason — the seat is told to hold its prior view and say `independent` instead). This token is **self-reported and advisory**: it feeds the echo-score metric only, it never gates, and it never overrides the one `VERDICT:` token. It is parsed with the same failure-tolerance as `VERDICT:` — a line naming zero or more than one token is ignored, and a seat that omits the line yields *unknown*, never a guess. The line is added **unconditionally** (round 2+, every run), so it bumps the round-2 template: base `round2@2` → `round2@3`, grounded `round2@3` → `round2@4`. Round 1 carries no `BASIS:` line (there is nothing to have changed from) and stays `round1@2`/`@3`.
 
 ## Round 1 Seat Prompt
 
@@ -78,6 +88,8 @@ Produce:
 5. Remaining dissent or blockers.
 6. Revised execution sequence.
 7. Specific evidence or tests needed before implementation.
+
+Then, as the last two lines (see the sections above): a `BASIS:` line (independence signal) and finally the `VERDICT:` line.
 ```
 
 ## Round 3 Convergence Prompt

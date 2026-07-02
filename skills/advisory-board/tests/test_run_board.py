@@ -16,6 +16,7 @@ The suite asserts the safety-critical properties M2 must guarantee:
   * the run-recipe round-trips through the restricted YAML codec.
 """
 import contextlib
+import dataclasses
 import hashlib
 import io
 import json
@@ -933,6 +934,78 @@ class TestFromRecipe(EnvMixin):
         self.assertEqual(code, rb.EXIT_OK)
         with open(os.path.join(out, "run-recipe.yaml")) as fh:
             self.assertIn("max_rounds: 5", fh.read())
+
+
+class TestRecipeTemplateDrift(EnvMixin):
+    """--from-recipe reproduces the resolved CONFIG exactly, but prompts are always
+    built from the CURRENT templates (there is one round-2 template; v1.14 #9 added the
+    `BASIS:` line). So a recipe recorded before a template edit will not reproduce
+    byte-for-byte — the load must WARN loudly (never silently), and never change the
+    exit code or refuse the run."""
+
+    def _write_recipe(self, text):
+        path = os.path.join(tempfile.mkdtemp(prefix="board-drift-"), "run-recipe.yaml")
+        with open(path, "w") as fh:
+            fh.write(text)
+        return path
+
+    def _resolve_capturing_stderr(self, path):
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            cfg = rb.resolve_config(_args(source=None, from_recipe=path))
+        return cfg, err.getvalue()
+
+    def test_pre_p2_recipe_old_sha_warns_and_proceeds(self):
+        # A recipe whose recorded prompt_template_sha256 differs from the current
+        # combined sha (a pre-P2 recipe): the load warns naming both shas, and the run
+        # still resolves (no refusal, no exit-code change).
+        recipe = rb.config_to_recipe(_config())
+        old_sha = "0" * 64   # a stale sha standing in for the pre-P2 template
+        recipe["prompt_template_sha256"] = old_sha
+        path = self._write_recipe(rb.dump_recipe(recipe))
+        cfg, err = self._resolve_capturing_stderr(path)
+        self.assertIsNotNone(cfg)                      # run proceeds
+        self.assertIn("drift", err.lower())
+        self.assertIn(old_sha, err)                    # names the recorded sha
+        self.assertIn(rb.prompt_template_sha(), err)   # names the current sha
+
+    def test_current_sha_recipe_does_not_warn(self):
+        # A freshly-recorded recipe carries the current combined sha -> no drift warning.
+        recipe = rb.config_to_recipe(_config())
+        path = self._write_recipe(rb.dump_recipe(recipe))
+        cfg, err = self._resolve_capturing_stderr(path)
+        self.assertIsNotNone(cfg)
+        self.assertNotIn("drift", err.lower())
+        self.assertNotIn("predates template provenance", err)
+
+    def test_recipe_missing_sha_field_warns_predates_provenance(self):
+        # A recipe with no prompt_template_sha256 (predates template provenance):
+        # a single clear line, and the run still proceeds.
+        recipe = rb.config_to_recipe(_config())
+        del recipe["prompt_template_sha256"]
+        path = self._write_recipe(rb.dump_recipe(recipe))
+        cfg, err = self._resolve_capturing_stderr(path)
+        self.assertIsNotNone(cfg)
+        self.assertIn("predates template provenance", err)
+
+    def test_old_recipe_without_round2_keys_still_loads(self):
+        # The additive round2_template / round2_template_sha256 keys must not be
+        # required: an older recipe missing them loads and resolves fine (and, carrying
+        # the current combined sha, warns of no drift).
+        recipe = rb.config_to_recipe(_config())
+        recipe.pop("round2_template", None)
+        recipe.pop("round2_template_sha256", None)
+        path = self._write_recipe(rb.dump_recipe(recipe))
+        cfg, err = self._resolve_capturing_stderr(path)
+        self.assertIsNotNone(cfg)
+        self.assertNotIn("drift", err.lower())
+
+    def test_recipe_records_round2_template_id_and_sha(self):
+        # The recipe now names the round-2 surface P2 actually changed (additive).
+        recipe = rb.config_to_recipe(_config())
+        self.assertEqual(recipe["round2_template"], "advisory-board/round2@3")
+        self.assertEqual(recipe["round2_template_sha256"], rb.round2_template_sha())
+        self.assertEqual(len(recipe["round2_template_sha256"]), 64)
 
 
 class TestTierPresets(EnvMixin):
@@ -2660,7 +2733,8 @@ class TestRoundTemplatesVerdictLine(unittest.TestCase):
 
     def test_prompt_versions_bumped(self):
         self.assertEqual(rb.PROMPT_TEMPLATE_VERSION, "advisory-board/round1@2")
-        self.assertEqual(rb.ROUND2_TEMPLATE_VERSION, "advisory-board/round2@2")
+        # round2@3: v1.14 #9 added the unconditional BASIS (independence) line.
+        self.assertEqual(rb.ROUND2_TEMPLATE_VERSION, "advisory-board/round2@3")
 
     def test_built_round1_prompt_includes_verdict_line(self):
         seat = _config().board[0]
@@ -2685,9 +2759,17 @@ class TestRoundTemplatesVerdictLine(unittest.TestCase):
 # round1@2 — same rendered prompt bytes AND the same prompt_template_sha256 — so
 # existing recipes/hashes never churn. The clause appears ONLY when grounded.
 
-# The pre-P4 prompt_template_sha() value (round1@2 / round2@2), captured from HEAD
-# before this phase. A non-grounded sha that ever drifts from this is a D6 break.
-_PRE_P4_TEMPLATE_SHA = "27f5d18e3de3d13bfbce812ba2e9d9ee2d9239d9b3bc03c08dd2f3323538c57d"
+# The non-grounded prompt_template_sha() value. It is the D6 regression guard: a
+# grounded run's clause must NOT bleed into the non-grounded sha (only --repo bumps it),
+# so a drift here that ISN'T a deliberate template bump is a D6 break.
+#
+# v1.14 #9 (P2) intentionally bumped it: the round-2 template gained the unconditional
+# BASIS (independence) line for the echo score, so the round-2 bytes — and this combined
+# round1+round2 sha — changed for EVERY new run. Round 1 is byte-identical (still
+# round1@2); only round 2 moved (round2@2 → round2@3). The pre-P4 value was
+# 27f5d18e3de3d13bfbce812ba2e9d9ee2d9239d9b3bc03c08dd2f3323538c57d (round2@2);
+# pre-v1.14-#9 it was the same (BASIS is the first round-2 body change since).
+_PRE_P4_TEMPLATE_SHA = "db40e5382f11e3ea3a452c681261101311812bc5e9cb3dad2192ec3dd415e63b"
 
 
 def _at2_round1_template():
@@ -2760,11 +2842,14 @@ class TestRepoGroundingClause(unittest.TestCase):
         self.assertNotEqual(rb.prompt_template_sha(grounded=True), _PRE_P4_TEMPLATE_SHA)
 
     def test_reported_version_is_conditional(self):
-        # @2 (byte-identical) ungrounded; @3 only when the clause is present.
+        # Round 1: @2 (byte-identical) ungrounded; @3 only when the grounding clause
+        # is present — unchanged by v1.14 #9 (BASIS is round-2 only).
         self.assertEqual(rb.prompt_template_version(False), "advisory-board/round1@2")
         self.assertEqual(rb.prompt_template_version(True), "advisory-board/round1@3")
-        self.assertEqual(rb.round2_template_version(False), "advisory-board/round2@2")
-        self.assertEqual(rb.round2_template_version(True), "advisory-board/round2@3")
+        # Round 2: base bumped to @3 (the unconditional BASIS line, on every run);
+        # the grounded variant shifted @3 → @4 accordingly.
+        self.assertEqual(rb.round2_template_version(False), "advisory-board/round2@3")
+        self.assertEqual(rb.round2_template_version(True), "advisory-board/round2@4")
 
     def test_recipe_records_at2_for_non_grounded_run(self):
         recipe = rb.config_to_recipe(_config())
@@ -13713,6 +13798,547 @@ class TestFilterPassthroughRunBoard(EnvMixin):
         code_ok, _, _ = run_cli(["validate", path, "--gate", "--fail-on", "caution",
                                  "--min-severity", "blocker"])
         self.assertEqual(code_ok, bv.EXIT_OK)
+
+
+# --------------------------------------------------------------------------- #
+# v1.14 #9 / P2 — the independence / echo score: the BASIS token, the pure
+# metric matrix (incl. adversarial same-provider boards), the run-metadata
+# section byte-identity, and the HTML pill golden (absent -> dropped -> identical).
+# --------------------------------------------------------------------------- #
+
+
+class TestBasisTokenParse(unittest.TestCase):
+    """parse_basis mirrors parse_verdict's failure-tolerance: it reads a clean
+    self-reported basis token, and yields None ('unknown') on anything malformed —
+    it never guesses a basis a seat did not clearly state."""
+
+    def test_plain_tokens(self):
+        self.assertEqual(rb.parse_basis("x\nBASIS: independent"), "independent")
+        self.assertEqual(rb.parse_basis("x\nBASIS: evidence"), "evidence")
+        self.assertEqual(rb.parse_basis("x\nBASIS: deference"), "deference")
+
+    def test_case_and_trailing_punctuation(self):
+        self.assertEqual(rb.parse_basis("basis:  Deference."), "deference")
+
+    def test_markdown_and_list_decoration_tolerated(self):
+        self.assertEqual(rb.parse_basis("**BASIS:** evidence"), "evidence")
+        self.assertEqual(rb.parse_basis("- BASIS: independent"), "independent")
+
+    def test_value_side_decoration_skipped(self):
+        self.assertEqual(rb.parse_basis("BASIS: `deference`"), "deference")
+        self.assertEqual(rb.parse_basis("BASIS: **evidence**"), "evidence")
+
+    def test_echoed_instruction_is_rejected(self):
+        # The instruction line names all three tokens -> ambiguous -> unknown.
+        self.assertIsNone(rb.parse_basis("BASIS: independent | evidence | deference"))
+
+    def test_hedge_naming_two_is_rejected(self):
+        self.assertIsNone(rb.parse_basis("BASIS: evidence not deference"))
+
+    def test_prose_label_not_read(self):
+        # The token must LEAD the value (bare-token contract), like parse_verdict.
+        self.assertIsNone(rb.parse_basis("BASIS: mostly my own evidence, some deference"))
+        self.assertIsNone(rb.parse_basis("BASIS: I leaned on the others"))
+
+    def test_absent_is_unknown(self):
+        self.assertIsNone(rb.parse_basis("a round-2 review with no basis line"))
+        self.assertIsNone(rb.parse_basis(""))
+        self.assertIsNone(rb.parse_basis(None))
+
+    def test_last_clean_line_wins_over_quoted_peer(self):
+        # A quoted peer BASIS (blockquoted) must not override the seat's own token.
+        text = "codex said:\n> BASIS: deference\nBut I hold my own view.\nBASIS: independent"
+        self.assertEqual(rb.parse_basis(text), "independent")
+
+    def test_indented_and_codespanned_basis_ignored(self):
+        self.assertEqual(rb.parse_basis("BASIS: independent\n    BASIS: deference\n"),
+                         "independent")
+        self.assertEqual(rb.parse_basis("BASIS: independent\n`BASIS: deference`\n"),
+                         "independent")
+
+    def test_seat_result_basis_property(self):
+        self.assertEqual(_sr("claude", 2, "x\nBASIS: evidence\nVERDICT: ship").basis,
+                         "evidence")
+        self.assertIsNone(_sr("claude", 2, "x", status="dropped").basis)
+        # A round-1 reply carries no BASIS line -> None by construction.
+        self.assertIsNone(_sr("claude", 1, "x\nVERDICT: ship").basis)
+
+    def test_basis_does_not_disturb_verdict_parse(self):
+        # Both tokens coexist at the reply tail; each parses to its own value.
+        text = "review\nBASIS: deference\nVERDICT: caution"
+        self.assertEqual(rb.parse_basis(text), "deference")
+        self.assertEqual(rb.parse_verdict(text), "caution")
+
+
+class TestBasisLineInRound2Template(unittest.TestCase):
+    """The BASIS line is added to the round-2+ template ONLY (round-2+ is where a
+    seat could have changed its mind); round 1 carries no BASIS line."""
+
+    def test_round2_prompt_carries_basis_line(self):
+        seat = _config().board[0]
+        prompt = rb.build_round2_prompt(seat, "SRC", board_packet="PKT",
+                                        own_review="OWN", cross_reading="full", round_no=2)
+        basis_lines = [ln for ln in prompt.splitlines() if ln.startswith("BASIS:")]
+        self.assertEqual(basis_lines, ["BASIS: <independent | evidence | deference>"])
+        # The BASIS token line precedes the VERDICT token line (BASIS is second-to-last,
+        # VERDICT last — so the conductor's 'last VERDICT line' contract is preserved).
+        self.assertLess(prompt.index("BASIS: <independent"),
+                        prompt.index("VERDICT: <ship"))
+        # Exactly one of each machine-token line (no accidental duplication).
+        self.assertEqual(len([ln for ln in prompt.splitlines()
+                              if ln.startswith("VERDICT:")]), 1)
+
+    def test_round1_prompt_has_no_basis_line(self):
+        seat = _config().board[0]
+        prompt = rb.build_round1_prompt(seat, "SRC")
+        self.assertNotIn("BASIS:", prompt)
+
+    def test_basis_round_number_substituted(self):
+        seat = _config().board[0]
+        prompt = rb.build_round2_prompt(seat, "SRC", board_packet="PKT",
+                                        own_review="OWN", cross_reading="full", round_no=3)
+        self.assertIn("your round-3 position rests on", prompt)
+
+
+def _r2(seat, stdout, status="ran", round_no=2):
+    """A round-N SeatRoundResult fixture with controllable stdout (echo-score tests)."""
+    return _sr(seat, round_no, stdout, status=status)
+
+
+def _provider_seat(seat, provider, stdout, status="ran", round_no=2):
+    """An echo-score SeatRoundResult with an EXPLICIT provider (the same-provider
+    discount reads `.provider` off the scored seats, so these tests must set it
+    directly rather than rely on the seat-id → provider map)."""
+    r = _sr(seat, round_no, stdout, status=status)
+    return dataclasses.replace(r, provider=provider)
+
+
+class TestEchoScoreMatrix(unittest.TestCase):
+    """The echo-score pure-function matrix: every sub-signal combination + the
+    honest degradations. Pure over parsed VERDICT/BASIS tokens and citation sets."""
+
+    def test_no_movement_low_overlap_independent_is_low(self):
+        prev = [_r2("claude", "`a.py:1`\nVERDICT: caution", round_no=1),
+                _r2("codex", "`b.py:2`\nVERDICT: ship", round_no=1)]
+        curr = [_r2("claude", "`a.py:1`\nBASIS: independent\nVERDICT: caution"),
+                _r2("codex", "`b.py:2`\nBASIS: independent\nVERDICT: ship")]
+        r = rb.echo_score(prev, curr)
+        self.assertEqual(r["band"], "low")
+        self.assertEqual(r["flippers"], 0)
+        self.assertIn("0/2 seats changed verdict", r["explanation"])
+        self.assertIn("does not prove independence", r["explanation"])
+
+    def test_both_flip_to_majority_high_overlap_deference_is_high(self):
+        cite = "`auth.py:42` `db.py:7`"
+        prev = [_r2("claude", f"{cite}\nVERDICT: block", round_no=1),
+                _r2("codex", f"{cite}\nVERDICT: ship", round_no=1)]
+        curr = [_r2("claude", f"{cite}\nBASIS: deference\nVERDICT: caution"),
+                _r2("codex", f"{cite}\nBASIS: evidence\nVERDICT: caution")]
+        r = rb.echo_score(prev, curr)
+        self.assertEqual(r["band"], "high")
+        self.assertEqual(r["flippers_toward_majority"], 2)
+        self.assertEqual(r["majority"], "caution")
+        self.assertEqual(r["deference"], 1)
+        self.assertIn("flipped toward the majority (caution)", r["explanation"])
+        self.assertIn("1 deference declaration", r["explanation"])
+
+    def test_flip_to_majority_but_low_overlap_is_moderate(self):
+        # An echo signal (strong flip) without high overlap corroborating -> moderate.
+        prev = [_r2("claude", "`a.py:1`\nVERDICT: block", round_no=1),
+                _r2("codex", "`b.py:2`\nVERDICT: caution", round_no=1)]
+        curr = [_r2("claude", "`a.py:1`\nBASIS: evidence\nVERDICT: caution"),
+                _r2("codex", "`b.py:2`\nBASIS: independent\nVERDICT: caution")]
+        r = rb.echo_score(prev, curr)
+        self.assertEqual(r["band"], "moderate")
+
+    def test_deference_alone_no_flip_is_moderate(self):
+        prev = [_r2("claude", "`a.py:1`\nVERDICT: caution", round_no=1),
+                _r2("codex", "`b.py:2`\nVERDICT: ship", round_no=1)]
+        curr = [_r2("claude", "`a.py:1`\nBASIS: deference\nVERDICT: caution"),
+                _r2("codex", "`b.py:2`\nBASIS: independent\nVERDICT: ship")]
+        r = rb.echo_score(prev, curr)
+        self.assertEqual(r["band"], "moderate")
+        self.assertEqual(r["deference"], 1)
+
+    def test_high_overlap_alone_mixed_provider_is_moderate(self):
+        # High overlap with NO flip and NO deference -> moderate on a mixed board
+        # (a small source everyone cites; flagged for a look, not called high).
+        cite = "`auth.py:42` `db.py:7` `x.py:1`"
+        prev = [_r2("claude", f"{cite}\nVERDICT: caution", round_no=1),
+                _r2("codex", f"{cite}\nVERDICT: ship", round_no=1)]
+        curr = [_r2("claude", f"{cite}\nBASIS: independent\nVERDICT: caution"),
+                _r2("codex", f"{cite}\nBASIS: independent\nVERDICT: ship")]
+        r = rb.echo_score(prev, curr)
+        self.assertEqual(r["band"], "moderate")
+        self.assertGreaterEqual(r["overlap"], 0.6)
+
+    def test_unknown_basis_when_omitted_never_guessed(self):
+        prev = [_r2("claude", "`a.py:1`\nVERDICT: caution", round_no=1),
+                _r2("codex", "`b.py:2`\nVERDICT: ship", round_no=1)]
+        curr = [_r2("claude", "`a.py:1`\nVERDICT: caution"),   # no BASIS line
+                _r2("codex", "`b.py:2`\nVERDICT: ship")]
+        r = rb.echo_score(prev, curr)
+        self.assertEqual(r["unknown"], 2)
+        self.assertEqual(r["deference"], 0)
+        self.assertIn("did not state a basis (unknown)", r["explanation"])
+
+
+class TestEchoScoreSameProvider(unittest.TestCase):
+    """Adversarial same-provider board: high citation overlap is EXPECTED there and
+    must not, on its own, read as echo — the metric and its explanation must not
+    overclaim (`--board claude,claude`)."""
+
+    def _same_provider_pair(self, prev_verdicts, curr_verdicts, bases):
+        # Two seats on the SAME provider (a `--board claude,claude` shape): the
+        # discount now reads each seat's own `.provider`, so both must carry the same
+        # provider string (the real board sets both duplicate claude seats to
+        # "Anthropic"). `_provider_seat` forces the provider directly.
+        cite = "`auth.py:42` `db.py:7` `x.py:1`"   # identical cites -> overlap 1.0
+        prev = [_provider_seat("claude", "Anthropic",
+                               f"{cite}\nVERDICT: {prev_verdicts[0]}", round_no=1),
+                _provider_seat("claude#2", "Anthropic",
+                               f"{cite}\nVERDICT: {prev_verdicts[1]}", round_no=1)]
+        curr = [_provider_seat("claude", "Anthropic",
+                               f"{cite}\nBASIS: {bases[0]}\nVERDICT: {curr_verdicts[0]}"),
+                _provider_seat("claude#2", "Anthropic",
+                               f"{cite}\nBASIS: {bases[1]}\nVERDICT: {curr_verdicts[1]}")]
+        return prev, curr
+
+    def test_high_overlap_and_flip_but_no_deference_is_not_high(self):
+        # Both flip to the majority, overlap 1.0, but neither declares deference:
+        # on a same-provider board this is at most moderate, never high.
+        prev, curr = self._same_provider_pair(
+            ("block", "ship"), ("caution", "caution"), ("evidence", "evidence"))
+        r = rb.echo_score(prev, curr)   # discount read off the scored seats' providers
+        self.assertNotEqual(r["band"], "high")
+        self.assertEqual(r["band"], "moderate")
+        self.assertGreaterEqual(r["overlap"], 0.99)
+        self.assertIn("same-provider board", r["explanation"])
+        self.assertIn("expected", r["explanation"])
+
+    def test_high_overlap_no_flip_no_deference_is_low(self):
+        # Pure expected-overlap agreement, no flip, no deference -> LOW despite 1.0
+        # overlap: overlap alone is never echo on a same-provider board.
+        prev, curr = self._same_provider_pair(
+            ("caution", "caution"), ("caution", "caution"), ("independent", "independent"))
+        r = rb.echo_score(prev, curr)
+        self.assertEqual(r["band"], "low")
+        self.assertGreaterEqual(r["overlap"], 0.99)
+
+    def test_flip_and_deference_together_still_high_on_same_provider(self):
+        # Both echo signals present (flip onto majority AND a deference declaration):
+        # even the same-provider discount doesn't suppress this to below high.
+        prev, curr = self._same_provider_pair(
+            ("block", "ship"), ("caution", "caution"), ("deference", "evidence"))
+        r = rb.echo_score(prev, curr)
+        self.assertEqual(r["band"], "high")
+
+    # --- regression: the discount reads the SCORED population, not the full board ---
+
+    def test_dropped_other_provider_leaves_same_provider_pair_discounts(self):
+        # Board [claude, claude, codex] with codex DROPPED before the final round.
+        # The scored population is the two claude seats — same provider. High overlap
+        # + a strong flip onto the majority WITHOUT deference must NOT read as high:
+        # two same-provider seats' identical citations do not corroborate echo. Under
+        # the old full-board proxy (3 distinct providers configured) the discount would
+        # have failed to fire and this would have been flagged `high`.
+        cite = "`auth.py:42` `db.py:7` `x.py:1`"   # identical cites -> overlap 1.0
+        prev = [_provider_seat("claude", "Anthropic", f"{cite}\nVERDICT: block", round_no=1),
+                _provider_seat("claude#2", "Anthropic", f"{cite}\nVERDICT: ship", round_no=1),
+                _provider_seat("codex", "OpenAI", f"{cite}\nVERDICT: caution", round_no=1)]
+        curr = [_provider_seat("claude", "Anthropic",
+                               f"{cite}\nBASIS: evidence\nVERDICT: caution"),
+                _provider_seat("claude#2", "Anthropic",
+                               f"{cite}\nBASIS: evidence\nVERDICT: caution"),
+                _provider_seat("codex", "OpenAI", "", status="dropped")]
+        r = rb.echo_score(prev, curr)
+        self.assertEqual(r["considered"], 2)          # only the two claude seats scored
+        self.assertNotEqual(r["band"], "high")        # discount fired
+        self.assertEqual(r["band"], "moderate")
+        self.assertGreaterEqual(r["overlap"], 0.99)
+        self.assertIn("same-provider board", r["explanation"])
+
+    def test_scored_pair_sharing_provider_fires_discount_with_note(self):
+        # Board [claude, codex, gemini, gemini] all usable in both rounds. A SCORED
+        # pair (the two gemini seats) shares a provider, so the discount fires and the
+        # explanation carries the same-provider note — even though most of the board is
+        # cross-provider. Strong flip + high overlap, no deference -> moderate, not high.
+        cite = "`auth.py:42` `db.py:7` `x.py:1`"
+        prev = [_provider_seat("claude", "Anthropic", f"{cite}\nVERDICT: block", round_no=1),
+                _provider_seat("codex", "OpenAI", f"{cite}\nVERDICT: ship", round_no=1),
+                _provider_seat("gemini", "Google", f"{cite}\nVERDICT: block", round_no=1),
+                _provider_seat("gemini#2", "Google", f"{cite}\nVERDICT: ship", round_no=1)]
+        curr = [_provider_seat("claude", "Anthropic",
+                               f"{cite}\nBASIS: evidence\nVERDICT: caution"),
+                _provider_seat("codex", "OpenAI",
+                               f"{cite}\nBASIS: evidence\nVERDICT: caution"),
+                _provider_seat("gemini", "Google",
+                               f"{cite}\nBASIS: evidence\nVERDICT: caution"),
+                _provider_seat("gemini#2", "Google",
+                               f"{cite}\nBASIS: evidence\nVERDICT: caution")]
+        r = rb.echo_score(prev, curr)
+        self.assertEqual(r["considered"], 4)
+        self.assertNotEqual(r["band"], "high")
+        self.assertIn("same-provider board", r["explanation"])
+
+    def test_none_provider_counts_as_distinct_no_discount(self):
+        # A seat whose provider is missing/None must count as DISTINCT — an unknown
+        # never manufactures a same-provider discount. Two seats, one with provider
+        # None: distinct populations, so the discount does NOT fire and a strong flip +
+        # high overlap reads as high (the mixed-provider path).
+        cite = "`auth.py:42` `db.py:7` `x.py:1`"
+        prev = [_provider_seat("claude", "Anthropic", f"{cite}\nVERDICT: block", round_no=1),
+                _provider_seat("mystery", None, f"{cite}\nVERDICT: ship", round_no=1)]
+        curr = [_provider_seat("claude", "Anthropic",
+                               f"{cite}\nBASIS: evidence\nVERDICT: caution"),
+                _provider_seat("mystery", None,
+                               f"{cite}\nBASIS: evidence\nVERDICT: caution")]
+        r = rb.echo_score(prev, curr)
+        self.assertEqual(r["band"], "high")           # discount did NOT fire
+        self.assertNotIn("same-provider board", r["explanation"])
+
+    def test_two_none_providers_do_not_collapse_into_same_provider(self):
+        # Re-review blocker: two seats BOTH missing a provider must still count as
+        # DISTINCT — unknowns are dropped before the duplicate check, so a shared
+        # `None` never fires the discount. Strong flip + high overlap + no deference
+        # on this pair must read as HIGH via the mixed-provider path, with no
+        # same-provider note.
+        cite = "`auth.py:42` `db.py:7` `x.py:1`"
+        prev = [_provider_seat("mystery1", None, f"{cite}\nVERDICT: block", round_no=1),
+                _provider_seat("mystery2", None, f"{cite}\nVERDICT: ship", round_no=1)]
+        curr = [_provider_seat("mystery1", None,
+                               f"{cite}\nBASIS: evidence\nVERDICT: caution"),
+                _provider_seat("mystery2", None,
+                               f"{cite}\nBASIS: evidence\nVERDICT: caution")]
+        r = rb.echo_score(prev, curr)
+        self.assertEqual(r["band"], "high")           # mixed path, not discounted
+        self.assertNotIn("same-provider board", r["explanation"])
+
+
+class TestEchoScoreDegradation(unittest.TestCase):
+    """Absent/insufficient signals degrade to not_computed — never a fabricated band."""
+
+    def test_single_round_is_not_computed(self):
+        curr = [_r2("claude", "x\nVERDICT: ship"), _r2("codex", "y\nVERDICT: ship")]
+        r = rb.echo_score(None, curr)
+        self.assertEqual(r["band"], "not_computed")
+        r = rb.echo_score([], curr)
+        self.assertEqual(r["band"], "not_computed")
+
+    def test_under_two_overlapping_seats_is_not_computed(self):
+        prev = [_r2("claude", "x\nVERDICT: ship", round_no=1)]
+        curr = [_r2("claude", "x\nBASIS: independent\nVERDICT: ship"),
+                _r2("codex", "y\nBASIS: independent\nVERDICT: ship")]  # codex new in r2
+        r = rb.echo_score(prev, curr)
+        self.assertEqual(r["band"], "not_computed")
+        self.assertEqual(r["considered"], 1)
+
+    def test_dropped_seat_not_considered(self):
+        prev = [_r2("claude", "`a.py:1`\nVERDICT: block", round_no=1),
+                _r2("codex", "`b.py:2`\nVERDICT: ship", round_no=1)]
+        curr = [_r2("claude", "`a.py:1`\nBASIS: independent\nVERDICT: block"),
+                _r2("codex", "", status="dropped")]
+        r = rb.echo_score(prev, curr)
+        self.assertEqual(r["band"], "not_computed")   # only 1 overlapping seat
+
+    def test_not_computed_carries_zeroed_fields(self):
+        r = rb.echo_score(None, None)
+        self.assertEqual(r["band"], "not_computed")
+        self.assertEqual(r["considered"], 0)
+        self.assertIsNone(r["overlap"])
+        self.assertEqual(r["deference"], 0)
+        self.assertIn("not computed", r["explanation"].lower())
+
+
+class TestEchoRunMetadataSection(unittest.TestCase):
+    """render_run_metadata's Convergence section renders the echo subsection only when
+    the convergence dict carries an `echo` key — an old convergence dict (no echo)
+    renders byte-identically, and a single-round convergence never carries one."""
+
+    def _meta(self, convergence):
+        cfg = _config()
+        pf = []
+        approval = rb.EgressApproval(True, "hash-bound", "h", "2026-06-25T12:00:00", "t")
+        r1 = _round_results(["claude", "codex"], round_no=1)
+        r2 = _round_results(["claude", "codex"], round_no=2)
+        return rb.render_run_metadata(cfg, pf, approval, rounds=[r1, r2],
+                                      convergence=convergence)
+
+    def _base_convergence(self):
+        return {"is_auto": False, "requested": "2", "max_rounds": 3, "rounds_run": 2,
+                "stop_reason": "round-count",
+                "movements": [{"from_round": 1, "to_round": 2, "moved": 0,
+                               "considered": 2, "seats": {}}]}
+
+    def test_no_echo_key_renders_no_echo_section(self):
+        meta = self._meta(self._base_convergence())
+        self.assertIn("## Convergence", meta)
+        self.assertNotIn("Independence / echo", meta)
+
+    def test_echo_key_renders_section(self):
+        conv = self._base_convergence()
+        conv["echo"] = rb.echo_score(
+            [_r2("claude", "`a.py:1`\nVERDICT: block", round_no=1),
+             _r2("codex", "`a.py:1`\nVERDICT: block", round_no=1)],
+            [_r2("claude", "`a.py:1`\nBASIS: deference\nVERDICT: caution"),
+             _r2("codex", "`a.py:1`\nBASIS: evidence\nVERDICT: caution")])
+        meta = self._meta(conv)
+        self.assertIn("### Independence / echo", meta)
+        self.assertIn("flipped toward the majority", meta)
+        self.assertIn("does not prove independence", meta)
+
+    def test_byte_identity_no_echo_vs_none(self):
+        # A convergence dict WITHOUT an echo key must render the same bytes it did
+        # before this feature (an old run dir re-rendered stays byte-identical).
+        conv = self._base_convergence()
+        with_absent = self._meta(conv)
+        conv_with_none = dict(conv)
+        conv_with_none["echo"] = None   # explicit None also degrades to nothing
+        self.assertEqual(self._meta(conv_with_none), with_absent)
+
+    def test_not_computed_echo_renders_plain_note(self):
+        conv = self._base_convergence()
+        conv["echo"] = rb.echo_score(None, None)
+        meta = self._meta(conv)
+        self.assertIn("### Independence / echo", meta)
+        self.assertIn("not computed", meta)
+
+
+class TestEchoHtmlPill(EnvMixin):
+    """The full-handoff HTML echo pill (v1.14 #9 / P2): present when the run dir
+    carries echo-score.json with a real band; ABSENT -> dropped -> the page body is
+    byte-identical to a pre-P2 render (D5)."""
+
+    def _rundir(self):
+        d = tempfile.mkdtemp(prefix="board-echo-html-")
+        self.addCleanup(shutil.rmtree, d, ignore_errors=True)
+        return d
+
+    def _write_echo(self, run_dir, payload):
+        with open(os.path.join(run_dir, "echo-score.json"), "w", encoding="utf-8") as fh:
+            json.dump(payload, fh)
+
+    def _body(self, html):
+        return html.split("</head>", 1)[1] if "</head>" in html else html
+
+    def _html(self, run_dir, shape="full-handoff"):
+        import render_handoff as rh
+        data = _verdict("caution", "caution", "caution",
+                        blockers=[{"title": "B", "body": "fix `x.py:1`"}])
+        hd = rv.build_handoff_data(data, run_dir=run_dir, shape=shape)
+        with open(rh.default_template(), encoding="utf-8") as fh:
+            tpl = fh.read()
+        return rh.render(dict(hd), tpl)
+
+    def test_absent_echo_body_byte_identical_to_pre_p2(self):
+        import re
+        import render_handoff as rh
+        run_dir = self._rundir()   # no echo-score.json
+        data = _verdict("caution", "caution", "caution",
+                        blockers=[{"title": "B", "body": "fix `x.py:1`"}])
+        hd = rv.build_handoff_data(data, run_dir=run_dir, shape="full-handoff")
+        with open(rh.default_template(), encoding="utf-8") as fh:
+            tpl = fh.read()
+        body_with = self._body(rh.render(dict(hd), tpl))
+        # The pre-P2 template: the echo-pill line + its authoring comment removed
+        # entirely (exactly what an absent pill must reduce to in the BODY).
+        tpl_pre = re.sub(
+            r"\n\s*<!-- \{\{ECHO_PILL\}\}.*?-->\n\s*"
+            r'<p class="echo-pill \{\{ECHO_CLASS\}\}">\{\{ECHO_PILL\}\}</p>',
+            "", tpl, flags=re.DOTALL)
+        self.assertNotIn("{{ECHO_PILL}}", tpl_pre)
+        body_pre = self._body(rh.render(dict(hd), tpl_pre))
+        self.assertEqual(body_with, body_pre)
+        self.assertNotIn("echo-pill", body_with)
+
+    def test_present_echo_renders_band_pill(self):
+        run_dir = self._rundir()
+        self._write_echo(run_dir, {
+            "band": "high",
+            "explanation": ("High echo risk: 2/2 seats flipped toward the majority "
+                            "(caution), 78% mean citation overlap, 1 deference "
+                            "declaration. Flags possible echo — it does not prove "
+                            "independence.")})
+        html = self._html(run_dir)
+        body = self._body(html)
+        self.assertIn('class="echo-pill echo-high"', body)
+        self.assertIn("78% mean citation overlap", body)
+        self.assertIn("Independence check", body)
+        self.assertNotIn("{{ECHO", html)   # no stray tokens
+
+    def test_not_computed_band_drops_pill(self):
+        run_dir = self._rundir()
+        self._write_echo(run_dir, {"band": "not_computed", "explanation": "Not computed."})
+        body = self._body(self._html(run_dir))
+        self.assertNotIn("echo-pill", body)   # not_computed shows no pill
+
+    def test_malformed_echo_json_drops_pill(self):
+        run_dir = self._rundir()
+        with open(os.path.join(run_dir, "echo-score.json"), "w", encoding="utf-8") as fh:
+            fh.write("{ not valid json ")
+        body = self._body(self._html(run_dir))
+        self.assertNotIn("echo-pill", body)   # unreadable -> degrade, never crash
+
+    def test_symlinked_echo_file_refused(self):
+        run_dir = self._rundir()
+        outside = tempfile.mkdtemp(prefix="board-echo-outside-")
+        self.addCleanup(shutil.rmtree, outside, ignore_errors=True)
+        real = os.path.join(outside, "echo-score.json")
+        with open(real, "w", encoding="utf-8") as fh:
+            json.dump({"band": "high", "explanation": "x"}, fh)
+        try:
+            os.symlink(real, os.path.join(run_dir, "echo-score.json"))
+        except (OSError, NotImplementedError):
+            self.skipTest("symlinks unavailable")
+        body = self._body(self._html(run_dir))
+        self.assertNotIn("echo-pill", body)   # symlink AT the file is refused
+
+    def test_quick_verdict_shape_never_reads_echo(self):
+        run_dir = self._rundir()
+        self._write_echo(run_dir, {"band": "high", "explanation": "x"})
+        data = _verdict("caution", "caution", "caution",
+                        blockers=[{"title": "B", "body": "b"}])
+        hd = rv.build_handoff_data(data, run_dir=run_dir, shape="quick-verdict")
+        self.assertEqual(hd["echo_pill"], "")
+        self.assertEqual(hd["echo_class"], "")
+
+
+class TestEchoScoreE2E(EnvMixin):
+    """The conductor writes echo-score.json on a ≥2-round run and the metadata section
+    reflects it; a single-round run writes neither (byte-identity of the tree)."""
+
+    def _out(self):
+        d = tempfile.mkdtemp(prefix="board-echo-e2e-")
+        self.addCleanup(shutil.rmtree, d, ignore_errors=True)
+        return d
+
+    def test_two_round_run_writes_echo_sidecar(self):
+        out = self._out()
+        code, _, _ = run_cli(["run", "--source", SAMPLE, "--out", out, "--yes"])
+        self.assertEqual(code, rb.EXIT_OK)
+        path = os.path.join(out, "echo-score.json")
+        self.assertTrue(os.path.exists(path))
+        with open(path, encoding="utf-8") as fh:
+            payload = json.load(fh)
+        self.assertIn(payload["band"], list(rb.ECHO_BANDS) + [rb.NOT_COMPUTED])
+        self.assertIn("considered", payload)
+        # The mock seats emit no BASIS line, so every basis parses as unknown — the
+        # metric must not fabricate one.
+        self.assertEqual(payload["deference"], 0)
+        # And the run-metadata carries the subsection.
+        with open(os.path.join(out, "run-metadata.md"), encoding="utf-8") as fh:
+            meta = fh.read()
+        self.assertIn("### Independence / echo", meta)
+
+    def test_single_round_run_writes_no_echo_sidecar(self):
+        out = self._out()
+        code, _, _ = run_cli(["run", "--source", SAMPLE, "--out", out, "--yes",
+                              "--rounds", "1"])
+        self.assertEqual(code, rb.EXIT_OK)
+        self.assertFalse(os.path.exists(os.path.join(out, "echo-score.json")))
+        with open(os.path.join(out, "run-metadata.md"), encoding="utf-8") as fh:
+            meta = fh.read()
+        self.assertNotIn("Independence / echo", meta)
 
 
 if __name__ == "__main__":

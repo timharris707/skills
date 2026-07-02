@@ -94,6 +94,7 @@ from _conductor.config import *  # noqa: F401,F403
 from _conductor.grounding import *  # noqa: F401,F403  (repo-grounding: scope/snapshot/consent)
 from _conductor.spawn import *  # noqa: F401,F403
 from _conductor.convergence import *  # noqa: F401,F403
+from _conductor.echo_score import *  # noqa: F401,F403  (v1.14 #9: independence/echo score)
 from _conductor.digest import *  # noqa: F401,F403
 from _conductor.prompts import *  # noqa: F401,F403
 # (convergence re-exported above; digest builds on it and feeds the summaries packet)

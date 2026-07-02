@@ -72,6 +72,7 @@ from _conductor.redline import (  # noqa: E402  v1.13 P3: prose redline rows (st
     build_redline,
 )
 from _conductor.revise import SOURCE_MATERIAL_FILENAME  # noqa: E402  the persisted source copy
+from _conductor.echo_score import ECHO_BANDS  # noqa: E402  v1.14 #9: the echo-risk band vocabulary
 
 STATUS_WORD = {"verified": "verified", "unverified": "unverified", "refuted": "REFUTED"}
 EVIDENCE_CONTAINERS = ("blockers", "dissent", "concerns")
@@ -791,6 +792,49 @@ def _seat_reported_token_totals(run_dir) -> "dict | None":
     }
 
 
+def _read_echo_score(run_dir) -> "dict | None":
+    """Best-effort read of the run's `echo-score.json` (v1.14 #9 / P2), or None.
+
+    Written by the conductor ONLY on a ≥2-round run (a single-round run computes no
+    echo score). No run dir, no file, a symlinked/escaping path, unreadable/malformed
+    JSON, or a non-object payload → None, and the HTML echo pill drops → the page is
+    byte-identical to a pre-P2 render. Independent of any validator (renderer
+    robustness must not depend on one having run): the path is realpath-confined and
+    a symlink AT the file is refused, exactly like the revision-chain reads."""
+    if not run_dir:
+        return None
+    path = _confined_path(run_dir, "echo-score.json")
+    if path is None:
+        return None
+    if os.path.islink(os.path.join(run_dir, "echo-score.json")):
+        return None
+    try:
+        with open(path, encoding="utf-8") as handle:
+            payload = json.load(handle)
+    except (OSError, ValueError):
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def _echo_pill_fields(run_dir) -> "tuple[str, str]":
+    """(pill_text, band_class) for the independence/echo pill, or ("", "") when the
+    run carries no scored band (single-round run, an old run dir with no
+    echo-score.json, or a `not_computed` band — the pill only shows a real
+    low/moderate/high band; a replayed pre-P2 RECIPE scores normally). The
+    empty pair drops the pill and keeps the page byte-identical. The pill text names
+    the band and the sub-signals; it already states it flags echo, not proof."""
+    echo = _read_echo_score(run_dir)
+    if not echo:
+        return "", ""
+    band = echo.get("band")
+    if band not in ECHO_BANDS:
+        return "", ""   # not_computed / unknown -> no pill (never a fabricated band)
+    explanation = str(echo.get("explanation", "")).strip()
+    text = f"Independence check — {explanation}" if explanation else \
+        f"Independence check — {band} echo risk."
+    return text, f"echo-{band}"
+
+
 def _token_totals_note(totals) -> str:
     """One footer segment for the seat-reported totals ("" when unknown)."""
     if not totals:
@@ -1191,6 +1235,12 @@ def build_handoff_data(data: dict, run_dir=None, shape: str = "full-handoff",
         couldnt_verify_dropped=(len(couldnt_lines)
                                 if renders_bucket and not show_conc else 0),
     )
+    # Independence/echo pill (v1.14 #9 / P2) — full-handoff only, read best-effort
+    # from the run dir's echo-score.json. Other shapes never carry the slot in their
+    # template, so leaving it empty there is a no-op; gating on shape keeps a
+    # quick-verdict/sequence render from doing a pointless run-dir read.
+    echo_pill_text, echo_class = (
+        _echo_pill_fields(run_dir) if shape == "full-handoff" else ("", ""))
     # Footer provenance, in human terms — no internal file/script names. (The old
     # "Rendered from verdict.json by scripts/render_verdict.py" was a developer string
     # that leaked onto the page; same for the subtitle below.) The token/cost segment
@@ -1228,6 +1278,13 @@ def build_handoff_data(data: dict, run_dir=None, shape: str = "full-handoff",
         # for any run where the filter dropped nothing renderable — the slot then
         # drops and the page is byte-identical. Plain text (renderer-escaped path).
         "filter_note": _plain(filter_note),
+        # Independence/echo pill (v1.14 #9 / P2), full-handoff only. ("", "") — the
+        # slot then drops and the page is byte-identical — for a single-round run, an
+        # old run dir / pre-P2 handoff-data with no echo-score.json, or a `not_computed`
+        # band. The pill text is the metric's own honest explanation (renderer-escaped
+        # via _plain); the band class {{ECHO_CLASS}} is our own "echo-<band>" literal.
+        "echo_pill": _plain(echo_pill_text),
+        "echo_class": echo_class,
         "seats": [],
         # blocker_summary / dissent_summary are the one-line plain-text forms the
         # quick-verdict brief renders; the full handoff keeps using blocker_body /
