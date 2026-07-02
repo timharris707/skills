@@ -15,12 +15,19 @@ are *views* of it. This renders:
                            not flatten it into the schema (section 9: don't over-flatten).
   * final-consensus.html - with --html; same mapping, rendered through render_handoff.py.
 
+A third shape, `implementation-sequence`, renders the same verdict as a
+sequence-first view — the ordered next actions (with owners where the verdict
+names them) leading, backed by the blockers each step must clear with their
+evidence trails. Markdown and HTML, both deterministic from verdict.json.
+
 Usage:
   render_verdict.py verdict.json                              -> final-consensus.md
   render_verdict.py verdict.json -o consensus.md
   render_verdict.py verdict.json --check                      print to stdout, write nothing
   render_verdict.py verdict.json --handoff-data handoff-data.json [--run RUNDIR]
   render_verdict.py verdict.json --html final-consensus.html [--run RUNDIR]
+  render_verdict.py verdict.json --shape implementation-sequence \
+      --html implementation-sequence.html                     -> implementation-sequence.md + .html
 
 Exit codes: 0 ok, 2 usage / data error.
 Standard library only; no third-party dependencies.
@@ -185,7 +192,7 @@ def render_markdown(data: dict) -> str:
     actions = data.get("next_actions", [])
     if actions:
         out.append("## Next actions")
-        out += [f"- {a}" for a in actions]
+        out += [f"- {_action_line(a)}" for a in actions]
         out.append("")
 
     if any(True for _ in _iter_evidence(data)):
@@ -244,6 +251,95 @@ def _resolution_verb(ev: dict) -> str:
 
 
 # --------------------------------------------------------------------------- #
+# implementation-sequence — the sequence-first shape (md; the HTML renders via
+# render_handoff.py against references/implementation-sequence-template.html)
+# --------------------------------------------------------------------------- #
+
+
+def _action_fields(action) -> tuple:
+    """Normalize a next_actions[] entry to (text, owner).
+
+    The schema's next_actions are strings; an entry MAY instead be an object
+    naming an owner — `{"action": "...", "owner": "..."}` (`title` accepted as
+    the text fallback). Anything else degrades to its string form, never a crash."""
+    if isinstance(action, dict):
+        text = action.get("action") or action.get("title") or ""
+        owner = action.get("owner") or ""
+        return str(text), str(owner)
+    return str(action), ""
+
+
+def _action_line(action) -> str:
+    """A next_actions[] entry as one display line — byte-identical for the plain
+    string form; an owner-carrying object renders `text — owner: NAME`."""
+    text, owner = _action_fields(action)
+    return f"{text} — owner: {owner}" if owner else text
+
+
+def render_sequence_markdown(data: dict) -> str:
+    """The implementation-sequence view of the SAME verdict.json: the ordered next
+    actions lead (with owners where the verdict names them), backed by the blockers
+    the sequence must clear, each with its evidence trail. A deterministic VIEW —
+    it reorders what the verdict already says and adds nothing."""
+    out = ["# Advisory Board — Implementation Sequence"]
+    if data.get("title"):
+        out.append(data["title"])
+    out.append(f"Board: {_seats_line(data)}. Rounds: {data.get('rounds', '?')}.")
+    out.append("")
+
+    # The verdict context stays on top — a sequence without the board's call would
+    # misrepresent a block as a green light. Same labels/lead/note as the consensus.
+    label, note = human_label(data.get("verdict"), data.get("lens_preset"), data.get("decision"))
+    confidence = data.get("confidence")
+    conf_clause = f" ({confidence} confidence)" if confidence else ""
+    out.append(f"## Verdict: {label} — {_stance(data)}{conf_clause}")
+    lead = verdict_lead(data.get("verdict"), data.get("lens_preset"), data.get("decision"))
+    if lead and not data.get("decision"):
+        out.append(f"**{lead}.**")
+    note = data.get("verdict_note") or note
+    if note:
+        out.append(note)
+    out.append("")
+
+    out.append("## The sequence — in order")
+    actions = data.get("next_actions", [])
+    if actions:
+        for index, action in enumerate(actions, 1):
+            out.append(f"{index}. {_action_line(action)}")
+    else:
+        out.append("_The verdict lists no next actions — see the full handoff._")
+    out.append("")
+
+    blockers = data.get("blockers", [])
+    if blockers:
+        out.append("## What the sequence must clear")
+        for index, blocker in enumerate(blockers, 1):
+            title = blocker.get("title", "blocker")
+            body = blocker.get("body", "")
+            out.append(f"{index}. {title}" + (f" — {body}" if body else ""))
+            for ev in (blocker.get("evidence") or []):
+                if isinstance(ev, dict):
+                    out.append(f"   - evidence: {_evidence_trail(ev)}")
+        out.append("")
+
+    if any(isinstance(ev, dict) for b in blockers if isinstance(b, dict)
+           for ev in (b.get("evidence") or [])):
+        out.append("---")
+        out.append("_Evidence status is a resolution check — it confirms the cited line exists "
+                   "or the quote is present in the captured material. It does not prove the "
+                   "inference drawn from it is sound (design §9)._")
+        out.append("")
+
+    disclaimer = lens_disclaimer(data.get("lens_preset"))
+    if disclaimer:
+        out.append("---")
+        out.append(f"_{disclaimer}_")
+        out.append("")
+
+    return "\n".join(out).rstrip() + "\n"
+
+
+# --------------------------------------------------------------------------- #
 # handoff-data.json (so render_handoff.py can produce the HTML from the verdict)
 # --------------------------------------------------------------------------- #
 
@@ -266,6 +362,14 @@ def _nb(text: str) -> str:
 def _raw(text: str) -> str:
     """For a render_handoff RAW (pass-through HTML) slot: HTML-escape, then neutralize braces."""
     return _nb(html.escape(text))
+
+
+def _evidence_html(ev: dict) -> str:
+    """An evidence trail line for a RAW HTML slot: the Markdown trail (_evidence_trail),
+    HTML-escaped, its backtick spans upgraded to <code>, braces neutralized."""
+    line = html.escape(_evidence_trail(ev))
+    line = re.sub(r"`([^`]*)`", r"<code>\1</code>", line)
+    return _nb(line)
 
 
 def _plain(text: str) -> str:
@@ -385,7 +489,7 @@ def build_handoff_data(data: dict, run_dir=None) -> dict:
         "caveats": [{"caveat_claim": _raw(line), "caveat_impact": ""}
                     for line in _couldnt_verify_lines(data)],
         "questions": [{"question": _raw(q)} for q in data.get("open_questions", [])],
-        "actions": [{"action": _raw(a)} for a in data.get("next_actions", [])],
+        "actions": [{"action": _raw(_action_line(a))} for a in data.get("next_actions", [])],
         # Brief-only trims. The full handoff uses dissents[]/actions[] (complete); the
         # quick-verdict template uses these capped variants + their "more" pointers.
         "dissents_brief": ([{
@@ -394,9 +498,22 @@ def build_handoff_data(data: dict, run_dir=None) -> dict:
             "dissent_more": _plain(f"(+{len(dissent) - 1} more in the full handoff)")
                             if len(dissent) > 1 else "",
         }] if dissent else []),
-        "actions_brief": [{"action": _raw(a)} for a in actions[:3]],
+        "actions_brief": [{"action": _raw(_action_line(a))} for a in actions[:3]],
         "actions_more": _plain(f"…{len(actions) - 3} more in the full handoff")
                         if len(actions) > 3 else "",
+        # implementation-sequence slots (references/implementation-sequence-template.html):
+        # the FULL ordered action list (never capped like the brief) with any owner split
+        # out, and the blockers with their evidence trails. Additive — templates without
+        # the SEQ blocks simply never read these keys.
+        "sequence": [{"seq_action": _raw(_action_fields(a)[0]),
+                      "seq_owner": _plain(_action_fields(a)[1])}
+                     for a in actions],
+        "seq_blockers": [{
+            "seq_blocker_title": _plain(b.get("title", "blocker")),
+            "seq_blocker_body": _raw(b.get("body", "")),
+            "seq_evidence": [{"seq_evidence_line": _evidence_html(ev)}
+                             for ev in (b.get("evidence") or []) if isinstance(ev, dict)],
+        } for b in data.get("blockers", [])],
     }
     for seat in data.get("board", []):
         name = seat.get("seat", "?")
@@ -432,12 +549,17 @@ def build_handoff_data(data: dict, run_dir=None) -> dict:
 def _render_html(hd: dict, shape: str = "full-handoff") -> str:
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     import render_handoff  # sibling script
-    # Same handoff-data dict feeds both views; only the template differs. The
+    # Same handoff-data dict feeds every view; only the template differs. The
     # quick-verdict template uses the slim subset of tokens/blocks (verdict banner,
     # one-line blockers, dissent line, actions) — no seats/rounds/caveats/questions.
-    template_path = (render_handoff.quick_verdict_template()
-                     if shape == "quick-verdict"
-                     else render_handoff.default_template())
+    # The implementation-sequence template is the sequence-first view (the full
+    # ordered action list with owners, then the blockers with evidence trails).
+    if shape == "quick-verdict":
+        template_path = render_handoff.quick_verdict_template()
+    elif shape == "implementation-sequence":
+        template_path = render_handoff.implementation_sequence_template()
+    else:
+        template_path = render_handoff.default_template()
     with open(template_path, encoding="utf-8") as handle:
         template = handle.read()
     return render_handoff.render(hd, template)
@@ -452,13 +574,19 @@ def main(argv=None) -> int:
     parser.add_argument("--check", action="store_true", help="print Markdown to stdout; write nothing")
     parser.add_argument("--handoff-data", dest="handoff_data", help="also write a derived handoff-data.json here")
     parser.add_argument("--html", help="also write final-consensus.html here (via render_handoff.py)")
-    parser.add_argument("--shape", choices=("full-handoff", "quick-verdict"), default="full-handoff",
-                        help="HTML shape for --html: the full handoff (default) or the slim quick-verdict brief")
+    parser.add_argument("--shape", choices=("full-handoff", "quick-verdict", "implementation-sequence"),
+                        default="full-handoff",
+                        help="output shape: the full handoff (default), the slim quick-verdict "
+                             "brief, or the sequence-first implementation-sequence view. "
+                             "full-handoff/quick-verdict pick the --html template only; "
+                             "implementation-sequence also switches the Markdown to the "
+                             "sequence view (default filename implementation-sequence.md)")
     parser.add_argument("--run", dest="run_dir", help="a run dir; pulls per-round prose from its round-N/<seat>.md")
     args = parser.parse_args(argv)
 
     data = load(args.path)
-    markdown = render_markdown(data)
+    sequence_shape = args.shape == "implementation-sequence"
+    markdown = render_sequence_markdown(data) if sequence_shape else render_markdown(data)
 
     # The Markdown is the implicit default deliverable: write it when --out is given, or
     # when no other output (--html / --handoff-data) was requested. Asking only for the
@@ -467,7 +595,8 @@ def main(argv=None) -> int:
     if args.check:
         sys.stdout.write(markdown)
     elif args.out is not None or not (args.html or args.handoff_data):
-        out_path = args.out or "final-consensus.md"
+        out_path = args.out or ("implementation-sequence.md" if sequence_shape
+                                else "final-consensus.md")
         with open(out_path, "w", encoding="utf-8") as handle:
             handle.write(markdown)
         print(f"wrote {out_path} ({len(markdown)} bytes)")
