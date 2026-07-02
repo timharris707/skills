@@ -32,6 +32,7 @@ dependency DAG — each imports only from those above it:
 | `toolchain.py` | Toolchain currency (design §7a): check/update/install CLIs on consent and propose a fallback model id. |
 | `egress.py` | The egress packet + gate (design §8, §12): packet assembly (both rounds), the content hash, tiered consent, the manifest, and the pre-spawn hard stop. |
 | `preflight.py` | Executable preflight (design §7): per-seat probes, the GO/NO-GO table, and board guidance. |
+| `doctor.py` | Setup doctor (`doctor`): sweeps **every** registered provider via `check_tool` + `preflight_seat` (never re-implements the probes), renders per-provider fix-it steps and the viable-board summary (≥ 2 seats GO) + a suggested first command. No user material egresses. |
 | `recipe.py` | The restricted-YAML codec for `run-recipe.yaml` plus recipe↔config conversion/validation. |
 | `artifacts.py` | Renderers/writers for the pre-spawn artifacts: run-card, `sensitivity.json`, the artifact tree, and the run-metadata stamp (md + tsv). |
 | `rounds.py` | The round fan-out (design §11/§12/§13): `run_round`/`_run_seat_round` and the per-seat round artifacts/renderers. |
@@ -43,6 +44,10 @@ exactly as before and exercises the same public surface.
 ## Quick start
 
 ```
+# first run on a new machine? sweep EVERY provider (installed -> version -> auth -> model),
+# get per-provider fix-it steps + which boards are viable today (probes/smoke-pings only)
+python3 scripts/run_board.py doctor
+
 # check each seat CLI vs its latest release (read-only): current / STALE / missing / unknown
 python3 scripts/run_board.py toolchain
 

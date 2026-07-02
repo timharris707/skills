@@ -1565,6 +1565,210 @@ class TestGracefulDegradation(EnvMixin):
 
 
 # --------------------------------------------------------------------------- #
+# Setup doctor (v1.11 #7) — guided provider sweep, all probes mocked
+# --------------------------------------------------------------------------- #
+
+
+def _health(provider, *, installed=True, go=True, vendor="X", model="m"):
+    """Synthetic ProviderHealth for the pure summary/fix-step tests."""
+    tool = rb.ToolStatus(provider, "mgr",
+                         "1.0.0" if installed else None, "1.0.0",
+                         True if installed else None, None,
+                         present=installed,
+                         install_argv=None if installed else ["brew", "install", provider],
+                         auth_hint="sign in")
+    probe = None
+    if installed:
+        probe = rb.SeatPreflight(provider, True, "reachable", go,
+                                 "ran" if go else "dropped", go,
+                                 "version ok; smoke " + ("ran" if go else "dropped"),
+                                 provider=provider)
+    return rb.ProviderHealth(provider=provider, vendor=vendor, model=model,
+                             tool=tool, probe=probe,
+                             install_cmd=f"brew install {provider}",
+                             update_cmd=f"brew upgrade {provider}",
+                             auth_hint="sign in")
+
+
+class TestDoctorSummary(unittest.TestCase):
+    """The viable-board summary is a pure function over the sweep results."""
+
+    def test_all_go_is_viable_with_no_board_flag(self):
+        s = rb.summarize_doctor([_health(p) for p in
+                                 ("claude", "codex", "gemini", "antigravity", "ollama")])
+        self.assertTrue(s["viable"])
+        self.assertEqual(s["go"], ["claude", "codex", "gemini", "antigravity", "ollama"])
+        self.assertIsNone(s["board"])           # default trio GO -> no --board suggestion
+        self.assertEqual(s["total"], 5)
+
+    def test_two_go_is_viable_with_explicit_board(self):
+        s = rb.summarize_doctor([_health("claude"),
+                                 _health("codex", installed=False),
+                                 _health("gemini", go=False),
+                                 _health("antigravity", installed=False),
+                                 _health("ollama")])
+        self.assertTrue(s["viable"])
+        self.assertEqual(s["board"], "claude,ollama")
+        self.assertEqual(s["missing"], ["codex", "antigravity"])
+        self.assertEqual(s["unusable"], ["gemini"])
+
+    def test_board_suggestion_caps_at_three_in_sweep_order(self):
+        s = rb.summarize_doctor([_health("claude"), _health("codex", installed=False),
+                                 _health("gemini"), _health("antigravity"),
+                                 _health("ollama")])
+        self.assertEqual(s["board"], "claude,gemini,antigravity")
+
+    def test_one_go_is_not_viable(self):
+        s = rb.summarize_doctor([_health("claude"),
+                                 _health("codex", go=False),
+                                 _health("gemini", installed=False)])
+        self.assertFalse(s["viable"])
+        self.assertIsNone(s["board"])
+        self.assertEqual(s["go"], ["claude"])
+
+    def test_zero_installed_is_not_viable(self):
+        s = rb.summarize_doctor([_health(p, installed=False)
+                                 for p in ("claude", "codex", "gemini")])
+        self.assertFalse(s["viable"])
+        self.assertEqual(s["missing"], ["claude", "codex", "gemini"])
+        self.assertEqual(s["go"], [])
+
+
+class TestDoctorFixSteps(unittest.TestCase):
+    def test_not_installed_gets_install_then_auth(self):
+        steps = rb.fix_steps(_health("codex", installed=False))
+        self.assertEqual(steps[0], "install: brew install codex")
+        self.assertIn("then auth: sign in", steps[1])
+
+    def test_go_but_stale_gets_update_nudge(self):
+        h = _health("claude")
+        h.tool.current = False          # stale, yet GO
+        steps = rb.fix_steps(h)
+        self.assertEqual(len(steps), 1)
+        self.assertIn("update the stale CLI: brew upgrade claude", steps[0])
+
+    def test_go_and_current_needs_nothing(self):
+        self.assertEqual(rb.fix_steps(_health("claude")), [])
+
+    def test_smoke_silent_points_at_auth(self):
+        steps = rb.fix_steps(_health("codex", go=False))
+        self.assertTrue(any(s.startswith("auth/setup: sign in") for s in steps))
+
+    def test_version_unreadable_suggests_reinstall(self):
+        h = _health("claude", go=False)
+        h.probe.binary_ok = False       # on PATH, but --version fails
+        steps = rb.fix_steps(h)
+        self.assertEqual(len(steps), 1)
+        self.assertIn("reinstall: brew install claude", steps[0])
+
+    def test_model_not_found_offers_update_and_fallback(self):
+        h = _health("gemini", go=False)
+        h.probe.detail = f"version ok; model 'g-old' did not resolve ({rb.FAILURE_MODEL})"
+        h.probe.model_proposal = "g-fallback"
+        steps = rb.fix_steps(h)
+        self.assertIn("model 'm' did not resolve — update the CLI: brew upgrade gemini", steps[0])
+        self.assertIn("--model gemini=g-fallback", steps[1])
+        # the model-404 step already says "update" — no duplicate stale nudge
+        h.tool.current = False
+        self.assertEqual(len(rb.fix_steps(h)), 2)
+
+
+class TestDoctorSweep(EnvMixin):
+    """End-to-end `doctor` against the mock CLIs — no live probes, no egress."""
+
+    def test_all_go_sweeps_every_registered_provider(self):
+        code, out, _ = run_cli(["doctor"])
+        self.assertEqual(code, rb.EXIT_OK)
+        for provider in ("claude", "codex", "gemini", "antigravity", "ollama"):
+            self.assertIn(f"## {provider} —", out)
+        self.assertEqual(out.count("verdict GO"), 5)      # one GO verdict per provider
+        self.assertNotIn("verdict NO-GO", out)
+        self.assertIn("5 of 5 providers GO", out)
+        self.assertIn("no --board flag needed", out)
+
+    def test_no_egress_statement_in_output(self):
+        _, out, _ = run_cli(["doctor"])
+        self.assertIn("No user material egresses", out)
+        self.assertIn("smoke-pings only", out)
+
+    def test_suggested_first_command_is_a_dry_run_on_the_sample(self):
+        _, out, _ = run_cli(["doctor"])
+        self.assertIn("--dry-run", out)
+        self.assertIn("sample-plan.md", out)     # the bundled sample source
+        self.assertIn("run_board.py run --source", out)
+
+    def test_stale_cli_shows_update_step_and_current_does_not(self):
+        # default mock npm/brew "latest" is 9.9.9 -> every CLI reads STALE
+        _, out, _ = run_cli(["doctor"])
+        self.assertIn("STALE", out)
+        self.assertIn("update the stale CLI: claude update", out)
+        # pin claude's latest to its installed version -> current, no nudge
+        os.environ["MOCK_NPM_CLAUDE"] = "2.0.0"
+        _, out, _ = run_cli(["doctor"])
+        self.assertNotIn("update the stale CLI: claude update", out)
+
+    def test_some_nogo_still_viable_with_explicit_board(self):
+        os.environ["MOCK_GEMINI_MODE"] = "nogo_smoke"
+        code, out, _ = run_cli(["doctor"])
+        self.assertEqual(code, rb.EXIT_OK)       # 4 of 5 still GO
+        self.assertIn("NO-GO", out)
+        self.assertIn("installed but not usable yet: gemini", out)
+        self.assertIn("auth/setup: run `gemini` once", out)   # the seat's auth hint
+        self.assertIn("--board claude,codex,antigravity", out)  # trio broken -> explicit board
+
+    def test_not_installed_provider_gets_install_steps(self):
+        import dataclasses
+        real = rb.REGISTRY["codex"]
+        rb.REGISTRY["codex"] = dataclasses.replace(
+            real, version_argv=lambda: ["no-such-binary-xyz", "--version"])
+        try:
+            code, out, _ = run_cli(["doctor"])
+        finally:
+            rb.REGISTRY["codex"] = real
+        self.assertEqual(code, rb.EXIT_OK)       # the other four are GO
+        self.assertIn("cli     not installed", out)
+        self.assertIn("install: npm install -g @openai/codex", out)
+        self.assertIn("then auth: run `codex` once", out)
+        self.assertIn("not installed: codex", out)
+
+    def test_model_not_found_block_shows_fallback_proposal(self):
+        os.environ["MOCK_GEMINI_MODE"] = "model_proposal"
+        code, out, _ = run_cli(["doctor"])
+        self.assertEqual(code, rb.EXIT_OK)
+        self.assertIn("did NOT resolve", out)
+        self.assertIn("--model gemini=gemini-3-flash-preview", out)
+
+    def test_below_two_go_exits_nogo_with_fallback_guidance(self):
+        for seat in ("CODEX", "GEMINI", "AGY", "OLLAMA"):
+            os.environ[f"MOCK_{seat}_MODE"] = "nogo_smoke"
+        code, out, _ = run_cli(["doctor"])
+        self.assertEqual(code, rb.EXIT_PREFLIGHT_NOGO)
+        self.assertIn("NOT viable yet", out)
+        self.assertIn("at least 2 independent voices", out)
+        self.assertIn("--board a=claude,b=claude", out)     # same-provider fallback
+        self.assertIn("board-composition.md", out)
+        self.assertIn("Once two seats are GO", out)
+
+    def test_probe_provider_absent_cli_skips_the_smoke(self):
+        import dataclasses
+        absent = dataclasses.replace(rb.REGISTRY["codex"],
+                                     version_argv=lambda: ["no-such-binary-xyz", "--version"])
+        h = rb.probe_provider("codex", adapter=absent)
+        self.assertFalse(h.installed)
+        self.assertIsNone(h.probe)               # no smoke spawn for an absent CLI
+        self.assertFalse(h.go)
+        self.assertEqual(h.model, "gpt-5.5")
+
+    def test_run_doctor_streams_results_in_registry_order(self):
+        seen = []
+        healths = rb.run_doctor(["claude", "ollama"],
+                                on_result=lambda h: seen.append(h.provider))
+        self.assertEqual(seen, ["claude", "ollama"])
+        self.assertEqual([h.provider for h in healths], ["claude", "ollama"])
+        self.assertTrue(all(h.go for h in healths))
+
+
+# --------------------------------------------------------------------------- #
 # M3 — round-1 success shape check + failure classifier + model-answered parser
 # --------------------------------------------------------------------------- #
 
