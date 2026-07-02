@@ -108,6 +108,15 @@ class RunConfig:
     board: list          # list[SeatConfig]
     network_on: bool     # isolation: network
     fs_scoped: bool      # isolation: filesystem scoped
+    # Live progress view (v1.14 #10): status.json + self-refreshing status.html in the
+    # run dir. ON by default; `--no-live-status` opts out. Resolved from `not
+    # args.no_live_status` so it is the SINGLE source of truth for BOTH the cli.py
+    # tracker wiring AND render_artifact_tree's status-line gating (a dry-run preview
+    # must not advertise artifacts a --no-live-status run never writes). A PRESENTATION
+    # flag for a NON-record artifact — deliberately NOT recipe-persisted (the
+    # --strict-exit / --digest-format convention), unlike `endorse` which changes
+    # record-artifact presence.
+    live_status: bool = True
     synthesize: bool = False         # M2: spawn the neutral synthesizer after rounds
     synthesizer_seat: Optional[str] = None   # which board seat's adapter runs it
     # --output revised-draft (v1.13 #2): the revision-seat feature. `source_type`
@@ -782,6 +791,10 @@ def resolve_config(args) -> RunConfig:
         board=board,
         network_on=network_on,
         fs_scoped=fs_scoped,
+        # Presentation flag, mirrors --strict-exit/--digest-format (never recipe-persisted):
+        # the live view is on unless --no-live-status was given. Single source of truth for
+        # both the tracker wiring and the artifact-tree status line.
+        live_status=not getattr(args, "no_live_status", False),
         synthesize=synthesize,
         synthesizer_seat=synthesizer_seat,
         source_type=source_type,

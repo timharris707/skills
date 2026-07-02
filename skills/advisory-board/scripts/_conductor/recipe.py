@@ -279,6 +279,10 @@ def config_to_recipe(config: RunConfig) -> dict:
         "isolation_network_unenforced": unenforced,
         "isolation_filesystem": "scoped" if config.fs_scoped else "open",
     }
+    # config.live_status is deliberately NOT recorded: it is a presentation flag for a
+    # NON-record artifact (status.* is a live view, not an output of record), so it
+    # follows the --strict-exit / --digest-format convention — unlike `endorse` below,
+    # which changes record-artifact presence and therefore IS persisted.
     # Repo-grounding: persist the scope so `--from-recipe` reproduces a grounded run.
     # Only added when grounding is on, so ungrounded recipes stay byte-identical.
     if config.repo:

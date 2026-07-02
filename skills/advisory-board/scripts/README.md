@@ -38,7 +38,8 @@ dependency DAG — each imports only from those above it:
 | `recipe.py` | The restricted-YAML codec for `run-recipe.yaml` plus recipe↔config conversion/validation. |
 | `history.py` | The run-history listing (v1.11 #5): scan the persistent runs root and render the `history` table from each run's `verdict.json` (degrading to `run-recipe.yaml` / `incomplete` for partial or legacy runs — never crashing the listing). |
 | `artifacts.py` | Renderers/writers for the pre-spawn artifacts: run-card, `sensitivity.json`, the artifact tree, and the run-metadata stamp (md + tsv). |
-| `rounds.py` | The round fan-out (design §11/§12/§13): `run_round`/`_run_seat_round` (pluggable classifier) and the per-seat round artifacts/renderers. |
+| `rounds.py` | The round fan-out (design §11/§12/§13): `run_round`/`_run_seat_round` (pluggable classifier) and the per-seat round artifacts/renderers. `run_round` takes an optional best-effort `on_seat` callback (v1.14 #10) fired from the worker threads at each seat's start/finish, bridged to the live-progress tracker. |
+| `status.py` | The live progress view (v1.14 #10, P3): the `advisory-board/status@1` schema, a lock-serialized `StatusTracker` whose every transition rewrites `status.json` **atomically** (write-temp + `os.replace`) and regenerates `status.html`, the flushed per-seat terminal lines, and `render_status_html` — a **pure** function of the status dict (self-contained, self-refreshing while live, deterministic). Best-effort throughout (a write failure warns once, never kills the run); defers its first disk write until the run commits to spawning, so a preflight NO-GO leaves no dir and an egress-refused run writes only the refusal manifest (`egress-manifest.md` + `sensitivity.json`), never `status.*`. `NullTracker` is the `--no-live-status` no-op. Stdlib-only. |
 | `delta.py` | The pure cross-run verdict delta (v1.12 #1): matches blockers/concerns across two runs (exact title > shared citations > guarded similarity) into cleared / still-open / new + trajectory. |
 | `revise.py` | `--revise` (v1.12 #1): load a prior run, recover its source (sha-verified), and build the injected prior-verdict digest + source diff (with the sensitivity-escalation gate). |
 | `ask.py` | `ask` (v1.12 #4): post-verdict cross-examination — reconstruct the run's board from its recipe, build a run-context packet from that run's own artifacts, re-consent, one-round fan-out, and write `addendum-N.md` + the addenda index / handoff refresh. |
@@ -76,6 +77,11 @@ python3 scripts/run_board.py preflight --source plan.md
 # artifacts land under the persistent runs root by default: ~/.advisory-board/runs/<slug>-<date>/
 # ($ADVISORY_BOARD_RUNS_ROOT or --runs-root DIR relocate the root; --out DIR names an exact
 #  dir; --ephemeral opts back into a throwaway /tmp/advisory-board-<ts>)
+# LIVE VIEW (v1.14 #10, on by default): a status.json (rewritten atomically on every
+# seat/round transition) + a self-refreshing status.html tracker land in the run dir, and
+# flushed per-seat progress lines stream to the terminal — something to watch during the
+# ~15-min run. Both are a live view, NOT an artifact of record (the verdict chain +
+# run-metadata.md stay authoritative). --no-live-status opts out for a byte-exact run dir.
 python3 scripts/run_board.py run --source plan.md --sensitivity public --rounds 2 --cross-reading summaries
 
 # per-seat timeouts + a typed digest: a bare --timeout caps every seat, SEAT=SECONDS caps one

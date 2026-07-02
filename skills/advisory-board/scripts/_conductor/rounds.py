@@ -172,8 +172,19 @@ def _run_seat_round(seat: SeatConfig, blob: "PacketBlob", config: RunConfig, *,
 
 def run_round(config: RunConfig, blobs: list, approval: EgressApproval, *,
               round_no: int = 1, timeout: Optional[int] = None,
-              parallel: bool = True, classify=classify_round1) -> list:
+              parallel: bool = True, classify=classify_round1,
+              on_seat=None) -> list:
     """Fan a round out across its seats. Returns SeatRoundResult in blob order.
+
+    `on_seat` (v1.14 #10 live progress) is an optional best-effort callback fired
+    from the worker threads at each seat's start and finish:
+    `on_seat(event, seat_id, round_no, result)` where `event` is "running" (result
+    is None, the seat's spawn is about to begin) or the seat's terminal state
+    ("done" | "dropped" | "retry" ... derived from result.status; `result` is the
+    SeatRoundResult). It is called INSIDE the fan-out (parallel or serial) so a live
+    view updates as each seat transitions, not only when the whole round returns.
+    The tracker behind it serializes + swallows its own write errors — but we still
+    guard the call here so a bad callback can never break the fan-out.
 
     Round 1 re-asserts the egress hash one last time before the first spawn: the
     packet MUST still hash to exactly what consent was bound to, or nothing leaves
@@ -230,10 +241,26 @@ def run_round(config: RunConfig, blobs: list, approval: EgressApproval, *,
     else:
         workdir = None
     try:
+        def _notify(event, seat_id, result):
+            if on_seat is None:
+                return
+            try:
+                on_seat(event, seat_id, round_no, result)
+            except Exception:
+                pass   # a live-view callback must never break the fan-out
+
         def _one(seat: SeatConfig) -> SeatRoundResult:
-            return _run_seat_round(seat, by_seat[seat.id], config, round_no=round_no,
-                                   round_packet_hash=round_packet_hash,
-                                   workdir=workdir, timeout=timeout, classify=classify)
+            _notify("running", seat.id, None)
+            result = _run_seat_round(seat, by_seat[seat.id], config, round_no=round_no,
+                                     round_packet_hash=round_packet_hash,
+                                     workdir=workdir, timeout=timeout, classify=classify)
+            # Map the seat's outcome to a live-view state. A retried-but-usable seat
+            # still reports its terminal usable state; a "retry" event would need a
+            # hook inside the retry loop — deferred (the two-attempt window is short
+            # and the terminal state is what a watcher cares about).
+            event = "done" if result.usable else "dropped"
+            _notify(event, seat.id, result)
+            return result
 
         results: dict = {}
         if parallel and len(seats) > 1:

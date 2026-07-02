@@ -311,6 +311,14 @@ def render_artifact_tree(config: RunConfig) -> str:
         "  verdict.json   final-consensus.md   handoff-data.json   final-consensus.html",
         "  run-metadata.md   run-metadata.tsv",
     ]
+    # The live progress view (v1.14 #10) — a self-refreshing tracker rewritten on every
+    # transition, NOT an artifact of record. Gated on config.live_status (the single
+    # source of truth the tracker wiring also reads) so a --no-live-status preview never
+    # advertises a status.* the run won't write — every other optional slot above is
+    # config-gated the same way.
+    if config.live_status:
+        parts.append(
+            "  status.json   status.html   (live view — on by default; --no-live-status omits)")
     return "\n".join(parts)
 
 

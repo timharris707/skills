@@ -7264,6 +7264,21 @@ class TestSynthesizerConfig(EnvMixin):
         self.assertIn("synthesizer.prompt", rb.render_artifact_tree(on))
         self.assertNotIn("synthesizer/", rb.render_artifact_tree(off))
 
+    def test_artifact_tree_omits_status_when_no_live_status(self):
+        # BLOCKER fix (P3): the status.* line is gated on config.live_status — the
+        # single source of truth the tracker wiring also reads — so a --no-live-status
+        # preview never advertises a status.* the run won't write (every other optional
+        # slot is config-gated the same way).
+        out = tempfile.mkdtemp(prefix="b-")
+        on = rb.resolve_config(_args(source=SAMPLE, out=out))
+        off = rb.resolve_config(_args(source=SAMPLE, out=out, no_live_status=True))
+        self.assertTrue(on.live_status)
+        self.assertFalse(off.live_status)
+        self.assertIn("status.json", rb.render_artifact_tree(on))
+        self.assertIn("status.html", rb.render_artifact_tree(on))
+        self.assertNotIn("status.json", rb.render_artifact_tree(off))
+        self.assertNotIn("status.html", rb.render_artifact_tree(off))
+
 
 class TestSynthesizerE2E(EnvMixin):
     """The full `run --synthesize` flow against the mock CLIs."""
@@ -14339,6 +14354,430 @@ class TestEchoScoreE2E(EnvMixin):
         with open(os.path.join(out, "run-metadata.md"), encoding="utf-8") as fh:
             meta = fh.read()
         self.assertNotIn("Independence / echo", meta)
+
+
+# --------------------------------------------------------------------------- #
+# v1.14 #10 (P3) — the live progress view: status.json event plumbing, the
+# atomic writer, the flushed terminal lines, and the self-refreshing HTML tracker.
+# --------------------------------------------------------------------------- #
+
+from _conductor import status as st  # noqa: E402
+
+
+class _FakeSeat:
+    def __init__(self, sid):
+        self.id = sid
+
+
+class TestStatusModuleUnit(unittest.TestCase):
+    """The tracker as a unit: schema, the atomic writer, terminal lines, event
+    tuples — no run harness, no threads."""
+
+    def setUp(self):
+        os.environ["ADVISORY_BOARD_NOW_TS"] = "2026-06-25T12:00:00"
+        self.addCleanup(lambda: os.environ.pop("ADVISORY_BOARD_NOW_TS", None))
+        self.d = tempfile.mkdtemp(prefix="status-unit-")
+        self.addCleanup(shutil.rmtree, self.d, ignore_errors=True)
+
+    def _tracker(self, **kw):
+        # active=True: write from the first event (the unit tests are not exercising
+        # the deferred-until-activate() run-dir gate — that is covered E2E).
+        return st.StatusTracker(self.d, title="Idempotency review", rounds_planned=2,
+                                seats=[_FakeSeat("claude"), _FakeSeat("codex")],
+                                active=True, stream=io.StringIO(), **kw)
+
+    def test_schema_and_shape(self):
+        t = self._tracker()
+        with open(os.path.join(self.d, st.STATUS_JSON_NAME), encoding="utf-8") as fh:
+            doc = json.load(fh)
+        self.assertEqual(doc["schema"], "advisory-board/status@1")
+        self.assertEqual(doc["title"], "Idempotency review")
+        self.assertEqual(doc["rounds_planned"], 2)
+        self.assertEqual(sorted(doc["seats"]), ["claude", "codex"])
+        self.assertIsNone(doc["finished"])
+        # `started` uses the deterministic clock helper.
+        self.assertEqual(doc["started"], "2026-06-25T12:00:00")
+
+    def test_event_sequence_golden_two_seat_two_round_with_drop(self):
+        # The stable surface the golden asserts: ordered (stage, seat, round, state)
+        # tuples — NEVER the timestamps. codex drops in round 1 (the dropped-seat path).
+        t = self._tracker()
+        t.stage("preflight", "started")
+        t.stage("preflight", "done")
+        t.stage("egress", "started")
+        t.stage("egress", "done")
+        t.round_started(1)
+        t.seat("claude", "running", 1)
+        t.seat("codex", "running", 1)
+        t.seat("claude", "done", 1, "12s")
+        t.seat("codex", "dropped", 1, "Timeout")
+        t.round_done(1)
+        t.round_started(2)
+        t.seat("claude", "running", 2)
+        t.seat("claude", "done", 2, "9s")
+        t.round_done(2)
+        t.finish("ok", "verdict written")
+        with open(os.path.join(self.d, st.STATUS_JSON_NAME), encoding="utf-8") as fh:
+            doc = json.load(fh)
+        self.assertEqual(st.event_tuples(doc), [
+            ("run", None, None, "started"),
+            ("preflight", None, None, "started"),
+            ("preflight", None, None, "done"),
+            ("egress", None, None, "started"),
+            ("egress", None, None, "done"),
+            ("round", None, 1, "started"),
+            ("round", "claude", 1, "running"),
+            ("round", "codex", 1, "running"),
+            ("round", "claude", 1, "done"),
+            ("round", "codex", 1, "dropped"),
+            ("round", None, 1, "done"),
+            ("round", None, 2, "started"),
+            ("round", "claude", 2, "running"),
+            ("round", "claude", 2, "done"),
+            ("round", None, 2, "done"),
+            ("run", None, None, "done"),
+        ])
+        # The per-seat current-state map reflects the terminal states, and a seat
+        # dropped in round 1 stays dropped (round 2 leaves it behind, never re-queued).
+        self.assertEqual(doc["seats"]["codex"]["state"], "dropped")
+        self.assertEqual(doc["seats"]["codex"]["round"], 1)
+        self.assertEqual(doc["seats"]["claude"]["state"], "done")
+        self.assertEqual(doc["rounds_done"], 2)
+        self.assertEqual(doc["outcome"], "ok")
+        self.assertIsNotNone(doc["finished"])
+
+    def test_terminal_line_format(self):
+        # The human one-liners as transitions happen (they must flush; format pinned).
+        self.assertEqual(st.terminal_line("round", "codex", 1, "running", None),
+                         "  round 1 · codex … running")
+        self.assertEqual(st.terminal_line("round", "codex", 1, "done", "186s"),
+                         "  round 1 · codex ✓ 186s")
+        self.assertEqual(st.terminal_line("round", "gemini", 1, "dropped", "Timeout"),
+                         "  round 1 · gemini ✗ dropped (Timeout)")
+        self.assertEqual(st.terminal_line("preflight", None, None, "started", None),
+                         "  · preflight …")
+        # A queued seat prints no line (the round banner already announced it), and
+        # the round started/done markers defer to the conductor's own banner/table.
+        self.assertIsNone(st.terminal_line("round", "codex", 1, "queued", None))
+        self.assertIsNone(st.terminal_line("round", None, 1, "started", "x"))
+
+    def test_terminal_lines_flush_immediately(self):
+        # The block-buffering pain is the point: every line goes out with flush=True.
+        stream = io.StringIO()
+        real_print = __import__("builtins").print
+        seen = {}
+
+        def spy_print(*a, **k):
+            seen["flush"] = k.get("flush")
+            return real_print(*a, **k)
+
+        with mock.patch("builtins.print", spy_print):
+            t = st.StatusTracker(self.d, title="x", rounds_planned=1,
+                                 seats=[_FakeSeat("claude")], active=True, stream=stream)
+            t.seat("claude", "running", 1)
+        self.assertTrue(seen.get("flush"), "terminal progress lines must flush immediately")
+
+    def test_atomic_write_leaves_no_tmp_and_always_parses(self):
+        # The writer is temp+os.replace: a reader at ANY point sees a complete,
+        # parseable file, and no .tmp is ever left behind. We interleave a parse +
+        # a dir scan after every transition to catch a torn or lingering write.
+        t = self._tracker()
+        transitions = [
+            lambda: t.stage("preflight", "started"),
+            lambda: t.round_started(1),
+            lambda: t.seat("claude", "running", 1),
+            lambda: t.seat("claude", "done", 1, "5s"),
+            lambda: t.round_done(1),
+            lambda: t.finish("ok"),
+        ]
+        for step in transitions:
+            step()
+            leftovers = [f for f in os.listdir(self.d) if f.endswith(".tmp")]
+            self.assertEqual(leftovers, [], f"a .tmp lingered: {leftovers}")
+            with open(os.path.join(self.d, st.STATUS_JSON_NAME), encoding="utf-8") as fh:
+                json.load(fh)   # must parse mid-run — never a torn document
+
+    def test_write_failure_never_kills_the_run(self):
+        # Best-effort: the writer raising must NOT propagate — it warns once and the
+        # tracker keeps advancing its in-memory document. We inject a failing writer.
+        t = self._tracker()
+        boom = mock.patch.object(st, "_atomic_write_text",
+                                 side_effect=OSError("disk full"))
+        with boom, mock.patch("sys.stderr", new_callable=io.StringIO) as err:
+            # Two transitions: the failure path must be reached and warn at most once.
+            t.stage("preflight", "started")
+            t.seat("claude", "running", 1)
+        warned = err.getvalue()
+        self.assertIn("live status view could not be written", warned)
+        self.assertEqual(warned.count("live status view could not be written"), 1,
+                         "the best-effort warning must fire at most once")
+        # The in-memory doc still advanced despite the disk failures.
+        self.assertEqual(t._doc["seats"]["claude"]["state"], "running")
+
+
+class TestStatusHtmlRender(unittest.TestCase):
+    """The tracker HTML is a PURE function of the status dict — golden on structure,
+    never on timestamps; self-contained + self-refreshing-while-live."""
+
+    def _doc(self, *, finished=None, outcome=None):
+        return {
+            "schema": st.STATUS_SCHEMA, "title": "Idempotency <review> & more",
+            "started": "2026-06-25T12:00:00", "finished": finished, "outcome": outcome,
+            "stage": "round", "rounds_planned": 2, "rounds_done": 1,
+            "seats": {
+                "claude": {"state": "done", "round": 2, "detail": "186s"},
+                "codex": {"state": "running", "round": 2, "detail": None},
+                "gemini": {"state": "dropped", "round": 1, "detail": "Timeout"},
+            },
+            "events": [
+                {"seq": 1, "stage": "run", "seat": None, "round": None,
+                 "state": "started", "detail": "run started", "at": "IGNORED"},
+                {"seq": 2, "stage": "round", "seat": "gemini", "round": 1,
+                 "state": "dropped", "detail": "Timeout", "at": "IGNORED"},
+                {"seq": 3, "stage": "round", "seat": "codex", "round": 2,
+                 "state": "running", "detail": None, "at": "IGNORED"},
+            ],
+        }
+
+    def test_pure_and_deterministic(self):
+        doc = self._doc()
+        self.assertEqual(st.render_status_html(doc), st.render_status_html(doc))
+
+    def test_structure_and_self_containment(self):
+        html = st.render_status_html(self._doc())
+        self.assertTrue(html.startswith("<!DOCTYPE html>"))
+        # No external requests of any kind — renders offline.
+        for banned in ("<script", "src=", "http://", "https://", "<link", "@import"):
+            self.assertNotIn(banned, html, f"self-contained page must not carry {banned!r}")
+        # Injected strings are HTML-escaped (the title carries < > &).
+        self.assertIn("Idempotency &lt;review&gt; &amp; more", html)
+        # Seat states + details surface.
+        self.assertIn("dropped", html)
+        self.assertIn("Timeout", html)
+        self.assertIn("186s", html)
+        # It says, in the footer, that it is not an artifact of record.
+        self.assertIn("not an artifact of record", html)
+
+    def test_self_refreshes_only_while_live(self):
+        live = st.render_status_html(self._doc())
+        self.assertIn('http-equiv="refresh"', live)
+        done = st.render_status_html(self._doc(finished="2026-06-25T12:05:00", outcome="ok"))
+        self.assertNotIn("http-equiv", done, "a completed run's page must be static")
+        self.assertIn("finished 2026-06-25T12:05:00", done)
+
+    def test_render_omits_no_timestamp_in_structural_golden(self):
+        # The golden surface is structure, not stamps: the opaque event `at` values
+        # are never rendered into the events list (only the parsed fields are).
+        html = st.render_status_html(self._doc())
+        self.assertNotIn("IGNORED", html)
+
+    def test_outcome_badge_color(self):
+        # A successful terminal outcome renders the green ("done") badge; a failure
+        # outcome (a NO-GO, a blocked egress) renders the muted-red ("drop") badge.
+        for good in ("ok", "rounds-complete"):
+            h = st.render_status_html(self._doc(finished="t", outcome=good))
+            self.assertIn('class="badge done"', h, good)
+        for bad in ("no-board", "egress-blocked", "no-verdict"):
+            h = st.render_status_html(self._doc(finished="t", outcome=bad))
+            self.assertIn('class="badge drop"', h, bad)
+
+
+class TestStatusLiveViewE2E(EnvMixin):
+    """The conductor writes status.json + status.html on a real (mocked) run,
+    respects the RH-1 no-leaked-dir invariant, and honors --no-live-status."""
+
+    def _out(self):
+        d = tempfile.mkdtemp(prefix="board-live-e2e-")
+        self.addCleanup(shutil.rmtree, d, ignore_errors=True)
+        return d
+
+    def test_run_writes_status_json_and_html(self):
+        out = self._out()
+        code, text, _ = run_cli(["run", "--source", SAMPLE, "--out", out, "--yes",
+                                 "--rounds", "2", "--board", "claude,codex"])
+        self.assertEqual(code, rb.EXIT_OK)
+        self.assertTrue(os.path.exists(os.path.join(out, "status.json")))
+        self.assertTrue(os.path.exists(os.path.join(out, "status.html")))
+        with open(os.path.join(out, "status.json"), encoding="utf-8") as fh:
+            doc = json.load(fh)
+        self.assertEqual(doc["schema"], "advisory-board/status@1")
+        # Both seats ran two rounds and finished; the completed run reads as done.
+        self.assertIsNotNone(doc["finished"])
+        self.assertEqual(doc["seats"]["claude"]["state"], "done")
+        self.assertEqual(doc["seats"]["codex"]["state"], "done")
+        self.assertEqual(doc["rounds_done"], 2)
+        # The event stream carries the preflight + egress + per-round-per-seat trail.
+        tuples = st.event_tuples(doc)
+        self.assertIn(("preflight", None, None, "done"), tuples)
+        self.assertIn(("egress", None, None, "done"), tuples)
+        self.assertIn(("round", "claude", 1, "done"), tuples)
+        self.assertIn(("round", "codex", 2, "done"), tuples)
+        # The flushed per-seat terminal lines reached stdout.
+        self.assertIn("round 1 · claude", text)
+        # A completed run's HTML is static (no self-refresh).
+        with open(os.path.join(out, "status.html"), encoding="utf-8") as fh:
+            self.assertNotIn("http-equiv", fh.read())
+
+    def test_dropped_seat_shows_in_status(self):
+        # gemini drops in round 1 (nogo_smoke). It must read as dropped in status.json
+        # while the surviving seats run on.
+        os.environ["MOCK_GEMINI_MODE"] = "nogo_smoke"
+        out = self._out()
+        code, _, _ = run_cli(["run", "--source", SAMPLE, "--out", out, "--yes",
+                              "--rounds", "2"])
+        self.assertEqual(code, rb.EXIT_OK)
+        with open(os.path.join(out, "status.json"), encoding="utf-8") as fh:
+            doc = json.load(fh)
+        self.assertEqual(doc["seats"]["gemini"]["state"], "dropped")
+        self.assertIn(("round", "gemini", 1, "dropped"), st.event_tuples(doc))
+
+    def test_no_go_preflight_leaves_no_status(self):
+        # RH-1: a NO-GO preflight must materialize no out dir at all — including no
+        # status.* — because the live view defers its first write until the run has
+        # committed to spawning (post-egress-approval, write_pre_spawn_artifacts).
+        os.environ["MOCK_CODEX_MODE"] = "nogo_smoke"
+        os.environ["MOCK_GEMINI_MODE"] = "nogo_version"
+        out = os.path.join(self._out(), "run")   # parent exists, this does not
+        code, _, _ = run_cli(["run", "--source", SAMPLE, "--out", out, "--yes"])
+        self.assertEqual(code, rb.EXIT_PREFLIGHT_NOGO)
+        self.assertFalse(os.path.exists(out), "a NO-GO board must leave no out dir")
+
+    def test_no_live_status_opts_out(self):
+        out = self._out()
+        code, _, _ = run_cli(["run", "--source", SAMPLE, "--out", out, "--yes",
+                              "--rounds", "1", "--no-live-status"])
+        self.assertEqual(code, rb.EXIT_OK)
+        self.assertFalse(os.path.exists(os.path.join(out, "status.json")))
+        self.assertFalse(os.path.exists(os.path.join(out, "status.html")))
+        # The artifacts of record are still written (opting out changes nothing else).
+        self.assertTrue(os.path.exists(os.path.join(out, "run-metadata.md")))
+
+    def test_dry_run_no_live_status_omits_status_from_preview(self):
+        # BLOCKER fix (P3): a --dry-run --no-live-status preview must NOT advertise
+        # status.* — the run would never write them. The plain dry-run still lists them.
+        out = self._out()
+        _, on_text, _ = run_cli(["run", "--source", SAMPLE, "--out", out, "--dry-run"])
+        self.assertIn("status.json", on_text)
+        self.assertIn("status.html", on_text)
+        _, off_text, _ = run_cli(["run", "--source", SAMPLE, "--out", out, "--dry-run",
+                                  "--no-live-status"])
+        self.assertNotIn("status.json", off_text)
+        self.assertNotIn("status.html", off_text)
+
+    def test_egress_refused_writes_manifest_but_no_status(self):
+        # RH-1 (docs-only BLOCKER lock): an egress-refused run writes ONLY the refusal
+        # manifest (egress-manifest.md + sensitivity.json) — never status.* (the tracker
+        # defers its first write until activate(), which the refused gate never reaches).
+        out = self._out()
+        code, _, _ = run_cli(["run", "--source", SAMPLE, "--out", out], stdin="")
+        self.assertEqual(code, rb.EXIT_EGRESS_BLOCKED)
+        # The refusal manifest exists (the true invariant) ...
+        self.assertTrue(os.path.exists(os.path.join(out, "egress-manifest.md")))
+        self.assertTrue(os.path.exists(os.path.join(out, "sensitivity.json")))
+        # ... while status.* are ABSENT (the corrected claim).
+        self.assertFalse(os.path.exists(os.path.join(out, "status.json")))
+        self.assertFalse(os.path.exists(os.path.join(out, "status.html")))
+
+
+class TestStatusAbortGuardE2E(EnvMixin):
+    """The abort guard (P3 finding O3): any abnormal exit AFTER activate() — a die()
+    mid-fan-out, a KeyboardInterrupt, an unhandled exception — stamps a terminal
+    `interrupted` outcome so status.json reads finished + status.html stops refreshing,
+    with the exit code / die() message untouched (re-raised as-is)."""
+
+    def _out(self):
+        d = tempfile.mkdtemp(prefix="board-abort-e2e-")
+        self.addCleanup(shutil.rmtree, d, ignore_errors=True)
+        return d
+
+    def test_mid_fanout_die_stamps_interrupted_and_static_html(self):
+        # A die() inside the round-1 fan-out (the egress-hash / repo-scope drift path)
+        # after activate(): drive it by patching cli.run_round to die exactly as the
+        # real drift guard does (EXIT_EGRESS_BLOCKED + its message).
+        from _conductor import cli as cli_mod
+        out = self._out()
+
+        def _boom(*a, **k):
+            rb.die("egress hash drift: the packet no longer matches the approved content "
+                   "hash — refusing to spawn the board", rb.EXIT_EGRESS_BLOCKED)
+
+        with mock.patch.object(cli_mod, "run_round", _boom):
+            code, _, err = run_cli(["run", "--source", SAMPLE, "--out", out, "--yes"])
+        # Exit code + die() message are UNTOUCHED (the guard re-raises as-is).
+        self.assertEqual(code, rb.EXIT_EGRESS_BLOCKED)
+        self.assertIn("egress hash drift", err)
+        # status.json is stamped finished with the documented terminal outcome.
+        with open(os.path.join(out, "status.json"), encoding="utf-8") as fh:
+            doc = json.load(fh)
+        self.assertIsNotNone(doc["finished"])
+        self.assertEqual(doc["outcome"], st.OUTCOME_INTERRUPTED)
+        # The seats' last-known states are the honest queued snapshot (never re-stamped).
+        self.assertTrue(all(s["state"] in ("queued", "waiting")
+                            for s in doc["seats"].values()))
+        # status.html is now STATIC — no meta-refresh over a dead run.
+        with open(os.path.join(out, "status.html"), encoding="utf-8") as fh:
+            self.assertNotIn("http-equiv", fh.read())
+
+    def test_keyboard_interrupt_stamps_interrupted_and_reraises(self):
+        # A KeyboardInterrupt mid-fan-out is a BaseException — the guard must still stamp
+        # a terminal outcome and let the interrupt propagate (never swallow it).
+        from _conductor import cli as cli_mod
+        out = self._out()
+
+        def _interrupt(*a, **k):
+            raise KeyboardInterrupt
+
+        with mock.patch.object(cli_mod, "run_round", _interrupt):
+            with self.assertRaises(KeyboardInterrupt):
+                # run_cli catches SystemExit only; a KeyboardInterrupt must reach here.
+                rb.main(["run", "--source", SAMPLE, "--out", out, "--yes"])
+        with open(os.path.join(out, "status.json"), encoding="utf-8") as fh:
+            doc = json.load(fh)
+        self.assertEqual(doc["outcome"], st.OUTCOME_INTERRUPTED)
+        with open(os.path.join(out, "status.html"), encoding="utf-8") as fh:
+            self.assertNotIn("http-equiv", fh.read())
+
+
+class TestStatusReaderHardening(unittest.TestCase):
+    """The status readers (render_status_html, event_tuples) must never raise a raw
+    traceback on a hand-authored/corrupted status.json — malformed containers/entries
+    are isinstance-guarded and skipped, matching the verdict readers' guard style."""
+
+    def test_event_tuples_tolerates_malformed_shapes(self):
+        # Non-dict doc, non-list events, non-dict entries, and entries missing keys.
+        self.assertEqual(st.event_tuples("not a dict"), [])
+        self.assertEqual(st.event_tuples({"events": "nope"}), [])
+        self.assertEqual(st.event_tuples({"events": None}), [])
+        self.assertEqual(st.event_tuples({}), [])
+        mixed = {"events": [
+            "junk",
+            {"stage": "round", "seat": "claude", "round": 1, "state": "done"},
+            None,
+            {"stage": "run"},   # missing seat/round/state -> read as None via .get
+        ]}
+        self.assertEqual(st.event_tuples(mixed), [
+            ("round", "claude", 1, "done"),
+            ("run", None, None, None),
+        ])
+
+    def test_render_status_html_tolerates_malformed_shapes(self):
+        # A malformation matrix through render — none may raise; each yields a valid page.
+        cases = [
+            "not a dict",
+            {},
+            {"seats": "a string, not a map"},
+            {"seats": {"claude": "not a dict"}},
+            {"events": "nope"},
+            {"events": [None, "junk", {"state": "running"}]},
+            {"seats": {"x": None}, "events": [42]},
+        ]
+        for doc in cases:
+            html = st.render_status_html(doc)
+            self.assertTrue(html.startswith("<!DOCTYPE html>"), repr(doc))
+            self.assertIn("</html>", html, repr(doc))
+        # A non-dict seat entry renders as a bare waiting row rather than raising.
+        html = st.render_status_html({"seats": {"claude": "corrupt"}})
+        self.assertIn("claude", html)
 
 
 if __name__ == "__main__":
