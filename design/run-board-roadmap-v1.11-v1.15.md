@@ -79,7 +79,7 @@ Testing: delta pure-function matrix; end-to-end revise on a fixture pair; consen
 Gate: full suite.
 
 ### Phase 3 — `ask`: post-verdict cross-examination (#4)
-- [ ] `run_board.py ask "<question>" --run <dir> [--seat <id>]` — context packet built from the run's own artifacts, egress re-consent for the new bytes, one-round fan-out to the addressed seat(s), `addendum-N.md` + handoff refresh
+- [x] `run_board.py ask "<question>" --run <dir> [--seat <id>]` — context packet built from the run's own artifacts, egress re-consent for the new bytes, one-round fan-out to the addressed seat(s), `addendum-N.md` + handoff refresh. _Hardened per the adversarial review: never-loosen sensitivity floor (strictest of recipe / sensitivity.json / tighten-only `--sensitivity`; missing sensitivity.json never floats down to public), dropped-placeholder skip for seat continuity, sentinel-injection-proof handoff block, bounded reads (symlink/out-of-tree refused)._ _(PR #65)_
 Testing: packet content bounded to the named run; seat targeting; re-consent required on sensitive runs.
 Gate: full suite.
 
