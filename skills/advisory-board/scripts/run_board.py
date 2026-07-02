@@ -56,6 +56,9 @@ This file implements milestones M1, M2 and M3 of design/run-board-conductor.md:
 Subcommands:
   init        resolve config and emit run-recipe.yaml + the run-card (no spawn)
   toolchain   check each seat CLI vs its latest release; --update upgrades stale ones
+  doctor      guided setup check — sweep EVERY registered provider (installed ->
+              version -> auth -> model) with fix-it steps + a viable-board summary;
+              probes and smoke-pings only, never the user's material
   preflight   probe each seat (version / smoke ping) and print a GO/NO-GO table
   run         resolve -> preflight -> egress gate -> round-1 -> round-2 -> artifacts
   verify      delegate to verify_evidence.py (resolve + stamp a verdict's evidence)
@@ -92,6 +95,7 @@ from _conductor.prompts import *  # noqa: F401,F403
 from _conductor.toolchain import *  # noqa: F401,F403
 from _conductor.egress import *  # noqa: F401,F403
 from _conductor.preflight import *  # noqa: F401,F403
+from _conductor.doctor import *  # noqa: F401,F403  (setup doctor: guided provider sweep)
 from _conductor.synthesizer import *  # noqa: F401,F403
 from _conductor.recipe import *  # noqa: F401,F403
 from _conductor.artifacts import *  # noqa: F401,F403

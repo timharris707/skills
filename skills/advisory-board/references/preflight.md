@@ -4,6 +4,8 @@ Run this before launching a board. Most board failures are environmental — a C
 
 Goal: a go/no-go table. Proceed only when at least two seats are **GO** (a board needs at least two voices). Label any seat that is degraded or dropped in the final handoff.
 
+> **New machine?** `run_board.py doctor` runs this whole preflight proactively across **every** registered provider (not just a chosen board): installed → version currency → auth → default model, with per-provider fix-it steps, a viable-board summary (≥ 2 seats GO), and a suggested first command. Probes and smoke-pings only — it never reads or sends your material.
+
 ## Step 0: toolchain currency (run this first)
 
 A stale seat CLI is the single most common reason a board half-fails: a frontier model gets renamed (e.g. `gemini-3-flash-preview` → `gemini-3.5-flash` on GA) and the pinned id suddenly 404s on a CLI too old to know the new route. So the conductor checks each CLI against its latest release *before* probing models, and offers to update the stale ones.

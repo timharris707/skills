@@ -50,6 +50,15 @@ from _conductor.preflight import (
     render_preflight_table,
     run_preflight,
 )
+from _conductor.doctor import (
+    conductor_script_path,
+    find_sample_source,
+    render_doctor_header,
+    render_doctor_summary,
+    render_provider_block,
+    run_doctor,
+    summarize_doctor,
+)
 from _conductor.recipe import (
     RECIPE_COMMENTS,
     config_to_recipe,
@@ -82,6 +91,7 @@ __all__ = [
     "cmd_init",
     "cmd_preflight",
     "cmd_toolchain",
+    "cmd_doctor",
     "_maybe_update_tools",
     "cmd_run",
     "cmd_render",
@@ -152,6 +162,26 @@ def cmd_toolchain(args) -> int:
         if update_stale_tools(statuses, assume_yes=assume_yes) != 0:
             rc = EXIT_USAGE
     return rc
+
+
+def cmd_doctor(args) -> int:
+    # Guided onboarding (roadmap v1.11 #7): sweep EVERY registered provider — not
+    # just a chosen board — and print per-provider fix-it steps plus which boards
+    # are viable today. Probes and smoke-pings only; the header says so. Blocks
+    # stream as each provider is probed (a slow one can take up to a minute).
+    names = list(REGISTRY)
+    print(render_doctor_header(names))
+    print()
+
+    def _emit(health) -> None:
+        print(render_provider_block(health))
+        print()
+
+    healths = run_doctor(names, on_result=_emit)
+    summary = summarize_doctor(healths)
+    print(render_doctor_summary(summary, sample_source=find_sample_source(),
+                                script_path=conductor_script_path()))
+    return EXIT_OK if summary["viable"] else EXIT_PREFLIGHT_NOGO
 
 
 def _maybe_update_tools(config, args) -> None:
@@ -672,6 +702,13 @@ def build_parser() -> argparse.ArgumentParser:
     p_tool.add_argument("--yes", action="store_true",
                         help="skip the confirmation prompt (for unattended runs)")
     p_tool.set_defaults(func=cmd_toolchain)
+
+    p_doctor = sub.add_parser(
+        "doctor",
+        help="guided setup check: sweep EVERY registered provider (installed -> version -> "
+             "auth -> model) with per-provider fix-it steps and a viable-board summary; "
+             "probes and smoke-pings only — never your material")
+    p_doctor.set_defaults(func=cmd_doctor)
 
     p_render = sub.add_parser("render", help="delegate to render_handoff.py (HTML from handoff-data.json)")
     p_render.add_argument("passthrough", nargs=argparse.REMAINDER)

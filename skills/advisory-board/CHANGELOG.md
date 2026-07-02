@@ -32,6 +32,15 @@ reserved for an explicit production-ready call. The verdict-JSON schema is versi
   shape (`references/implementation-sequence-template.html`, same template machinery and brand as
   the other shapes), deterministic from `verdict.json` like every render. `next_actions[]` entries
   may now be `{action, owner}` objects; plain strings render byte-identically everywhere.
+- **Setup doctor** (`run_board.py doctor`, #7) — guided onboarding for a brand-new machine: sweeps
+  **every** registered provider (claude, codex, gemini, antigravity, ollama), not just a chosen
+  board, reusing the toolchain currency probe (installed → version vs latest) and the preflight
+  seat probe (auth → default model resolves → smoke) per provider. Prints a per-provider status
+  block with concrete fix-it steps (install command, auth command, model fallback, stale-CLI
+  update), then a viable-board summary (≥ 2 seats GO) with a suggested first command (a `--dry-run`
+  on the bundled sample source). No user material egresses — probes and smoke-pings only, and the
+  output says so. Exits non-zero when no board is viable, so scripts can branch on it.
+  (`scripts/_conductor/doctor.py`; probe logic stays in `preflight.py`/`toolchain.py`.)
 
 ## [v1.10.0] - 2026-07-01 — Claude seat on Fable 5 at max effort
 
