@@ -5,7 +5,7 @@
 - **Source:** 2026-07-01 four-agent review (feature surface · conductor architecture · artifacts/examples · market scan) + Tim's selection of items 1–14 from the ranked slate
 - **Owner:** Tim
 - **Baseline:** advisory-board/v1.10.0 · `main` @ `be4c9b2` · 676 tests green
-- **Status:** M1 SHIPPED (`advisory-board/v1.11.0`, 2026-07-01) · M2 SHIPPED (`advisory-board/v1.12.0`, 2026-07-02) · M3 SHIPPED (`advisory-board/v1.13.0`, 2026-07-02) · M4 (v1.14) release in flight — P1 PR #71 · P2 PR #73 · P3 PR #75 · tag next
+- **Status:** M1 SHIPPED (`advisory-board/v1.11.0`, 2026-07-01) · M2 SHIPPED (`advisory-board/v1.12.0`, 2026-07-02) · M3 SHIPPED (`advisory-board/v1.13.0`, 2026-07-02) · M4 SHIPPED (`advisory-board/v1.14.0`, 2026-07-02 — P1 PR #71 · P2 PR #73 · P3 PR #75) · M5 (v1.15) next — full design pass first
 
 ## Overview
 
@@ -139,7 +139,7 @@ Testing: event sequence golden on a mocked run; tracker renders from fixture sta
 Gate: full suite.
 
 ### Phase 4 — Docs, review, release v1.14
-- [ ] Docs + CHANGELOG on `main`; tag `advisory-board/v1.14.0` on Tim's explicit go → release green
+- [x] Docs + CHANGELOG on `main`; tag `advisory-board/v1.14.0` on Tim's explicit go → release green _CHANGELOG `## [v1.14.0] - 2026-07-02 — Signal quality & run experience` landed on main (PR #76) before the annotated tag; release workflow green; repo Latest. Standing release go (2026-07-02, v1.13–v1.15) covered the tag._
 Gate: release Latest + full suite green.
 
 ## Milestone: v1.15 — Rubric-first deliberation
