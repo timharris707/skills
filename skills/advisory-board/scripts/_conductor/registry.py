@@ -504,7 +504,12 @@ REGISTRY: dict = {
         auth_hint="run `claude` once and sign in (Claude subscription, or set ANTHROPIC_API_KEY)",
         pkg_label="npm @anthropic-ai/claude-code",
         flags_verified_version="2.1.191",   # --model/--effort/--permission-mode plan verified here
-        fallback_models=(),   # Anthropic ids are stable; pin the current one, no guesses
+        # First (and only) sanctioned fallback: Opus 4.8 at the seat's same max
+        # effort (grounded live 2026-07-02: the CLI accepts --model claude-opus-4-8
+        # --effort max). Probe-and-propose only, never auto-applied — and it's also
+        # the sanctioned per-run downgrade when Claude usage matters more than
+        # Fable-tier depth (--model claude=claude-opus-4-8).
+        fallback_models=("claude-opus-4-8",),
     ),
     "codex": SeatAdapter(
         name="codex",

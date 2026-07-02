@@ -99,6 +99,14 @@ class TestRegistry(unittest.TestCase):
     def test_seats_registered(self):
         self.assertEqual(set(rb.REGISTRY), {"claude", "codex", "gemini", "antigravity", "ollama"})
 
+    def test_claude_seat_model_lineup(self):
+        # Default = Fable 5 at max effort; the one sanctioned fallback/downgrade
+        # is Opus 4.8 at the same effort (grounded live 2026-07-02; Tim's call).
+        a = rb.REGISTRY["claude"]
+        self.assertEqual(a.default_model, "claude-fable-5")
+        self.assertEqual(a.default_reasoning, "max")
+        self.assertEqual(a.fallback_models, ("claude-opus-4-8",))
+
     def test_antigravity_flags(self):
         a = rb.REGISTRY["antigravity"]
         argv = a.build_argv("Gemini 3.5 Flash (High)", "PROMPT", network=False)

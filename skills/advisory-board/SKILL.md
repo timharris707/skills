@@ -45,7 +45,7 @@ If the user says "use defaults", stop asking the *optional* setup questions and 
 
 Target the strongest reasoning model each provider offers:
 
-- Claude seat: `claude-fable-5` (Anthropic's most capable model) at max effort — `--effort max`. Fable 5 is a premium tier (priced above Opus) and max effort means longer, costlier runs; swap it with `--model claude=<id>` if cost matters more than depth.
+- Claude seat: `claude-fable-5` (Anthropic's most capable model) at max effort — `--effort max`. Fable 5 is a premium tier (priced above Opus) and max effort means longer, costlier runs; the sanctioned swap when Claude usage matters more than depth is `--model claude=claude-opus-4-8` (also the seat's registered fallback if Fable is unavailable — Opus 4.8 runs the same `--effort max`). To conserve Claude usage entirely, seat a board without the Claude seat (`--board codex,gemini`) — the other seats bill their own subscriptions.
 - Codex seat: `gpt-5.5` with `model_reasoning_effort="xhigh"` (or the highest Codex reasoning setting available).
 - Gemini seat: Google's latest frontier reasoning model via the Gemini CLI (currently Gemini 3.1 Pro) with `thinkingLevel: HIGH` (or the highest available).
 
