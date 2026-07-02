@@ -42,6 +42,15 @@ reserved for an explicit production-ready call. The verdict-JSON schema is versi
   output says so. Exits non-zero when no board is viable, so scripts can branch on it.
   (`scripts/_conductor/doctor.py`; probe logic stays in `preflight.py`/`toolchain.py`.)
 
+### Fixed
+- **Snapshot leak checks are now process-local (test-only).** Three tests asserted a
+  before/after glob of the machine-wide tempdir for `advisory-board-repo-*`, so any
+  concurrent suite (sibling worktree, parallel CI) creating or removing its own snapshots
+  flaked them. A `_private_tempdir` helper now redirects `TMPDIR` to a fresh per-test dir
+  for the run, and the tests assert *that* dir holds no snapshot afterward; the
+  failure-path test additionally probes mid-prepare that the snapshot really landed there,
+  so the check can't pass vacuously.
+
 ## [v1.10.0] - 2026-07-01 — Claude seat on Fable 5 at max effort
 
 The Claude seat now defaults to **Fable 5** (`claude-fable-5`), Anthropic's most capable model,
