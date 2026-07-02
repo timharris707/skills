@@ -181,6 +181,15 @@ def cmd_run(args) -> int:
 
 
 def _execute_run(config, args) -> int:
+    # --digest-format json serializes the STRUCTURED digest, which only exists under
+    # --cross-reading summaries (`full` is verbatim reviews; `none` has no board
+    # packet). Refuse the meaningless combination up front — loudly, not silently.
+    digest_json = getattr(args, "digest_format", "markdown") == "json"
+    if digest_json and config.cross_reading != "summaries":
+        die("--digest-format json serializes the structured digest, which requires "
+            f"--cross-reading summaries (this run uses {config.cross_reading!r})",
+            EXIT_USAGE)
+
     blobs = build_packet(config)
     content_hash = packet_hash(blobs)
 
@@ -249,10 +258,11 @@ def _execute_run(config, args) -> int:
     # 4. Round-1 fan-out (M3) — the first real spawn. run_round re-asserts the
     #    egress hash one last time, then feeds each seat its approved blob verbatim
     #    (so the bytes that actually leave equal what consent was bound to), with
-    #    per-seat timeout / one-retry / failure classification (§13).
-    timeout = getattr(args, "timeout", None)
+    #    per-seat timeout / one-retry / failure classification (§13). The --timeout
+    #    values (bare default + id=SECONDS overrides) are already resolved onto each
+    #    SeatConfig (config.resolve_board), so the fan-out reads them per seat.
     print("\n=== round 1 (fan-out) ===")
-    r1 = run_round(config, blobs, approval, round_no=1, timeout=timeout)
+    r1 = run_round(config, blobs, approval, round_no=1)
     write_round_artifacts(config, r1, 1)
     rounds_done = [r1]
     print(render_round_table(r1, 1))
@@ -294,6 +304,15 @@ def _execute_run(config, args) -> int:
         rN_blobs, board_packet = build_round2(config, prev, round_no=round_no)
         if board_packet is not None:
             _write(os.path.join(config.out_dir, f"board-packet-round-{round_no}.md"), board_packet)
+            if digest_json:
+                # --digest-format json: the SAME parsed signals the markdown digest
+                # carries, serialized as typed JSON next to the .md (no new reasoning).
+                import json as _json
+                from _conductor.digest import build_structured_digest_data
+                payload = build_structured_digest_data(
+                    [r for r in prev if r.usable], round_no=round_no)
+                _write(os.path.join(config.out_dir, f"board-packet-round-{round_no}.json"),
+                       _json.dumps(payload, indent=2, ensure_ascii=False) + "\n")
         for b in rN_blobs:
             _write(os.path.join(config.out_dir, b.relpath), b.text)
         rN_hash = packet_hash(rN_blobs)
@@ -307,7 +326,7 @@ def _execute_run(config, args) -> int:
             print(f"(round {round_no} sends each seat's round-{round_no - 1} review to the others at "
                   "the same providers — no new source egresses; covered by the run-card's disclosed "
                   "multi-round plan.)")
-        rN = run_round(config, rN_blobs, approval, round_no=round_no, timeout=timeout)
+        rN = run_round(config, rN_blobs, approval, round_no=round_no)
         write_round_artifacts(config, rN, round_no)
         rounds_done.append(rN)
         print(render_round_table(rN, round_no))
@@ -403,7 +422,9 @@ def _run_synthesis_step(config, rounds_done: list, args, last_dir: str, *,
     import tempfile
     last = rounds_done[-1]
     seat = choose_synthesizer_seat(config, last, preferred=config.synthesizer_seat)
-    timeout = getattr(args, "timeout", None)
+    # The synthesizer spawns on a board seat, so it honors that seat's resolved
+    # --timeout (per-seat or bare default); None falls back to the adapter cap.
+    timeout = seat.timeout_s
     print(f"\n=== synthesizer ({seat.name}, no-lens; --synthesize) ===")
     print(f"prompt template: {SYNTHESIZER_TEMPLATE_VERSION} "
           f"(sha256:{synthesizer_template_sha()[:12]}…)")
@@ -620,9 +641,21 @@ def build_parser() -> argparse.ArgumentParser:
     p_run.add_argument("--update-tools", dest="update_tools", action="store_true",
                        help="before preflight, check each CLI vs latest and update stale ones "
                             "(consent-gated; --yes auto-approves)")
-    p_run.add_argument("--timeout", type=int, default=None, metavar="SECONDS",
-                       help="per-seat hard timeout for the round-1 fan-out "
-                            "(default: the adapter cap, 900s = 15 min)")
+    p_run.add_argument("--timeout", action="append", default=None,
+                       metavar="SECONDS | SEAT=SECONDS",
+                       help="per-seat hard timeout for the round fan-outs and the synthesizer "
+                            "(default: the adapter cap, 900s = 15 min). Repeatable: a bare "
+                            "SECONDS applies to every seat; SEAT=SECONDS overrides one seat, "
+                            "targeted by id exactly like --model/--lens (an unknown id fails "
+                            "loudly).")
+    p_run.add_argument("--digest-format", dest="digest_format",
+                       choices=("markdown", "json"), default="markdown",
+                       help="board-packet digest format for round 2+ under --cross-reading "
+                            "summaries. markdown (default) writes board-packet-round-N.md as "
+                            "before; json ALSO writes board-packet-round-N.json — the same "
+                            "parsed signals (verdict tokens, agreement, shared citations, "
+                            "per-topic per-seat takes) as typed JSON. No new reasoning; a "
+                            "serialization of the digest the run already computes.")
     p_run.add_argument("--strict-exit", dest="strict_exit", action="store_true",
                        help="exit non-zero if --synthesize fails to produce a usable "
                             "verdict.json (for CI gates). Default exits 0 with a warning "

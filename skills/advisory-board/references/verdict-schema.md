@@ -72,7 +72,9 @@ via `scripts/render_handoff.py`. It drives tooling — most usefully a **CI / la
   didn't finish (see `references/run-metadata-template.md`).
 - `blockers[]` / `dissent[]` / `concerns[]` — verdict-moving claims; each may carry `evidence[]`.
 - `caveats[]` — the couldn't-verify bucket (strings, or `{claim, impact}`); rendered first-class.
-- `open_questions[]` / `next_actions[]` — the same content the handoff shows.
+- `open_questions[]` / `next_actions[]` — the same content the handoff shows. A `next_actions[]`
+  entry is a string, or optionally `{action, owner}` — the `implementation-sequence` output shape
+  names the owner on its step; every renderer accepts both forms (a plain string renders unchanged).
 
 ### Typed `evidence[]` (new in @2)
 

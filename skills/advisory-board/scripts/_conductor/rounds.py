@@ -86,7 +86,15 @@ def _run_seat_round(seat: SeatConfig, blob: "PacketBlob", config: RunConfig, *,
     happens between hashing and spawn.
     """
     adapter = seat.adapter
-    seat_timeout = timeout if timeout is not None else adapter.timeout_s
+    # Timeout precedence: an explicit call-level `timeout` (tests/programmatic) wins,
+    # else the seat's resolved --timeout (per-seat id=SECONDS, or the bare default —
+    # config.resolve_board), else the adapter cap.
+    if timeout is not None:
+        seat_timeout = timeout
+    elif seat.timeout_s is not None:
+        seat_timeout = seat.timeout_s
+    else:
+        seat_timeout = adapter.timeout_s
     prompt = blob.text
 
     attempts = 0

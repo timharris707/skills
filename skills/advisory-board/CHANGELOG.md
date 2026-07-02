@@ -10,6 +10,29 @@ reserved for an explicit production-ready call. The verdict-JSON schema is versi
 
 ## [Unreleased]
 
+### Added
+- **`--digest-format markdown|json`** on `run` (default `markdown` — existing behavior untouched):
+  with `json`, each round-2+ structured digest is ALSO written as typed JSON —
+  `board-packet-round-N.json` (`advisory-board/board-packet-digest@1`) next to the `.md` — carrying
+  the same parsed signals the markdown digest already computes: per-seat `VERDICT` tokens + the
+  agreement summary, the shared (≥2-seat) citation set, every canonical topic with each seat's
+  head-excerpted take, and the unparsed-review fallbacks. A serialization of what exists, not new
+  reasoning (§11); requires `--cross-reading summaries` (refused loudly otherwise). Golden-file
+  tested against the committed payments example.
+- **Per-seat `--timeout`**: `--timeout SECONDS | SEAT=SECONDS`, repeatable. A bare value applies to
+  every seat (the old single-value syntax keeps working unchanged); `SEAT=SECONDS` overrides one
+  seat, targeted by id exactly like `--model`/`--lens` — an unknown id fails loudly. The resolved
+  value threads config → rounds → spawn (tested at the spawn call), and the synthesizer honors its
+  seat's value. Run-only; deliberately not recipe-persisted.
+- **`--output implementation-sequence` is now a real, distinct render** (previously it fell back to
+  the full handoff). `render_verdict.py --shape implementation-sequence` renders a sequence-first
+  view of the same `verdict.json`: the ordered `next_actions[]` lead — the full list, with the
+  owner named where the verdict carries one — backed by the blockers each step must clear with
+  their evidence trails. Emits `implementation-sequence.md` plus a matching self-contained HTML
+  shape (`references/implementation-sequence-template.html`, same template machinery and brand as
+  the other shapes), deterministic from `verdict.json` like every render. `next_actions[]` entries
+  may now be `{action, owner}` objects; plain strings render byte-identically everywhere.
+
 ## [v1.10.0] - 2026-07-01 — Claude seat on Fable 5 at max effort
 
 The Claude seat now defaults to **Fable 5** (`claude-fable-5`), Anthropic's most capable model,

@@ -37,6 +37,7 @@ __all__ = [
     "derive_title",
     "parse_board",
     "parse_model_overrides",
+    "parse_timeout_args",
 ]
 
 
@@ -59,6 +60,7 @@ class SeatConfig:
     model: str
     lens: str
     reasoning: str
+    timeout_s: Optional[int] = None   # per-seat --timeout override; None -> the adapter cap
 
     @property
     def provider(self) -> str:
@@ -182,12 +184,15 @@ def assign_seat_ids(seat_specs: list) -> list:
 
 def resolve_board(seat_specs: list, lens_preset: str, model_overrides: dict,
                   lens_overrides: Optional[dict] = None,
-                  reasoning_overrides: Optional[dict] = None) -> list:
+                  reasoning_overrides: Optional[dict] = None,
+                  timeout_default: Optional[int] = None,
+                  timeout_overrides: Optional[dict] = None) -> list:
     lenses = LENS_PRESETS.get(lens_preset)
     if lenses is None:
         die(f"unknown lens preset {lens_preset!r}; choose from {', '.join(sorted(LENS_PRESETS))}")
     lens_overrides = lens_overrides or {}
     reasoning_overrides = reasoning_overrides or {}
+    timeout_overrides = timeout_overrides or {}
     ids = assign_seat_ids(seat_specs)
     # Uniqueness guard — replaces today's SILENT collapse of two same-named seats with a
     # loud failure. Only reachable when a user aliases two seats identically (auto-numbering
@@ -200,7 +205,8 @@ def resolve_board(seat_specs: list, lens_preset: str, model_overrides: dict,
     # An override that targets a seat that isn't on the board is almost always a typo or a
     # stale id — fail loudly rather than silently ignore it (the old behavior). A bare
     # provider name is a valid target only when that provider is the seat's id (unique board).
-    for kind, keys in (("--model", model_overrides), ("--lens", lens_overrides)):
+    for kind, keys in (("--model", model_overrides), ("--lens", lens_overrides),
+                       ("--timeout", timeout_overrides)):
         for key in keys:
             if key not in seen:
                 die(f"{kind} targets seat {key!r}, which isn't on the board "
@@ -224,6 +230,10 @@ def resolve_board(seat_specs: list, lens_preset: str, model_overrides: dict,
             # Reasoning has no CLI flag today; the only per-seat source is a recipe
             # (recorded reasoning restored on --from-recipe), else the registry default.
             reasoning=reasoning_overrides.get(sid, adapter.default_reasoning),
+            # Timeout: per-seat --timeout id=SECONDS wins, else a bare --timeout SECONDS,
+            # else None (the spawn falls back to the adapter cap). A run-time knob only —
+            # deliberately NOT persisted in the recipe (like the old global --timeout).
+            timeout_s=timeout_overrides.get(sid, timeout_default),
         ))
     return board
 
@@ -238,6 +248,9 @@ def resolve_config(args) -> RunConfig:
     # importing at module scope would create a config<->recipe cycle.
     from _conductor.recipe import recipe_to_config
     model_overrides = parse_model_overrides(getattr(args, "model", []) or [])
+    # --timeout (run-only; not recipe-persisted): a bare SECONDS is the board default,
+    # id=SECONDS overrides one seat. Resolved onto each SeatConfig below.
+    timeout_default, timeout_overrides = parse_timeout_args(getattr(args, "timeout", None))
 
     if getattr(args, "from_recipe", None):
         base = recipe_to_config(args.from_recipe)
@@ -276,7 +289,8 @@ def resolve_config(args) -> RunConfig:
         lens_preset = board_preset or (base or {}).get("lens", DEFAULT_LENS)
 
     board = resolve_board(seat_specs, lens_preset, model_overrides, lens_overrides,
-                          reasoning_overrides)
+                          reasoning_overrides,
+                          timeout_default=timeout_default, timeout_overrides=timeout_overrides)
 
     mode = getattr(args, "mode", None) or (base or {}).get("mode") or "gate"
     if mode not in ("gate", "advisory"):
@@ -430,6 +444,49 @@ def _resolve_seat_lens(value: str) -> str:
     known preset name, which expands to that preset's PRIMARY (first) focus."""
     preset = LENS_PRESETS.get(value)
     return preset[0] if preset else value
+
+
+def _timeout_seconds(raw: str, item: str) -> int:
+    try:
+        seconds = int(raw)
+    except ValueError:
+        die(f"--timeout expects whole SECONDS; got {item!r}")
+    if seconds < 1:
+        die(f"--timeout must be >= 1 second; got {item!r}")
+    return seconds
+
+
+def parse_timeout_args(values) -> tuple:
+    """Split the repeated --timeout into (default_seconds|None, {seat_id: seconds}).
+
+    Mirrors parse_lens_args: a bare `SECONDS` token applies to every seat (the old
+    single-value behavior, so `--timeout 300` keeps working); an `id=SECONDS` token
+    overrides one seat, keyed by seat id exactly as --model/--lens target seats. At
+    most one bare default is allowed. Unknown seat ids die later, in resolve_board,
+    alongside the --model/--lens checks."""
+    if values is None:
+        values = []
+    if isinstance(values, str):   # a test/_args may pass a single string
+        values = [values]
+    default = None
+    overrides: dict = {}
+    for raw in values:
+        item = (raw or "").strip()
+        if not item:
+            continue
+        if "=" in item:
+            sid, _, val = item.partition("=")
+            sid, val = sid.strip(), val.strip()
+            if not sid or not val:
+                die(f"--timeout per-seat override {item!r} must be id=SECONDS")
+            overrides[sid] = _timeout_seconds(val, item)
+        else:
+            seconds = _timeout_seconds(item, item)
+            if default is not None and default != seconds:
+                die(f"--timeout given two board defaults ({default} and {seconds}); pass at "
+                    "most one bare SECONDS — per-seat timeouts use id=SECONDS")
+            default = seconds
+    return default, overrides
 
 
 def parse_lens_args(values) -> tuple:
