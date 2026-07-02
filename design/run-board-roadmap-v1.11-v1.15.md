@@ -128,8 +128,8 @@ Testing: filter matrix over a rich fixture verdict; gate threshold behavior.
 Gate: full suite.
 
 ### Phase 2 — Independence / echo score (#9)
-- [ ] Add a parseable evidence-vs-deference token to the round-2 template (the independence check `epistemics.md` documents; prompt-template version bump); pure metric over parsed signals only (verdict-flip correlation, citation overlap, deference count) → score + one-line explanation in `run-metadata.md` + an HTML pill
-- [ ] DECISION in-phase: metric definition published in `epistemics.md` with its limits (no pseudo-precision; it flags echo, it doesn't prove independence)
+- [x] Add a parseable evidence-vs-deference token to the round-2 template (the independence check `epistemics.md` documents; prompt-template version bump); pure metric over parsed signals only (verdict-flip correlation, citation overlap, deference count) → score + one-line explanation in `run-metadata.md` + an HTML pill
+- [x] DECISION in-phase: metric definition published in `epistemics.md` with its limits (no pseudo-precision; it flags echo, it doesn't prove independence)
 Testing: metric pure-function matrix incl. adversarial same-provider boards.
 Gate: full suite.
 
