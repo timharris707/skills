@@ -33,12 +33,17 @@ for a in "$@"; do
   fi
 done
 
+prompt="$*"
 is_review=0
 case "$*" in *"MATERIAL UNDER REVIEW"*) is_review=1 ;; esac
 # `ask` (v1.12): a post-verdict cross-examination prompt carries the PRIOR RUN
 # CONTEXT fence and gets a short free-form answer (NOT a 7-section review).
 is_ask=0
 case "$*" in *"PRIOR RUN CONTEXT"*) is_ask=1; is_review=0 ;; esac
+# `endorsement` (v1.13 P4): the endorsement prompt frames the seat as "an
+# ENDORSEMENT seat" and asks for one ENDORSE/OBJECT/ABSTAIN per target.
+is_endorse=0
+case "$*" in *"You are an ENDORSEMENT seat"*) is_endorse=1; is_review=0 ;; esac
 
 # Round detection (the round-N>=2 template header names the round); drives the
 # `moving` mode's cross-round VERDICT shift (M1).
@@ -93,6 +98,38 @@ emit_answer() {
   echo "ASK ANSWER (gemini): re your follow-up — the rollout/observability gap I raised is still open in the reviewed material."
 }
 
+# v1.13 P4 endorsement (see the claude mock for the target-roster contract).
+# MOCK_GEMINI_ENDORSE_MODE: ok | object | abstain.
+endorse_mode="${MOCK_GEMINI_ENDORSE_MODE:-ok}"
+emit_endorse() {
+  echo "model: ${model:-unknown}" >&2
+  local first=1 idx=0 field num pos note line
+  echo "<<<<<<<< BEGIN ENDORSEMENT >>>>>>>>"
+  printf '{ "positions": [\n'
+  while IFS= read -r line; do
+    case "$line" in
+      *"- edit_n = "*|*"- unresolved_n = "*)
+        idx=$((idx + 1))
+        case "$line" in
+          *"- edit_n = "*)       field="edit_n";       num="${line##*- edit_n = }" ;;
+          *"- unresolved_n = "*) field="unresolved_n"; num="${line##*- unresolved_n = }" ;;
+        esac
+        num="${num%% *}"; pos="ENDORSE"; note=""
+        case "$endorse_mode" in
+          abstain) pos="ABSTAIN" ;;
+          object)  if [ "$idx" -eq 1 ]; then pos="OBJECT"; note=', "note": "gemini objects: the rollout guard is still missing"'; fi ;;
+        esac
+        if [ "$first" -eq 1 ]; then first=0; else printf ',\n'; fi
+        printf '    {"%s": %s, "position": "%s"%s}' "$field" "$num" "$pos" "$note"
+        ;;
+    esac
+  done <<EOF_TARGETS
+$prompt
+EOF_TARGETS
+  printf '\n] }\n'
+  echo "<<<<<<<< END ENDORSEMENT >>>>>>>>"
+}
+
 case "$mode" in
   nogo_smoke) echo "auth error" >&2; exit 1 ;;
   empty)      exit 0 ;;
@@ -103,12 +140,21 @@ case "$mode" in
     else echo "ready"; fi
     exit 0 ;;
   timeout)    exec sleep 30 ;;   # exec so no orphaned sleep survives the kill
+  # endorse_empty: a real round review, but the endorsement drops (empty stdout ->
+  # NoOutput -> dropped rows). Lets a test drive the all-seats-dropped warning.
+  endorse_empty)
+    echo "[router] retrying with fallback" >&2
+    if [ "$is_endorse" = "1" ]; then exit 0
+    elif [ "$is_review" = "1" ]; then emit_review; else echo "ready"; fi
+    exit 0 ;;
   stub)
     if [ "$is_review" = "1" ]; then echo "Reviewed; summary follows: looks fine."; else echo "ready"; fi
     exit 0 ;;
   degraded)
     echo "[router] retrying with fallback" >&2
-    if [ "$is_review" = "1" ]; then emit_review; elif [ "$is_ask" = "1" ]; then emit_answer; else echo "ready"; fi
+    if [ "$is_review" = "1" ]; then emit_review
+    elif [ "$is_endorse" = "1" ]; then emit_endorse
+    elif [ "$is_ask" = "1" ]; then emit_answer; else echo "ready"; fi
     exit 1 ;;
   model_proposal)
     case "$model" in
@@ -119,6 +165,8 @@ case "$mode" in
   # go (default): router noise on stderr but a valid answer on stdout, exit 0:
   *)
     echo "[router] retrying with fallback" >&2
-    if [ "$is_review" = "1" ]; then emit_review; elif [ "$is_ask" = "1" ]; then emit_answer; else echo "ready"; fi
+    if [ "$is_review" = "1" ]; then emit_review
+    elif [ "$is_endorse" = "1" ]; then emit_endorse
+    elif [ "$is_ask" = "1" ]; then emit_answer; else echo "ready"; fi
     exit 0 ;;
 esac

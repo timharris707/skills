@@ -988,7 +988,7 @@ def _revision_handoff_fields(data: dict, run_dir, shape: str = "full-handoff") -
     changes.json / source-material / revised-draft reads, and NO spurious 'redline
     not rendered' warning when a --run points at a present-but-incoherent chain."""
     empty = {"redline_source_name": "", "redline_rows": [], "redline_note": "",
-             "patch_pre": "", "patch_note": ""}
+             "patch_pre": "", "patch_note": "", "endorsement_summary": ""}
     if shape != "full-handoff":
         return empty
     loaded = _load_revised_chain(data, run_dir)
@@ -1008,7 +1008,82 @@ def _revision_handoff_fields(data: dict, run_dir, shape: str = "full-handoff") -
         fields["redline_rows"] = rows
         fields["redline_note"] = _plain(note) if note else ""
         fields["redline_source_name"] = _plain(name)
+    # Endorsement outcomes (v1.13 P4, D13): a minimal per-edit position summary line
+    # + any objection notes, surfaced in the redline/patch section header area. Empty
+    # string when changes.json carries no endorsements — the {{ENDORSEMENT_SUMMARY}}
+    # line then drops (drop_empty_optionals), keeping an endorsement-less run's HTML
+    # byte-identical to a P2/P3 render.
+    fields["endorsement_summary"] = build_endorsement_summary_html(changes)
     return fields
+
+
+def _esc(text) -> str:
+    """HTML-escape + brace-neutralize an untrusted string for a RAW slot we assemble
+    ourselves (my structural tags pass through; only the interpolated model/seat text
+    is escaped, so the fragment renders as HTML with the data escaped)."""
+    return _nb(html.escape(str(text)))
+
+
+def build_endorsement_summary_html(changes: dict) -> str:
+    """A small RAW HTML block summarizing changes.json.endorsements (D13): one line
+    per edit ("N endorse / M object / K abstain"), a line per unresolved conflict
+    that drew votes, then any objection notes listed (seat + note). Returns "" when
+    there are no endorsement rows — the template line drops and the page stays
+    byte-identical to an endorsement-less render. Interpolated seat/note strings are
+    HTML-escaped (`_esc`); the surrounding tags are ours and pass through."""
+    rows = changes.get("endorsements") or []
+    if not rows:
+        return ""
+
+    def _tally(target_field, n):
+        counts = {"ENDORSE": 0, "OBJECT": 0, "ABSTAIN": 0}
+        for r in rows:
+            if r.get(target_field) == n and r.get("position") in counts:
+                counts[r["position"]] += 1
+        return counts
+
+    def _counts_phrase(c) -> str:
+        parts = []
+        if c["ENDORSE"]:
+            parts.append(f"{c['ENDORSE']} endorse")
+        if c["OBJECT"]:
+            parts.append(f"{c['OBJECT']} object")
+        if c["ABSTAIN"]:
+            parts.append(f"{c['ABSTAIN']} abstain")
+        return " / ".join(parts)
+
+    lines = ['<div class="endorse-summary">',
+             '<p class="endorse-head">Board endorsement — the non-revision seats '
+             'voted on each change:</p>', '<ul class="endorse-list">']
+    for edit in changes.get("edits") or []:
+        n = edit.get("n")
+        c = _tally("edit_n", n)
+        phrase = _counts_phrase(c)
+        if phrase:
+            lines.append(f'<li>edit {_esc(n)}: {phrase}</li>')
+    for i in range(1, len(changes.get("unresolved") or []) + 1):
+        c = _tally("unresolved_n", i)
+        phrase = _counts_phrase(c)
+        if phrase:
+            lines.append(f'<li>unresolved conflict {_esc(i)}: {phrase}</li>')
+    lines.append("</ul>")
+    objections = [r for r in rows if r.get("position") == "OBJECT" and r.get("note")]
+    if objections:
+        lines.append('<p class="endorse-obj-head">Objections on the record:</p>')
+        lines.append('<ul class="endorse-obj">')
+        for r in objections:
+            target = (f"edit {r['edit_n']}" if "edit_n" in r
+                      else f"unresolved conflict {r['unresolved_n']}")
+            # _flat collapses any whitespace run (an embedded newline included) to a
+            # single space so a multi-line OBJECT note stays ONE <li> summary line —
+            # the same discipline amendment text uses at every emission point (a raw
+            # newline in the note would otherwise split the summary across lines and
+            # feed the drop_empty_optionals blank-line regexes a shape they don't expect).
+            lines.append(f'<li>{_esc(r.get("seat", "?"))} on {_esc(target)}: '
+                         f'{_esc(_flat(r.get("note", "")))}</li>')
+        lines.append("</ul>")
+    lines.append("</div>")
+    return "\n".join(lines)
 
 
 def build_handoff_data(data: dict, run_dir=None, shape: str = "full-handoff") -> dict:

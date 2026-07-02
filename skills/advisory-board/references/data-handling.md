@@ -45,6 +45,8 @@ Run artifacts persist by default under `~/.advisory-board/runs/<slug>-<date>/` (
 
 Since v1.12 the run dir also holds `source-material.txt` — an exact copy of the reviewed source, written post-approval so a later `--revise` can diff against it. It is the same bytes the persisted `prompts/*.prompt` already embed: the same consent envelope, the same sensitivity handling, no new exposure class.
 
+The same category covers **board-generated derivatives fanned out between seats** — the round-2 cross-reading packet sends each seat the *other* seats' round-1 reviews, and the v1.13 endorsement pass (`--output revised-draft`) sends the non-revision board seats the source plus the board-**generated** revised draft and change tables to vote on. Those derivatives are freshly produced by the board, not bytes a seat already received, but they egress only to seats already on the board under the run's existing disclosure — the same consent envelope, the same sensitivity handling, no new exposure class.
+
 ## Always
 
 Never write secrets into any artifact. Redact keys, tokens, cookies, and private environment values from prompts, packets, metadata, and the handoff.

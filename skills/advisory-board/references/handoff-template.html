@@ -345,6 +345,21 @@
   .patch-pre { white-space: pre; }
   .rl-note, .patch-note { margin: 8px 0 0; font-size: 13px; font-style: italic; color: var(--ink-faint); }
 
+  /* ---- board endorsement summary (v1.13 P4) ----
+     A compact per-edit position tally + objection notes, above the redline/patch
+     body. Present only when changes.json carries endorsement rows; the whole block
+     is absent (byte-identical) on a --no-endorse run. */
+  .endorse-summary {
+    margin: 10px 0 0; padding: 10px 14px; font-size: 13.5px;
+    background: var(--surface-soft); border: 1px solid var(--line); border-radius: 8px;
+  }
+  .endorse-summary .endorse-head, .endorse-summary .endorse-obj-head {
+    margin: 0 0 4px; font-weight: 700;
+  }
+  .endorse-summary .endorse-obj-head { margin-top: 10px; }
+  .endorse-summary ul { margin: 0; padding-left: 20px; }
+  .endorse-summary .endorse-obj li { color: var(--block-ink); }
+
   /* ---- dark footer / colophon band ---- */
   footer.colophon { background: var(--dark); color: var(--on-dark-soft); padding: 26px 20px 32px; }
   footer.colophon .disclaimer {
@@ -457,6 +472,7 @@
   <section class="redline-sec">
     <h2>The board's revised copy — redline</h2>
     <p class="delta-note">A word-level view of the revision seat's changes to {{REDLINE_SOURCE_NAME}}. Deletions are red, insertions green; the applied bytes are the byte-clean revised-draft artifact. Applying it is your act.</p>
+    {{ENDORSEMENT_SUMMARY}}
     <div class="rl-body"><!-- BEGIN REDLINE (duplicate per redline line) -->{{REDLINE_HTML}}<!-- END REDLINE --></div>
     <p class="rl-note">{{REDLINE_NOTE}}</p>
   </section>
@@ -469,6 +485,7 @@
   <section class="patch-sec">
     <h2>The board's revised copy — patch</h2>
     <p class="delta-note">A git-apply-able unified diff of the revision seat's changes (also written as revised-draft.patch — apply with <code>git apply -p1</code>). The applied bytes are the byte-clean revised-draft artifact; applying it is your act.</p>
+    {{ENDORSEMENT_SUMMARY}}
     <pre class="patch-pre">{{PATCH_PRE}}</pre>
     <p class="patch-note">{{PATCH_NOTE}}</p>
   </section>

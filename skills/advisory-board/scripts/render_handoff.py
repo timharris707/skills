@@ -119,6 +119,10 @@ RAW_TOKENS = {
     # data author already escaped (<del>/<ins> spans + escaped text); PATCH_PRE is
     # the escaped unified-diff body for the code fenced block.
     "REDLINE_HTML", "PATCH_PRE",
+    # revision endorsement summary (v1.13 P4): a small assembled HTML block (the
+    # per-edit position tally + objection notes) the data author already escaped;
+    # "" when the run carries no endorsements (the line then drops below).
+    "ENDORSEMENT_SUMMARY",
 }
 
 
@@ -203,6 +207,12 @@ def drop_empty_optionals(out: str) -> str:
     # First the optional truncation notes (empty when the section wasn't capped).
     out = re.sub(r'\s*<p class="rl-note">\s*</p>', "", out)
     out = re.sub(r'\s*<p class="patch-note">\s*</p>', "", out)
+    # Endorsement summary (v1.13 P4): the {{ENDORSEMENT_SUMMARY}} token renders "" on
+    # a run without endorsements — drop the resulting blank line so the section (and
+    # the whole page for a no-endorsement run) is byte-identical to a P3 render. The
+    # populated block is a <div class="endorse-summary">, which this never matches.
+    out = re.sub(r'\n[ \t]*\n(?=[ \t]*<div class="rl-body">)', "\n", out)
+    out = re.sub(r'\n[ \t]*\n(?=[ \t]*<pre class="patch-pre">)', "\n", out)
     # Prose redline: the whole section drops when no rows rendered (the rl-body
     # <div> is empty). rl-* classes exist only in the full handoff → no-op elsewhere.
     out = re.sub(
@@ -271,6 +281,10 @@ def render(data: dict, template: str) -> str:
     for key in ("redline_source_name", "redline_note", "patch_pre", "patch_note"):
         data.setdefault(key, "")
     data.setdefault("redline_rows", [])
+    # Pre-v1.13-P4 backfill: an old handoff-data.json has no endorsement summary;
+    # default it to "" so the {{ENDORSEMENT_SUMMARY}} line drops below rather than
+    # dying on an unresolved token (and an endorsement-less run stays byte-identical).
+    data.setdefault("endorsement_summary", "")
     if isinstance(data.get("blockers"), list):
         # Copy each blocker row before defaulting its nested list, so an old
         # handoff-data.json passed in by the caller is never mutated.

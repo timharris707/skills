@@ -118,6 +118,12 @@ class RunConfig:
     # and recipe are byte-identical.
     source_type: Optional[str] = None        # prose | code — only set for revised-draft
     revision_seat: Optional[str] = None      # which board seat's adapter runs the revision
+    # --output revised-draft endorsement pass (v1.13 #2, P4 / D13). ON by default
+    # for every revised-draft run: after the revision SUCCEEDS, each non-revision
+    # seat votes ENDORSE/OBJECT/ABSTAIN on every edit + unresolved entry. `--no-endorse`
+    # is the token-cost opt-out. Meaningful ONLY on a revised-draft run (resolved to
+    # False otherwise so a normal run's config/recipe are byte-identical to before).
+    endorse: bool = False
     repo: Optional[str] = None       # repo-grounding: a local repo seats may read (read-only)
     repo_include: Optional[list] = None   # optional fnmatch globs narrowing the grounding scope
     repo_exclude: Optional[list] = None   # optional fnmatch globs removed from the grounding scope
@@ -397,6 +403,34 @@ def board_from_recipe(base: dict, model_overrides: dict, lens_overrides: dict,
     return seat_specs, base.get("lens", DEFAULT_LENS)
 
 
+def resolve_revision_seat_id(selector: str, board: list) -> str:
+    """Resolve a `--revision-seat` selector to a UNIQUE board-seat id (the same axis
+    --model/--timeout select on). A unique id wins outright; a bare provider name is
+    accepted only when it maps to exactly ONE board seat; an ambiguous name (a
+    duplicate-provider board) is refused, listing the candidate ids so the caller
+    can disambiguate. The revision seat egresses to a board provider — the run's
+    disclosure only covers board seats — so an off-board selector is refused too.
+
+    On every non-duplicate board a seat's id == its provider name, so this is an
+    identity for the common case and the recorded changes.revision_seat stays
+    byte-identical to the pre-id-axis behavior."""
+    by_id = {s.id: s for s in board}
+    if selector in by_id:
+        return selector
+    matches = [s for s in board if s.name == selector]
+    if len(matches) == 1:
+        return matches[0].id
+    if len(matches) > 1:
+        die(f"--revision-seat {selector!r} is ambiguous: this board has "
+            f"{len(matches)} {selector!r} seats. Name the exact seat by its id — "
+            f"one of {', '.join(s.id for s in matches)} (the same ids --model and "
+            "--timeout use).")
+    board_ids = ", ".join(s.id for s in board)
+    die(f"--revision-seat {selector!r} is not one of this run's board seats "
+        f"({board_ids}); the revision seat egresses to that seat's provider, which "
+        "the run's disclosure only covers for board seats")
+
+
 def default_out_dir() -> str:
     """The EPHEMERAL out dir (`--ephemeral`): a timestamped folder under /tmp — the
     pre-v1.11 default, kept byte-identical for anyone opting back out of persistence."""
@@ -597,6 +631,12 @@ def resolve_config(args) -> RunConfig:
     revision_seat = (getattr(args, "revision_seat", None)
                      or (base or {}).get("revision_seat"))
     source_type_flag = getattr(args, "source_type", None) or (base or {}).get("source_type")
+    # Endorsement pass (D13): ON by default on a revised-draft run. `--no-endorse`
+    # (CLI) or `endorse: false` (a recipe replay) opts out. The CLI flag stores its
+    # value as `no_endorse=True`; the recipe records the RESOLVED boolean, so a
+    # replay reads `endorse` directly and the flag is only consulted for a fresh run.
+    no_endorse_flag = bool(getattr(args, "no_endorse", False))
+    endorse = False
     if output == "revised-draft":
         if not synthesize:
             die("--output revised-draft needs a verdict to revise from: pass "
@@ -632,20 +672,32 @@ def resolve_config(args) -> RunConfig:
         # revision_seat mirrors --synthesizer-seat exactly: must be a board seat
         # (its egress is covered by the run's disclosure). Validated below alongside
         # the synthesizer-seat check so both refusals read the same.
+        # Endorsement is ON unless opted out. A CLI --no-endorse wins; else a recipe
+        # replay's recorded boolean; else the default True. (A fresh run with no flag
+        # and no recipe endorses.)
+        if no_endorse_flag:
+            endorse = False
+        elif base is not None and "endorse" in base:
+            endorse = bool(base["endorse"])
+        else:
+            endorse = True
     elif source_type_flag is not None:
         die("--source-type is only accepted with --output revised-draft "
             "(it selects the redline format for the revised draft)")
+    elif no_endorse_flag:
+        die("--no-endorse is only accepted with --output revised-draft "
+            "(the endorsement pass runs only on a revised-draft run)")
     if revision_seat is not None:
         if output != "revised-draft":
             die("--revision-seat is only accepted with --output revised-draft")
-        if revision_seat not in REGISTRY:
-            die(f"--revision-seat must be a registered seat ({', '.join(sorted(REGISTRY))}); "
-                f"got {revision_seat!r}")
-        board_names = {s.name for s in board}
-        if revision_seat not in board_names:
-            die(f"--revision-seat {revision_seat!r} is not one of this run's board seats "
-                f"({', '.join(sorted(board_names))}); the revision seat egresses to that "
-                "seat's provider, which the run's disclosure only covers for board seats")
+        # --revision-seat selects a board seat on the UNIQUE-ID axis (the same ids
+        # --model/--timeout use), so a duplicate-provider seat is individually
+        # selectable. A unique id wins; a bare provider name is accepted only when it
+        # maps to exactly ONE board seat; an ambiguous name is refused, listing the
+        # candidate ids (never silently picking one — that's the collapse the id axis
+        # exists to prevent). Resolved to a canonical id here so the run key, the
+        # recorded changes.revision_seat, and choose_revision_seat all share one axis.
+        revision_seat = resolve_revision_seat_id(revision_seat, board)
 
     # Repo-grounding (design/run-board-repo-grounding.md): a local repo seats may
     # read read-only. Resolved + validated as a directory here; the scope/snapshot
@@ -694,6 +746,7 @@ def resolve_config(args) -> RunConfig:
         synthesizer_seat=synthesizer_seat,
         source_type=source_type,
         revision_seat=revision_seat,
+        endorse=endorse,
         repo=repo,
         repo_include=repo_include,
         repo_exclude=repo_exclude,

@@ -9514,6 +9514,7 @@ class TestHistory(EnvMixin):
 
 import board_changes as bc  # noqa: E402  (v1.13: changes@1 validator)
 from _conductor import revision as rev_mod  # noqa: E402
+from _conductor import endorsement as end_mod  # noqa: E402  (v1.13 P4: endorsement pass)
 
 
 def _revised_verdict(**extra):
@@ -11034,6 +11035,798 @@ class TestP2EndorsementsGuard(EnvMixin):
         self.assertIn("endorsements", rejected["reason"])
 
 
+def _endorse_changes(**extra):
+    """A changes doc with two edit targets + one unresolved target — the shape the
+    endorsement parser/builder votes on. edits n=1,2; one unresolved entry (n=1)."""
+    return _changes_fixture(
+        edits=[
+            {"n": 1, "locator": {"kind": "insert-after", "line": 0}, "summary": "a",
+             "resolves": [{"list": "blockers", "index": 0, "title": "A"}], "status": "applied"},
+            {"n": 2, "locator": {"kind": "lines", "from": 2, "to": 3}, "summary": "b",
+             "resolves": [{"list": "concerns", "index": 0, "title": "B"}], "status": "applied"},
+        ],
+        unresolved=[
+            {"findings": [{"list": "blockers", "index": 1, "title": "C"}],
+             "reason": "conflict", "note": "left for a human"},
+        ],
+        **extra)
+
+
+class TestEndorsementConfig(EnvMixin):
+    """Config-level resolution + the --no-endorse refusal matrix (D13)."""
+
+    def test_endorse_on_by_default_for_revised_draft(self):
+        c = _config(output="revised-draft", synthesize=True)
+        self.assertTrue(c.endorse)
+
+    def test_no_endorse_opts_out(self):
+        c = _config(output="revised-draft", synthesize=True, no_endorse=True)
+        self.assertFalse(c.endorse)
+
+    def test_endorse_false_on_a_plain_run(self):
+        # A run that isn't producing a revised draft never carries endorse (byte-
+        # identical config/recipe to before P4).
+        self.assertFalse(_config().endorse)
+
+    def test_no_endorse_without_revised_draft_refused(self):
+        with self.assertRaises(SystemExit) as cm:
+            _config(no_endorse=True)
+        self.assertEqual(cm.exception.code, rb.EXIT_USAGE)
+
+    def test_no_endorse_without_synthesize_refused(self):
+        # --output revised-draft still requires --synthesize; --no-endorse doesn't
+        # change that gate (the revised-draft refusal fires first).
+        with self.assertRaises(SystemExit):
+            _config(output="revised-draft", no_endorse=True)
+
+
+class TestEndorsementValidatorMatrix(unittest.TestCase):
+    """The changes@1 validator's endorsement-row shapes (D13/P4): edit_n vs
+    unresolved_n targets, the dropped marker, and the strict refusals."""
+
+    def _rejects(self, endorsements, needle=None):
+        with self.assertRaises(SystemExit) as cm:
+            bc.validate(_changes_fixture(endorsements=endorsements))
+        self.assertEqual(cm.exception.code, bc.EXIT_SCHEMA)
+
+    def test_edit_target_row_validates(self):
+        bc.validate(_changes_fixture(endorsements=[
+            {"seat": "codex", "edit_n": 1, "position": "ENDORSE"}]))
+
+    def test_unresolved_target_row_validates(self):
+        # A conductor-shaped doc: the unresolved_n=1 vote targets a real unresolved
+        # entry (the tightened upper-bound check refuses a vote on a nonexistent one).
+        bc.validate(_changes_fixture(
+            unresolved=[{"findings": [{"list": "blockers", "index": 0, "title": "A"}],
+                         "reason": "conflict", "note": "left for a human"}],
+            endorsements=[
+                {"seat": "codex", "unresolved_n": 1, "position": "OBJECT",
+                 "note": "mischaracterized"}]))
+
+    def test_dropped_row_validates(self):
+        bc.validate(_changes_fixture(endorsements=[
+            {"seat": "gemini", "edit_n": 1, "position": "ABSTAIN", "dropped": True,
+             "note": "endorsement seat dropped: NoOutput"}]))
+
+    def test_both_targets_refused(self):
+        self._rejects([{"seat": "codex", "edit_n": 1, "unresolved_n": 1,
+                        "position": "ENDORSE"}])
+
+    def test_no_target_refused(self):
+        self._rejects([{"seat": "codex", "position": "ENDORSE"}])
+
+    def test_unresolved_n_zero_refused(self):
+        self._rejects([{"seat": "codex", "unresolved_n": 0, "position": "ENDORSE"}])
+
+    def test_unresolved_n_bool_refused(self):
+        # bool is an int subclass — the validator must reject it as a target number.
+        self._rejects([{"seat": "codex", "unresolved_n": True, "position": "ENDORSE"}])
+
+    def test_dropped_false_refused(self):
+        # `dropped` is a presence marker — only ever true.
+        self._rejects([{"seat": "codex", "edit_n": 1, "position": "ABSTAIN",
+                        "dropped": False}])
+
+    def test_dropped_endorse_refused(self):
+        # Board re-review blocker: a hand-authored dropped ENDORSE would count as
+        # a vote in the rendered tally while claiming the seat never voted.
+        self._rejects([{"seat": "codex", "edit_n": 1, "position": "ENDORSE",
+                        "dropped": True, "note": "forged"}])
+
+    def test_dropped_object_refused(self):
+        self._rejects([{"seat": "codex", "edit_n": 1, "position": "OBJECT",
+                        "dropped": True, "note": "forged"}])
+
+    def test_dropped_without_note_refused(self):
+        # The conductor always records the drop reason; a dropped row with no
+        # (or a blank) note is not conductor-shaped.
+        self._rejects([{"seat": "codex", "edit_n": 1, "position": "ABSTAIN",
+                        "dropped": True}])
+        self._rejects([{"seat": "codex", "edit_n": 1, "position": "ABSTAIN",
+                        "dropped": True, "note": "   "}])
+
+    def test_unknown_key_refused(self):
+        self._rejects([{"seat": "codex", "edit_n": 1, "position": "ENDORSE",
+                        "surprise": 1}])
+
+    def test_bad_position_refused(self):
+        self._rejects([{"seat": "codex", "edit_n": 1, "position": "MAYBE"}])
+
+    def test_note_wrong_type_refused(self):
+        self._rejects([{"seat": "codex", "edit_n": 1, "position": "OBJECT", "note": 5}])
+
+    def test_missing_seat_refused(self):
+        self._rejects([{"edit_n": 1, "position": "ENDORSE"}])
+
+    # --- P4 endorse tightening: upper bounds + duplicate rows (Item 6) --------- #
+
+    def test_edit_n_out_of_range_refused(self):
+        # The default fixture has one edit (n=1); a vote on edit_n=2 targets a
+        # nonexistent edit — refused (the conductor never emits it).
+        self._rejects([{"seat": "codex", "edit_n": 2, "position": "ENDORSE"}])
+
+    def test_unresolved_n_out_of_range_refused(self):
+        # The default fixture has zero unresolved entries; any unresolved_n vote is
+        # out of range.
+        self._rejects([{"seat": "codex", "unresolved_n": 1, "position": "ENDORSE"}])
+
+    def test_duplicate_seat_target_row_refused(self):
+        # One seat may vote on a given target at most once — a repeated (seat, edit_n)
+        # row is refused.
+        self._rejects([{"seat": "codex", "edit_n": 1, "position": "ENDORSE"},
+                       {"seat": "codex", "edit_n": 1, "position": "OBJECT",
+                        "note": "changed my mind"}])
+
+    def test_same_target_different_seats_allowed(self):
+        # Two DIFFERENT seats voting on the same edit is normal (each seat votes on
+        # every target) — the duplicate check keys on (seat, kind, n), not (kind, n).
+        bc.validate(_changes_fixture(endorsements=[
+            {"seat": "codex", "edit_n": 1, "position": "ENDORSE"},
+            {"seat": "gemini", "edit_n": 1, "position": "OBJECT", "note": "no"}]))
+
+    def test_same_seat_different_target_kinds_allowed(self):
+        # A seat voting on BOTH edit_n=1 and unresolved_n=1 is normal — the dup check
+        # distinguishes the target kind (edit vs unresolved), so these don't collide.
+        bc.validate(_changes_fixture(
+            unresolved=[{"findings": [{"list": "blockers", "index": 0, "title": "A"}],
+                         "reason": "c", "note": "n"}],
+            endorsements=[
+                {"seat": "codex", "edit_n": 1, "position": "ENDORSE"},
+                {"seat": "codex", "unresolved_n": 1, "position": "ENDORSE"}]))
+
+    def test_full_conductor_shaped_doc_still_passes(self):
+        # A realistic conductor-built endorsements block (two seats × two edits ×
+        # one unresolved, all in range, no dups) validates cleanly under the tightened
+        # rules — the tightening rejects only malformed/hand-authored files.
+        rows = (end_mod.dropped_rows("codex", _endorse_changes(), reason="Timeout")
+                + [{"seat": "gemini", "edit_n": 1, "position": "ENDORSE"},
+                   {"seat": "gemini", "edit_n": 2, "position": "ENDORSE"},
+                   {"seat": "gemini", "unresolved_n": 1, "position": "ABSTAIN"}])
+        bc.validate(_endorse_changes(endorsements=rows))
+
+
+class TestEndorsementParseMatrix(unittest.TestCase):
+    """parse_endorsement_reply: a token for EVERY target, strict on malformed votes."""
+
+    def _reply(self, body):
+        return f"{end_mod.ENDORSEMENT_BEGIN}\n{body}\n{end_mod.ENDORSEMENT_END}\n"
+
+    def _changes(self):
+        return {"edits": [{"n": 1}], "unresolved": [{}]}   # one edit + one conflict
+
+    def test_full_vote_parses(self):
+        r = self._reply('{"positions": ['
+                        '{"edit_n": 1, "position": "ENDORSE"},'
+                        '{"unresolved_n": 1, "position": "OBJECT", "note": "why"}]}')
+        votes = end_mod.parse_endorsement_reply(r, self._changes())
+        self.assertEqual(votes[("edit", 1)], ("ENDORSE", None))
+        self.assertEqual(votes[("unresolved", 1)], ("OBJECT", "why"))
+
+    def _rejects(self, body, use_fence=True):
+        text = self._reply(body) if use_fence else body
+        with self.assertRaises(ValueError):
+            end_mod.parse_endorsement_reply(text, self._changes())
+
+    def test_missing_target_rejected(self):
+        self._rejects('{"positions": [{"edit_n": 1, "position": "ENDORSE"}]}')
+
+    def test_extra_unknown_target_rejected(self):
+        self._rejects('{"positions": ['
+                      '{"edit_n": 1, "position": "ENDORSE"},'
+                      '{"unresolved_n": 1, "position": "ENDORSE"},'
+                      '{"edit_n": 9, "position": "ENDORSE"}]}')
+
+    def test_duplicate_target_rejected(self):
+        self._rejects('{"positions": ['
+                      '{"edit_n": 1, "position": "ENDORSE"},'
+                      '{"edit_n": 1, "position": "ENDORSE"},'
+                      '{"unresolved_n": 1, "position": "ENDORSE"}]}')
+
+    def test_object_without_note_rejected(self):
+        self._rejects('{"positions": ['
+                      '{"edit_n": 1, "position": "OBJECT"},'
+                      '{"unresolved_n": 1, "position": "ENDORSE"}]}')
+
+    def test_bad_position_rejected(self):
+        self._rejects('{"positions": ['
+                      '{"edit_n": 1, "position": "SURE"},'
+                      '{"unresolved_n": 1, "position": "ENDORSE"}]}')
+
+    def test_garbage_json_rejected(self):
+        self._rejects('{ positions not json')
+
+    def test_missing_fence_rejected(self):
+        self._rejects("no fence at all", use_fence=False)
+
+    def test_note_on_endorse_is_dropped(self):
+        # A note on a non-OBJECT vote is tolerated but coerced away (only OBJECT
+        # notes are recorded).
+        r = self._reply('{"positions": ['
+                        '{"edit_n": 1, "position": "ENDORSE", "note": "irrelevant"},'
+                        '{"unresolved_n": 1, "position": "ABSTAIN"}]}')
+        votes = end_mod.parse_endorsement_reply(r, self._changes())
+        self.assertEqual(votes[("edit", 1)], ("ENDORSE", None))
+
+
+class TestEndorsementRowBuilders(unittest.TestCase):
+    """dropped_rows + the seat-name helper — the conductor-built row shapes."""
+
+    def test_dropped_rows_one_abstain_per_target(self):
+        changes = _endorse_changes()
+        rows = end_mod.dropped_rows("codex", changes, reason="Timeout")
+        # 2 edits + 1 unresolved = 3 rows, all ABSTAIN + dropped.
+        self.assertEqual(len(rows), 3)
+        self.assertTrue(all(r["position"] == "ABSTAIN" and r["dropped"] is True
+                            for r in rows))
+        self.assertEqual({("edit_n" in r, "unresolved_n" in r) for r in rows},
+                         {(True, False), (False, True)})
+        # Every dropped row validates under the changes@1 schema — against the SAME
+        # doc the rows were built from (the tightened validator checks each target is
+        # in range, so the doc must actually carry those edits/unresolved entries).
+        bc.validate(_endorse_changes(endorsements=rows))
+
+    def test_endorsement_seats_excludes_the_revision_seat_by_id(self):
+        c = _config(output="revised-draft", synthesize=True)   # board claude,codex,gemini
+        seats = end_mod.endorsement_seats(c, c.board[0].id)     # claude revises
+        self.assertEqual([s.name for s in seats], ["codex", "gemini"])
+
+    def test_endorsement_seats_keeps_the_other_duplicate_provider_seat(self):
+        # Excluding by id (not name): on claude,claude,codex the revision claude
+        # drops but the OTHER claude (distinct id) stays a voting seat.
+        c = _config(output="revised-draft", synthesize=True, board="claude,claude,codex")
+        rev_id = c.board[0].id   # claude#1 revises
+        seats = end_mod.endorsement_seats(c, rev_id)
+        self.assertEqual([s.id for s in seats], ["claude#2", "codex"])
+
+    def test_single_seat_board_has_no_endorsement_seats(self):
+        c = _config(output="revised-draft", synthesize=True, board="claude")
+        self.assertEqual(end_mod.endorsement_seats(c, c.board[0].id), [])
+
+    def test_run_endorsement_pass_no_seats_returns_empty_without_spawn(self):
+        # Zero endorsement seats (a single-seat board's revision seat is the only
+        # seat): the pass returns [] and never spawns — a note, not a crash.
+        c = _config(output="revised-draft", synthesize=True, board="claude")
+        changes = _endorse_changes()
+        results = end_mod.run_endorsement_pass(c, changes, "revised text\n", [])
+        self.assertEqual(results, [])
+
+
+class TestEndorsementPerSeatTimeout(EnvMixin):
+    """Item 2 — each endorsement spawn honors its OWN resolved --timeout (per-seat
+    id=SECONDS → seat.timeout_s → adapter cap), mirroring the round fan-out. The
+    revision seat's timeout is NOT imposed on the voters."""
+
+    def _full_reply(self, changes):
+        # A valid endorsement reply that ENDORSEs every target of `changes`.
+        entries = ([f'{{"edit_n": {e["n"]}, "position": "ENDORSE"}}'
+                    for e in changes["edits"]]
+                   + [f'{{"unresolved_n": {i}, "position": "ENDORSE"}}'
+                      for i in range(1, len(changes["unresolved"]) + 1)])
+        body = '{"positions": [' + ", ".join(entries) + "]}"
+        return (f"{end_mod.ENDORSEMENT_BEGIN}\n{body}\n{end_mod.ENDORSEMENT_END}\n")
+
+    def _recorder(self, seen, changes):
+        reply = self._full_reply(changes)
+
+        def fake_spawn(adapter, argv, *, prompt=None, timeout=None, cwd=None):
+            seen[adapter.name] = timeout
+            return rb.SpawnResult(0, reply, "", 0.01, False)
+        return fake_spawn
+
+    def test_each_endorsement_seat_gets_its_own_timeout(self):
+        # A board with a per-seat override on an endorsement seat (codex=600) and a
+        # bare default (300): claude revises; the endorsement spawns for codex+gemini
+        # must receive codex=600 (its own override) and gemini=300 (the bare default)
+        # — NOT the revision seat's timeout imposed on all of them.
+        c = _config(output="revised-draft", synthesize=True,
+                    timeout=["300", "codex=600"])
+        changes = _endorse_changes()
+        seats = end_mod.endorsement_seats(c, c.board[0].id)   # claude revises
+        seen: dict = {}
+        real = end_mod.spawn
+        end_mod.spawn = self._recorder(seen, changes)
+        try:
+            results = end_mod.run_endorsement_pass(c, changes, "revised\n", seats)
+        finally:
+            end_mod.spawn = real
+        self.assertEqual(seen, {"codex": 600, "gemini": 300})
+        self.assertTrue(all(not r.dropped for r in results))
+
+    def test_unset_timeout_uses_adapter_cap(self):
+        # No --timeout: each endorsement spawn falls back to its adapter cap (never a
+        # shared/revision-seat value).
+        c = _config(output="revised-draft", synthesize=True)
+        changes = _endorse_changes()
+        seats = end_mod.endorsement_seats(c, c.board[0].id)
+        seen: dict = {}
+        real = end_mod.spawn
+        end_mod.spawn = self._recorder(seen, changes)
+        try:
+            end_mod.run_endorsement_pass(c, changes, "revised\n", seats)
+        finally:
+            end_mod.spawn = real
+        self.assertEqual(seen, {"codex": rb.REGISTRY["codex"].timeout_s,
+                                "gemini": rb.REGISTRY["gemini"].timeout_s})
+
+    def test_tiny_per_seat_timeout_drops_exactly_that_endorsement_seat(self):
+        # End to end: `--timeout codex=1` against a codex whose ENDORSEMENT spawn
+        # sleeps forces ONLY codex's endorsement to time out and drop (ABSTAIN/dropped
+        # rows); gemini votes normally and the run still exits 0.
+        out = tempfile.mkdtemp(prefix="board-endorse-timeout-")
+        os.environ["MOCK_CODEX_MODE"] = "endorse_sleep"
+        code, _, _ = run_cli(["run", "--source", SAMPLE, "--out", out, "--yes",
+                              "--synthesize", "--output", "revised-draft",
+                              "--timeout", "codex=1"])
+        self.assertEqual(code, rb.EXIT_OK)   # the pass never fails the run
+        with open(os.path.join(out, "changes.json")) as fh:
+            changes = json.load(fh)
+        bc.validate(changes)
+        codex = [r for r in changes["endorsements"] if r["seat"] == "codex"]
+        self.assertTrue(codex and all(r.get("dropped") is True
+                                      and r["position"] == "ABSTAIN" for r in codex))
+        # gemini voted normally — its timeout was untouched by codex's tiny override.
+        gem = [r for r in changes["endorsements"] if r["seat"] == "gemini"]
+        self.assertTrue(gem and all("dropped" not in r for r in gem))
+        # The dropped codex raw records a timeout.
+        with open(os.path.join(out, "endorsement", "codex.raw")) as fh:
+            self.assertIn("timed-out       : yes", fh.read())
+
+
+class TestEndorsementE2E(EnvMixin):
+    """The full ON-by-default endorsement fan-out through the real mock pipeline."""
+
+    def _out(self):
+        return tempfile.mkdtemp(prefix="board-endorse-e2e-")
+
+    def _run(self, out, *extra, env=None):
+        if env:
+            for k, v in env.items():
+                os.environ[k] = v
+        return run_cli(["run", "--source", SAMPLE, "--out", out, "--yes",
+                        "--synthesize", "--output", "revised-draft", *extra])
+
+    def test_on_by_default_records_a_row_per_seat_per_edit(self):
+        out = self._out()
+        code, text, _ = self._run(out)
+        self.assertEqual(code, rb.EXIT_OK)
+        with open(os.path.join(out, "changes.json")) as fh:
+            changes = json.load(fh)
+        bc.validate(changes)
+        # The default board: claude revises, codex+gemini endorse. One edit here, so
+        # one row per non-revision seat.
+        seats = {r["seat"] for r in changes["endorsements"]}
+        self.assertEqual(seats, {"codex", "gemini"})
+        self.assertTrue(all(r["position"] == "ENDORSE" for r in changes["endorsements"]))
+        # Per-seat artifacts mirror revision/.
+        for rel in ("endorsement/codex.md", "endorsement/codex.raw",
+                    "endorsement/gemini.md", "endorsement/gemini.raw",
+                    "prompts/endorsement-codex.prompt",
+                    "logs/endorsement-codex.stderr"):
+            self.assertTrue(os.path.exists(os.path.join(out, rel)), rel)
+        self.assertIn("endorsement row(s)", text)
+
+    def test_row_per_seat_per_unresolved_entry(self):
+        # A conflict run has BOTH an edit target and an unresolved target — each seat
+        # votes on both (D13: unresolved entries are endorsement targets too).
+        out = self._out()
+        code, _, _ = self._run(out, env={"MOCK_CLAUDE_REVISE_MODE": "conflict"})
+        self.assertEqual(code, rb.EXIT_OK)
+        with open(os.path.join(out, "changes.json")) as fh:
+            changes = json.load(fh)
+        bc.validate(changes)
+        for seat in ("codex", "gemini"):
+            seat_rows = [r for r in changes["endorsements"] if r["seat"] == seat]
+            self.assertTrue(any("edit_n" in r for r in seat_rows))
+            self.assertTrue(any("unresolved_n" in r for r in seat_rows))
+
+    def test_object_with_note_round_trips(self):
+        out = self._out()
+        code, text, _ = self._run(out, env={"MOCK_CODEX_ENDORSE_MODE": "object"})
+        self.assertEqual(code, rb.EXIT_OK)
+        with open(os.path.join(out, "changes.json")) as fh:
+            changes = json.load(fh)
+        obj = [r for r in changes["endorsements"] if r["position"] == "OBJECT"]
+        self.assertTrue(obj)
+        self.assertTrue(all(r["seat"] == "codex" and r.get("note") for r in obj))
+        self.assertIn("objection(s) recorded", text)
+
+    def test_abstain_recorded(self):
+        out = self._out()
+        code, _, _ = self._run(out, env={"MOCK_GEMINI_ENDORSE_MODE": "abstain"})
+        self.assertEqual(code, rb.EXIT_OK)
+        with open(os.path.join(out, "changes.json")) as fh:
+            changes = json.load(fh)
+        gem = [r for r in changes["endorsements"] if r["seat"] == "gemini"]
+        self.assertTrue(gem and all(r["position"] == "ABSTAIN" for r in gem))
+        # An abstain is a real vote, NOT a drop — no dropped marker.
+        self.assertTrue(all("dropped" not in r for r in gem))
+
+    def test_failed_spawn_records_dropped_rows_and_run_exits_zero(self):
+        out = self._out()
+        code, text, _ = self._run(out, env={"MOCK_CODEX_MODE": "endorse_empty"})
+        self.assertEqual(code, rb.EXIT_OK)   # the pass NEVER fails the run
+        with open(os.path.join(out, "changes.json")) as fh:
+            changes = json.load(fh)
+        bc.validate(changes)
+        codex = [r for r in changes["endorsements"] if r["seat"] == "codex"]
+        self.assertTrue(codex and all(r.get("dropped") is True
+                                      and r["position"] == "ABSTAIN" for r in codex))
+        # gemini still voted normally.
+        self.assertTrue(any(r["seat"] == "gemini" and r["position"] == "ENDORSE"
+                            for r in changes["endorsements"]))
+
+    def test_all_seats_dropped_warns_but_still_writes_rows(self):
+        out = self._out()
+        code, text, _ = self._run(out, env={"MOCK_CODEX_MODE": "endorse_empty",
+                                            "MOCK_GEMINI_MODE": "endorse_empty"})
+        self.assertEqual(code, rb.EXIT_OK)
+        with open(os.path.join(out, "changes.json")) as fh:
+            changes = json.load(fh)
+        bc.validate(changes)
+        self.assertTrue(changes["endorsements"])   # rows still written
+        self.assertTrue(all(r.get("dropped") is True for r in changes["endorsements"]))
+        self.assertIn("ALL", text)   # the loud warning fired
+
+    def test_no_endorse_keeps_endorsements_empty_byte_identical(self):
+        out = self._out()
+        code, _, _ = self._run(out, "--no-endorse")
+        self.assertEqual(code, rb.EXIT_OK)
+        with open(os.path.join(out, "changes.json")) as fh:
+            changes = json.load(fh)
+        self.assertEqual(changes["endorsements"], [])
+        # No endorsement artifacts written at all.
+        self.assertFalse(os.path.exists(os.path.join(out, "endorsement")))
+        self.assertFalse(os.path.exists(os.path.join(out, "prompts", "endorsement-codex.prompt")))
+
+    def test_no_endorse_changes_json_matches_a_p2_shape_endorsements(self):
+        # Byte-identity of the endorsements field: a --no-endorse run's
+        # `endorsements` is exactly what build_changes stamps (an empty list), the
+        # same value a P2 changes.json carried.
+        out = self._out()
+        self._run(out, "--no-endorse")
+        with open(os.path.join(out, "changes.json")) as fh:
+            changes = json.load(fh)
+        c2 = _config(output="revised-draft", synthesize=True, no_endorse=True)
+        built = rev_mod.build_changes(
+            c2, _revised_verdict(),
+            {"edits": [{"locator": {"kind": "insert-after", "line": 0}, "summary": "x",
+                        "resolves": [{"list": "blockers", "index": 0,
+                                      "title": _revised_verdict()["blockers"][0]["title"]}]}],
+             "unresolved": []},
+            "PREPENDED\n" + c2.source.text,
+            revision_seat="claude", revised_artifact="revised-draft.md")
+        self.assertEqual(changes["endorsements"], built["endorsements"])
+
+    def test_pointer_sha_matches_endorsement_bearing_changes_bytes(self):
+        out = self._out()
+        self._run(out)   # endorsements populated
+        with open(os.path.join(out, "verdict.json")) as fh:
+            verdict = json.load(fh)
+        bv.validate(verdict)
+        with open(os.path.join(out, "changes.json"), "rb") as fh:
+            changes_bytes = fh.read()
+        import hashlib as _h
+        self.assertEqual(verdict["changes"]["sha256"],
+                         _h.sha256(changes_bytes).hexdigest())
+        # The bytes actually carry endorsement rows (the sha binds THEM).
+        self.assertTrue(json.loads(changes_bytes)["endorsements"])
+
+    def test_exotic_object_note_round_trips_byte_for_byte(self):
+        # Item 7 — an OBJECT note carrying a non-ASCII char (é) AND an embedded
+        # newline must round-trip through the pipeline with the on-disk changes.json
+        # bytes matching the verdict.json pointer sha EXACTLY (a JSON round-trip is
+        # byte-stable: ensure_ascii=False keeps é a single UTF-8 char, and the newline
+        # stays a \n escape). And the HTML renderer must not corrupt on the multi-line
+        # note — the summary line is flattened, so the <body> renders cleanly.
+        import hashlib as _h
+        out = self._out()
+        self._run(out, env={"MOCK_CODEX_ENDORSE_MODE": "object_exotic"})
+        with open(os.path.join(out, "changes.json"), "rb") as fh:
+            changes_bytes = fh.read()
+        with open(os.path.join(out, "verdict.json")) as fh:
+            verdict = json.load(fh)
+        bv.validate(verdict)
+        # The pointer sha binds the EXACT on-disk bytes — the exotic note included.
+        self.assertEqual(verdict["changes"]["sha256"],
+                         _h.sha256(changes_bytes).hexdigest())
+        changes = json.loads(changes_bytes)
+        bc.validate(changes)
+        obj = [r for r in changes["endorsements"]
+               if r["seat"] == "codex" and r["position"] == "OBJECT"]
+        self.assertTrue(obj)
+        note = obj[0]["note"]
+        self.assertIn("é", note)          # non-ASCII survived the round-trip
+        self.assertIn("\n", note)         # the embedded newline survived
+        # The renderer must not corrupt on the multi-line note: the summary block
+        # renders and the objection reaches the page as a single flattened <li>.
+        hd = rv.build_handoff_data(verdict, run_dir=out)
+        template = open(rh.default_template(), encoding="utf-8").read()
+        html = rh.render(hd, template)
+        self.assertIn('<div class="endorse-summary">', html)
+        self.assertIn("Objections on the record", html)
+        # The note's newline was flattened to a space — no raw newline splits the
+        # objection <li> across lines (which would leave "grief" orphaned on its own).
+        obj_li = [ln for ln in html.splitlines() if "objecte" in ln]
+        self.assertTrue(obj_li)
+        self.assertIn("seconde ligne du grief", obj_li[0])   # both halves on ONE line
+
+    def test_duplicate_provider_board_keys_seats_by_unique_id(self):
+        # Regression (id-vs-name axis): on `--board claude,claude,codex`, claude#1
+        # revises and claude#2 + codex endorse. The endorsement pass must exclude the
+        # revision seat by its UNIQUE id (not its provider name — dropping BOTH
+        # claude seats would silently lose a full voting member), and key its rows +
+        # artifacts by id (so the two claude seats' votes stay distinguishable and
+        # their black-box records don't collide).
+        out = self._out()
+        code, _, _ = run_cli(["run", "--source", SAMPLE, "--out", out, "--yes",
+                              "--synthesize", "--output", "revised-draft",
+                              "--board", "claude,claude,codex"])
+        self.assertEqual(code, rb.EXIT_OK)
+        with open(os.path.join(out, "changes.json")) as fh:
+            changes = json.load(fh)
+        bc.validate(changes)
+        seats = {r["seat"] for r in changes["endorsements"]}
+        # Exactly the two NON-revision seats, by unique id — the second claude did
+        # NOT get dropped with the first, and the two are distinguishable.
+        self.assertEqual(seats, {"claude#1", "codex"})
+        # Per-seat artifacts are keyed by id — no collision between the claude seats.
+        edir = sorted(os.listdir(os.path.join(out, "endorsement")))
+        self.assertIn("claude#1.md", edir)
+        self.assertIn("claude#1.raw", edir)
+        self.assertIn("codex.md", edir)
+
+    def test_two_seat_board_has_exactly_one_endorsement_seat(self):
+        # A 2-seat board: claude revises, the other seat endorses. Exactly one
+        # endorsement row-set — the smallest board a real run allows (>= 2 voices).
+        out = self._out()
+        code, _, _ = run_cli(["run", "--source", SAMPLE, "--out", out, "--yes",
+                              "--synthesize", "--output", "revised-draft",
+                              "--board", "claude,codex"])
+        self.assertEqual(code, rb.EXIT_OK)
+        with open(os.path.join(out, "changes.json")) as fh:
+            changes = json.load(fh)
+        bc.validate(changes)
+        seats = {r["seat"] for r in changes["endorsements"]}
+        self.assertEqual(seats, {"codex"})   # only the non-revision seat votes
+
+    def test_revision_seat_selects_a_duplicate_seat_by_id(self):
+        # Item 4 — `--revision-seat claude#2` selects THAT exact seat on a duplicate
+        # board (the id axis). claude#2 then revises and drops from endorsement, so
+        # claude#1 + codex endorse; changes.revision_seat records the unique id.
+        out = self._out()
+        code, _, _ = run_cli(["run", "--source", SAMPLE, "--out", out, "--yes",
+                              "--synthesize", "--output", "revised-draft",
+                              "--board", "claude,claude,codex",
+                              "--revision-seat", "claude#2"])
+        self.assertEqual(code, rb.EXIT_OK)
+        with open(os.path.join(out, "changes.json")) as fh:
+            changes = json.load(fh)
+        bc.validate(changes)
+        self.assertEqual(changes["revision_seat"], "claude#2")   # the id, not "claude"
+        seats = {r["seat"] for r in changes["endorsements"]}
+        self.assertEqual(seats, {"claude#1", "codex"})
+        # The revision artifacts are keyed by the same id.
+        self.assertTrue(os.path.exists(os.path.join(out, "revision", "claude#2.md")))
+
+    def test_revision_seat_selects_the_other_duplicate_seat_by_id(self):
+        # The complement: `--revision-seat claude#1` drops claude#1, so claude#2 +
+        # codex endorse — proving each duplicate seat is individually selectable.
+        out = self._out()
+        code, _, _ = run_cli(["run", "--source", SAMPLE, "--out", out, "--yes",
+                              "--synthesize", "--output", "revised-draft",
+                              "--board", "claude,claude,codex",
+                              "--revision-seat", "claude#1"])
+        self.assertEqual(code, rb.EXIT_OK)
+        with open(os.path.join(out, "changes.json")) as fh:
+            changes = json.load(fh)
+        self.assertEqual(changes["revision_seat"], "claude#1")
+        seats = {r["seat"] for r in changes["endorsements"]}
+        self.assertEqual(seats, {"claude#2", "codex"})
+
+    def test_revision_seat_ambiguous_name_refused_listing_ids(self):
+        # Item 4 — a bare provider NAME on a duplicate board is ambiguous: refused,
+        # with a message naming the candidate ids so the caller can disambiguate.
+        out = self._out()
+        code, text, err = run_cli(["init", "--source", SAMPLE, "--out", out,
+                                   "--synthesize", "--output", "revised-draft",
+                                   "--board", "claude,claude,codex",
+                                   "--revision-seat", "claude"])
+        self.assertEqual(code, rb.EXIT_USAGE)
+        blob = text + err
+        self.assertIn("ambiguous", blob)
+        self.assertIn("claude#1", blob)
+        self.assertIn("claude#2", blob)
+
+    def test_revision_seat_name_on_single_provider_board_still_works(self):
+        # A bare provider name that maps to exactly ONE seat is still accepted and
+        # records byte-identically (id == name), so the common case is unchanged.
+        # (claude is the reviser — the only provider the mock harness can revise with.)
+        out = self._out()
+        code, _, _ = run_cli(["run", "--source", SAMPLE, "--out", out, "--yes",
+                              "--synthesize", "--output", "revised-draft",
+                              "--board", "claude,codex", "--revision-seat", "claude"])
+        self.assertEqual(code, rb.EXIT_OK)
+        with open(os.path.join(out, "changes.json")) as fh:
+            changes = json.load(fh)
+        self.assertEqual(changes["revision_seat"], "claude")   # the id == name
+        seats = {r["seat"] for r in changes["endorsements"]}
+        self.assertEqual(seats, {"codex"})   # claude revised, codex endorses
+
+    def test_invalid_reply_retried_then_dropped(self):
+        # The two-attempt retry set fires on an INVALID endorsement reply (a parse
+        # failure — the retryable class): a codex whose reply drops a target retries
+        # once, then records 2 attempts + dropped in its raw. (A hard NoOutput drop is
+        # NOT retryable — only Timeout|InvalidOutput are — so this drives the parse arm.)
+        out = self._out()
+        self._run(out, env={"MOCK_CODEX_ENDORSE_MODE": "missing_target"})
+        with open(os.path.join(out, "endorsement", "codex.raw")) as fh:
+            raw = fh.read()
+        self.assertIn("attempts        : 2", raw)
+        self.assertIn("dropped         : yes", raw)
+        # The dropped seat's rows are ABSTAIN/dropped; the run still exits 0.
+        with open(os.path.join(out, "changes.json")) as fh:
+            changes = json.load(fh)
+        codex = [r for r in changes["endorsements"] if r["seat"] == "codex"]
+        self.assertTrue(codex and all(r.get("dropped") is True for r in codex))
+
+    def test_recipe_round_trips_endorse_and_template_sha(self):
+        out = self._out()
+        code, _, _ = run_cli(["init", "--source", SAMPLE, "--out", out,
+                              "--synthesize", "--output", "revised-draft"])
+        self.assertEqual(code, rb.EXIT_OK)
+        recipe_path = os.path.join(out, "run-recipe.yaml")
+        with open(recipe_path) as fh:
+            recipe_text = fh.read()
+        self.assertIn("endorse: true", recipe_text)
+        self.assertIn("endorsement_template: advisory-board/endorsement@1", recipe_text)
+        self.assertIn(end_mod.endorsement_template_sha()[:16], recipe_text)
+        # Replay reproduces the endorsement pass.
+        out2 = self._out()
+        code2, _, _ = run_cli(["run", "--from-recipe", recipe_path, "--out", out2, "--yes"])
+        self.assertEqual(code2, rb.EXIT_OK)
+        with open(os.path.join(out2, "changes.json")) as fh:
+            self.assertTrue(json.load(fh)["endorsements"])
+
+    def test_no_endorse_recipe_round_trips_off(self):
+        out = self._out()
+        run_cli(["init", "--source", SAMPLE, "--out", out, "--synthesize",
+                 "--output", "revised-draft", "--no-endorse"])
+        recipe_path = os.path.join(out, "run-recipe.yaml")
+        with open(recipe_path) as fh:
+            recipe_text = fh.read()
+        self.assertIn("endorse: false", recipe_text)
+        # A --no-endorse recipe carries NO endorsement template fields (slim).
+        self.assertNotIn("endorsement_template", recipe_text)
+        out2 = self._out()
+        code, _, _ = run_cli(["run", "--from-recipe", recipe_path, "--out", out2, "--yes"])
+        self.assertEqual(code, rb.EXIT_OK)
+        with open(os.path.join(out2, "changes.json")) as fh:
+            self.assertEqual(json.load(fh)["endorsements"], [])
+
+    def test_run_card_mentions_endorsement(self):
+        out = self._out()
+        code, text, _ = run_cli(["init", "--source", SAMPLE, "--out", out,
+                                 "--synthesize", "--output", "revised-draft", "--dry-run"])
+        self.assertEqual(code, rb.EXIT_OK)
+        self.assertIn("endorsement", text.lower())
+
+    def test_run_card_mentions_opt_out_under_no_endorse(self):
+        out = self._out()
+        code, text, _ = run_cli(["init", "--source", SAMPLE, "--out", out,
+                                 "--synthesize", "--output", "revised-draft",
+                                 "--no-endorse", "--dry-run"])
+        self.assertEqual(code, rb.EXIT_OK)
+        self.assertIn("--no-endorse", text)
+
+    def test_run_card_endorsement_count_is_id_axis_on_duplicate_board(self):
+        # Item 1 — the run-card endorsement count is a projection on the seat-ID axis
+        # (like endorsement_seats), NOT the provider-name axis. On claude,claude,codex
+        # the reviser is ONE claude (claude#1 by the card's projection), so exactly 2
+        # non-revision seats vote (claude#2 + codex). A name-axis count would drop BOTH
+        # claudes and wrongly print 1.
+        out = self._out()
+        code, text, _ = run_cli(["init", "--source", SAMPLE, "--out", out,
+                                 "--synthesize", "--output", "revised-draft",
+                                 "--board", "claude,claude,codex", "--dry-run"])
+        self.assertEqual(code, rb.EXIT_OK)
+        self.assertIn("2 non-revision seat(s)", text)
+
+    def test_run_card_endorsement_count_single_provider_unchanged(self):
+        # The default board (claude,codex,gemini): claude revises, 2 seats endorse —
+        # byte-identical projection to before the id-axis fix (id == name here).
+        out = self._out()
+        code, text, _ = run_cli(["init", "--source", SAMPLE, "--out", out,
+                                 "--synthesize", "--output", "revised-draft", "--dry-run"])
+        self.assertEqual(code, rb.EXIT_OK)
+        self.assertIn("2 non-revision seat(s)", text)
+
+    def test_dry_run_tree_lists_endorsement_artifacts(self):
+        out = self._out()
+        code, text, _ = run_cli(["run", "--source", SAMPLE, "--out", out,
+                                 "--synthesize", "--output", "revised-draft", "--dry-run"])
+        self.assertEqual(code, rb.EXIT_OK)
+        self.assertIn("endorsement/<seat>.md", text)
+        self.assertIn("prompts/endorsement-<seat>.prompt", text)
+
+    def test_dry_run_tree_omits_endorsement_artifacts_under_no_endorse(self):
+        out = self._out()
+        code, text, _ = run_cli(["run", "--source", SAMPLE, "--out", out,
+                                 "--synthesize", "--output", "revised-draft",
+                                 "--no-endorse", "--dry-run"])
+        self.assertEqual(code, rb.EXIT_OK)
+        self.assertNotIn("endorsement/<seat>.md", text)
+
+
+class TestEndorsementRenderer(EnvMixin):
+    """The endorsement summary in the full-handoff HTML (surfaced in the redline/
+    patch section header area) + byte-identity for endorsement-less runs."""
+
+    def _render(self, out):
+        with open(os.path.join(out, "verdict.json")) as fh:
+            v = json.load(fh)
+        hd = rv.build_handoff_data(v, run_dir=out)
+        template = open(rh.default_template(), encoding="utf-8").read()
+        return rh.render(hd, template), hd
+
+    def test_summary_and_objection_reach_html(self):
+        out = tempfile.mkdtemp(prefix="board-endorse-render-")
+        os.environ["MOCK_CODEX_ENDORSE_MODE"] = "object"
+        run_cli(["run", "--source", SAMPLE, "--out", out, "--yes",
+                 "--synthesize", "--output", "revised-draft"])
+        html, hd = self._render(out)
+        self.assertIn('<div class="endorse-summary">', html)   # the element, not just CSS
+        self.assertIn("endorse", html)          # the per-edit tally line
+        self.assertIn("Objections on the record", html)
+        self.assertTrue(hd["endorsement_summary"])
+
+    def test_no_endorse_render_has_no_summary_and_stays_byte_identical(self):
+        # A --no-endorse run (endorsements: []) renders the redline section with NO
+        # endorsement summary and NO blank residue — byte-identical to a P3 render.
+        out = tempfile.mkdtemp(prefix="board-endorse-none-")
+        run_cli(["run", "--source", SAMPLE, "--out", out, "--yes",
+                 "--synthesize", "--output", "revised-draft", "--no-endorse"])
+        html, hd = self._render(out)
+        self.assertEqual(hd["endorsement_summary"], "")
+        # The populated summary is a <div class="endorse-summary"> ELEMENT — absent
+        # here (the `.endorse-summary` CSS rule in <style> always contains the string,
+        # so match the opening tag, not the bare selector).
+        self.assertNotIn('<div class="endorse-summary">', html)
+        # The delta-note <p> is immediately followed by the rl-body div (no blank
+        # line where the empty {{ENDORSEMENT_SUMMARY}} token was).
+        redline_section = html.split('class="redline-sec"')[1][:700]
+        self.assertNotIn("</p>\n    \n", redline_section)
+
+    def test_summary_builder_empty_when_no_rows(self):
+        self.assertEqual(rv.build_endorsement_summary_html(_endorse_changes()), "")
+
+    def test_summary_builder_html_escapes_notes(self):
+        rows = [{"seat": "codex", "edit_n": 1, "position": "OBJECT",
+                 "note": "<script>x</script>"}]
+        out = rv.build_endorsement_summary_html(_endorse_changes(endorsements=rows))
+        self.assertIn("&lt;script&gt;", out)
+        self.assertNotIn("<script>x", out)
+
+
 class TestRevisedDraftNoStrayArtifacts(EnvMixin):
     """A run WITHOUT --output revised-draft writes no revision artifacts (the
     feature is fully gated — the default path is untouched)."""
@@ -11306,6 +12099,39 @@ class TestRedlineHandoffRender(EnvMixin):
         body_with_p3 = self._body(rh.render(hd, template))
         body_without_p3 = self._body(rh.render(hd, self._strip_p3_sections(template)))
         self.assertEqual(body_with_p3, body_without_p3)
+
+    @staticmethod
+    def _strip_endorsement_token(template):
+        """The template with the {{ENDORSEMENT_SUMMARY}} token line removed from BOTH
+        the redline and patch sections — the pre-P4 body markup (the endorsement
+        summary machinery absent). Each token sits on its own indented line inside a
+        section (`\\n    {{ENDORSEMENT_SUMMARY}}`); deleting that line entirely mirrors
+        exactly what the renderer's empty-token drop does on a --no-endorse run. If
+        the empty token left ANY residual body byte, the compare below diverges."""
+        stripped = re.sub(r"\n[ \t]*\{\{ENDORSEMENT_SUMMARY\}\}", "", template)
+        assert "{{ENDORSEMENT_SUMMARY}}" not in stripped
+        return stripped
+
+    def test_endorsementless_body_is_byte_identical_to_pre_p4_template(self):
+        # Item 5 — the invariant of record, made explicit for the endorsement token:
+        # the redline/patch SECTION stays (this IS a revised-draft run), but a
+        # --no-endorse run carries no endorsement rows, so {{ENDORSEMENT_SUMMARY}}
+        # renders "". Prove the empty token contributes ZERO body bytes: the SAME
+        # endorsement-less handoff-data rendered with the real template and with the
+        # template MINUS the endorsement-summary token must produce an IDENTICAL
+        # <body>. (The .endorse-summary CSS lives in <head>, exempt by the settled
+        # rule; only the body must match.) If it FAILS, an empty-token residue leaked.
+        html, hd = self._run_and_render()          # a revised-draft run, endorsements ON
+        # Sanity: this render DOES carry the redline section (so the token is present
+        # in a live section, not a dropped one) — the meaningful case to prove.
+        self.assertIn('class="redline-sec"', html)
+        # Now force the endorsement-less shape: an empty summary is exactly what a
+        # --no-endorse run produces. Render the same data with both templates.
+        hd_none = dict(hd, endorsement_summary="")
+        template = open(rh.default_template(), encoding="utf-8").read()
+        body_with = self._body(rh.render(hd_none, template))
+        body_without = self._body(rh.render(hd_none, self._strip_endorsement_token(template)))
+        self.assertEqual(body_with, body_without)
 
     def _broken_chain_run(self):
         """A run dir carrying a PRESENT-but-incoherent revised chain (the pointer

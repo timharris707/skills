@@ -36,12 +36,17 @@ cat >/dev/null 2>&1
 
 # codex carries the prompt in argv; detect a round-1 prompt and the model id
 # (--config model=<id>), echoed back as the answered-model banner on stderr.
+prompt="$*"
 is_review=0
 case "$*" in *"MATERIAL UNDER REVIEW"*) is_review=1 ;; esac
 # `ask` (v1.12): a post-verdict cross-examination prompt carries the PRIOR RUN
 # CONTEXT fence and gets a short free-form answer (NOT a 7-section review).
 is_ask=0
 case "$*" in *"PRIOR RUN CONTEXT"*) is_ask=1; is_review=0 ;; esac
+# `endorsement` (v1.13 P4): the endorsement prompt frames the seat as "an
+# ENDORSEMENT seat" and asks for one ENDORSE/OBJECT/ABSTAIN per target.
+is_endorse=0
+case "$*" in *"You are an ENDORSEMENT seat"*) is_endorse=1; is_review=0 ;; esac
 model=""
 for a in "$@"; do
   case "$a" in model=*) model="${a#model=}" ;; esac
@@ -100,6 +105,53 @@ emit_answer() {
   echo "ASK ANSWER (codex): to your follow-up — the implementation risk I flagged is unchanged; the reviewed material still lacks that guard."
 }
 
+# v1.13 P4 endorsement (see the claude mock for the target-roster contract). The
+# prompt lists "- edit_n = N" / "- unresolved_n = N" targets; the mock emits one
+# position per target. MOCK_CODEX_ENDORSE_MODE: ok | object | abstain |
+# object_exotic (an OBJECT whose note carries non-ASCII 'é' and an embedded newline
+# -- exercises byte-determinism of the changes.json round-trip + the renderer's
+# multi-line-note handling) | missing_target (an empty positions array -> a vote is
+# missing for every target -> invalid -> retry -> dropped).
+endorse_mode="${MOCK_CODEX_ENDORSE_MODE:-ok}"
+emit_endorse() {
+  echo "model: ${model:-unknown}" >&2
+  if [ "$endorse_mode" = "missing_target" ]; then
+    echo "<<<<<<<< BEGIN ENDORSEMENT >>>>>>>>"
+    echo '{ "positions": [] }'
+    echo "<<<<<<<< END ENDORSEMENT >>>>>>>>"
+    return
+  fi
+  local first=1 idx=0 field num pos note line
+  echo "<<<<<<<< BEGIN ENDORSEMENT >>>>>>>>"
+  printf '{ "positions": [\n'
+  while IFS= read -r line; do
+    case "$line" in
+      *"- edit_n = "*|*"- unresolved_n = "*)
+        idx=$((idx + 1))
+        case "$line" in
+          *"- edit_n = "*)       field="edit_n";       num="${line##*- edit_n = }" ;;
+          *"- unresolved_n = "*) field="unresolved_n"; num="${line##*- unresolved_n = }" ;;
+        esac
+        num="${num%% *}"; pos="ENDORSE"; note=""
+        case "$endorse_mode" in
+          abstain) pos="ABSTAIN" ;;
+          object)  if [ "$idx" -eq 1 ]; then pos="OBJECT"; note=', "note": "codex objects: the edit does not fully close the finding"'; fi ;;
+          # object_exotic: a note with a non-ASCII char (é) AND a JSON-escaped newline
+          # (\n) inside the string — the exact bytes a real seat could emit. JSON
+          # parses the \n to a real newline; the round-trip + renderer must stay clean.
+          object_exotic) if [ "$idx" -eq 1 ]; then pos="OBJECT"; note=', "note": "codex objecte: la référence est ambiguë\nseconde ligne du grief"'; fi ;;
+        esac
+        if [ "$first" -eq 1 ]; then first=0; else printf ',\n'; fi
+        printf '    {"%s": %s, "position": "%s"%s}' "$field" "$num" "$pos" "$note"
+        ;;
+    esac
+  done <<EOF_TARGETS
+$prompt
+EOF_TARGETS
+  printf '\n] }\n'
+  echo "<<<<<<<< END ENDORSEMENT >>>>>>>>"
+}
+
 case "$mode" in
   nogo_smoke) exit 1 ;;
   empty)      exit 0 ;;
@@ -110,16 +162,33 @@ case "$mode" in
     else echo "ready"; fi
     exit 0 ;;
   timeout)    exec sleep 30 ;;   # exec so no orphaned sleep survives the kill
+  # endorse_empty: return a real round review but drop the endorsement (empty
+  # stdout -> NoOutput -> dropped rows). Lets a test exercise the failed-spawn arm.
+  endorse_empty)
+    if [ "$is_endorse" = "1" ]; then exit 0
+    elif [ "$is_review" = "1" ]; then emit_review; else echo "ready"; fi
+    exit 0 ;;
+  # endorse_sleep: reviews (and the smoke ping) return instantly, but the ENDORSEMENT
+  # spawn sleeps past any tiny per-seat --timeout, so a `--timeout codex=<tiny>` times
+  # out and drops ONLY codex's endorsement while its review + other seats vote normally.
+  endorse_sleep)
+    if [ "$is_endorse" = "1" ]; then exec sleep 30
+    elif [ "$is_review" = "1" ]; then emit_review; else echo "ready"; fi
+    exit 0 ;;
   stub)
     if [ "$is_review" = "1" ]; then echo "Done — wrote the review."; else echo "ready"; fi
     exit 0 ;;
   degraded)
     echo "warning: sandbox note" >&2
-    if [ "$is_review" = "1" ]; then emit_review; elif [ "$is_ask" = "1" ]; then emit_answer; else echo "ready"; fi
+    if [ "$is_review" = "1" ]; then emit_review
+    elif [ "$is_endorse" = "1" ]; then emit_endorse
+    elif [ "$is_ask" = "1" ]; then emit_answer; else echo "ready"; fi
     exit 1 ;;
   # Unknown model: codex emits an invalid_request_error to STDERR (grounded 2026-06-25).
   model_not_found) echo '{"type":"error","error":{"type":"invalid_request_error","message":"The model is not supported when using Codex with a ChatGPT account."}}' >&2; exit 1 ;;
   *)
-    if [ "$is_review" = "1" ]; then emit_review; elif [ "$is_ask" = "1" ]; then emit_answer; else echo "ready"; fi
+    if [ "$is_review" = "1" ]; then emit_review
+    elif [ "$is_endorse" = "1" ]; then emit_endorse
+    elif [ "$is_ask" = "1" ]; then emit_answer; else echo "ready"; fi
     exit 0 ;;
 esac

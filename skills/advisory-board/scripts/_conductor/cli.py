@@ -105,6 +105,14 @@ from _conductor.revision import (
     revision_template_sha,
     run_revision,
 )
+from _conductor.endorsement import (
+    ENDORSEMENT_TEMPLATE_VERSION,
+    endorsement_seats,
+    endorsement_template_sha,
+    render_endorsement_md,
+    render_endorsement_raw,
+    run_endorsement_pass,
+)
 
 __all__ = [
     "cmd_init",
@@ -114,6 +122,7 @@ __all__ = [
     "_maybe_update_tools",
     "cmd_run",
     "_run_revision_step",
+    "_run_endorsement_pass",
     "cmd_ask",
     "cmd_history",
     "cmd_render",
@@ -717,6 +726,114 @@ def _write_verdict_changes_pointer(verdict_path: str, changes_sha256: str, *,
     return (True, "wrote verdict.json.changes pointer (sha-bound to changes.json)")
 
 
+def _run_endorsement_pass(config, rr, revision_seat, args) -> list:
+    """The endorsement pass (D13). Called ONLY after the revision succeeded and only
+    when config.endorse. Fans the non-revision seats out concurrently, writes each
+    seat's black-box + human record under endorsement/, and merges the conductor-
+    built rows into rr.changes["endorsements"] IN PLACE (before changes.json is
+    written, so the pinned bytes carry them). Returns the per-seat results (for the
+    caller's summary print), or [] when the pass didn't run / had no seats.
+
+    Never fails the run: a --no-endorse run does nothing (byte-identical changes.json
+    to the P2 shape); a single-seat board endorses nothing (a note, not a crash); a
+    dropped seat records ABSTAIN/dropped rows; all-dropped warns loudly but still
+    writes rows. After merging, the changes doc is RE-VALIDATED — a validation
+    failure (which the conductor-built rows should never trigger) leaves endorsements
+    empty and warns, rather than shipping an invalid changes.json."""
+    import shutil
+    import tempfile
+    if not config.endorse:
+        # --no-endorse: no pass, endorsements stays [] exactly as build_changes wrote
+        # it. The run card already disclosed the opt-out; nothing more to print.
+        return []
+
+    seats = endorsement_seats(config, revision_seat.id)
+    print(f"\n=== endorsement ({ENDORSEMENT_TEMPLATE_VERSION}; "
+          f"sha256:{endorsement_template_sha()[:12]}…) ===")
+    if not seats:
+        # Single-seat board: the revision seat is the only seat, so there is no
+        # non-revision seat to endorse. Not a failure — a note, and endorsements
+        # stays [].
+        print("  (no non-revision seats to endorse — the revision seat is the only "
+              "board seat; endorsements left empty)")
+        return []
+    print(f"  {len(seats)} seat(s) vote on {len(rr.changes.get('edits') or [])} edit(s) + "
+          f"{len(rr.changes.get('unresolved') or [])} unresolved conflict(s); each is sent the "
+          "source + the board-generated revised draft/changes under the run's existing "
+          "disclosure (same category as round-2 review sharing; no new exposure class).")
+
+    workdir = tempfile.mkdtemp(prefix="advisory-board-endorsement-") if config.fs_scoped else None
+    try:
+        # No call-level timeout: each endorsement seat honors its OWN resolved
+        # --timeout (per-seat id=SECONDS → seat.timeout_s → adapter cap), exactly like
+        # the round fan-out. The revision seat's timeout is not imposed on the voters.
+        results = run_endorsement_pass(config, rr.changes, rr.revised_text or "", seats,
+                                       workdir=workdir)
+    finally:
+        if workdir:
+            shutil.rmtree(workdir, ignore_errors=True)
+
+    # Persist the per-seat black-box + prompt + human records (mirrors revision/).
+    edir = os.path.join(config.out_dir, "endorsement")
+    os.makedirs(edir, exist_ok=True)
+    rows: list = []
+    for er in results:
+        _write(os.path.join(config.out_dir, "prompts", f"endorsement-{er.seat}.prompt"),
+               er.prompt_text)
+        _write(os.path.join(edir, f"{er.seat}.md"), render_endorsement_md(er))
+        _write(os.path.join(edir, f"{er.seat}.raw"), render_endorsement_raw(er))
+        _write(os.path.join(config.out_dir, "logs", f"endorsement-{er.seat}.stderr"),
+               er.stderr or "")
+        rows.extend(er.rows)
+
+    # Merge the conductor-built rows into the changes dict, then re-validate. The
+    # rows are conductor-authored (never model-authored), so validation should pass;
+    # if it somehow doesn't, drop the rows rather than ship an invalid artifact.
+    candidate = dict(rr.changes)
+    candidate["endorsements"] = rows
+    schema_err = _validate_changes_doc(candidate)
+    if schema_err is not None:
+        print(f"  ⚠ endorsement rows failed changes@1 re-validation ({schema_err}) — "
+              "endorsements left empty; the revision itself is unaffected.")
+        return results
+    rr.changes["endorsements"] = rows
+
+    dropped = [er for er in results if er.dropped]
+    n_object = sum(1 for r in rows if r.get("position") == "OBJECT")
+    if dropped and len(dropped) == len(results):
+        print(f"  ⚠ ALL {len(results)} endorsement seat(s) dropped — every row recorded "
+              "as ABSTAIN (dropped). The revision stands; the endorsement is empty of "
+              "signal (D13: the pass never fails the run).")
+    else:
+        summary = ", ".join(f"{er.seat}={'dropped' if er.dropped else er.status}"
+                            for er in results)
+        print(f"  endorsement: {summary}"
+              + (f"  ·  {len(dropped)} dropped" if dropped else "")
+              + (f"  ·  {n_object} objection(s) recorded" if n_object else ""))
+    return results
+
+
+def _validate_changes_doc(data: dict):
+    """Run board_changes.validate against an assembled changes doc; return an error
+    string if invalid, else None (mirrors revision.validate_changes' capture)."""
+    import contextlib
+    import io as _io
+    try:
+        import board_changes
+    except ImportError as exc:
+        return f"could not import board_changes ({exc})"
+    buf = _io.StringIO()
+    try:
+        with contextlib.redirect_stderr(buf):
+            board_changes.validate(data)
+    except SystemExit:
+        captured = buf.getvalue().strip()
+        if captured.startswith("error:"):
+            captured = captured[len("error:"):].strip()
+        return captured or "schema validation failed"
+    return None
+
+
 def _run_revision_step(config, verdict_data: dict, rounds_done: list, args, *,
                        verdict_path: str, verdict_sha256: str) -> int:
     """The v1.13 revision step. Runs ONLY after synthesis produced a validated
@@ -757,10 +874,13 @@ def _run_revision_step(config, verdict_data: dict, rounds_done: list, args, *,
     os.makedirs(rev_dir, exist_ok=True)
     if rr.prompt_text:
         _write(os.path.join(config.out_dir, "prompts", "revision.prompt"), rr.prompt_text)
-    _write(os.path.join(rev_dir, f"{seat.name}.md"),
+    # Per-seat revision artifacts are keyed on the reviser's UNIQUE id (== name on a
+    # non-duplicate board, so single-provider paths are byte-identical; on a duplicate
+    # board it names the exact claude that revised, matching changes.revision_seat).
+    _write(os.path.join(rev_dir, f"{seat.id}.md"),
            rr.stdout or "(revision seat produced no stdout)\n")
-    _write(os.path.join(rev_dir, f"{seat.name}.raw"), render_revision_raw(config, rr))
-    _write(os.path.join(config.out_dir, "logs", f"revision-{seat.name}.stderr"), rr.stderr or "")
+    _write(os.path.join(rev_dir, f"{seat.id}.raw"), render_revision_raw(config, rr))
+    _write(os.path.join(config.out_dir, "logs", f"revision-{seat.id}.stderr"), rr.stderr or "")
 
     print(f"revision: {rr.status}"
           + (f" ({rr.failure_class})" if rr.failure_class else "")
@@ -776,18 +896,17 @@ def _run_revision_step(config, verdict_data: dict, rounds_done: list, args, *,
     # certifies (no new trust surface; both derive from the same pinned strings).
     patch_path = os.path.join(config.out_dir, "revised-draft.patch")
 
-    # P2 endorsement write-path guard (Blocker 4, belt-and-suspenders alongside
-    # build_changes' internal assert): the model cannot author endorsements in P2,
-    # so a non-empty endorsements must NEVER reach a written changes.json. If one
-    # somehow got this far, divert to the reject path (internal error, not
-    # model-blamed) rather than write it. (P4 will fill endorsements legitimately
-    # and lift this guard.)
+    # Endorsement write-path guard (D13): the model NEVER authors endorsement rows
+    # (the seats produce TOKENS; the conductor builds the rows). build_changes stamps
+    # `endorsements: []`, so anything non-empty at THIS point — before the conductor's
+    # own merge below — could only be smuggled. Divert to the reject path (internal
+    # error, not model-blamed). The conductor-built rows enter AFTER this guard.
     if rr.changes is not None and (rr.changes.get("endorsements") or []) != []:
         rr.changes = None
         rr.reject_error = ("internal error: a non-empty 'endorsements' reached the "
-                           "changes.json write path in P2, but no endorsement pass "
-                           "exists yet (P4) and the model cannot author endorsements "
-                           "— refusing to write")
+                           "changes.json write path before the endorsement pass ran — "
+                           "the model cannot author endorsement rows (the conductor "
+                           "builds them from the seats' tokens); refusing to write")
 
     if rr.changes is not None:
         # Drop stale rejected peers from a prior run only AFTER this run produced
@@ -798,6 +917,17 @@ def _run_revision_step(config, verdict_data: dict, rounds_done: list, args, *,
                       *(() if config.source_type == "code" else (patch_path,))):
             if os.path.exists(stale):
                 os.unlink(stale)
+        # ENDORSEMENT PASS (D13) — the revision SUCCEEDED (all mechanical checks
+        # passed), so unless --no-endorse each NON-revision seat votes on every edit
+        # + unresolved entry, fanned out concurrently. The rows are merged into the
+        # changes dict HERE — BEFORE changes.json is written and BEFORE the pointer
+        # write — because verdict.json.changes sha-pins the changes.json BYTES, so
+        # the endorsement rows must be inside those bytes. A --no-endorse run keeps
+        # `endorsements: []` exactly as build_changes wrote it (byte-identical to a
+        # P2-shape changes.json). The pass never fails the run: a dropped seat
+        # becomes ABSTAIN/dropped rows, all-dropped is a loud warning + rows. It
+        # writes its own artifacts + summary and merges rows into rr.changes IN PLACE.
+        _run_endorsement_pass(config, rr, seat, args)
         # 1. The byte-clean revised draft — the revised source bytes and NOTHING
         #    else (no header). Its sha256 MUST equal changes.json.revised.sha256,
         #    so newline="" disables platform newline translation: the on-disk
@@ -806,9 +936,10 @@ def _run_revision_step(config, verdict_data: dict, rounds_done: list, args, *,
         #    file from its own recorded sha.
         with open(draft_path, "w", encoding="utf-8", newline="") as handle:
             handle.write(rr.revised_text or "")
-        # 2. changes.json — the artifact of record. Same newline="" discipline:
-        #    the verdict→changes pointer below pins the sha of these exact bytes
-        #    (json.dumps + "\n"), so the disk bytes must not be newline-translated.
+        # 2. changes.json — the artifact of record, now carrying the endorsement
+        #    rows. Same newline="" discipline: the verdict→changes pointer below pins
+        #    the sha of these exact bytes (json.dumps + "\n"), so the disk bytes must
+        #    not be newline-translated.
         with open(changes_path, "w", encoding="utf-8", newline="") as handle:
             json.dump(rr.changes, handle, indent=2, ensure_ascii=False)
             handle.write("\n")
@@ -838,8 +969,10 @@ def _run_revision_step(config, verdict_data: dict, rounds_done: list, args, *,
         print(f"\nwrote {draft_path} (byte-clean revised {config.source_type} — no header)")
         if patch_written:
             print(f"wrote {patch_path} (unified diff, a/ b/ headers — apply with `git apply -p1`)")
+        n_endorse = len(rr.changes.get("endorsements") or [])
         print(f"wrote {changes_path} (advisory-board/changes@1 — validated; "
-              f"{len(rr.changes['edits'])} edit(s), {n_unresolved} unresolved)")
+              f"{len(rr.changes['edits'])} edit(s), {n_unresolved} unresolved, "
+              f"{n_endorse} endorsement row(s))")
         if n_unresolved:
             print(f"⚠ {n_unresolved} finding-conflict(s) left UNRESOLVED — surfaced in "
                   "changes.json, decided by you (a conflict never fails the run; D14).")
@@ -880,7 +1013,7 @@ def _run_revision_step(config, verdict_data: dict, rounds_done: list, args, *,
 
     reason = rejected_record["reason"]
     print(f"\n⚠ revision did NOT produce a usable revised draft — reason: {reason}")
-    print(f"  see {rev_dir}/{seat.name}.md and {rev_dir}/{seat.name}.raw for the full record")
+    print(f"  see {rev_dir}/{seat.id}.md and {rev_dir}/{seat.id}.raw for the full record")
     print(f"  the rejection was recorded to {changes_rejected_path}"
           + (f" and {rejected_draft_path}" if rr.revised_text is not None else ""))
     print("\nThe verdict + rounds are intact — the revision failure discards nothing. "
@@ -1002,6 +1135,13 @@ def add_run_options(parser: argparse.ArgumentParser) -> None:
                              "the run's board seats — the revision seat egresses to that "
                              "provider, covered by the run's existing disclosure. Only "
                              "accepted with --output revised-draft.")
+    parser.add_argument("--no-endorse", dest="no_endorse", action="store_true",
+                        help="skip the endorsement pass on a --output revised-draft run "
+                             "(the token-cost opt-out). By default, once the revision "
+                             "succeeds every NON-revision seat votes ENDORSE/OBJECT/ABSTAIN "
+                             "on each edit + unresolved conflict, recorded in "
+                             "changes.json.endorsements — so the fixed copy is board-endorsed, "
+                             "not just findings-mapped. Only accepted with --output revised-draft.")
     parser.add_argument("--out", help="exact output directory (default: a persistent "
                                       "<runs root>/<slug>-<date> — see --runs-root/--ephemeral)")
     parser.add_argument("--runs-root", dest="runs_root", metavar="DIR",

@@ -11,12 +11,43 @@ reserved for an explicit production-ready call. The verdict-JSON schema is versi
 ## [Unreleased]
 
 ### Added
+- **The endorsement pass (v1.13 #2 / P4, D13) — the board votes on the fixed copy.** A
+  `run --output revised-draft` run is now **board-endorsed** by default, not merely
+  findings-mapped: after the revision seat SUCCEEDS (all mechanical checks pass), every
+  NON-revision board seat is spawned ONCE, all fanned out **concurrently** (the round
+  `ThreadPoolExecutor` — wall-clock ≈ one extra round), to vote `ENDORSE` / `OBJECT` / `ABSTAIN`
+  on **every edit and every unresolved conflict**. Each seat emits parseable per-target tokens
+  (an `OBJECT` carries a short note — D13: a seat may object to how a conflict was
+  characterized); the **conductor builds** the rows into `changes.json.endorsements`
+  (`{seat, edit_n|unresolved_n, position, note?, dropped?}`) — the model authors tokens, never
+  rows. **Objections are recorded, never resolved** — no discussion round, no revision loop; the
+  human reads them and decides (D6). New `--no-endorse` opts out (the token-cost axis): that run
+  is findings-mapped and `endorsements` stays `[]` (byte-identical to the revision seat's own
+  build). New module `scripts/_conductor/endorsement.py` generalizes the revision spawn path
+  (versioned template `advisory-board/endorsement@1` + sha, DATA-fence + neutralizer, two-attempt
+  retry on `timeout|invalid`, black-box `endorsement/<seat>.raw`). **Failure posture:** a
+  failed/unparseable endorsement spawn records that seat as one `ABSTAIN` row per target with
+  `dropped: true`; the pass NEVER fails the run, discards the revision, or moves the exit code.
+  If ALL endorsement seats drop, `changes.json` still writes those rows with one loud warning. A
+  single-seat board (no non-revision seat) leaves `endorsements: []` with a note, not a crash.
+  Write order: endorsement rows are merged into the changes dict BEFORE `changes.json` is written
+  and BEFORE the pointer write, so `verdict.json.changes` sha-pins the endorsement-bearing bytes.
+  Artifacts: `endorsement/<seat>.md`+`.raw` + `prompts/endorsement-<seat>.prompt` (mirrors
+  `revision/`); the full-handoff HTML gains a small endorsement summary (per-edit tally +
+  objection notes) in the redline/patch section — absent + byte-identical on a `--no-endorse`
+  run. The recipe records the resolved `endorse` boolean + (when on) the endorsement template
+  version/sha, so `--from-recipe` replays the same posture. On a **duplicate-provider board**
+  (e.g. `--board claude,claude,codex`) the pass excludes only the seat that actually revised by
+  its **unique id** — the other same-provider seat stays a full voting member — and every
+  endorsement row + `changes.revision_seat` is keyed on that same id axis (`claude#2`), the same
+  ids `--model`/`--timeout` use; `--revision-seat` selects on it too (an ambiguous bare provider
+  name is refused, listing the candidate ids). On a non-duplicate board id == provider name, so
+  `changes.json` and every artifact path stay byte-identical.
 - **`run --output revised-draft` (v1.13 #2) — the revision seat + `changes.json`.** After
   synthesis produces a validated `verdict.json`, a board seat is spawned to produce a
   **board-derived, findings-mapped revised copy of the source**, each edit mapped by the model
   to the finding it resolves, mechanically validated (coverage reconciliation + index/title
-  cross-assert). (Per-edit board *endorsement* — the seats voting on each edit — is
-  the later v1.13 P4 pass; `endorsements` is empty and conductor-asserted empty in P2.) The revision seat generalizes the synthesizer spawn path (versioned template
+  cross-assert). (The non-revision seats then vote on it — see the endorsement pass above.) The revision seat generalizes the synthesizer spawn path (versioned template
   `advisory-board/revision@1` + sha, DATA-fence + neutralizer, board-seat choice, two-attempt
   retry on timeout|invalid, black-box `revision/<seat>.raw`, rejected-artifact-plus-exit-0
   posture). The single spawn returns the **edit→finding mapping first and the revised source

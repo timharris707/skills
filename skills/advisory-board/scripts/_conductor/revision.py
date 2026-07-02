@@ -269,15 +269,24 @@ def choose_revision_seat(config: RunConfig, last_round_results: list,
     `synthesizer.choose_synthesizer_seat` exactly: a `preferred` must be a board
     seat (egress already covered by the run's disclosure); default order is
     `claude` if seated, else the first usable seat in the last round, else the
-    first board seat."""
+    first board seat.
+
+    `preferred` is selected on the UNIQUE-ID axis: config.resolve_config already
+    ran resolve_revision_seat_id, so a `--revision-seat` value reaching here is a
+    canonical seat id (an ambiguous provider name was refused there). We match on id
+    first — so `claude#2` selects that exact seat on a duplicate board — and fall
+    back to a bare provider name for a from-recipe/programmatic caller that passes an
+    unresolved name; an off-board id/name is refused (same disclosure reason)."""
+    by_id = {s.id: s for s in config.board}
     by_name = {s.name: s for s in config.board}
     if preferred is not None:
-        if preferred not in by_name:
+        seat = by_id.get(preferred) or by_name.get(preferred)
+        if seat is None:
             die(f"--revision-seat {preferred!r} is not one of this run's board seats "
-                f"({', '.join(s.name for s in config.board)}); the revision seat egresses "
+                f"({', '.join(s.id for s in config.board)}); the revision seat egresses "
                 "to a provider already covered by the run's disclosure, so it must reuse a "
                 "board seat")
-        return by_name[preferred]
+        return seat
     if "claude" in by_name:
         return by_name["claude"]
     usable_seats = {r.seat for r in last_round_results if r.usable}
@@ -935,7 +944,7 @@ def run_revision(config: RunConfig, verdict: dict, rounds_done: list, *,
                   f"{'; '.join(repr(t) for t in dups)} — the composite locator would be "
                   "ambiguous with no human to disambiguate (D9); refusing to revise")
         return RevisionResult(
-            seat=seat.name, provider=seat.provider,
+            seat=seat.id, provider=seat.provider,
             model_requested=seat.model, model_answered=None,
             status="dropped", failure_class="duplicate-title",
             attempts=0, elapsed_s=0.0, exit_code=0, timed_out=False,
@@ -997,8 +1006,12 @@ def run_revision(config: RunConfig, verdict: dict, rounds_done: list, *,
     # run the mechanical checks + build/validate changes.json.
     if revised_text is not None and parse_error is None:
         try:
+            # Record the reviser on the UNIQUE-ID axis (matching endorsements[].seat
+            # and the run's filesystem key). On a non-duplicate board id == name, so
+            # changes.revision_seat stays byte-identical to the pre-id-axis value; on
+            # a duplicate-provider board it disambiguates which claude actually revised.
             built = build_changes(config, verdict, mapping, revised_text,
-                                  revision_seat=seat.name, revised_artifact=revised_artifact)
+                                  revision_seat=seat.id, revised_artifact=revised_artifact)
             schema_err = validate_changes(built)
             if schema_err is not None:
                 reject_error = schema_err
@@ -1008,7 +1021,10 @@ def run_revision(config: RunConfig, verdict: dict, rounds_done: list, *,
             reject_error = str(exc)
 
     return RevisionResult(
-        seat=seat.name, provider=seat.provider,
+        # seat is the reviser's UNIQUE id — the rejected changes record and any
+        # filename the caller derives from rr.seat share the run's id axis (id ==
+        # name on a non-duplicate board, so single-provider artifacts are unchanged).
+        seat=seat.id, provider=seat.provider,
         model_requested=seat.model, model_answered=answered,
         status=status, failure_class=failure,
         attempts=attempts,
