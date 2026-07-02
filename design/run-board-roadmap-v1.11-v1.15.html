@@ -416,7 +416,7 @@ footer.colophon code { background: var(--surface-2); }
         
         <div class="meta-row">
           
-          <span class="chip"><b>Updated</b> 2026-07-01</span>
+          <span class="chip"><b>Updated</b> 2026-07-02</span>
           
           <span class="chip"><b>Source</b> 2026-07-01 four-agent review (feature surface · conductor architecture · artifacts/examples · market scan) + Tim&#x27;s selection of items 1–14 from the ranked slate</span>
           
@@ -424,20 +424,20 @@ footer.colophon code { background: var(--surface-2); }
           
           <span class="chip"><b>Baseline</b> advisory-board/v1.10.0 · `main` @ `be4c9b2` · 676 tests green</span>
           
-          <span class="chip"><b>Status</b> M1 SHIPPED (`advisory-board/v1.11.0`, 2026-07-01) · M2 (v1.12) next — opens with the verdict-lifecycle schema DECISION phase</span>
+          <span class="chip"><b>Status</b> M1 SHIPPED (`advisory-board/v1.11.0`, 2026-07-01) · M2 SHIPPED (`advisory-board/v1.12.0`, 2026-07-02) · M3 (v1.13) in flight — P1 design roundtable done, decisions D9–D14 recorded</span>
           
         </div>
       </div>
       <div class="gauge">
-        <svg class="ring" viewBox="0 0 120 120" width="118" height="118" role="img" aria-label="Overall progress 58%">
+        <svg class="ring" viewBox="0 0 120 120" width="118" height="118" role="img" aria-label="Overall progress 61%">
           <circle class="ring-track" cx="60" cy="60" r="52" fill="none" stroke-width="11"/>
           <circle class="ring-arc" cx="60" cy="60" r="52" fill="none" stroke-width="11"
                   stroke-linecap="round" transform="rotate(-90 60 60)"
-                  stroke-dasharray="326.7" stroke-dashoffset="137.2"/>
-          <text class="ring-pct" x="60" y="57" text-anchor="middle" dominant-baseline="middle">58%</text>
+                  stroke-dasharray="326.7" stroke-dashoffset="127.4"/>
+          <text class="ring-pct" x="60" y="57" text-anchor="middle" dominant-baseline="middle">61%</text>
           <text class="ring-sub" x="60" y="76" text-anchor="middle" dominant-baseline="middle">complete</text>
         </svg>
-        <div class="gauge-count"><b>22</b> / 38 tasks done</div>
+        <div class="gauge-count"><b>23</b> / 38 tasks done</div>
       </div>
     </div>
 
@@ -447,7 +447,7 @@ footer.colophon code { background: var(--surface-2); }
       
       <span class="rail-item done"><i class="dot"></i>M2</span>
       
-      <span class="rail-item todo"><i class="dot"></i>M3</span>
+      <span class="rail-item wip"><i class="dot"></i>M3</span>
       
       <span class="rail-item todo"><i class="dot"></i>M4</span>
       
@@ -808,16 +808,16 @@ footer.colophon code { background: var(--surface-2); }
 
     </article>
     
-    <article class="milestone todo">
+    <article class="milestone wip">
       <div class="ms-head">
         <div class="ms-num">3</div>
         <div class="ms-head-main">
           <h3 class="ms-title">v1.13 — Transform: the board hands back a fixed copy</h3>
           <div class="ms-meta">
-            <span class="badge todo"><span class="dot"></span>To do</span>
+            <span class="badge wip"><span class="dot"></span>In progress</span>
             <span class="ms-progress">
-              <span class="ms-bar"><span style="width:0%"></span></span>
-              0/6
+              <span class="ms-bar"><span style="width:17%"></span></span>
+              1/6
             </span>
           </div>
         </div>
@@ -828,15 +828,15 @@ footer.colophon code { background: var(--surface-2); }
       
 
       
-      <div class="phase todo">
+      <div class="phase done">
         <div class="phase-head">
           <span class="phase-dot"></span>
           <h4 class="phase-title">Phase 1 — Dogfood design roundtable</h4>
-          <span class="phase-state">To do</span>
+          <span class="phase-state">Done</span>
         </div>
         <ul class="checklist">
           
-          <li class="todo"><span class="tick"></span><span class="task-text">Run the advisory board on the fix-it design brief; record decisions: redline format per source type, <code>changes.json</code> shape (edit → finding mapping), endorsement-pass shape and default, failure posture when findings conflict</span></li>
+          <li class="done"><span class="tick">✓</span><span class="task-text">Run the advisory board on the fix-it design brief; record decisions: redline format per source type, <code>changes.json</code> shape (edit → finding mapping), endorsement-pass shape and default, failure posture when findings conflict <em>Recorded as D9–D14. Roundtable 2026-07-02: 3 seats (claude-opus-4-8 · gpt-5.5 · gemini-3.5-flash), 2 rounds + claude synthesizer — unanimous SHIP WITH CHANGES @ high confidence, 5 blockers, all folded into the decisions; brief at <code>design/v1.13-fixit-revision-artifact-design-brief.md</code>, fact sheet at <code>design/v1.13-fixit-design-inputs.md</code>.</em></span></li>
           
         </ul>
         
@@ -861,7 +861,7 @@ footer.colophon code { background: var(--surface-2); }
         </div>
         <ul class="checklist">
           
-          <li class="todo"><span class="tick"></span><span class="task-text"><code>--output revised-draft</code>: after synthesis, spawn a revision seat (generalizing the synthesizer spawn path) with source + <code>verdict.json</code>; emits the revised text + <code>changes.json</code> (each edit keyed to blocker/concern ids)</span></li>
+          <li class="todo"><span class="tick"></span><span class="task-text"><code>--output revised-draft</code>: after synthesis, spawn a revision seat (generalizing the synthesizer spawn path) with source + <code>verdict.json</code>; emits the <code>changes</code> mapping first, revised text second, in one spawn (D11) — <code>changes.json</code> keyed by composite <code>{list, index, title}</code> finding locators (D9; the roundtable struck the &quot;blocker/concern ids&quot; phrasing — no ids exist and none are introduced)</span></li>
           
         </ul>
         
@@ -913,9 +913,9 @@ footer.colophon code { background: var(--surface-2); }
         </div>
         <ul class="checklist">
           
-          <li class="todo"><span class="tick"></span><span class="task-text">Optional one-shot endorse/object pass by non-revision seats, recorded per seat in <code>changes.json</code></span></li>
+          <li class="todo"><span class="tick"></span><span class="task-text">One-shot endorse/object pass by non-revision seats — ON by default for <code>--output revised-draft</code>, parallel fan-out, <code>--no-endorse</code> opt-out (D13) — recorded per seat in <code>changes.json</code></span></li>
           
-          <li class="todo"><span class="tick"></span><span class="task-text">Docs + CHANGELOG on <code>main</code>; tag <code>advisory-board/v1.13.0</code> on Tim&#x27;s explicit go → release green</span></li>
+          <li class="todo"><span class="tick"></span><span class="task-text">Docs + CHANGELOG on <code>main</code>; tag <code>advisory-board/v1.13.0</code> under Tim&#x27;s standing release go (2026-07-02, v1.13–v1.15) → release green</span></li>
           
         </ul>
         
@@ -1206,6 +1206,36 @@ footer.colophon code { background: var(--surface-2); }
         <div class="entry-body"><code>previous_run</code> + <code>amendments[]</code> are optional, validated strictly only when present, and invisible when absent, so every existing consumer and file is untouched; <code>@3</code> stays reserved for a genuinely structural break. The fields are tool/human-authored: the synthesizer merge strips them (a model must not fabricate provenance), the gate never reads them, and the reserved <code>changes</code> key is refused loudly until v1.13 defines it.</div>
       </li>
       
+      <li>
+        <div class="entry-head"><span class="entry-tag">D9</span><span class="entry-title">Edits are keyed by composite locator, and only real findings are resolvable</span></div>
+        <div class="entry-body"><code>changes.json</code> references findings as <code>{list, index, title}</code> with a conductor equality-assert (an index/title mismatch, or a duplicate title among resolvable findings, is refused at revision time), after the roundtable unanimously rejected title-only joins for machine provenance: unlike <code>amend --on</code> there is no human at hand to disambiguate a collision, and no duplicate-title guard exists anywhere. No <code>id</code> field enters <code>@2</code> — Codex&#x27;s preference for conductor-assigned ids and Gemini&#x27;s sequential-string variant (<code>blocker-1</code>) are recorded dissents; the composite is the board&#x27;s agreed minimum, and a second schema evolution in two releases was ruled premature. <code>resolves.list</code> covers <code>blockers</code> and <code>concerns</code> only: <code>caveats[]</code> is a plain-strings bucket with no titles or evidence (the brief&#x27;s structured-caveats framing was a vocabulary error the board caught against <code>EVIDENCE_CONTAINERS</code>), and dissent entries are not editable findings (Claude&#x27;s dissent-inclusive enum declined 2–1). <em>(v1.13 P1 roundtable, 2026-07-02)</em></div>
+      </li>
+      
+      <li>
+        <div class="entry-head"><span class="entry-tag">D10</span><span class="entry-title"><code>changes.json</code> is the artifact of record; <code>verdict.json</code> carries only a tool-authored pointer</span></div>
+        <div class="entry-body">schema <code>advisory-board/changes@1</code> gets its own strict validator (mirroring <code>board_verdict.py</code> discipline): model-authored fields are limited to <code>summary</code>/<code>resolves</code>/<code>note</code>; the conductor computes <code>n</code>, statuses, and shas, and enforces completeness (every blocker either resolved by an edit or listed in <code>unresolved</code>; concerns best-effort). Edit locators reconcile 1:1 against the mechanical original→revised diff (INV-1: every locator falls inside a real hunk or a legal insertion anchor, every hunk is claimed by ≥1 edit, <code>status: &quot;applied&quot;</code> is conductor-computed from the diff and never model-asserted; reconciliation failure takes the reject path). The reserved <code>changes</code> key is consumed as <code>{artifact, sha256}</code> — an acyclic pin (verdict→changes→{source, revised}, never mutual) written with <code>amend</code>&#x27;s lost-update discipline; Gemini&#x27;s late-write alternative (hold the verdict in memory, write <code>verdict.json</code> once at pipeline end, never reopen) is a recorded dissent, and file-only is the fallback if the pointer write can&#x27;t be made race-safe. <em>(v1.13 P1 roundtable, 2026-07-02)</em></div>
+      </li>
+      
+      <li>
+        <div class="entry-head"><span class="entry-tag">D11</span><span class="entry-title">The revision seat is one spawn, generalized from the synthesizer, and refuses loudly rather than truncating silently</span></div>
+        <div class="entry-body"><code>--output revised-draft</code> builds its own dispatch (<code>_run_revision_step()</code> after synthesis; <code>--output</code> was decorative before v1.13) and <strong>requires</strong> a verdict path at resolve time (<code>--synthesize</code> or a synthesized recipe re-run) — a revision seat improvising findings from raw reviews would put a model where the conductor&#x27;s skeleton belongs. The single spawn returns the <code>changes</code> mapping FIRST and the revised draft second (a truncated reply then fails mechanically on the missing closing fence), behind the synthesizer&#x27;s fence/neutralize machinery and retry set — an unclosed DATA fence classifies <code>invalid</code> and retries. A source-size preflight refuses oversized revisions loudly (threshold fixed in P2): better a loud refusal at resolve time than a silently short board-endorsed copy. Failure mirrors the synthesizer exactly: <code>revised-draft-rejected.*</code> + <code>changes-rejected.json</code>, loud warning, exit 0 (<code>--strict-exit</code> → 4). <em>(v1.13 P1 roundtable, 2026-07-02)</em></div>
+      </li>
+      
+      <li>
+        <div class="entry-head"><span class="entry-tag">D12</span><span class="entry-title">Redline by source type; the applied file is byte-clean</span></div>
+        <div class="entry-body">prose vs code resolves by extension heuristic with <code>--source-type prose|code</code> override, the resolved value recorded in the recipe and printed on the run card; unknown extensions and stdin refuse without the flag (URL sources are already refused at load, so the brief&#x27;s url clause was moot). Prose: <code>revised-draft.md</code> plus a word-level-within-changed-lines <code>&lt;ins&gt;/&lt;del&gt;</code> redline in the HTML handoff via stdlib <code>get_opcodes()</code>; code: <code>revised-draft.&lt;orig-ext&gt;</code> plus an apply-able unified <code>.patch</code>; no text-format redline artifact (no seat wanted one). The board unanimously struck the strawman&#x27;s metadata header from the drafts: <code>revised-draft.*</code> contains the revised source bytes and nothing else — a header corrupts code the moment it is saved — the <code>changes.json.revised</code> sha256 must match the file on disk exactly, and run metadata lives in <code>changes.json</code>, the HTML handoff, and the run card instead. <em>(v1.13 P1 roundtable, 2026-07-02)</em></div>
+      </li>
+      
+      <li>
+        <div class="entry-head"><span class="entry-tag">D13</span><span class="entry-title">Endorsement is ON by default and concurrent</span></div>
+        <div class="entry-body">un-endorsed, &quot;board-endorsed&quot; is marketing and R4 bites, so every <code>--output revised-draft</code> run fans the non-revision seats out in parallel (the existing rounds <code>ThreadPoolExecutor</code>; wall-clock ≈ one extra round — the round-1 &quot;+40–60%&quot; objection was a token-cost figure miscast as latency, and its author reversed) for a one-shot per-edit <code>ENDORSE</code>/<code>OBJECT</code>/<code>ABSTAIN</code> with optional note, recorded as <code>{seat, edit_n, position, note}</code> rows in <code>changes.json.endorsements</code>; failed endorsement spawns record as ABSTAIN/dropped rows, <code>unresolved</code> entries are endorsement targets too (a seat may object to how a conflict was characterized), and objections are recorded, never resolved by another model loop — the human reads them and decides (D6). <code>--no-endorse</code> is the opt-out for the genuine token-cost axis. <em>(v1.13 P1 roundtable, 2026-07-02)</em></div>
+      </li>
+      
+      <li>
+        <div class="entry-head"><span class="entry-tag">D14</span><span class="entry-title">Conflicting findings degrade loudly, never silently and never fatally</span></div>
+        <div class="entry-body">the revision seat applies the non-conflicting edits and surfaces each conflict as an <code>unresolved</code> entry naming the findings involved and its one-paragraph reason; the run card, consensus render, and HTML handoff all state the unresolved count. Content never moves exit codes (they stay about pipeline integrity; <code>--strict-exit</code> unchanged). Refusing to revise on any conflict and silently picking a side were both rejected — the first is useless on rich verdicts, the second launders an editorial choice as board consensus. <em>(v1.13 P1 roundtable, 2026-07-02)</em></div>
+      </li>
+      
     </ol>
   </section>
   
@@ -1293,7 +1323,7 @@ footer.colophon code { background: var(--surface-2); }
 
   <!-- ===================== COLOPHON ===================== -->
   <footer class="colophon">
-    Rendered from <code>run-board-roadmap-v1.11-v1.15.md</code> &middot; 5 milestones &middot; 22/38 tasks complete. The markdown plan is the source of truth &mdash; regenerate with <code>render_plan.py</code>; never hand-edit this file.
+    Rendered from <code>run-board-roadmap-v1.11-v1.15.md</code> &middot; 5 milestones &middot; 23/38 tasks complete. The markdown plan is the source of truth &mdash; regenerate with <code>render_plan.py</code>; never hand-edit this file.
   </footer>
 
 </div>
