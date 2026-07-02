@@ -424,20 +424,20 @@ footer.colophon code { background: var(--surface-2); }
           
           <span class="chip"><b>Baseline</b> advisory-board/v1.10.0 · `main` @ `be4c9b2` · 676 tests green</span>
           
-          <span class="chip"><b>Status</b> M1 SHIPPED (`advisory-board/v1.11.0`, 2026-07-01) · M2 SHIPPED (`advisory-board/v1.12.0`, 2026-07-02) · M3 SHIPPED (`advisory-board/v1.13.0`, 2026-07-02 — P1 D9–D14 · P2 PR #67 · P3 PR #68 · P4 PR #69) · M4 (v1.14) next — severity filters first</span>
+          <span class="chip"><b>Status</b> M1 SHIPPED (`advisory-board/v1.11.0`, 2026-07-01) · M2 SHIPPED (`advisory-board/v1.12.0`, 2026-07-02) · M3 SHIPPED (`advisory-board/v1.13.0`, 2026-07-02) · M4 (v1.14) release in flight — P1 PR #71 · P2 PR #73 · P3 PR #75 · tag next</span>
           
         </div>
       </div>
       <div class="gauge">
-        <svg class="ring" viewBox="0 0 120 120" width="118" height="118" role="img" aria-label="Overall progress 82%">
+        <svg class="ring" viewBox="0 0 120 120" width="118" height="118" role="img" aria-label="Overall progress 84%">
           <circle class="ring-track" cx="60" cy="60" r="52" fill="none" stroke-width="11"/>
           <circle class="ring-arc" cx="60" cy="60" r="52" fill="none" stroke-width="11"
                   stroke-linecap="round" transform="rotate(-90 60 60)"
-                  stroke-dasharray="326.7" stroke-dashoffset="58.8"/>
-          <text class="ring-pct" x="60" y="57" text-anchor="middle" dominant-baseline="middle">82%</text>
+                  stroke-dasharray="326.7" stroke-dashoffset="52.3"/>
+          <text class="ring-pct" x="60" y="57" text-anchor="middle" dominant-baseline="middle">84%</text>
           <text class="ring-sub" x="60" y="76" text-anchor="middle" dominant-baseline="middle">complete</text>
         </svg>
-        <div class="gauge-count"><b>31</b> / 38 tasks done</div>
+        <div class="gauge-count"><b>32</b> / 38 tasks done</div>
       </div>
     </div>
 
@@ -938,8 +938,8 @@ footer.colophon code { background: var(--surface-2); }
           <div class="ms-meta">
             <span class="badge wip"><span class="dot"></span>In progress</span>
             <span class="ms-progress">
-              <span class="ms-bar"><span style="width:60%"></span></span>
-              3/5
+              <span class="ms-bar"><span style="width:80%"></span></span>
+              4/5
             </span>
           </div>
         </div>
@@ -1002,15 +1002,15 @@ footer.colophon code { background: var(--surface-2); }
         
       </div>
       
-      <div class="phase todo">
+      <div class="phase done">
         <div class="phase-head">
           <span class="phase-dot"></span>
           <h4 class="phase-title">Phase 3 — Live progress view (#10)</h4>
-          <span class="phase-state">To do</span>
+          <span class="phase-state">Done</span>
         </div>
         <ul class="checklist">
           
-          <li class="todo"><span class="tick"></span><span class="task-text">Status events (seat × round state transitions) written to a <code>status.json</code> in the run dir as they happen; terminal per-seat progress lines from it; optional self-refreshing HTML tracker page reading the same file</span></li>
+          <li class="done"><span class="tick">✓</span><span class="task-text">Status events (seat × round state transitions) written to a <code>status.json</code> in the run dir as they happen; terminal per-seat progress lines from it; optional self-refreshing HTML tracker page reading the same file <em><code>advisory-board/status@1</code>, atomic lock-serialized best-effort tracker, RH-1 (no status.</em> before egress approval), abnormal exits stamp <code>interrupted</code> + static page, zero byte-drift proven. Review: finder (thread hammer clean) + board (unanimous SHIP WITH CHANGES, 2 blockers) → fixes → <code>--revise</code>: unanimous SHIP, &quot;mergeable as-is&quot; — first re-review in the train with no new gating defect. Suite 1404 → 1426.<em> </em>(PR #75)_</span></li>
           
         </ul>
         
@@ -1323,7 +1323,7 @@ footer.colophon code { background: var(--surface-2); }
 
   <!-- ===================== COLOPHON ===================== -->
   <footer class="colophon">
-    Rendered from <code>run-board-roadmap-v1.11-v1.15.md</code> &middot; 5 milestones &middot; 31/38 tasks complete. The markdown plan is the source of truth &mdash; regenerate with <code>render_plan.py</code>; never hand-edit this file.
+    Rendered from <code>run-board-roadmap-v1.11-v1.15.md</code> &middot; 5 milestones &middot; 32/38 tasks complete. The markdown plan is the source of truth &mdash; regenerate with <code>render_plan.py</code>; never hand-edit this file.
   </footer>
 
 </div>
