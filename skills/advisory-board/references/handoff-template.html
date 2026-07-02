@@ -325,6 +325,26 @@
     border-radius: 999px; padding: 2px 11px;
   }
 
+  /* ---- the board's revised copy: redline (prose) OR unified patch (code) ----
+     A line-by-line VIEW of the change the revision seat produced. Deletions ride
+     the block/red family, insertions the ship/green family — the same verdict
+     tints used elsewhere, so the page stays two-color. The applied file itself is
+     the byte-clean revised-draft.* artifact; this is orientation only. */
+  .rl-body, .patch-pre {
+    font-family: var(--font-mono); font-size: 13px; line-height: 1.55;
+    background: var(--surface-soft); border: 1px solid var(--line);
+    border-radius: 8px; padding: 12px 14px; margin: 10px 0 0; overflow-x: auto;
+  }
+  .rl-row { white-space: pre-wrap; word-break: break-word; padding: 0 4px; }
+  .rl-ctx { color: var(--ink-faint); }
+  .rl-gap { color: var(--ink-faint); font-style: italic; text-align: center; }
+  .rl-del { background: var(--block-bg);  color: var(--block-ink); }
+  .rl-ins { background: var(--ship-bg);   color: var(--ship-ink); }
+  .rl-del del { text-decoration: line-through; background: #f2cccc; }
+  .rl-ins ins { text-decoration: none; font-weight: 700; background: #cfe8d8; }
+  .patch-pre { white-space: pre; }
+  .rl-note, .patch-note { margin: 8px 0 0; font-size: 13px; font-style: italic; color: var(--ink-faint); }
+
   /* ---- dark footer / colophon band ---- */
   footer.colophon { background: var(--dark); color: var(--on-dark-soft); padding: 26px 20px 32px; }
   footer.colophon .disclaimer {
@@ -427,6 +447,30 @@
         <!-- END DELTA NEW --></ul>
       </div>
     </div>
+  </section>
+
+  <!-- ============== THE BOARD'S REVISED COPY — REDLINE (prose sources) ==========
+       Rendered ONLY for a --output revised-draft run whose --run dir carries a
+       sha-coherent revised-draft chain and a PROSE source. The renderer drops
+       this whole section when no redline rows rendered (the rl-body div is
+       empty), and eats this comment with it so no blank-line residue is left. -->
+  <section class="redline-sec">
+    <h2>The board's revised copy — redline</h2>
+    <p class="delta-note">A word-level view of the revision seat's changes to {{REDLINE_SOURCE_NAME}}. Deletions are red, insertions green; the applied bytes are the byte-clean revised-draft artifact. Applying it is your act.</p>
+    <div class="rl-body"><!-- BEGIN REDLINE (duplicate per redline line) -->{{REDLINE_HTML}}<!-- END REDLINE --></div>
+    <p class="rl-note">{{REDLINE_NOTE}}</p>
+  </section>
+
+  <!-- ============== THE BOARD'S REVISED COPY — PATCH (code sources) ============
+       The code-source sibling of the redline above: a git-apply-able unified
+       diff, rendered as an escaped <pre>. At most ONE of these two sections is
+       ever populated (prose → redline, code → patch). The renderer drops the
+       whole section when the <pre> body is empty, eating this comment too. -->
+  <section class="patch-sec">
+    <h2>The board's revised copy — patch</h2>
+    <p class="delta-note">A git-apply-able unified diff of the revision seat's changes (also written as revised-draft.patch — apply with <code>git apply -p1</code>). The applied bytes are the byte-clean revised-draft artifact; applying it is your act.</p>
+    <pre class="patch-pre">{{PATCH_PRE}}</pre>
+    <p class="patch-note">{{PATCH_NOTE}}</p>
   </section>
 
   <!-- ===================== PLAN UNDER REVIEW ===================== -->

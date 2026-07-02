@@ -16,6 +16,7 @@ The suite asserts the safety-critical properties M2 must guarantee:
   * the run-recipe round-trips through the restricted YAML codec.
 """
 import contextlib
+import hashlib
 import io
 import json
 import os
@@ -11048,6 +11049,1133 @@ class TestRevisedDraftNoStrayArtifacts(EnvMixin):
         # The verdict carries NO changes pointer.
         with open(os.path.join(out, "verdict.json")) as fh:
             self.assertNotIn("changes", json.load(fh))
+
+
+# --------------------------------------------------------------------------- #
+# v1.13 P3 — Redline rendering, code .patch artifact, grounded citation snippets
+# --------------------------------------------------------------------------- #
+
+from _conductor import redline as rl_mod  # noqa: E402
+import render_handoff as rh  # noqa: E402
+
+
+class TestRedlineCore(unittest.TestCase):
+    """The pure line-level + word-level redline engine (redline.py)."""
+
+    def test_word_level_spans_within_a_changed_line(self):
+        # A replace pairs the line; only the CHANGED words carry (changed=True).
+        rows, trunc, total = rl_mod.build_redline(
+            "the quick brown fox\n", "the slow brown fox\n")
+        rep = [r for r in rows if r["kind"] == "replace"]
+        self.assertEqual(len(rep), 1)
+        del_changed = [t for c, t in rep[0]["del_segments"] if c]
+        ins_changed = [t for c, t in rep[0]["ins_segments"] if c]
+        self.assertIn("quick", "".join(del_changed))
+        self.assertIn("slow", "".join(ins_changed))
+        # The unchanged words ("the ", "brown fox") are NOT wrapped.
+        self.assertTrue(any(not c and "brown" in t for c, t in rep[0]["ins_segments"]))
+        self.assertFalse(trunc)
+
+    def test_segments_reconstruct_the_lines_byte_exact(self):
+        a, b = "alpha beta gamma delta", "alpha BETA gamma DELTA"
+        rows, _t, _n = rl_mod.build_redline(a + "\n", b + "\n")
+        rep = [r for r in rows if r["kind"] == "replace"][0]
+        self.assertEqual("".join(t for _c, t in rep["del_segments"]), a)
+        self.assertEqual("".join(t for _c, t in rep["ins_segments"]), b)
+
+    def test_pure_insert_and_delete_rows(self):
+        rows, _t, _n = rl_mod.build_redline("keep\n", "keep\nadded\n")
+        self.assertTrue(any(r["kind"] == "insert" and r["text"] == "added" for r in rows))
+        rows2, _t2, _n2 = rl_mod.build_redline("keep\ngone\n", "keep\n")
+        self.assertTrue(any(r["kind"] == "delete" and r["text"] == "gone" for r in rows2))
+
+    def test_context_is_bounded_not_the_whole_file(self):
+        # A long unchanged run between two changes collapses to a small window +
+        # a gap row — the redline shows changes with orientation, not the file.
+        orig = "".join(f"line {i}\n" for i in range(1, 41))
+        rev = orig.replace("line 1\n", "LINE 1 changed\n").replace("line 40\n", "LINE 40 changed\n")
+        rows, _t, _n = rl_mod.build_redline(orig, rev)
+        ctx = [r for r in rows if r["kind"] == "context"]
+        self.assertLessEqual(len(ctx), 2 * rl_mod.REDLINE_CONTEXT_LINES + 2)
+        self.assertTrue(any(r["kind"] == "gap" for r in rows))
+
+    def test_cap_truncates_with_total(self):
+        # More changed lines than the cap → truncated=True, total is the full count.
+        n = rl_mod.REDLINE_MAX_LINES + 50
+        orig = "".join(f"a{i}\n" for i in range(n))
+        rev = "".join(f"b{i}\n" for i in range(n))
+        rows, trunc, total = rl_mod.build_redline(orig, rev)
+        self.assertTrue(trunc)
+        self.assertEqual(len(rows), rl_mod.REDLINE_MAX_LINES)
+        self.assertGreaterEqual(total, n)
+
+    def test_whole_file_unchanged_is_all_context(self):
+        rows, trunc, _n = rl_mod.build_redline("same\nlines\n", "same\nlines\n")
+        self.assertTrue(all(r["kind"] == "context" for r in rows))
+        self.assertFalse(trunc)
+
+
+class TestRedlineChainVerification(EnvMixin):
+    """render_verdict._load_revised_chain — the end-to-end sha coherence gate that
+    must hold before ANY byte is diffed for the redline/patch view."""
+
+    def _mk_run(self, revise_mode="ok", source_type=None, src_text=None):
+        src = os.path.join(tempfile.mkdtemp(prefix="board-p3-src-"),
+                           "app.py" if source_type == "code" else "plan.md")
+        with open(src, "w") as fh:
+            fh.write(src_text if src_text is not None
+                     else ("def f():\n    return 1\n" if source_type == "code"
+                           else "plan line one\nplan line two\nplan line three\n"))
+        out = tempfile.mkdtemp(prefix="board-p3-out-")
+        os.environ["MOCK_CLAUDE_REVISE_MODE"] = revise_mode
+        argv = ["run", "--source", src, "--out", out, "--yes", "--synthesize",
+                "--output", "revised-draft"]
+        if source_type:
+            argv += ["--source-type", source_type]
+        code, _o, _e = run_cli(argv)
+        self.assertEqual(code, rb.EXIT_OK)
+        return out
+
+    def test_coherent_prose_chain_loads(self):
+        out = self._mk_run()
+        with open(os.path.join(out, "verdict.json")) as fh:
+            v = json.load(fh)
+        loaded = rv._load_revised_chain(v, out)
+        self.assertIsNotNone(loaded[0])
+        source_text, revised_text, source_type, changes = loaded
+        self.assertEqual(source_type, "prose")
+        self.assertIn("plan line one", source_text)
+        bc.validate(changes)
+
+    def test_no_changes_pointer_is_silent(self):
+        # A plain verdict (no pointer) → (None, None): no warning, section absent.
+        v = _revised_verdict()
+        loaded = rv._load_revised_chain(v, tempfile.mkdtemp())
+        self.assertEqual(loaded, (None, None))
+
+    def test_changes_json_tamper_degrades_with_reason(self):
+        out = self._mk_run()
+        # Mutate changes.json AFTER the pointer was pinned → sha mismatch.
+        with open(os.path.join(out, "changes.json"), "a") as fh:
+            fh.write("\n")   # one extra byte breaks the sha
+        with open(os.path.join(out, "verdict.json")) as fh:
+            v = json.load(fh)
+        loaded = rv._load_revised_chain(v, out)
+        self.assertIsNone(loaded[0])
+        self.assertIn("changes pointer sha256", loaded[1])
+
+    def test_source_material_tamper_degrades(self):
+        out = self._mk_run()
+        with open(os.path.join(out, "source-material.txt"), "a") as fh:
+            fh.write("tampered\n")
+        with open(os.path.join(out, "verdict.json")) as fh:
+            v = json.load(fh)
+        loaded = rv._load_revised_chain(v, out)
+        self.assertIsNone(loaded[0])
+        self.assertIn("source-material.txt", loaded[1])
+
+    def test_missing_run_dir_degrades(self):
+        out = self._mk_run()
+        with open(os.path.join(out, "verdict.json")) as fh:
+            v = json.load(fh)
+        loaded = rv._load_revised_chain(v, None)
+        self.assertIsNone(loaded[0])
+        self.assertIn("no --run", loaded[1])
+
+
+class TestRedlineHandoffRender(EnvMixin):
+    """The prose redline SECTION in the full-handoff HTML (rendered via
+    render_verdict.build_handoff_data + render_handoff)."""
+
+    def _run_and_render(self, revise_mode="ok", src_text=None):
+        src = os.path.join(tempfile.mkdtemp(prefix="board-rl-"), "plan.md")
+        with open(src, "w") as fh:
+            fh.write(src_text if src_text is not None
+                     else "plan line one\nplan line two\nplan line three\n")
+        out = tempfile.mkdtemp(prefix="board-rl-out-")
+        os.environ["MOCK_CLAUDE_REVISE_MODE"] = revise_mode
+        run_cli(["run", "--source", src, "--out", out, "--yes", "--synthesize",
+                 "--output", "revised-draft"])
+        with open(os.path.join(out, "verdict.json")) as fh:
+            v = json.load(fh)
+        hd = rv.build_handoff_data(v, run_dir=out)
+        template = open(rh.default_template(), encoding="utf-8").read()
+        return rh.render(hd, template), hd
+
+    def test_prose_redline_section_renders_ins_del(self):
+        html, hd = self._run_and_render()
+        self.assertIn('class="redline-sec"', html)
+        self.assertNotIn('class="patch-sec"', html)   # sibling drops (prose)
+        # The mock prepends a note line → an insert row (green).
+        self.assertIn('rl-row rl-ins', html)
+        self.assertTrue(hd["redline_rows"])
+
+    def test_word_level_span_reaches_html(self):
+        # replace_line rewrites line 1 → a replace row with <del>/<ins> spans.
+        html, _hd = self._run_and_render(revise_mode="replace_line")
+        self.assertIn("<del>", html)
+        self.assertIn("<ins>", html)
+
+    def test_html_hostile_source_is_escaped(self):
+        # A source with HTML-hostile + {{TOKEN}}-shaped bytes must never survive
+        # raw into the handoff (escaped + brace-neutralized); render must not die.
+        hostile = "<script>alert(1)</script>\n{{EVIL}} & <b>x</b>\nlast line\n"
+        html, _hd = self._run_and_render(src_text=hostile)
+        self.assertNotIn("<script>alert(1)</script>", html)
+        self.assertIn("&lt;script&gt;", html)
+        # The literal {{ adjacency is broken by a zero-width space (survives escape).
+        self.assertNotIn("{{EVIL}}", html)
+
+    def test_cap_truncation_pointer_in_html(self):
+        # A source larger than the cap → a truncation note pointing at the artifact.
+        big = "".join(f"line {i}\n" for i in range(rl_mod.REDLINE_MAX_LINES + 60))
+        html, hd = self._run_and_render(revise_mode="replace_line", src_text=big)
+        # Only line 1 changed here, so no truncation — instead assert the note slot
+        # is empty (not truncated) and the section still renders.
+        self.assertIn('class="redline-sec"', html)
+        # Directly exercise the truncation path on the row builder.
+        rows, note = rv.build_redline_rows(
+            "".join(f"a{i}\n" for i in range(rl_mod.REDLINE_MAX_LINES + 10)),
+            "".join(f"b{i}\n" for i in range(rl_mod.REDLINE_MAX_LINES + 10)))
+        self.assertIn("more changed line", note)
+        self.assertIn("revised-draft.md", note)
+
+    def test_sha_mismatch_drops_section_with_stderr_warning(self):
+        src = os.path.join(tempfile.mkdtemp(prefix="board-rlm-"), "plan.md")
+        with open(src, "w") as fh:
+            fh.write("a\nb\nc\n")
+        out = tempfile.mkdtemp(prefix="board-rlm-out-")
+        run_cli(["run", "--source", src, "--out", out, "--yes", "--synthesize",
+                 "--output", "revised-draft"])
+        with open(os.path.join(out, "changes.json"), "a") as fh:
+            fh.write("\n")   # break the pointer sha
+        with open(os.path.join(out, "verdict.json")) as fh:
+            v = json.load(fh)
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            hd = rv.build_handoff_data(v, run_dir=out)
+        template = open(rh.default_template(), encoding="utf-8").read()
+        html = rh.render(hd, template)
+        self.assertNotIn('class="redline-sec"', html)   # section absent
+        self.assertIn("redline not rendered", err.getvalue())   # one warning
+
+    @staticmethod
+    def _body(html):
+        m = re.search(r"<body\b[^>]*>(.*)</body>", html, flags=re.DOTALL)
+        assert m, "no <body> in rendered HTML"
+        return m.group(1)
+
+    @staticmethod
+    def _strip_p3_sections(template):
+        """The new template with the two v1.13 P3 sections (redline-sec, patch-sec)
+        AND their preceding authoring comments removed — the pre-P3 body markup.
+        Deleting them here (with their leading whitespace) mirrors exactly what the
+        renderer's whole-section drops do when the P3 fields are empty; if those
+        drops leave ANY residual byte, the body compare below diverges and fails."""
+        stripped = re.sub(
+            r"\s*<!-- =+ THE BOARD'S REVISED COPY.*?-->\s*"
+            r'<section class="(?:redline|patch)-sec">.*?</section>',
+            "", template, flags=re.DOTALL)
+        assert 'class="redline-sec"' not in stripped
+        assert 'class="patch-sec"' not in stripped
+        return stripped
+
+    def test_absent_section_byte_identity_and_no_residue(self):
+        # A verdict with NO revised chain renders the handoff with neither section
+        # and no blank-line residue where they would have been.
+        with open(VERDICT_M5, encoding="utf-8") as fh:
+            v = json.load(fh)
+        hd = rv.build_handoff_data(v, run_dir=None)
+        template = open(rh.default_template(), encoding="utf-8").read()
+        html = rh.render(hd, template)
+        self.assertNotIn('class="redline-sec"', html)
+        self.assertNotIn('class="patch-sec"', html)
+        self.assertNotIn("\n\n\n", html)
+
+    def test_absent_section_body_is_byte_identical_to_pre_p3_template(self):
+        # Item 3 — the settled precedent: template HEAD CSS may evolve (the P3
+        # .rl-*/.patch-* rules live in <head>, exempt), but the rendered BODY must
+        # stay byte-identical for a run WITHOUT the revision feature. Prove it: the
+        # same no-revision data rendered with the new template and with the new
+        # template MINUS the P3 sections must produce an IDENTICAL <body> — i.e. the
+        # P3 markers/drops contribute ZERO body bytes when empty.
+        with open(VERDICT_M5, encoding="utf-8") as fh:
+            v = json.load(fh)
+        hd = rv.build_handoff_data(v, run_dir=None)
+        template = open(rh.default_template(), encoding="utf-8").read()
+        body_with_p3 = self._body(rh.render(hd, template))
+        body_without_p3 = self._body(rh.render(hd, self._strip_p3_sections(template)))
+        self.assertEqual(body_with_p3, body_without_p3)
+
+    def _broken_chain_run(self):
+        """A run dir carrying a PRESENT-but-incoherent revised chain (the pointer
+        sha is broken), and its verdict.json — the input that makes the full-handoff
+        shape warn once."""
+        src = os.path.join(tempfile.mkdtemp(prefix="board-shape-"), "plan.md")
+        with open(src, "w") as fh:
+            fh.write("a\nb\nc\n")
+        out = tempfile.mkdtemp(prefix="board-shape-out-")
+        run_cli(["run", "--source", src, "--out", out, "--yes", "--synthesize",
+                 "--output", "revised-draft"])
+        with open(os.path.join(out, "changes.json"), "a") as fh:
+            fh.write("\n")   # break the pointer sha → present-but-incoherent chain
+        with open(os.path.join(out, "verdict.json")) as fh:
+            return json.load(fh), out
+
+    def test_slim_shapes_do_no_revision_io_and_no_warning(self):
+        # Item 4 — the redline/patch view is full-handoff-only. A slim shape must do
+        # NO revised-chain I/O and emit NO 'redline not rendered' warning, even when
+        # --run points at a broken chain (which DOES warn for the full handoff).
+        v, out = self._broken_chain_run()
+        for shape in ("quick-verdict", "implementation-sequence"):
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err):
+                hd = rv.build_handoff_data(v, run_dir=out, shape=shape)
+            self.assertNotIn("redline not rendered", err.getvalue(), shape)
+            self.assertEqual(hd["redline_rows"], [])   # fields present but empty
+            self.assertEqual(hd["patch_pre"], "")
+
+    def test_full_handoff_broken_chain_still_warns(self):
+        # Control: the same broken chain DOES warn once for the full handoff — the
+        # gate narrows the behavior to the slim shapes, it doesn't silence full.
+        v, out = self._broken_chain_run()
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            rv.build_handoff_data(v, run_dir=out, shape="full-handoff")
+        self.assertEqual(err.getvalue().count("redline not rendered"), 1)
+
+
+class TestRedlineHandoffBackfill(unittest.TestCase):
+    """An old (pre-v1.13) handoff-data.json — no redline keys — must render (the
+    sections drop via setdefault) rather than dying on an unresolved token."""
+
+    def test_old_handoff_data_renders(self):
+        # Minimal handoff-data with the pre-P3 shape (no redline_* / patch_* keys).
+        hd = {"title": "t", "subtitle": "s", "date": "", "board": "b", "rounds": "2",
+              "verdict": "SHIP", "verdict_class": "ship", "verdict_note": "", "confidence": "",
+              "blockers_heading": "Blockers", "disclaimer": "", "plan": "", "metadata": "",
+              "dissent_flag": "", "seats": [], "blockers": [], "dissents": [], "caveats": [],
+              "questions": [], "actions": [], "sequence": [], "seq_blockers": []}
+        template = open(rh.default_template(), encoding="utf-8").read()
+        html = rh.render(hd, template)   # must not raise on {{REDLINE_*}}/{{PATCH_*}}
+        self.assertNotIn('class="redline-sec"', html)
+        self.assertNotIn('class="patch-sec"', html)
+
+
+class TestCodePatchArtifact(EnvMixin):
+    """Part B — the revised-draft.patch artifact for code sources."""
+
+    def _run_code(self, revise_mode="replace_line", src_text="def f():\n    return 1\n"):
+        src = os.path.join(tempfile.mkdtemp(prefix="board-patch-"), "app.py")
+        with open(src, "w") as fh:
+            fh.write(src_text)
+        out = tempfile.mkdtemp(prefix="board-patch-out-")
+        os.environ["MOCK_CLAUDE_REVISE_MODE"] = revise_mode
+        code, _o, _e = run_cli(["run", "--source", src, "--out", out, "--yes",
+                                "--synthesize", "--output", "revised-draft",
+                                "--source-type", "code"])
+        self.assertEqual(code, rb.EXIT_OK)
+        return out
+
+    def test_patch_written_for_code_with_headers(self):
+        out = self._run_code()
+        patch_path = os.path.join(out, "revised-draft.patch")
+        self.assertTrue(os.path.exists(patch_path))
+        patch = open(patch_path, encoding="utf-8").read()
+        self.assertIn("--- a/app.py", patch)
+        self.assertIn("+++ b/app.py", patch)
+        self.assertIn("@@", patch)
+        self.assertTrue(patch.endswith("\n"))
+        self.assertNotIn("\r", patch)
+
+    def test_patch_absent_for_prose(self):
+        src = os.path.join(tempfile.mkdtemp(prefix="board-prose-"), "plan.md")
+        with open(src, "w") as fh:
+            fh.write("plan a\nplan b\n")
+        out = tempfile.mkdtemp(prefix="board-prose-out-")
+        run_cli(["run", "--source", src, "--out", out, "--yes", "--synthesize",
+                 "--output", "revised-draft"])
+        self.assertFalse(os.path.exists(os.path.join(out, "revised-draft.patch")))
+
+    @unittest.skipUnless(shutil.which("git"), "git not available")
+    def test_patch_applies_clean_with_git(self):
+        out = self._run_code()
+        # Reconstruct the exact source the patch was built from (source-material.txt).
+        work = tempfile.mkdtemp(prefix="board-apply-")
+        src_text = open(os.path.join(out, "source-material.txt"), encoding="utf-8").read()
+        with open(os.path.join(work, "app.py"), "w", newline="") as fh:
+            fh.write(src_text)
+        import subprocess
+        subprocess.run(["git", "init", "-q", work], check=True)
+        patch = os.path.join(out, "revised-draft.patch")
+        r = subprocess.run(["git", "apply", "--check", "-p1", patch],
+                           cwd=work, capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stderr)
+
+    def test_patch_section_in_html_not_redline(self):
+        out = self._run_code()
+        with open(os.path.join(out, "verdict.json")) as fh:
+            v = json.load(fh)
+        hd = rv.build_handoff_data(v, run_dir=out)
+        template = open(rh.default_template(), encoding="utf-8").read()
+        html = rh.render(hd, template)
+        self.assertIn('class="patch-sec"', html)
+        self.assertNotIn('class="redline-sec"', html)   # sibling drops (code)
+        self.assertIn("--- a/app.py", html)
+
+    def test_patch_listed_in_artifact_tree_for_code(self):
+        from _conductor.artifacts import render_artifact_tree
+        from _conductor.config import resolve_config
+        src = os.path.join(tempfile.mkdtemp(prefix="board-tree-"), "x.py")
+        with open(src, "w", encoding="utf-8", newline="") as fh:
+            fh.write("print('x')\n")
+        cfg = resolve_config(_ns(source=src, output="revised-draft",
+                                 synthesize=True, source_type="code"))
+        tree = render_artifact_tree(cfg)
+        self.assertIn("revised-draft.patch", tree)
+
+
+class TestUnifiedPatchBuilder(unittest.TestCase):
+    """revision.build_unified_patch — the pure git-apply-able diff builder."""
+
+    def test_headers_and_lf(self):
+        patch = rev_mod.build_unified_patch("a\nb\nc\n", "a\nB\nc\n", "f.py")
+        self.assertIn("--- a/f.py", patch)
+        self.assertIn("+++ b/f.py", patch)
+        self.assertIn("-b", patch)
+        self.assertIn("+B", patch)
+        self.assertTrue(patch.endswith("\n"))
+
+    def test_identical_is_empty(self):
+        self.assertEqual(rev_mod.build_unified_patch("x\n", "x\n", "f"), "")
+
+    def test_trailing_newline_change_is_a_hunk(self):
+        # keepends → a trailing-newline removal is a real hunk (byte-honest).
+        patch = rev_mod.build_unified_patch("x\n", "x", "f")
+        self.assertIn("@@", patch)
+
+
+def _ns(**kw):
+    """A minimal argparse-Namespace-ish object for resolve_config in a test."""
+    import argparse
+    base = dict(source=None, out=None, mode="advisory", sensitivity="public",
+                board=None, rounds=None, cross_reading=None, lens=None, output=None,
+                synthesize=False, synthesizer_seat=None, source_type=None,
+                revision_seat=None, tier=None, revise_of=None, network=None,
+                fs_scope=None, yes=True)
+    base.update(kw)
+    return argparse.Namespace(**base)
+
+
+class TestSnippetCapture(unittest.TestCase):
+    """Part C — grounded citation snippet capture at verify time."""
+
+    def _src(self, text):
+        d = tempfile.mkdtemp(prefix="board-snip-")
+        with open(os.path.join(d, "f.py"), "w") as fh:
+            fh.write(text)
+        return d
+
+    def _verdict_with(self, ev):
+        return {"verdict": "ship", "blockers": [{"title": "B", "evidence": [ev]}]}
+
+    def test_line_snippet_captures_context_window(self):
+        d = self._src("l1\nl2\nl3\nl4\nl5\n")
+        v = self._verdict_with({"kind": "code", "path": "f.py", "line": 3})
+        counts = ve.stamp(v, d, None, None, None)
+        snip = v["blockers"][0]["evidence"][0]["snippet"]
+        self.assertEqual((snip["from"], snip["to"]), (1, 5))   # 3 ± 2, clamped
+        self.assertEqual(snip["text"], "l1\nl2\nl3\nl4\nl5")
+        self.assertEqual(counts["snippets"], 1)
+
+    def test_windowing_at_file_edges(self):
+        d = self._src("only1\nonly2\n")
+        v = self._verdict_with({"kind": "code", "path": "f.py", "line": 1})
+        ve.stamp(v, d, None, None, None)
+        snip = v["blockers"][0]["evidence"][0]["snippet"]
+        self.assertEqual((snip["from"], snip["to"]), (1, 2))   # clamped at both edges
+
+    def test_symbol_snippet_first_lines(self):
+        body = "def target():\n" + "".join(f"    s{i}()\n" for i in range(12))
+        d = self._src(body)
+        v = self._verdict_with({"kind": "code", "path": "f.py", "symbol": "target"})
+        ve.stamp(v, d, None, None, None)
+        snip = v["blockers"][0]["evidence"][0]["snippet"]
+        self.assertEqual(snip["from"], 1)
+        self.assertEqual(snip["to"] - snip["from"] + 1, ve.SNIPPET_SYMBOL_LINES)
+
+    def test_char_cap(self):
+        long_line = "x" * (ve.SNIPPET_CHAR_LIMIT + 500)
+        d = self._src(long_line + "\n")
+        v = self._verdict_with({"kind": "code", "path": "f.py", "line": 1})
+        ve.stamp(v, d, None, None, None)
+        snip = v["blockers"][0]["evidence"][0]["snippet"]
+        self.assertLessEqual(len(snip["text"]), ve.SNIPPET_CHAR_LIMIT + len("\n…[truncated]"))
+        self.assertIn("…[truncated]", snip["text"])
+
+    def test_refuted_citation_has_no_snippet(self):
+        d = self._src("l1\nl2\n")
+        v = self._verdict_with({"kind": "code", "path": "f.py", "line": 99})
+        ve.stamp(v, d, None, None, None)
+        ev = v["blockers"][0]["evidence"][0]
+        self.assertEqual(ev["status"], "refuted")
+        self.assertNotIn("snippet", ev)
+
+    def test_manifest_sha_gate_blocks_changed_file(self):
+        d = self._src("l1\nl2\nl3\n")
+        good = hashlib.sha256(open(os.path.join(d, "f.py"), "rb").read()).hexdigest()
+        manifest = {"f.py": good}
+        # Unchanged → captured.
+        v = self._verdict_with({"kind": "code", "path": "f.py", "line": 2})
+        ve.stamp(v, d, None, None, manifest)
+        self.assertIn("snippet", v["blockers"][0]["evidence"][0])
+        # Change the file → same status, no snippet.
+        with open(os.path.join(d, "f.py"), "w") as fh:
+            fh.write("l1 CHANGED\nl2\nl3\n")
+        v2 = self._verdict_with({"kind": "code", "path": "f.py", "line": 2})
+        c = ve.stamp(v2, d, None, None, manifest)
+        ev = v2["blockers"][0]["evidence"][0]
+        self.assertEqual(ev["status"], "verified")
+        self.assertNotIn("snippet", ev)
+        self.assertEqual(c["snippets"], 0)
+
+    def test_no_manifest_captures_ungated(self):
+        d = self._src("l1\nl2\n")
+        v = self._verdict_with({"kind": "code", "path": "f.py", "line": 1})
+        ve.stamp(v, d, None, None, None)
+        self.assertIn("snippet", v["blockers"][0]["evidence"][0])
+
+    def test_manifest_unlisted_file_no_snippet(self):
+        # Blocker 2: a grounded run's manifest is WHITELIST-ONLY. A cited file the
+        # manifest does NOT record gets its status badge but NO snippet (the flip
+        # from the old opt-out gate, which captured unlisted files).
+        d = self._src("l1\nl2\n")
+        v = self._verdict_with({"kind": "code", "path": "f.py", "line": 1})
+        c = ve.stamp(v, d, None, None, {"other.py": "a" * 64})
+        ev = v["blockers"][0]["evidence"][0]
+        self.assertEqual(ev["status"], "verified")   # status unaffected
+        self.assertNotIn("snippet", ev)              # but no content captured
+        self.assertEqual(c["snippets"], 0)
+
+    def test_unusable_manifest_disables_capture_with_one_warning(self):
+        # Blocker 2: a manifest PRESENT but unusable (here: mis-shaped) fails closed
+        # — NO snippets at all + exactly one per-run warning, even across two
+        # citations to two distinct listed-looking files.
+        d = self._src("l1\nl2\n")
+        with open(os.path.join(d, "g.py"), "w") as fh:
+            fh.write("x\ny\n")
+        v = {"verdict": "ship", "blockers": [{"title": "B", "evidence": [
+            {"kind": "code", "path": "f.py", "line": 1},
+            {"kind": "code", "path": "g.py", "line": 1}]}]}
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            c = ve.stamp(v, d, None, None, ve.MANIFEST_UNUSABLE)
+        for e in v["blockers"][0]["evidence"]:
+            self.assertEqual(e["status"], "verified")
+            self.assertNotIn("snippet", e)
+        self.assertEqual(c["snippets"], 0)
+        self.assertEqual(err.getvalue().count("manifest present but unusable"), 1)
+
+    def test_restamp_drops_stale_snippet(self):
+        d = self._src("l1\nl2\n")
+        v = self._verdict_with({"kind": "code", "path": "f.py", "line": 1})
+        v["blockers"][0]["evidence"][0]["snippet"] = {"from": 99, "to": 100, "text": "stale"}
+        ve.stamp(v, d, None, None, None)   # re-source under --source: fresh capture
+        snip = v["blockers"][0]["evidence"][0]["snippet"]
+        self.assertEqual(snip["from"], 1)   # not the stale 99
+
+    def test_manifest_loader_reads_files_map(self):
+        run = tempfile.mkdtemp(prefix="board-man-")
+        with open(os.path.join(run, "repo-scope-manifest.json"), "w") as fh:
+            json.dump({"files": [{"path": "a/b.py", "size": 1, "sha256": "d" * 64}]}, fh)
+        m = ve.load_scope_manifest(run)
+        self.assertEqual(m, {"a/b.py": "d" * 64})
+
+    def test_manifest_loader_none_without_manifest(self):
+        self.assertIsNone(ve.load_scope_manifest(tempfile.mkdtemp()))
+
+    def test_manifest_loader_unusable_on_bad_json(self):
+        # Blocker 2: a manifest file PRESENT but invalid JSON → MANIFEST_UNUSABLE
+        # (fail closed), NOT None (which would let capture proceed ungated).
+        run = tempfile.mkdtemp(prefix="board-man-bad-")
+        with open(os.path.join(run, "repo-scope-manifest.json"), "w") as fh:
+            fh.write("{not json")
+        self.assertIs(ve.load_scope_manifest(run), ve.MANIFEST_UNUSABLE)
+
+    def test_manifest_loader_unusable_on_misshaped(self):
+        run = tempfile.mkdtemp(prefix="board-man-shape-")
+        with open(os.path.join(run, "repo-scope-manifest.json"), "w") as fh:
+            json.dump({"files": "not-a-list"}, fh)   # files must be a list
+        self.assertIs(ve.load_scope_manifest(run), ve.MANIFEST_UNUSABLE)
+
+    def test_manifest_loader_unusable_on_symlinked_manifest(self):
+        # A symlinked manifest could point the gate at arbitrary bytes → present-
+        # but-refused (UNUSABLE), not silently absent.
+        run = tempfile.mkdtemp(prefix="board-man-link-")
+        target = os.path.join(tempfile.mkdtemp(prefix="board-man-tgt-"), "m.json")
+        with open(target, "w") as fh:
+            json.dump({"files": [{"path": "f.py", "size": 1, "sha256": "d" * 64}]}, fh)
+        os.symlink(target, os.path.join(run, "repo-scope-manifest.json"))
+        self.assertIs(ve.load_scope_manifest(run), ve.MANIFEST_UNUSABLE)
+
+    def _manifest_run(self, files):
+        run = tempfile.mkdtemp(prefix="board-man-po-")
+        with open(os.path.join(run, "repo-scope-manifest.json"), "w") as fh:
+            json.dump({"files": files}, fh)
+        return run
+
+    def test_manifest_loader_unusable_on_empty_files(self):
+        # Board re-review blocker: presence implies never-None. `files: []` used
+        # to fall through `out or None` back to the ungrounded path → ungated
+        # capture on a grounded run. Fail closed instead.
+        self.assertIs(ve.load_scope_manifest(self._manifest_run([])),
+                      ve.MANIFEST_UNUSABLE)
+
+    def test_manifest_loader_unusable_on_all_malformed_entries(self):
+        run = self._manifest_run([{"path": 7}, "not-a-dict", {"sha256": "d" * 64}])
+        self.assertIs(ve.load_scope_manifest(run), ve.MANIFEST_UNUSABLE)
+
+    def test_manifest_loader_one_malformed_entry_poisons_whole_manifest(self):
+        # Silent per-entry pruning masks manifest corruption — one bad row means
+        # the whitelist can't be trusted at all.
+        run = self._manifest_run([
+            {"path": "good.py", "size": 1, "sha256": "d" * 64},
+            {"path": "bad.py", "size": 1, "sha256": "NOT-A-SHA"},
+        ])
+        self.assertIs(ve.load_scope_manifest(run), ve.MANIFEST_UNUSABLE)
+
+    def test_manifest_loader_unusable_on_bad_sha_shape(self):
+        for sha in ("D" * 64, "d" * 63, "d" * 65, ""):
+            run = self._manifest_run([{"path": "f.py", "size": 1, "sha256": sha}])
+            self.assertIs(ve.load_scope_manifest(run), ve.MANIFEST_UNUSABLE)
+
+    def test_manifest_loader_duplicate_paths(self):
+        # Two spellings of one key with DIFFERENT shas is ambiguous → refused;
+        # the same sha is a harmless dupe → deduped.
+        run = self._manifest_run([
+            {"path": "f.py", "size": 1, "sha256": "d" * 64},
+            {"path": "./f.py", "size": 1, "sha256": "e" * 64},
+        ])
+        self.assertIs(ve.load_scope_manifest(run), ve.MANIFEST_UNUSABLE)
+        run2 = self._manifest_run([
+            {"path": "f.py", "size": 1, "sha256": "d" * 64},
+            {"path": "./f.py", "size": 1, "sha256": "d" * 64},
+        ])
+        self.assertEqual(ve.load_scope_manifest(run2), {"f.py": "d" * 64})
+
+    def test_present_empty_manifest_captures_nothing_end_to_end(self):
+        # The loader→stamp chain: a grounded run whose manifest is present but
+        # empty must capture ZERO snippets and warn exactly once.
+        d = self._src("l1\nl2\n")
+        run = self._manifest_run([])
+        m = ve.load_scope_manifest(run)
+        self.assertIs(m, ve.MANIFEST_UNUSABLE)
+        v = self._verdict_with({"kind": "code", "path": "f.py", "line": 1})
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            c = ve.stamp(v, d, None, None, m)
+        ev = v["blockers"][0]["evidence"][0]
+        self.assertEqual(ev["status"], "verified")
+        self.assertNotIn("snippet", ev)
+        self.assertEqual(c["snippets"], 0)
+        self.assertEqual(err.getvalue().count("manifest present but unusable"), 1)
+
+
+class TestSnippetCaptureSymlinkGate(unittest.TestCase):
+    """Blocker 1 — CONTENT capture is hard-gated at the read boundary: a citation
+    that resolves through a symlink or outside the source root gets its normal
+    STATUS badge but NO snippet (a snippet egresses file bytes into verdict.json /
+    the handoff, so an in-tree symlink pointing outside the root must not exfiltrate
+    those bytes). STATUS resolution keeps its pre-P3 behavior."""
+
+    def _dir_with(self, name="f.py", text="l1\nl2\nl3\n"):
+        d = tempfile.mkdtemp(prefix="board-sgate-")
+        with open(os.path.join(d, name), "w") as fh:
+            fh.write(text)
+        return d
+
+    def _v(self, path, **kw):
+        ev = {"kind": "code", "path": path}
+        ev.update(kw)
+        return {"verdict": "ship", "blockers": [{"title": "B", "evidence": [ev]}]}
+
+    def test_regular_file_still_captures(self):
+        d = self._dir_with()
+        v = self._v("f.py", line=2)
+        ve.stamp(v, d, None, None, None)
+        self.assertIn("snippet", v["blockers"][0]["evidence"][0])
+
+    def test_in_root_symlink_status_ok_no_snippet(self):
+        # link -> real.py, both inside the root. Status verifies (isfile follows the
+        # link, pre-P3 behavior) but CONTENT capture is refused (the candidate is a
+        # symlink), with exactly one per-run note.
+        d = self._dir_with(name="real.py")
+        os.symlink("real.py", os.path.join(d, "alias.py"))
+        v = self._v("alias.py", line=1)
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            ve.stamp(v, d, None, None, None)
+        ev = v["blockers"][0]["evidence"][0]
+        self.assertEqual(ev["status"], "verified")   # status unaffected
+        self.assertNotIn("snippet", ev)
+        self.assertEqual(err.getvalue().count("snippet CONTENT capture refused"), 1)
+
+    def test_outside_root_symlink_target_no_snippet(self):
+        # An in-tree symlink whose TARGET is outside the root — the exfiltration case.
+        d = self._dir_with()
+        secret_dir = tempfile.mkdtemp(prefix="board-secret-")
+        secret = os.path.join(secret_dir, "secret.txt")
+        with open(secret, "w") as fh:
+            fh.write("TOPSECRET\nmore\n")
+        os.symlink(secret, os.path.join(d, "leak.py"))
+        v = self._v("leak.py", line=1)
+        ve.stamp(v, d, None, None, None)
+        ev = v["blockers"][0]["evidence"][0]
+        self.assertEqual(ev["status"], "verified")
+        self.assertNotIn("snippet", ev)   # TOPSECRET bytes never captured
+
+    def test_symlinked_intermediate_dir_no_snippet(self):
+        # root/linkdir -> outside/realdir; citation linkdir/g.py. The candidate file
+        # is not itself a symlink, but an intermediate component is → refused.
+        d = self._dir_with()
+        outside = tempfile.mkdtemp(prefix="board-outside-")
+        with open(os.path.join(outside, "g.py"), "w") as fh:
+            fh.write("a\nb\nc\n")
+        os.symlink(outside, os.path.join(d, "linkdir"))
+        v = self._v("linkdir/g.py", line=1)
+        ve.stamp(v, d, None, None, None)
+        ev = v["blockers"][0]["evidence"][0]
+        self.assertEqual(ev["status"], "verified")
+        self.assertNotIn("snippet", ev)
+
+    def test_single_file_source_regular_captures(self):
+        d = self._dir_with()
+        src = os.path.join(d, "f.py")               # --source is the file itself
+        v = self._v("f.py", line=2)
+        ve.stamp(v, src, None, None, None)
+        self.assertIn("snippet", v["blockers"][0]["evidence"][0])
+
+    def test_single_file_source_symlink_no_snippet(self):
+        # --source is a symlink TO a file; single-file mode must refuse capturing
+        # its content (the file itself must not be a symlink).
+        d = self._dir_with(name="real.py")
+        link = os.path.join(d, "src_link.py")
+        os.symlink("real.py", link)
+        v = self._v("src_link.py", line=1)
+        ve.stamp(v, link, None, None, None)
+        ev = v["blockers"][0]["evidence"][0]
+        self.assertEqual(ev["status"], "verified")   # isfile follows the link
+        self.assertNotIn("snippet", ev)
+
+
+class TestSnippetValidator(unittest.TestCase):
+    """board_verdict._validate_snippet — strict-when-present, absent-is-invisible."""
+
+    def _v(self, snippet=None):
+        ev = {"kind": "code", "path": "f.py", "line": 3, "status": "verified"}
+        if snippet is not None:
+            ev["snippet"] = snippet
+        return _verdict("ship", "ship", "ship",
+                        blockers=[{"title": "B", "evidence": [ev]}])
+
+    def test_valid_snippet_accepts(self):
+        bv.validate(self._v({"from": 1, "to": 5, "text": "x\ny"}))   # no raise
+
+    def test_absent_snippet_accepts(self):
+        bv.validate(self._v(None))   # no raise (old verdicts untouched)
+
+    def test_reject_matrix(self):
+        for bad in ({"from": 0, "to": 2, "text": "x"},          # from < 1
+                    {"from": 3, "to": 2, "text": "x"},          # to < from
+                    {"from": 1, "to": 2, "text": ""},           # empty text
+                    {"from": True, "to": 2, "text": "x"},       # bool as int
+                    {"from": 1, "to": True, "text": "x"},       # bool as int
+                    {"from": 1, "to": 2, "text": "x", "z": 1},  # unknown key
+                    {"from": 1, "text": "x"},                   # missing 'to'
+                    {"from": 1.0, "to": 2, "text": "x"},        # float not int
+                    "notdict", 3, ["from", "to"]):              # not an object
+            with self.assertRaises(SystemExit):
+                bv.validate(self._v(bad))
+
+
+class TestSnippetMarkdownEmbed(unittest.TestCase):
+    """render_verdict consensus md — a snippet embeds as a fenced path:from-to
+    block; byte-identity for verdicts without snippets."""
+
+    def _v(self, snippet=None):
+        ev = {"kind": "code", "path": "svc.py", "line": 9, "status": "verified"}
+        if snippet is not None:
+            ev["snippet"] = snippet
+        return {"schema": "advisory-board/verdict@2", "verdict": "caution",
+                "confidence": "high", "rounds": 2,
+                "board": [{"seat": "a", "model": "x", "round_verdicts": ["caution"]},
+                          {"seat": "b", "model": "y", "round_verdicts": ["caution"]}],
+                "blockers": [{"title": "Race", "body": "b", "evidence": [ev]}]}
+
+    def test_snippet_embeds_as_fenced_block(self):
+        md = rv.render_markdown(self._v(
+            {"from": 7, "to": 9, "text": "def f():\n    a()\n    b()"}))
+        self.assertIn("svc.py:7-9:", md)
+        self.assertIn("```\n     def f():", md)
+        self.assertIn("     a()", md)
+
+    def test_no_snippet_is_byte_identical(self):
+        with_ev = rv.render_markdown(self._v(None))
+        self.assertNotIn("```", with_ev)          # no fence at all
+        self.assertIn("svc.py:9", with_ev)         # the evidence line still renders
+
+    def test_sequence_view_also_embeds(self):
+        md = rv.render_sequence_markdown(self._v(
+            {"from": 7, "to": 9, "text": "def f():\n    a()\n    b()"}))
+        self.assertIn("svc.py:7-9:", md)
+
+
+# --------------------------------------------------------------------------- #
+# v1.13 P3 redline review findings (five confirmed).
+# --------------------------------------------------------------------------- #
+
+
+class TestUnifiedPatchNoTrailingNewline(unittest.TestCase):
+    """Finding 1 — build_unified_patch must emit git's `\\ No newline at end of
+    file` marker and never concatenate a no-trailing-NL final line onto the next
+    diff line, so patches from no-trailing-newline sources apply with git."""
+
+    MARKER = "\\ No newline at end of file"
+
+    def _body(self, original, revised):
+        """The hunk body of the patch, header lines stripped (for golden asserts)."""
+        patch = rev_mod.build_unified_patch(original, revised, "f.py")
+        return "".join(l for l in patch.splitlines(keepends=True)
+                       if not (l.startswith("--- ") or l.startswith("+++ ")))
+
+    # --- byte-level golden asserts (unconditional; git not required) ---
+
+    def test_golden_midfile_change_no_trailing_nl(self):
+        # "a\nb\nc" (no trailing NL) with a mid-file change: the shared final
+        # context line ` c` gets ONE marker (git's exact emission).
+        body = self._body("a\nb\nc", "a\nB\nc")
+        self.assertEqual(
+            body,
+            "@@ -1,3 +1,3 @@\n a\n-b\n+B\n c\n" + self.MARKER + "\n")
+
+    def test_golden_replace_at_eof(self):
+        # Both the removed and added final lines lack a trailing NL → a marker
+        # after EACH (the "corrupt patch" / literal `-c+ZZZ` case, now correct).
+        body = self._body("a\nb\nc", "a\nb\nZZZ")
+        self.assertEqual(
+            body,
+            "@@ -1,3 +1,3 @@\n a\n b\n-c\n" + self.MARKER + "\n"
+            "+ZZZ\n" + self.MARKER + "\n")
+
+    def test_golden_insert_at_top(self):
+        body = self._body("a\nb\nc", "X\na\nb\nc")
+        self.assertEqual(
+            body,
+            "@@ -1,3 +1,4 @@\n+X\n a\n b\n c\n" + self.MARKER + "\n")
+
+    def test_golden_remove_trailing_newline(self):
+        # "a\nb\nc\n" -> "a\nb\nc": only the NEW side lacks the NL → marker after +c.
+        body = self._body("a\nb\nc\n", "a\nb\nc")
+        self.assertEqual(
+            body,
+            "@@ -1,3 +1,3 @@\n a\n b\n-c\n+c\n" + self.MARKER + "\n")
+
+    def test_golden_add_trailing_newline(self):
+        # "a\nb\nc" -> "a\nb\nc\n": only the OLD side lacks the NL → marker after -c.
+        body = self._body("a\nb\nc", "a\nb\nc\n")
+        self.assertEqual(
+            body,
+            "@@ -1,3 +1,3 @@\n a\n b\n-c\n" + self.MARKER + "\n+c\n")
+
+    def test_golden_happy_path_both_have_nl_no_marker(self):
+        body = self._body("a\nb\nc\n", "a\nB\nc\n")
+        self.assertNotIn(self.MARKER, body)
+        self.assertEqual(body, "@@ -1,3 +1,3 @@\n a\n-b\n+B\n c\n")
+
+    def test_every_diff_line_is_newline_terminated(self):
+        # No content line may lack its own "\n" (the concatenation bug).
+        for o, r in (("a\nb\nc", "a\nB\nc"), ("a\nb\nc", "a\nb\nZZZ"),
+                     ("a\nb\nc", "X\na\nb\nc"), ("a\nb\nc\n", "a\nb\nc"),
+                     ("a\nb\nc", "a\nb\nc\n")):
+            patch = rev_mod.build_unified_patch(o, r, "f.py")
+            self.assertTrue(patch.endswith("\n"))
+            for line in patch.split("\n")[:-1]:
+                self.assertNotEqual(line, "")  # no empty concatenation artifact
+
+    # --- git apply --check + result-byte verification (when git is present) ---
+
+    def _apply_and_read(self, original, revised):
+        """git init a temp repo with `original`, apply the patch, return the
+        resulting file bytes as text (or raise on a non-clean apply). Callers are
+        `@unittest.skipUnless(git)`-gated, so git is present when this runs."""
+        work = tempfile.mkdtemp(prefix="board-nonl-apply-")
+        with open(os.path.join(work, "f.py"), "w", newline="") as fh:
+            fh.write(original)
+        env = dict(os.environ, SKIP_REVIEW="1")
+        _subprocess.run(["git", "init", "-q", work], check=True, env=env)
+        _subprocess.run(["git", "-C", work, "config", "user.email", "t@t"],
+                        check=True, env=env)
+        _subprocess.run(["git", "-C", work, "config", "user.name", "t"],
+                        check=True, env=env)
+        _subprocess.run(["git", "-C", work, "add", "f.py"], check=True, env=env)
+        _subprocess.run(["git", "-C", work, "commit", "-qm", "x"], check=True, env=env)
+        patch = rev_mod.build_unified_patch(original, revised, "f.py")
+        pf = os.path.join(work, "p.patch")
+        with open(pf, "w", newline="") as fh:
+            fh.write(patch)
+        chk = _subprocess.run(["git", "-C", work, "apply", "--check", "-p1", pf],
+                              capture_output=True, text=True)
+        self.assertEqual(chk.returncode, 0, chk.stderr)
+        ap = _subprocess.run(["git", "-C", work, "apply", "-p1", pf],
+                             capture_output=True, text=True)
+        self.assertEqual(ap.returncode, 0, ap.stderr)
+        with open(os.path.join(work, "f.py"), newline="") as fh:
+            return fh.read()
+
+    @unittest.skipUnless(shutil.which("git"), "git not available")
+    def test_git_apply_midfile_change_result_bytes(self):
+        self.assertEqual(self._apply_and_read("a\nb\nc", "a\nB\nc"), "a\nB\nc")
+
+    @unittest.skipUnless(shutil.which("git"), "git not available")
+    def test_git_apply_replace_at_eof_result_bytes(self):
+        self.assertEqual(self._apply_and_read("a\nb\nc", "a\nb\nZZZ"), "a\nb\nZZZ")
+
+    @unittest.skipUnless(shutil.which("git"), "git not available")
+    def test_git_apply_insert_at_top_result_bytes(self):
+        self.assertEqual(self._apply_and_read("a\nb\nc", "X\na\nb\nc"), "X\na\nb\nc")
+
+    @unittest.skipUnless(shutil.which("git"), "git not available")
+    def test_git_apply_trailing_newline_removal_result_bytes(self):
+        # The MAJOR case that previously applied to the WRONG bytes.
+        self.assertEqual(self._apply_and_read("a\nb\nc\n", "a\nb\nc"), "a\nb\nc")
+
+    @unittest.skipUnless(shutil.which("git"), "git not available")
+    def test_git_apply_trailing_newline_addition_result_bytes(self):
+        self.assertEqual(self._apply_and_read("a\nb\nc", "a\nb\nc\n"), "a\nb\nc\n")
+
+    @unittest.skipUnless(shutil.which("git"), "git not available")
+    def test_git_apply_happy_path_still_applies(self):
+        self.assertEqual(self._apply_and_read("a\nb\nc\n", "a\nB\nc\n"), "a\nB\nc\n")
+
+
+class TestSnippetMalformedDegrades(unittest.TestCase):
+    """Finding 2 — a hand-authored/fuzzed snippet missing from/to (etc.) must
+    render the evidence line WITHOUT the snippet and exit 0, never a KeyError
+    traceback (the standalone `render_verdict.py verdict.json` path never runs the
+    schema validator, so the renderer must self-guard)."""
+
+    def _v(self, snippet):
+        ev = {"kind": "code", "path": "svc.py", "line": 9, "status": "verified",
+              "snippet": snippet}
+        return {"schema": "advisory-board/verdict@2", "verdict": "caution",
+                "confidence": "high", "rounds": 2,
+                "board": [{"seat": "a", "model": "x", "round_verdicts": ["caution"]},
+                          {"seat": "b", "model": "y", "round_verdicts": ["caution"]}],
+                "blockers": [{"title": "Race", "body": "b", "evidence": [ev]}]}
+
+    MALFORMED = (
+        {"to": 2, "text": "x"},                 # missing from
+        {"from": 1, "text": "x"},               # missing to
+        {"text": "x"},                          # text-only (the reported crash)
+        {"from": True, "to": 2, "text": "x"},   # bool from
+        {"from": 1, "to": True, "text": "x"},   # bool to
+        {"from": 3, "to": 2, "text": "x"},      # from > to
+        {"from": 0, "to": 2, "text": "x"},      # from < 1
+        {"from": 1, "to": 2, "text": ""},       # empty text
+        "notdict",                              # non-dict
+        {"from": 1, "to": 2},                   # missing text
+    )
+
+    def test_all_malformed_render_without_snippet_no_crash(self):
+        for bad in self.MALFORMED:
+            md = rv.render_markdown(self._v(bad))   # must not raise
+            block = md.split("Race")[1].split("##")[0]
+            self.assertNotIn("```", block, f"leaked fence for {bad!r}")
+            self.assertIn("svc.py:9", block)        # the evidence line still renders
+
+    def test_standalone_render_cli_exits_0_on_text_only_snippet(self):
+        d = tempfile.mkdtemp(prefix="board-badsnip-")
+        path = os.path.join(d, "verdict.json")
+        with open(path, "w") as fh:
+            json.dump(self._v({"text": "x"}), fh)
+        # The standalone render path never runs the schema validator; it must exit
+        # 0, not traceback out with a KeyError (which surfaced as exit 1).
+        with contextlib.redirect_stdout(io.StringIO()), \
+                contextlib.redirect_stderr(io.StringIO()):
+            code = rv.main([path, "--check"])
+        self.assertEqual(code, 0)
+
+    def test_valid_snippet_still_embeds(self):
+        md = rv.render_markdown(self._v({"from": 7, "to": 9, "text": "a\nb\nc"}))
+        self.assertIn("svc.py:7-9:", md)
+
+
+class TestSnippetFenceCollision(unittest.TestCase):
+    """Finding 3 — a captured snippet containing a ``` run must be fenced with a
+    STRICTLY LONGER backtick run so it cannot close the fence early and derail the
+    document (CommonMark)."""
+
+    def _v(self, text):
+        ev = {"kind": "code", "path": "svc.py", "line": 9, "status": "verified",
+              "snippet": {"from": 1, "to": 3, "text": text}}
+        return {"schema": "advisory-board/verdict@2", "verdict": "caution",
+                "confidence": "high", "rounds": 2,
+                "board": [{"seat": "a", "model": "x", "round_verdicts": ["caution"]},
+                          {"seat": "b", "model": "y", "round_verdicts": ["caution"]}],
+                "blockers": [{"title": "Race", "body": "b", "evidence": [ev]}],
+                "next_actions": ["ship it"]}
+
+    def test_bare_triple_backtick_gets_four_backtick_fence(self):
+        md = rv.render_markdown(self._v("before\n```\nafter"))
+        self.assertIn("````", md)                    # a 4-backtick fence appears
+        # The document after the embed is intact — the Next actions section still
+        # renders (the early-close bug would swallow it into the code block).
+        self.assertIn("## Next actions", md)
+        self.assertIn("ship it", md)
+
+    def test_five_backtick_run_gets_six_backtick_fence(self):
+        md = rv.render_markdown(self._v("x ````` y\nmid\nend"))
+        self.assertIn("``````", md)                  # 6-backtick fence
+        self.assertNotIn("```````", md)              # not 7
+
+    def test_fence_helper_minimum_three(self):
+        self.assertEqual(rv._snippet_fence("no backticks here"), "```")
+        self.assertEqual(rv._snippet_fence("a ` b"), "```")     # single → still 3
+        self.assertEqual(rv._snippet_fence("a `` b"), "```")    # double → still 3
+        self.assertEqual(rv._snippet_fence("a ``` b"), "````")  # triple → 4
+
+
+class TestArtifactPathConfinement(unittest.TestCase):
+    """Finding 4 — the verdict's changes.artifact and changes.revised.artifact must
+    be BARE filenames (validators), and _load_revised_chain must confine to the run
+    dir anyway (renderer robustness independent of the validators)."""
+
+    def _reject_bv(self, data):
+        with self.assertRaises(SystemExit) as ctx:
+            bv.validate(data)
+        self.assertEqual(ctx.exception.code, bv.EXIT_SCHEMA)
+
+    def _reject_bc(self, data):
+        with self.assertRaises(SystemExit) as ctx:
+            bc.validate(data)
+        self.assertEqual(ctx.exception.code, bc.EXIT_SCHEMA)
+
+    def _verdict_changes(self, artifact):
+        return _verdict("ship", "ship", "ship",
+                        changes={"artifact": artifact, "sha256": "a" * 64})
+
+    ESCAPES = ("/etc/passwd", "../escape/changes.json", "a/b/changes.json", "..")
+
+    def test_validator_refuses_escaping_verdict_changes_artifact(self):
+        for bad in self.ESCAPES:
+            self._reject_bv(self._verdict_changes(bad))
+        bv.validate(self._verdict_changes("changes.json"))   # bare ok
+
+    def test_validator_refuses_escaping_revised_artifact(self):
+        for bad in self.ESCAPES:
+            self._reject_bc(_changes_fixture(revised={"artifact": bad,
+                                                      "sha256": "b" * 64}))
+        bc.validate(_changes_fixture())   # bare revised-draft.md ok
+
+    def test_renderer_confines_absolute_changes_artifact(self):
+        run = tempfile.mkdtemp(prefix="board-confine-")
+        outside = tempfile.mkdtemp(prefix="board-outside-")
+        with open(os.path.join(outside, "changes.json"), "w") as fh:
+            fh.write("{}")
+        v = {"changes": {"artifact": os.path.join(outside, "changes.json"),
+                         "sha256": "a" * 64}}
+        loaded = rv._load_revised_chain(v, run)
+        self.assertIsNone(loaded[0])
+        self.assertIn("outside the run dir", loaded[1])
+
+    def test_renderer_confines_dotdot_changes_artifact(self):
+        run = tempfile.mkdtemp(prefix="board-confine-")
+        v = {"changes": {"artifact": "../escape/changes.json", "sha256": "a" * 64}}
+        loaded = rv._load_revised_chain(v, run)
+        self.assertIsNone(loaded[0])
+        self.assertIn("outside the run dir", loaded[1])
+
+    def test_renderer_confines_symlinked_parent(self):
+        # run_dir/link -> outside; artifact = link/changes.json. The plain-join
+        # islink check misses this (only `link` is a symlink, not the joined path);
+        # realpath confinement catches it.
+        run = tempfile.mkdtemp(prefix="board-confine-")
+        outside = tempfile.mkdtemp(prefix="board-outside-")
+        with open(os.path.join(outside, "changes.json"), "w") as fh:
+            fh.write("{}")
+        os.symlink(outside, os.path.join(run, "link"))
+        v = {"changes": {"artifact": "link/changes.json", "sha256": "a" * 64}}
+        loaded = rv._load_revised_chain(v, run)
+        self.assertIsNone(loaded[0])
+        self.assertIn("outside the run dir", loaded[1])
+
+    def test_renderer_confines_nested_but_absent_degrades(self):
+        # A nested path that stays inside run_dir but doesn't exist degrades to
+        # not-readable (still no crash) — confinement passes, the file is absent.
+        run = tempfile.mkdtemp(prefix="board-confine-")
+        v = {"changes": {"artifact": "sub/changes.json", "sha256": "a" * 64}}
+        loaded = rv._load_revised_chain(v, run)
+        self.assertIsNone(loaded[0])
+        self.assertIn("not readable", loaded[1])
+
+
+class TestManifestShaGateSpelling(unittest.TestCase):
+    """Finding 5 — a citation spelled `./f.py` normalizes to the manifest key
+    `f.py`, so it must use the recorded sha (not bypass the gate by missing an
+    exact-string key match). Under Blocker 2's whitelist-only gate, a genuinely-
+    unlisted file gets no snippet at all."""
+
+    def _src(self, text="l1\nl2\nl3\n"):
+        d = tempfile.mkdtemp(prefix="board-gate-")
+        with open(os.path.join(d, "f.py"), "w") as fh:
+            fh.write(text)
+        return d
+
+    def _v(self, path):
+        return {"verdict": "ship",
+                "blockers": [{"title": "B",
+                              "evidence": [{"kind": "code", "path": path, "line": 2}]}]}
+
+    def test_dotslash_spelling_is_gated_like_plain(self):
+        # `./f.py` resolves to the same file as `f.py` (resolve_file joins it) but
+        # previously MISSED the exact-string manifest key `f.py`, so the stale-sha
+        # gate silently passed and a snippet from a changed file was captured. Now
+        # both spellings normalize to the key and are gated identically. (A `..`
+        # component like `a/../f.py` is refused earlier by resolve_file, by design,
+        # so it never reaches the gate — covered by test_manifest_key_normalizes.)
+        d = self._src()
+        stale = {"f.py": "0" * 64}   # a sha that does NOT match the live file
+        for spelling in ("./f.py", "f.py"):
+            v = self._v(spelling)
+            ve.stamp(v, d, None, None, stale)
+            ev = v["blockers"][0]["evidence"][0]
+            self.assertEqual(ev["status"], "verified")
+            self.assertNotIn("snippet", ev, f"gate bypassed for {spelling!r}")
+
+    def test_dotslash_spelling_captures_when_sha_matches(self):
+        d = self._src()
+        with open(os.path.join(d, "f.py"), "rb") as fh:
+            good = {"f.py": hashlib.sha256(fh.read()).hexdigest()}
+        v = self._v("./f.py")
+        ve.stamp(v, d, None, None, good)
+        self.assertIn("snippet", v["blockers"][0]["evidence"][0])
+
+    def test_genuinely_unlisted_file_no_snippet(self):
+        # Blocker 2 flipped the old opt-out gate to WHITELIST-ONLY: a file the
+        # grounded manifest doesn't record gets NO snippet (was: captured ungated).
+        d = self._src()
+        with open(os.path.join(d, "other.py"), "w") as fh:
+            fh.write("x\ny\nz\n")
+        v = self._v("other.py")
+        ve.stamp(v, d, None, None, {"f.py": "0" * 64})
+        ev = v["blockers"][0]["evidence"][0]
+        self.assertEqual(ev["status"], "verified")   # status unaffected
+        self.assertNotIn("snippet", ev)
+
+    def test_manifest_key_normalizes_dotslash(self):
+        self.assertEqual(ve._manifest_key("./f.py"), "f.py")
+        self.assertEqual(ve._manifest_key("a/../f.py"), "f.py")
+        self.assertEqual(ve._manifest_key("a/b.py"), "a/b.py")
 
 
 if __name__ == "__main__":

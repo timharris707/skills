@@ -95,6 +95,7 @@ from __future__ import annotations
 
 import argparse
 import glob
+import hashlib
 import json
 import os
 import re
@@ -111,6 +112,30 @@ _WS = re.compile(r"\s+")
 DEFAULT_RERUN_TIMEOUT = 30          # hard per-command timeout (seconds)
 RERUN_OUTPUT_LIMIT = 4000           # chars of combined output attached to `observed`
                                     # (kept as head+tail so a runner's tail summary survives)
+
+# Grounded citation snippets (v1.13 P3, #12). When a `code` citation RESOLVES
+# against the live --source tree, capture the cited lines so the handoff is self-
+# contained (grounded runs keep NO repo bytes — only repo-scope-manifest.json —
+# so this is the ONLY moment the lines are on disk). A line citation captures the
+# cited line ±SNIPPET_CONTEXT_LINES; a symbol citation captures the first
+# SNIPPET_SYMBOL_LINES of the resolved region. Total text is capped at
+# SNIPPET_CHAR_LIMIT chars (never embed an unbounded slice of a file).
+#   CONTENT capture is HARD-GATED (Blocker 1): before any bytes are read for a
+#   snippet, _capture_path_ok refuses a symlinked candidate/intermediate dir and
+#   requires realpath-containment inside the source root — a snippet egresses into
+#   verdict.json/the handoff, so an in-tree symlink pointing outside the root must
+#   not exfiltrate those bytes. STATUS resolution (verified/unverified/refuted) is
+#   UNCHANGED from pre-P3 (resolve_file's textual containment + isfile, which
+#   follows symlinks): a status badge egresses no file content, and the human
+#   supplied --source. Only the CONTENT gate is new.
+SNIPPET_CONTEXT_LINES = 2           # ± context lines around a {path, line} citation
+SNIPPET_SYMBOL_LINES = 8            # first N lines of a {path, symbol} region
+SNIPPET_CHAR_LIMIT = 4000           # hard cap on a captured snippet's text (chars)
+# Sentinel: the run dir HAS a repo-scope-manifest.json but it is unusable (malformed,
+# unreadable, symlinked, or shaped wrong). A grounded run whose whitelist can't be
+# trusted must capture NO snippets at all (fail closed) — distinct from None (no
+# manifest file → ungrounded → capture allowed under Blocker 1's hardened read).
+MANIFEST_UNUSABLE = object()
 # Locale-only env passthrough for a re-executed command. PATH and HOME are set
 # EXPLICITLY by _rerun_env (curated PATH; HOME = the throwaway cwd), never inherited —
 # so a re-run can neither resolve a planted binary via a dirty PATH nor read ~/.aws,
@@ -163,8 +188,80 @@ def _read_lines(path: str):
         return handle.read().splitlines()
 
 
-def resolve_code(ev: dict, source_root) -> str:
-    target = resolve_file(source_root, ev.get("path", ""))
+# One stderr note per run when a symlinked citation is refused CONTENT capture —
+# not one per citation. Reset at the top of stamp() so a re-verify starts fresh.
+_SNIPPET_SYMLINK_NOTED = False
+
+
+def _note_snippet_symlink_refused() -> None:
+    """Emit the capture-refusal note at most ONCE per stamp() pass (a run may cite
+    many files under the same offending symlinked dir; one note is enough)."""
+    global _SNIPPET_SYMLINK_NOTED
+    if not _SNIPPET_SYMLINK_NOTED:
+        _SNIPPET_SYMLINK_NOTED = True
+        print("note: a code citation resolved through a symlink or outside the source "
+              "root — snippet CONTENT capture refused for it (status is unaffected).",
+              file=sys.stderr)
+
+
+def _capture_path_ok(source_root, target: str, rel: str) -> bool:
+    """The hard gate at the CONTENT-capture boundary (v1.13 P3 hardening). STATUS
+    resolution keeps its pre-P3 behavior (resolve_file's textual containment +
+    isfile, which follows symlinks — the human supplied --source, and a status
+    badge egresses no bytes). But a SNIPPET persists file CONTENT into verdict.json
+    / the handoff, so an in-tree symlink pointing outside the source root (e.g.
+    node_modules/.bin → …, a dotfile link, ~/.ssh/…) could exfiltrate those bytes.
+    Before capturing, require BOTH:
+      (a) no symlink on the path — neither the candidate itself nor any intermediate
+          component (relative to source_root) is os.path.islink; and
+      (b) realpath containment — os.path.realpath(target) is INSIDE
+          os.path.realpath(source_root) (or IS it, for a single-file --source).
+    Single-file --source: the file itself must not be a symlink; containment
+    degenerates to realpath(target) == realpath(source_root).
+
+    Refusal returns False (no snippet); the caller emits one per-run note. A refused
+    CONTENT capture never changes the citation's status."""
+    if source_root is None:
+        return False
+    # (a) Single-file --source: the file itself must not be a symlink; there are no
+    #     intermediate components to walk relative to a file root.
+    if os.path.isfile(source_root):
+        if os.path.islink(target):
+            return False
+        real_root = os.path.realpath(source_root)
+        return os.path.realpath(target) == real_root
+    # (a) Directory --source: refuse a symlink at the candidate OR at any component
+    #     between source_root and it (a symlinked intermediate dir escapes too).
+    if os.path.islink(target):
+        return False
+    walk = source_root
+    for part in rel.replace("\\", "/").split("/"):
+        if not part or part == ".":
+            continue
+        walk = os.path.join(walk, part)
+        if os.path.islink(walk):
+            return False
+    # (b) realpath containment: the resolved candidate must sit inside the resolved
+    #     root (commonpath over the realpaths; a mismatched drive/root raises).
+    real_root = os.path.realpath(source_root)
+    real_target = os.path.realpath(target)
+    try:
+        return os.path.commonpath([real_root, real_target]) == real_root
+    except ValueError:
+        return False
+
+
+def resolve_code(ev: dict, source_root, manifest=None) -> str:
+    """Stamp a `code` citation, and — when it VERIFIES and the capture gates pass —
+    capture the cited lines onto `ev['snippet']` (v1.13 P3). Capture is subject to
+    Blocker 1's symlink/containment read gate then the `manifest` gate: None
+    (ungrounded --source, capture under the read gate), MANIFEST_UNUSABLE (a broken
+    grounded manifest, capture nothing), or the {path: sha256} whitelist (grounded
+    run: capture ONLY a listed path whose live sha matches — a changed or unlisted
+    file gets its badge but NO snippet, so the handoff never embeds lines the board
+    didn't see)."""
+    rel = ev.get("path", "")
+    target = resolve_file(source_root, rel)
     if target is None:
         return "unverified"  # no --source, or the file isn't in the tree we were handed
     try:
@@ -175,11 +272,111 @@ def resolve_code(ev: dict, source_root) -> str:
         line = ev["line"]
         if isinstance(line, bool) or not isinstance(line, int) or line < 1:
             return "unverified"  # malformed line locator - can't resolve, don't crash
-        return "verified" if line <= len(lines) else "refuted"
+        if line > len(lines):
+            return "refuted"
+        _maybe_capture_snippet(ev, source_root, target, rel, lines, manifest, mode="line", line=line)
+        return "verified"
     symbol = ev.get("symbol", "")
     if symbol and re.search(r"\b" + re.escape(symbol) + r"\b", "\n".join(lines)):
+        _maybe_capture_snippet(ev, source_root, target, rel, lines, manifest, mode="symbol", symbol=symbol)
         return "verified"
     return "refuted"
+
+
+def _manifest_key(rel: str) -> str:
+    """Normalize a citation path to the SAME form build_scope_manifest records its
+    keys in — `os.path.relpath` output (see grounding.build_scope_manifest), which
+    is already normpath'd (no `./` prefix, collapsed `a/./b`). So `./f.py`, `f.py`,
+    and `a/../f.py` all key to `f.py` and hit the manifest entry `f.py`. Without
+    this a citation spelled `./f.py` resolves to the same file but MISSES the
+    manifest lookup — a listed, possibly-changed file would then be misread as
+    unlisted and (under the whitelist-only gate) silently DROPPED. os.path.normpath
+    collapses the spelling; posix separators match the manifest keys' forward-slash
+    form (grounding stores relpaths with `\\`→`/`)."""
+    return os.path.normpath(rel).replace("\\", "/")
+
+
+# One stderr warning per run when an UNUSABLE manifest disables capture (Blocker 2).
+_MANIFEST_UNUSABLE_NOTED = False
+
+
+def _note_manifest_unusable() -> None:
+    """Emit the unusable-manifest warning at most ONCE per stamp() pass."""
+    global _MANIFEST_UNUSABLE_NOTED
+    if not _MANIFEST_UNUSABLE_NOTED:
+        _MANIFEST_UNUSABLE_NOTED = True
+        print("warning: manifest present but unusable — snippet capture disabled for "
+              "this run.", file=sys.stderr)
+
+
+def _snippet_capture_ok(target: str, rel: str, manifest) -> bool:
+    """The manifest gate for a snippet (Blocker 2 — grounded runs are WHITELIST-ONLY).
+    Three states of `manifest`:
+      * None — no manifest file (an UNGROUNDED verify: the human supplied --source,
+        so capture is allowed here and only the Blocker-1 read gate applies). True.
+      * MANIFEST_UNUSABLE — a manifest file EXISTS but is malformed/unreadable/
+        symlinked/mis-shaped. A grounded run whose whitelist can't be trusted fails
+        CLOSED: capture NOTHING + one per-run warning. False.
+      * a {path: sha256} dict — a GROUNDED run. Capture ONLY when the cited path is
+        LISTED and the live file's sha256 matches the recorded bytes. An UNLISTED
+        path → no snippet (whitelist-only; the flip from the old opt-out gate); a
+        listed-but-changed file → no snippet.
+
+    The citation path is normalized to the manifest's own key form BEFORE lookup
+    (see _manifest_key) so a spelling like `./f.py` cannot dodge the gate by missing
+    an exact-string key match."""
+    if manifest is None:
+        return True
+    if manifest is MANIFEST_UNUSABLE:
+        _note_manifest_unusable()
+        return False
+    want = manifest.get(_manifest_key(rel))
+    if want is None:
+        return False   # unlisted in a grounded run's whitelist — no snippet
+    try:
+        with open(target, "rb") as handle:
+            live = hashlib.sha256(handle.read()).hexdigest()
+    except OSError:
+        return False
+    return live == want
+
+
+def _maybe_capture_snippet(ev: dict, source_root, target: str, rel: str, lines, manifest,
+                           *, mode: str, line=None, symbol=None) -> None:
+    """Attach `ev['snippet'] = {from, to, text}` for a resolved code citation,
+    subject to the symlink/containment gate (Blocker 1) THEN the manifest gate. A `line`
+    citation captures the cited line ± SNIPPET_CONTEXT_LINES (clamped at the file
+    edges); a `symbol` citation captures the first SNIPPET_SYMBOL_LINES of the
+    region at the symbol's first occurrence. `from`/`to` are 1-based inclusive line
+    numbers; `text` is the verbatim lines joined by LF, hard-capped at
+    SNIPPET_CHAR_LIMIT chars (a cap hit is marked with a trailing '…[truncated]' so
+    the receipt is honest)."""
+    # Blocker 1: refuse CONTENT capture through a symlink or outside the source root
+    # (status already resolved above and is unaffected). One per-run note on refusal.
+    if not _capture_path_ok(source_root, target, rel):
+        _note_snippet_symlink_refused()
+        return
+    if not _snippet_capture_ok(target, rel, manifest):
+        return
+    n = len(lines)
+    if mode == "line":
+        first = max(1, line - SNIPPET_CONTEXT_LINES)
+        last = min(n, line + SNIPPET_CONTEXT_LINES)
+    else:  # symbol — window from the symbol's first occurrence
+        hit = 1
+        pat = re.compile(r"\b" + re.escape(symbol) + r"\b")
+        for i, text in enumerate(lines, 1):
+            if pat.search(text):
+                hit = i
+                break
+        first = hit
+        last = min(n, hit + SNIPPET_SYMBOL_LINES - 1)
+    if first > last:   # empty file / degenerate window — capture nothing
+        return
+    body = "\n".join(lines[first - 1:last])
+    if len(body) > SNIPPET_CHAR_LIMIT:
+        body = body[:SNIPPET_CHAR_LIMIT].rstrip() + "\n…[truncated]"
+    ev["snippet"] = {"from": first, "to": last, "text": body}
 
 
 def resolve_source(ev: dict, packet_text) -> str:
@@ -226,6 +423,57 @@ def load_packet_text(packet, run_dir):
         except OSError:
             pass
     return "\n".join(chunks) if chunks else None
+
+
+def load_scope_manifest(run_dir):
+    """The snippet-capture whitelist for a run (Blocker 2). Returns one of three:
+      * None — the run dir has NO repo-scope-manifest.json (an UNGROUNDED verify):
+        capture is allowed, gated only by Blocker 1's hardened read.
+      * MANIFEST_UNUSABLE — a manifest file is PRESENT but unusable (symlinked,
+        unreadable, invalid JSON, or mis-shaped): a grounded run whose whitelist
+        can't be trusted must capture NOTHING (fail closed + one warning).
+      * a {path: sha256} dict — a GROUNDED run: capture ONLY for listed paths whose
+        live sha matches (whitelist-only; see _snippet_capture_ok).
+
+    Presence is decided on lexists (a symlink AT the path counts as present-but-
+    refused — it could point the gate at arbitrary bytes, so it is UNUSABLE, not
+    absent). Presence implies never-None: an empty `files` list, any malformed
+    entry, or two entries normalizing to the same key with different shas all
+    poison the WHOLE manifest to MANIFEST_UNUSABLE — the gate fails closed rather
+    than silently pruning its own whitelist."""
+    if not run_dir:
+        return None
+    path = os.path.join(run_dir, "repo-scope-manifest.json")
+    if not os.path.lexists(path):
+        return None                      # no manifest file → ungrounded
+    if os.path.islink(path) or not os.path.isfile(path):
+        return MANIFEST_UNUSABLE         # present but a symlink/non-file → fail closed
+    try:
+        with open(path, encoding="utf-8") as handle:
+            data = json.load(handle)
+    except (OSError, ValueError):
+        return MANIFEST_UNUSABLE         # present but unreadable/invalid JSON
+    files = data.get("files") if isinstance(data, dict) else None
+    if not isinstance(files, list):
+        return MANIFEST_UNUSABLE         # present but mis-shaped
+    out = {}
+    for entry in files:
+        # A single malformed entry poisons the whole manifest: a whitelist that
+        # silently prunes its own rows is a fail-open (a present manifest must
+        # NEVER degrade back to the ungrounded None path).
+        if not (isinstance(entry, dict) and isinstance(entry.get("path"), str)
+                and entry["path"].strip()
+                and isinstance(entry.get("sha256"), str)
+                and re.fullmatch(r"[0-9a-f]{64}", entry["sha256"])):
+            return MANIFEST_UNUSABLE
+        # Normalize keys the SAME way _snippet_capture_ok normalizes a citation
+        # before lookup (normpath + posix), so a citation and its manifest key
+        # match regardless of `./`-spelling on either side.
+        key = _manifest_key(entry["path"])
+        if key in out and out[key] != entry["sha256"]:
+            return MANIFEST_UNUSABLE     # ambiguous duplicate → fail closed
+        out[key] = entry["sha256"]
+    return out if out else MANIFEST_UNUSABLE
 
 
 def command_allowed(command, rerun):
@@ -424,20 +672,35 @@ def resolve_command(ev: dict, rerun) -> str:
     return "refuted"
 
 
-def stamp(data: dict, source_root, packet_text, rerun=None) -> dict:
+def stamp(data: dict, source_root, packet_text, rerun=None, manifest=None) -> dict:
     """Resolve every code/source/command citation and write its `status`. Mutates data.
 
     `rerun` (M3) is None by default — command citations stay `unverified`, exactly
     the pre-M3 behavior — or a dict {allow, cwd, timeout} that enables allowlisted
-    command re-execution (see resolve_command)."""
-    counts = {"verified": 0, "unverified": 0, "refuted": 0, "skipped": 0}
+    command re-execution (see resolve_command).
+
+    `manifest` (v1.13 P3, Blocker 2) is None (ungrounded verify — capture allowed,
+    gated only by Blocker 1's read), MANIFEST_UNUSABLE (a present-but-broken
+    manifest — capture nothing + one warning), or the repo-scope-manifest's
+    {path: sha256} whitelist (grounded run — a `code` citation captures a snippet
+    ONLY when the cited path is listed AND the live file's sha matches). Returns
+    counts incl. `snippets`, the number of code citations that also captured one."""
+    global _SNIPPET_SYMLINK_NOTED, _MANIFEST_UNUSABLE_NOTED
+    _SNIPPET_SYMLINK_NOTED = False    # one per-run capture-refusal note (Blocker 1)
+    _MANIFEST_UNUSABLE_NOTED = False  # one per-run unusable-manifest warning (Blocker 2)
+    counts = {"verified": 0, "unverified": 0, "refuted": 0, "skipped": 0, "snippets": 0}
     for obj in iter_evidence_containers(data):
         for ev in (obj.get("evidence") or []):
             if not isinstance(ev, dict):
                 continue
             kind = ev.get("kind")
             if kind == "code":
-                status = resolve_code(ev, source_root)
+                # A re-verify must never carry a STALE snippet from a prior pass —
+                # drop it, then resolve_code re-captures (or not, per the gate).
+                ev.pop("snippet", None)
+                status = resolve_code(ev, source_root, manifest)
+                if "snippet" in ev:
+                    counts["snippets"] += 1
             elif kind == "source":
                 status = resolve_source(ev, packet_text)
             elif kind == "command":
@@ -491,6 +754,12 @@ def main(argv=None) -> int:
         die(f"{args.path}: top level must be a JSON object")
 
     packet_text = load_packet_text(args.packet, args.run_dir)
+    # The snippet-capture whitelist for grounded runs (v1.13 P3, Blocker 2): the
+    # run's repo-scope-manifest.json when a --run dir carries one → capture is
+    # whitelist-only. MANIFEST_UNUSABLE if it's present but broken → capture nothing.
+    # None when the run dir has no manifest (ungrounded verify) → capture under the
+    # Blocker-1 read gate only.
+    manifest = load_scope_manifest(args.run_dir)
 
     # M3: assemble the re-execution config only when the user opted in with at least
     # one --allow-program. The PROGRAM allowlist (not the regex) is the enabler; a
@@ -530,19 +799,26 @@ def main(argv=None) -> int:
               file=sys.stderr)
 
     try:
-        counts = stamp(data, args.source, packet_text, rerun)
+        counts = stamp(data, args.source, packet_text, rerun, manifest)
     finally:
         import shutil as _shutil
         for tmp in throwaways:
             _shutil.rmtree(tmp, ignore_errors=True)
 
-    total = sum(counts.values()) - counts["skipped"]
+    # `snippets` is a side counter (captured snippets), not a resolution status —
+    # exclude it (with `skipped`) from the resolved-citation total.
+    total = sum(counts.values()) - counts["skipped"] - counts["snippets"]
     print(
         f"resolved {total} citation(s): "
         f"{counts['verified']} verified, {counts['unverified']} unverified, "
         f"{counts['refuted']} refuted"
         + (f" ({counts['skipped']} judgment/skipped)" if counts["skipped"] else "")
     )
+    if counts["snippets"]:
+        gated = (" (sha-gated to the manifest bytes)"
+                 if isinstance(manifest, dict) else "")
+        print(f"captured {counts['snippets']} code snippet(s) into the verdict{gated} — "
+              "the handoff is self-contained.")
     if not args.source and any(
         ev.get("kind") == "code"
         for obj in iter_evidence_containers(data)

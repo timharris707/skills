@@ -122,11 +122,15 @@ def render_run_card(config: RunConfig) -> str:
             "claude" if any(s.name == "claude" for s in config.board) else config.board[0].name)
         provider = next((s.provider for s in config.board if s.name == chosen),
                         config.board[0].provider)
+        # A code source also gets an apply-able revised-draft.patch; a prose
+        # source's redline lives in the HTML handoff instead (D12).
+        extra_artifact = (" + revised-draft.patch" if config.source_type == "code"
+                          else " + a redline in the HTML handoff")
         lines += [
             f"  revision      : after synthesis — seat={chosen} → {provider} produces a "
             f"revised {config.source_type} copy",
-            "                  + changes.json (edit→finding mapping). Source is never "
-            "written (D6); no new egress",
+            f"                  + changes.json (edit→finding mapping){extra_artifact}. Source is "
+            "never written (D6); no new egress",
             "                  (the revision seat sees only source the run already sent).",
         ]
     if config.grounding is not None:
@@ -252,11 +256,16 @@ def render_artifact_tree(config: RunConfig) -> str:
     if config.output == "revised-draft":
         # The revised-draft filename depends on source_type: prose → .md, code →
         # the source's own extension (byte-clean, so a saved code file stays valid).
+        # A code source ALSO gets a git-apply-able revised-draft.patch (D12); a
+        # prose source gets none (its redline lives in the HTML handoff only).
         draft = "revised-draft.md" if config.source_type != "code" else "revised-draft.<orig-ext>"
+        draft_line = (f"  {draft}   changes.json   revised-draft.patch"
+                      if config.source_type == "code"
+                      else f"  {draft}   changes.json")
         parts += [
             "  prompts/revision.prompt",
             "  revision/<seat>.md   revision/<seat>.raw",
-            f"  {draft}   changes.json",
+            draft_line,
         ]
     parts += [
         "  logs/<seat>-round-N.stderr",

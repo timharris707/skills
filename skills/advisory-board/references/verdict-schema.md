@@ -102,6 +102,26 @@ packet, never a live URL fetch** (that would breach quarantine in gate mode). **
 (§9):** a `verified` stamp proves *the receipt resolves*, not that the inference is sound — it
 catches fabrication, not faulty reasoning.
 
+**`snippet` (optional, tool-authored — v1.13 P3, #12).** When a `code` citation **resolves**,
+`verify_evidence.py` may additionally capture the cited lines onto the evidence entry —
+`{from, to, text}` — so a renderer can embed the receipt itself, not just its coordinates. Written
+by the tool at stamp time, exactly like `status`; never authored by a model and never asserted
+anywhere else. **Strict when present**, absent-is-invisible (the same discipline as every
+lifecycle field): an object with **exactly** `from` (int ≥ 1), `to` (int ≥ `from`), and `text`
+(non-empty string) — both `from`/`to` real ints, not bools, and unknown keys are refused. `from`/
+`to` are 1-based inclusive line numbers into the resolved file; `text` is the verbatim lines
+joined by `\n` (capped — see `scripts/README.md` for the exact windowing and the char limit). A
+verdict without any `snippet` fields is byte-for-byte the same schema as before.
+
+```json
+{ "kind": "code", "path": "src/charges.py", "line": 42, "status": "verified",
+  "snippet": { "from": 40, "to": 44, "text": "def charge_idempotent(key):\n    ..." } }
+```
+
+`render_verdict.py` embeds a captured snippet as a fenced `path:from-to` block directly under its
+evidence line in `final-consensus.md` (both the full-handoff and implementation-sequence
+renders) — a citation without one renders exactly as before.
+
 ### Lifecycle fields (since v1.12 — optional, additive within `@2`)
 
 A verdict can now carry its own history. Both fields are **tool/human-authored** — written by
@@ -182,7 +202,10 @@ file *may* carry `evidence[]`, and a malformed item is rejected regardless of ve
 - at least **two** seats actually ran (a `dropped` seat doesn't count — a one-voice board isn't a board).
 - if `unanimous` is present, it matches the seats' final-round verdicts.
 - every `evidence[]` item (on blockers/dissent/concerns or at the top level) is well-formed for
-  its `kind`, and any `status` ∈ {verified, unverified, refuted}.
+  its `kind`, and any `status` ∈ {verified, unverified, refuted}; a `snippet`, when present, is
+  **exactly** `{from: <int ≥ 1>, to: <int ≥ from>, text: <non-empty string>}` — unknown keys, a
+  missing field, a bool masquerading as a line number, or an empty `text` are all rejected
+  (v1.13 P3, #12; absent is invisible — an evidence item without one is untouched).
 - lifecycle fields, strictly **when present** (absent fields check nothing) and regardless of
   schema version: `previous_run` is an object with a non-empty `run_dir` and type-checked
   optional keys; every `amendments[]` entry is an object with non-empty
