@@ -90,6 +90,11 @@ from _conductor.rounds import (
     run_round,
     write_round_artifacts,
 )
+from _conductor.status import (
+    NullTracker,
+    OUTCOME_INTERRUPTED,
+    StatusTracker,
+)
 from _conductor.synthesizer import (
     SYNTHESIZER_TEMPLATE_VERSION,
     choose_synthesizer_seat,
@@ -315,11 +320,35 @@ def _execute_run(config, args) -> int:
         where_note = "  (persistent default — --out DIR, --runs-root DIR, or --ephemeral to relocate)"
     print(f"run artifacts → {config.out_dir}{where_note}\n")
 
+    # 0a. Live progress view (v1.14 #10): a status.json + self-refreshing status.html
+    #     in the run dir, rewritten atomically on every seat/round/stage transition,
+    #     plus flushed per-seat terminal lines — the run dir is the only live window
+    #     while stdout block-buffers a background run. Best-effort: a status-write
+    #     failure warns once and never touches the run. --no-live-status opts out for
+    #     a byte-exact run dir (a NullTracker keeps the hook sites branch-free).
+    if not config.live_status:
+        tracker = NullTracker()
+    else:
+        planned = config.max_rounds if config.rounds == "auto" else int(config.rounds)
+        tracker = StatusTracker(config.out_dir, title=config.title,
+                                rounds_planned=planned, seats=config.board)
+
+    def _seat_cb(event, seat_id, round_no, result):
+        # Bridge rounds.run_round's per-seat callback → the tracker. Runs from the
+        # fan-out's worker threads; the tracker serializes internally.
+        detail = None
+        if event == "done" and result is not None:
+            detail = f"{result.elapsed_s:.0f}s"
+        elif event == "dropped" and result is not None:
+            detail = result.failure_class or "no usable review"
+        tracker.seat(seat_id, event, round_no, detail)
+
     # 0b. Toolchain currency (opt-in): update stale CLIs before probing, so a
     #     freshly-renamed model id resolves instead of 404-ing the board.
     _maybe_update_tools(config, args)
 
     # 1. Preflight — GO/NO-GO before anything else.
+    tracker.stage("preflight", "started")
     print("=== preflight ===")
     preflight = run_preflight(config)
     print(render_preflight_table(preflight))
@@ -328,10 +357,13 @@ def _execute_run(config, args) -> int:
         guidance = render_board_guidance(preflight, config)
         if guidance:
             print("\n" + guidance)
+        tracker.finish("no-board", f"preflight NO-GO ({go} of {len(preflight)} seats GO)")
         die("fewer than two seats are GO — not running a one-voice board", EXIT_PREFLIGHT_NOGO)
+    tracker.stage("preflight", "done", f"{go} of {len(preflight)} seats GO")
 
     # 2. Egress gate — the pre-spawn hard stop. Nothing has left the machine yet;
     #    the smoke pings above carried only a fixed token, never the source.
+    tracker.stage("egress", "started")
     print("\n=== egress gate ===")
     print(disclosure_line(config))
     approval = enforce_egress_gate(
@@ -352,11 +384,48 @@ def _execute_run(config, args) -> int:
                render_egress_manifest(config, blobs, content_hash))
         _write(os.path.join(config.out_dir, "sensitivity.json"),
                render_sensitivity_json(config, approval))
+        tracker.finish("egress-blocked", "egress refused at the gate")
         die(f"egress blocked — see {config.out_dir}/egress-manifest.md", EXIT_EGRESS_BLOCKED)
+    tracker.stage("egress", "done", f"approved ({approval.mode})")
 
     # 3. Approved: persist the exact approved packet + provenance BEFORE spawning.
     write_pre_spawn_artifacts(config, blobs, approval, content_hash)
+    # The run has committed to spawning + materialized its dir — NOW the live view
+    # may write status.json/status.html (before this, a NO-GO preflight or a refused
+    # egress must leave no dir; RH-1). This flush carries the full pre-spawn history
+    # (preflight + egress events already recorded in memory).
+    tracker.activate()
 
+    # Abort guard (v1.14 #10, P3 finding O3): once activate() has committed the live
+    # view to disk, ANY abnormal exit from the run body below — a die() inside run_round
+    # (egress-hash / repo-scope drift), a KeyboardInterrupt, an unhandled exception —
+    # would otherwise skip the normal tracker.finish() and leave status.json unfinished
+    # + status.html meta-refreshing forever over a dead run. The finally stamps a terminal
+    # `interrupted` outcome ONLY if the body didn't already finish (a normal path stamps
+    # its own outcome), re-rendering the now-STATIC html, then the exception RE-RAISES
+    # untouched — exit codes and die() messages are unchanged. Best-effort: a failing
+    # stamp must never mask the original exception.
+    try:
+        return _run_after_activate(
+            config, args, tracker, blobs, approval, content_hash,
+            preflight, digest_json, _seat_cb, _write)
+    finally:
+        try:
+            tracker.finish_if_unfinished(
+                OUTCOME_INTERRUPTED,
+                "run aborted before a terminal outcome (die/interrupt/exception)")
+        except Exception:
+            pass   # best-effort: the stamp must not mask the original exception
+
+
+def _run_after_activate(config, args, tracker, blobs, approval, content_hash,
+                        preflight, digest_json, _seat_cb, _write) -> int:
+    """The post-activate run body (rounds → synthesis/hand-off). Split out of
+    _execute_run so its caller can wrap it in the abort guard: everything here runs
+    AFTER the live view committed to disk, so any abnormal exit must land in that
+    guard's finally to stamp a terminal outcome + a static html. Returns the run's
+    exit code; raises on a die()/interrupt/exception exactly as before (the guard
+    re-raises untouched)."""
     # 4. Round-1 fan-out (M3) — the first real spawn. run_round re-asserts the
     #    egress hash one last time, then feeds each seat its approved blob verbatim
     #    (so the bytes that actually leave equal what consent was bound to), with
@@ -364,9 +433,11 @@ def _execute_run(config, args) -> int:
     #    values (bare default + id=SECONDS overrides) are already resolved onto each
     #    SeatConfig (config.resolve_board), so the fan-out reads them per seat.
     print("\n=== round 1 (fan-out) ===")
-    r1 = run_round(config, blobs, approval, round_no=1)
+    tracker.round_started(1)
+    r1 = run_round(config, blobs, approval, round_no=1, on_seat=_seat_cb)
     write_round_artifacts(config, r1, 1)
     rounds_done = [r1]
+    tracker.round_done(1, f"{sum(1 for r in r1 if r.usable)} of {len(r1)} usable")
     print(render_round_table(r1, 1))
 
     usable1 = [r for r in r1 if r.usable]
@@ -375,6 +446,7 @@ def _execute_run(config, args) -> int:
                render_run_metadata(config, preflight, approval, rounds=rounds_done))
         _write(os.path.join(config.out_dir, "run-metadata.tsv"),
                render_run_metadata_tsv(rounds_done))
+        tracker.finish("no-board", f"only {len(usable1)} usable round-1 review(s)")
         print(f"\nwrote run dir: {config.out_dir}")
         print(f"\nWARNING: only {len(usable1)} of {len(r1)} seats produced a usable "
               "round-1 review — that is not a board. Inspect round-1/*.raw and logs/, fix "
@@ -428,9 +500,11 @@ def _execute_run(config, args) -> int:
             print(f"(round {round_no} sends each seat's round-{round_no - 1} review to the others at "
                   "the same providers — no new source egresses; covered by the run-card's disclosed "
                   "multi-round plan.)")
-        rN = run_round(config, rN_blobs, approval, round_no=round_no)
+        tracker.round_started(round_no)
+        rN = run_round(config, rN_blobs, approval, round_no=round_no, on_seat=_seat_cb)
         write_round_artifacts(config, rN, round_no)
         rounds_done.append(rN)
+        tracker.round_done(round_no, f"{sum(1 for r in rN if r.usable)} of {len(rN)} usable")
         print(render_round_table(rN, round_no))
         mv = board_movement(prev, rN)
         movements.append(mv)
@@ -494,6 +568,7 @@ def _execute_run(config, args) -> int:
     # over one (or zero) voices. (stop_reason is already 'insufficient-voices' for the
     # auto path; an explicit --rounds N collapse is caught here too.)
     if len(usable_last) < 2:
+        tracker.finish("no-board", f"board collapsed to {len(usable_last)} usable voice(s)")
         print(f"\nWARNING: the board collapsed to {len(usable_last)} usable voice(s) by round "
               f"{last[0].round_no} — that is not a board. Inspect round-{last[0].round_no}/*.raw and "
               "logs/, fix the failed seats, and re-run. Synthesis is intentionally NOT attempted on "
@@ -514,8 +589,11 @@ def _execute_run(config, args) -> int:
     if config.synthesize:
         return _run_synthesis_step(config, rounds_done, args, last_dir,
                                    preflight=preflight, approval=approval,
-                                   convergence=convergence)
+                                   convergence=convergence, tracker=tracker)
 
+    # No --synthesize: the rounds are the conductor's product; the verdict is the
+    # agent's hand-authored step. The run (as the conductor drives it) ends here.
+    tracker.finish("rounds-complete", f"{len(rounds_done)} round(s) captured — verdict is yours")
     print("\nNext — synthesize, then run the deterministic M5 chain:")
     print(f"  1. Read {last_dir}/*.md and write {config.out_dir}/verdict.json "
           "(advisory-board/verdict@2; cite typed evidence on each blocker).")
@@ -531,7 +609,7 @@ def _execute_run(config, args) -> int:
 
 
 def _run_synthesis_step(config, rounds_done: list, args, last_dir: str, *,
-                        preflight, approval, convergence) -> int:
+                        preflight, approval, convergence, tracker=None) -> int:
     """The M2 synthesizer step. Spawns one no-lens seat to draft verdict.json from
     the final-round reviews; merges into the conductor's authoritative skeleton;
     rejects on schema-validation failure. The rounds already succeeded (the value
@@ -542,6 +620,8 @@ def _run_synthesis_step(config, rounds_done: list, args, last_dir: str, *,
     is how they detect that synthesis didn't deliver."""
     import shutil
     import tempfile
+    tk = tracker if tracker is not None else NullTracker()
+    tk.stage("synthesis", "started")
     last = rounds_done[-1]
     seat = choose_synthesizer_seat(config, last, preferred=config.synthesizer_seat)
     # The synthesizer spawns on a board seat, so it honors that seat's resolved
@@ -614,11 +694,14 @@ def _run_synthesis_step(config, rounds_done: list, args, last_dir: str, *,
         # the revision step runs — analogous placement/shape to the synthesis step,
         # gated on config.output. A revision failure never discards the verdict/rounds
         # (rejected artifacts + exit 0; --strict-exit → 4, same as the synthesizer).
+        tk.stage("synthesis", "done", "verdict.json validated")
         if config.output == "revised-draft":
             return _run_revision_step(config, sr.verdict_data, rounds_done, args,
                                       verdict_path=verdict_path,
                                       verdict_sha256=hashlib.sha256(
-                                          verdict_bytes.encode("utf-8")).hexdigest())
+                                          verdict_bytes.encode("utf-8")).hexdigest(),
+                                      tracker=tk)
+        tk.finish("ok", "verdict synthesized")
         print("\nNext — the deterministic M5 chain (human still gates ship/abstain):")
         print(f"  1. run_board.py verify {verdict_path} --source <src> --run {config.out_dir}")
         print(f"  2. run_board.py consensus {verdict_path} --run {config.out_dir} "
@@ -646,6 +729,7 @@ def _run_synthesis_step(config, rounds_done: list, args, last_dir: str, *,
             pass
 
     reason = sr.parse_error or sr.schema_error or sr.failure_class or "synthesizer dropped"
+    tk.finish("no-verdict", f"synthesizer did not deliver ({reason})")
     print(f"\n⚠ synthesizer did NOT produce a usable verdict.json — reason: {reason}")
     print(f"  see {synth_dir}/{seat.name}.md and {synth_dir}/{seat.name}.raw "
           "for the full record")
@@ -852,7 +936,7 @@ def _validate_changes_doc(data: dict):
 
 
 def _run_revision_step(config, verdict_data: dict, rounds_done: list, args, *,
-                       verdict_path: str, verdict_sha256: str) -> int:
+                       verdict_path: str, verdict_sha256: str, tracker=None) -> int:
     """The v1.13 revision step. Runs ONLY after synthesis produced a validated
     verdict.json (this function is reached from _run_synthesis_step's success
     branch, gated on config.output == "revised-draft"). Spawns one board seat to
@@ -863,6 +947,8 @@ def _run_revision_step(config, verdict_data: dict, rounds_done: list, args, *,
     exit 0 (--strict-exit → 4, the same code the synthesizer uses)."""
     import shutil
     import tempfile
+    tk = tracker if tracker is not None else NullTracker()
+    tk.stage("revision", "started")
     last = rounds_done[-1]
     seat = choose_revision_seat(config, last, preferred=config.revision_seat)
     timeout = seat.timeout_s
@@ -944,7 +1030,13 @@ def _run_revision_step(config, verdict_data: dict, rounds_done: list, args, *,
         # P2-shape changes.json). The pass never fails the run: a dropped seat
         # becomes ABSTAIN/dropped rows, all-dropped is a loud warning + rows. It
         # writes its own artifacts + summary and merges rows into rr.changes IN PLACE.
+        tk.stage("revision", "done", "revised draft accepted")
+        if config.endorse:
+            tk.stage("endorsement", "started")
         _run_endorsement_pass(config, rr, seat, args)
+        if config.endorse:
+            tk.stage("endorsement", "done",
+                     f"{len(rr.changes.get('endorsements') or [])} endorsement row(s)")
         # 1. The byte-clean revised draft — the revised source bytes and NOTHING
         #    else (no header). Its sha256 MUST equal changes.json.revised.sha256,
         #    so newline="" disables platform newline translation: the on-disk
@@ -999,6 +1091,7 @@ def _run_revision_step(config, verdict_data: dict, rounds_done: list, args, *,
             print(f"  ⚠ {detail}")
         print("\nThe revised draft is an ARTIFACT — applying it is your act (D6); the source "
               "was never written.")
+        tk.finish("ok", "verdict + revised draft written")
         return EXIT_OK
 
     # Failure path: keep the verdict + rounds, be loud that the revision did NOT
@@ -1029,6 +1122,7 @@ def _run_revision_step(config, verdict_data: dict, rounds_done: list, args, *,
         handle.write("\n")
 
     reason = rejected_record["reason"]
+    tk.finish("verdict-only", f"revision did not deliver ({reason})")
     print(f"\n⚠ revision did NOT produce a usable revised draft — reason: {reason}")
     print(f"  see {rev_dir}/{seat.id}.md and {rev_dir}/{seat.id}.raw for the full record")
     print(f"  the rejection was recorded to {changes_rejected_path}"
@@ -1169,6 +1263,13 @@ def add_run_options(parser: argparse.ArgumentParser) -> None:
                         help="write artifacts to a throwaway /tmp/advisory-board-<ts> instead of "
                              "the persistent runs root (the pre-v1.11 default). Contradicts "
                              "--out/--runs-root (refused).")
+    parser.add_argument("--no-live-status", dest="no_live_status", action="store_true",
+                        help="skip the live progress view (v1.14 #10). By default a run writes a "
+                             "status.json + self-refreshing status.html into the run dir, rewritten "
+                             "atomically on every seat/round transition, and prints flushed per-seat "
+                             "progress lines — something to watch during a long background run. This "
+                             "opts out (no status.* files, no extra lines) for a byte-exact run dir; "
+                             "the artifacts of record are identical either way.")
     parser.add_argument("--title", help="run title (default derived from the source; also names "
                                         "the default run dir's <slug>)")
     parser.add_argument("--from-recipe", dest="from_recipe",
