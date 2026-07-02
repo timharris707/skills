@@ -4,7 +4,7 @@
 
 | Script | Does | Reference |
 | ------ | ---- | --------- |
-| `run_board.py` | The **conductor** (M1–M5): deterministic seat-adapter registry, `--dry-run`, toolchain currency (`toolchain` — check/update stale CLIs, propose fallback model ids), executable preflight (GO/NO-GO), a hash-bound egress/quarantine gate before any provider call, the **round-1 fan-out** (real spawn, §13 failure protocol, per-seat `round-1/` artifacts), **rounds 2…N** (cross-reading `board-packet-round-N.md`, debate fan-out, the `--rounds auto` convergence stop-rule, `run-metadata.tsv`), and the **canonical-verdict chain** (`verify` → `consensus` → `validate`). Optionally **repo-grounds** the board: `--repo PATH` (with `--repo-include`/`--repo-exclude` globs) hands every seat a read-only, `.gitignore`-respecting, secret-denylisted **snapshot** of the repository so findings cite real `path:line`; consent binds to the scope hash and `repo-scope-manifest.json` records the scope, and in gate mode it enforces read-XOR-network (refuses an un-isolatable seat — see `references/data-handling.md`). Calls the scripts below; never reimplements them. Implemented as the [`_conductor/`](#package-layout) package — `run_board.py` is a thin façade (re-exports the API + the CLI entry). | `design/run-board-conductor.md` |
+| `run_board.py` | The **conductor** (M1–M5): deterministic seat-adapter registry, `--dry-run`, toolchain currency (`toolchain` — check/update stale CLIs, propose fallback model ids), executable preflight (GO/NO-GO), a hash-bound egress/quarantine gate before any provider call, the **round-1 fan-out** (real spawn, §13 failure protocol, per-seat `round-1/` artifacts), **rounds 2…N** (cross-reading `board-packet-round-N.md`, debate fan-out, the `--rounds auto` convergence stop-rule, `run-metadata.tsv`), and the **canonical-verdict chain** (`verify` → `consensus` → `validate`). Runs **persist by default** under `~/.advisory-board/runs/<slug>-<date>/` (override: `$ADVISORY_BOARD_RUNS_ROOT` / `--runs-root`; exact dir: `--out`; throwaway `/tmp`: `--ephemeral`) and `history` lists them. Optionally **repo-grounds** the board: `--repo PATH` (with `--repo-include`/`--repo-exclude` globs) hands every seat a read-only, `.gitignore`-respecting, secret-denylisted **snapshot** of the repository so findings cite real `path:line`; consent binds to the scope hash and `repo-scope-manifest.json` records the scope, and in gate mode it enforces read-XOR-network (refuses an un-isolatable seat — see `references/data-handling.md`). Calls the scripts below; never reimplements them. Implemented as the [`_conductor/`](#package-layout) package — `run_board.py` is a thin façade (re-exports the API + the CLI entry). | `design/run-board-conductor.md` |
 | `board_verdict.py` | Validate `verdict.json` (`@1`/`@2`); gate CI on the verdict (`--gate`) — pass `0` / fail `1` / schema `2` / **abstain `3`** when the board is torn, the declared verdict contradicts the observed board, or a citation is refuted. | `references/verdict-schema.md` |
 | `verify_evidence.py` | Resolve a verdict's typed `evidence[]` and stamp each `verified`/`unverified`/`refuted` — `code` `path:line`/`symbol` against the source, `source` quotes against the **captured packet** (never a live fetch), and (M3, opt-in via `--allow-program NAME`) `command` citations by **program-pinned, no-shell re-execution** in an isolated cwd with a structural exit/`expect` match. | `references/verdict-schema.md` |
 | `render_verdict.py` | Render `final-consensus.md` **from** the canonical `verdict.json` (evidence trail + couldn't-verify bucket); `--handoff-data`/`--html` derive the HTML via `render_handoff.py`. `--shape` picks the view: `full-handoff` (default), `quick-verdict` (skim brief), or `implementation-sequence` (sequence-first — every next action in order with owners where the verdict names them, backed by the blockers and their evidence trails; md + HTML). | `references/verdict-schema.md`, `references/output-formats.md` |
@@ -34,6 +34,7 @@ dependency DAG — each imports only from those above it:
 | `preflight.py` | Executable preflight (design §7): per-seat probes, the GO/NO-GO table, and board guidance. |
 | `doctor.py` | Setup doctor (`doctor`): sweeps **every** registered provider via `check_tool` + `preflight_seat` (never re-implements the probes), renders per-provider fix-it steps and the viable-board summary (≥ 2 seats GO) + a suggested first command. No user material egresses. |
 | `recipe.py` | The restricted-YAML codec for `run-recipe.yaml` plus recipe↔config conversion/validation. |
+| `history.py` | The run-history listing (v1.11 #5): scan the persistent runs root and render the `history` table from each run's `verdict.json` (degrading to `run-recipe.yaml` / `incomplete` for partial or legacy runs — never crashing the listing). |
 | `artifacts.py` | Renderers/writers for the pre-spawn artifacts: run-card, `sensitivity.json`, the artifact tree, and the run-metadata stamp (md + tsv). |
 | `rounds.py` | The round fan-out (design §11/§12/§13): `run_round`/`_run_seat_round` and the per-seat round artifacts/renderers. |
 | `cli.py` | The argparse front end: the `cmd_*` handlers, the delegation shim, and `main()`. |
@@ -64,6 +65,9 @@ python3 scripts/run_board.py preflight --source plan.md
 # full run: preflight + egress gate + round 1 + round 2 (cross-reading debate)
 # -> round-{1,2}/<seat>.md + .raw, board-packet-round-2.md, run-metadata.tsv
 # (stops at the last round's boundary; synthesis -> verdict.json is the agent's job, §11)
+# artifacts land under the persistent runs root by default: ~/.advisory-board/runs/<slug>-<date>/
+# ($ADVISORY_BOARD_RUNS_ROOT or --runs-root DIR relocate the root; --out DIR names an exact
+#  dir; --ephemeral opts back into a throwaway /tmp/advisory-board-<ts>)
 python3 scripts/run_board.py run --source plan.md --sensitivity public --rounds 2 --cross-reading summaries
 
 # per-seat timeouts + a typed digest: a bare --timeout caps every seat, SEAT=SECONDS caps one
@@ -71,6 +75,12 @@ python3 scripts/run_board.py run --source plan.md --sensitivity public --rounds 
 # writes each round's structured digest as board-packet-round-N.json next to the .md —
 # the same parsed signals (verdict tokens, agreement, shared citations, per-topic takes).
 python3 scripts/run_board.py run --source plan.md --timeout 600 --timeout ollama=1200 --digest-format json
+# list past runs from the persistent runs root (date, title, verdict, confidence,
+# unanimous, seats, run dir — read from each run's verdict.json; a partial/legacy run
+# without one lists as `incomplete`). Local disk read only; respects --runs-root / the
+# env root. NOTE: `run --from-recipe` reuses the recipe's recorded dir (rewriting that
+# run's artifacts in place) unless --out/--runs-root/--ephemeral name somewhere fresh.
+python3 scripts/run_board.py history
 
 # repo-grounded run: seats read a read-only snapshot of ./myrepo and cite real path:line.
 # gate mode enforces read-XOR-network — drop any un-isolatable seat (gemini/antigravity).

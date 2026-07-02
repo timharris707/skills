@@ -4,7 +4,7 @@ The orchestrator runs each seat as a CLI subprocess and keeps the artifact, the 
 
 ## Layout
 
-One folder per run (default `/tmp/advisory-board-<timestamp>/`; see the artifact-write policy in `SKILL.md`):
+One folder per run (default: the persistent runs root, `~/.advisory-board/runs/<slug>-<date>/`; `--ephemeral` for a throwaway `/tmp/advisory-board-<timestamp>/` — see the artifact-write policy in `SKILL.md`):
 
 ```
 mkdir -p round-1 round-2 prompts logs

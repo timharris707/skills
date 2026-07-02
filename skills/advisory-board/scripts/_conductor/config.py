@@ -33,6 +33,9 @@ __all__ = [
     "_source_from_text",
     "resolve_board",
     "default_out_dir",
+    "default_runs_root",
+    "default_run_dir",
+    "slugify_title",
     "resolve_config",
     "derive_title",
     "parse_board",
@@ -239,8 +242,50 @@ def resolve_board(seat_specs: list, lens_preset: str, model_overrides: dict,
 
 
 def default_out_dir() -> str:
+    """The EPHEMERAL out dir (`--ephemeral`): a timestamped folder under /tmp — the
+    pre-v1.11 default, kept byte-identical for anyone opting back out of persistence."""
     stamp = now_stamp().replace(":", "").replace("-", "").replace("T", "-")
     return os.path.join("/tmp", f"advisory-board-{stamp}")
+
+
+def default_runs_root() -> str:
+    """The persistent runs root (v1.11: runs stop evaporating): where default run
+    dirs land and where `history` reads. $ADVISORY_BOARD_RUNS_ROOT overrides;
+    else ~/.advisory-board/runs."""
+    return (os.environ.get("ADVISORY_BOARD_RUNS_ROOT")
+            or os.path.join(os.path.expanduser("~"), ".advisory-board", "runs"))
+
+
+def slugify_title(title: str) -> str:
+    """A filesystem slug of a run's title (the persistent run dir's name stem):
+    lowercased, runs of anything non-alphanumeric collapsed to '-', trimmed, and
+    capped so an essay-length title can't produce an unwieldy path. Falls back to
+    'run' when nothing survives (an all-punctuation title)."""
+    slug = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")
+    return slug[:60].rstrip("-") or "run"
+
+
+def default_run_dir(title: str, date: str, root: Optional[str] = None) -> str:
+    """The persistent default run dir: <runs root>/<slug>-<date>[-N].
+
+    The slug derives from the run's resolved title (the same one the artifacts
+    carry) and the date from now_date() — deterministic under ADVISORY_BOARD_NOW,
+    never an unseeded clock. When the dir already exists (a same-titled run on the
+    same day), a -2, -3… suffix keeps the new run from overwriting the prior one.
+
+    Known limit: the suffix is chosen at resolve time but the dir is only created
+    at first artifact write (after the consent prompt — RH-1: a NO-GO/refused run
+    must leave no dir), so two CONCURRENT default runs of the same title on the
+    same day can race to the same dir. Sequential reruns are fully handled; for
+    concurrent same-titled runs, disambiguate with --title or --out."""
+    root = os.path.abspath(os.path.expanduser(root or default_runs_root()))
+    stem = f"{slugify_title(title)}-{date}"
+    path = os.path.join(root, stem)
+    n = 2
+    while os.path.exists(path):
+        path = os.path.join(root, f"{stem}-{n}")
+        n += 1
+    return path
 
 
 def resolve_config(args) -> RunConfig:
@@ -323,9 +368,32 @@ def resolve_config(args) -> RunConfig:
 
     output = getattr(args, "output", None) or (base or {}).get("output") or "full-handoff"
 
-    out_dir = getattr(args, "out", None) or (base or {}).get("out_dir") or default_out_dir()
-
     title = getattr(args, "title", None) or (base or {}).get("title") or derive_title(source)
+    date = now_date()
+
+    # Where artifacts land (v1.11: persistent by default, so runs stop evaporating).
+    # Precedence: an explicit --out names the exact dir; --ephemeral opts back into
+    # the pre-v1.11 throwaway /tmp/advisory-board-<ts>; --runs-root (winning over
+    # $ADVISORY_BOARD_RUNS_ROOT) relocates the persistent root; a recipe re-run keeps
+    # writing into its recorded dir; else <runs root>/<slug>-<date>. Contradictory
+    # pairs die loudly rather than let one flag silently swallow another.
+    out_flag = getattr(args, "out", None)
+    ephemeral = bool(getattr(args, "ephemeral", False))
+    runs_root = getattr(args, "runs_root", None)
+    if ephemeral and out_flag:
+        die("--ephemeral and --out are contradictory; --out already names the exact dir")
+    if ephemeral and runs_root:
+        die("--ephemeral and --runs-root are contradictory; pick one posture")
+    if runs_root and out_flag:
+        die("--runs-root and --out are contradictory; --out already names the exact dir")
+    if out_flag:
+        out_dir = out_flag
+    elif ephemeral:
+        out_dir = default_out_dir()
+    elif runs_root:
+        out_dir = default_run_dir(title, date, root=runs_root)
+    else:
+        out_dir = (base or {}).get("out_dir") or default_run_dir(title, date)
 
     # Mode decides the quarantine posture (design §4). Gate: network off, fs
     # scoped. Advisory (opt-in, your own non-sensitive material): grounding on.
@@ -366,7 +434,7 @@ def resolve_config(args) -> RunConfig:
 
     return RunConfig(
         title=title,
-        date=now_date(),
+        date=date,
         source=source,
         mode=mode,
         sensitivity=sensitivity,

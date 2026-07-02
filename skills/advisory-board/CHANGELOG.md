@@ -72,6 +72,25 @@ reserved for an explicit production-ready call. The verdict-JSON schema is versi
   for the run, and the tests assert *that* dir holds no snapshot afterward; the
   failure-path test additionally probes mid-prepare that the snapshot really landed there,
   so the check can't pass vacuously.
+- **Persistent runs root (v1.11 #5) — runs stop evaporating.** Default run artifacts now land
+  under `~/.advisory-board/runs/<slug>-<date>/` (slug from the run's resolved title, date from
+  the deterministic run date; a same-day collision gets a `-2` suffix, never an overwrite)
+  instead of a throwaway `/tmp/advisory-board-<ts>` folder. Overrides: `$ADVISORY_BOARD_RUNS_ROOT`
+  (env) and `--runs-root DIR` (flag, wins over env) relocate the root; `--out DIR` still names an
+  exact dir; `--ephemeral` opts back into the pre-v1.11 `/tmp` behavior. Contradictory
+  combinations (`--ephemeral` + `--out`, etc.) are refused loudly. Every real run now announces
+  where its artifacts land on its first output line. A `--from-recipe` re-run keeps today's
+  semantics — it reuses the recipe's *recorded* dir (now persistent, so replaying rewrites that
+  run's artifacts in place; the notice says so) unless `--out`/`--runs-root`/`--ephemeral` point
+  it somewhere fresh. Artifact *content* is unchanged —
+  persistence is a disk-location move only, and persisted artifacts inherit the run's
+  sensitivity handling (`references/data-handling.md` gets a "Persisted run artifacts" section).
+- **`run_board.py history`** — a table of past runs (date, title, verdict, confidence,
+  unanimous, seats, run dir) read from each run's `verdict.json` under the runs root, with the
+  same lens-aware human verdict labels the consensus artifacts use. Partial/legacy runs (missing
+  or malformed `verdict.json`) degrade to `run-recipe.yaml` and list as `incomplete` — the
+  listing never crashes. Local disk read only; honors `--runs-root` / `$ADVISORY_BOARD_RUNS_ROOT`.
+  New `scripts/_conductor/history.py` module.
 
 ## [v1.10.0] - 2026-07-01 — Claude seat on Fable 5 at max effort
 

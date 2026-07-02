@@ -19,6 +19,7 @@ import contextlib
 import io
 import json
 import os
+import shutil
 import sys
 import tempfile
 import unittest
@@ -77,10 +78,16 @@ class EnvMixin(unittest.TestCase):
         for seat in ("CLAUDE", "CODEX", "GEMINI", "AGY", "OLLAMA"):
             os.environ[f"MOCK_{seat}_MODE"] = "go"
         os.environ.pop("MOCK_ARGV_LOG", None)
+        # v1.11: the default runs root is PERSISTENT (~/.advisory-board/runs), so keep
+        # the suite hermetic — a test that forgets --out must land in a per-test
+        # sandbox, never in the developer's real home (and never inherit their env).
+        self.runs_root = tempfile.mkdtemp(prefix="ab-test-runs-root-")
+        os.environ["ADVISORY_BOARD_RUNS_ROOT"] = self.runs_root
 
     def tearDown(self):
         os.environ.clear()
         os.environ.update(self._env)
+        shutil.rmtree(self.runs_root, ignore_errors=True)
 
 
 # --------------------------------------------------------------------------- #
@@ -7196,6 +7203,287 @@ class TestTimeoutNeverMinesPartialStreams(EnvMixin):
         self.assertFalse(r.timed_out)
         self.assertEqual((r.tokens_in, r.tokens_out, r.tokens_total),
                          (None, None, 13976))
+
+
+
+
+# --------------------------------------------------------------------------- #
+# --------------------------------------------------------------------------- #
+# v1.11 #5 — persistent runs root + the `history` subcommand
+# --------------------------------------------------------------------------- #
+
+
+class TestPersistentRunsRoot(EnvMixin):
+    """The default out dir moved from a throwaway /tmp folder to the persistent
+    runs root (<root>/<slug>-<date>). These pin the resolution precedence, the
+    slug/date determinism under ADVISORY_BOARD_NOW, the collision suffix, and
+    the opt-outs (--out exact dir, --ephemeral throwaway /tmp)."""
+
+    def test_default_out_dir_is_under_home_runs_root(self):
+        os.environ.pop("ADVISORY_BOARD_RUNS_ROOT", None)   # the true no-env default
+        # Sandbox HOME too: the collision scan must not see the developer's REAL
+        # ~/.advisory-board/runs (a leftover same-named dir there would suffix -2).
+        home = tempfile.mkdtemp(prefix="ab-home-")
+        self.addCleanup(shutil.rmtree, home, True)
+        os.environ["HOME"] = home
+        c = _config()
+        self.assertEqual(c.out_dir,
+                         os.path.join(home, ".advisory-board", "runs",
+                                      "sample-plan-2026-06-25"))
+
+    def test_env_root_override(self):
+        c = _config()   # EnvMixin points $ADVISORY_BOARD_RUNS_ROOT at the sandbox
+        self.assertEqual(c.out_dir, os.path.join(self.runs_root, "sample-plan-2026-06-25"))
+
+    def test_flag_root_wins_over_env(self):
+        other = tempfile.mkdtemp(prefix="ab-flag-root-")
+        self.addCleanup(shutil.rmtree, other, True)
+        c = _config(runs_root=other)
+        self.assertEqual(c.out_dir, os.path.join(other, "sample-plan-2026-06-25"))
+
+    def test_slug_derives_from_resolved_title(self):
+        c = _config(title="Payments API — Idempotency Keys!")
+        self.assertEqual(os.path.basename(c.out_dir),
+                         "payments-api-idempotency-keys-2026-06-25")
+
+    def test_date_is_deterministic_under_advisory_board_now(self):
+        os.environ["ADVISORY_BOARD_NOW"] = "2031-01-02"
+        c = _config()
+        self.assertEqual(os.path.basename(c.out_dir), "sample-plan-2031-01-02")
+        self.assertEqual(c.date, "2031-01-02")   # the dir date IS the run date
+
+    def test_same_day_collision_gets_suffix_not_overwrite(self):
+        os.makedirs(os.path.join(self.runs_root, "sample-plan-2026-06-25"))
+        self.assertEqual(os.path.basename(_config().out_dir), "sample-plan-2026-06-25-2")
+        os.makedirs(os.path.join(self.runs_root, "sample-plan-2026-06-25-2"))
+        self.assertEqual(os.path.basename(_config().out_dir), "sample-plan-2026-06-25-3")
+
+    def test_ephemeral_restores_tmp_default(self):
+        # Byte-identical to the pre-v1.11 default path shape (ADVISORY_BOARD_NOW_TS).
+        c = _config(ephemeral=True)
+        self.assertEqual(c.out_dir, "/tmp/advisory-board-20260625-120000")
+
+    def test_out_flag_still_names_exact_dir(self):
+        self.assertEqual(_config(out="/tmp/somewhere-else").out_dir, "/tmp/somewhere-else")
+
+    def test_contradictory_flags_die(self):
+        for kw in (dict(ephemeral=True, out="/tmp/x"),
+                   dict(ephemeral=True, runs_root="/tmp/y"),
+                   dict(runs_root="/tmp/y", out="/tmp/x")):
+            with contextlib.redirect_stderr(io.StringIO()):
+                with self.assertRaises(SystemExit, msg=f"{kw} must be refused"):
+                    _config(**kw)
+
+    def test_slugify_edges(self):
+        self.assertEqual(rb.slugify_title("!!!"), "run")            # nothing survives
+        self.assertEqual(rb.slugify_title("A  B__c"), "a-b-c")      # collapse + lowercase
+        self.assertLessEqual(len(rb.slugify_title("x y" * 100)), 60)  # capped, no trailing '-'
+        self.assertFalse(rb.slugify_title("x y" * 100).endswith("-"))
+
+    def test_run_end_to_end_under_env_root(self):
+        # The root override is honored END TO END: a real (mock-CLI) run with no
+        # --out writes its whole artifact tree under $ADVISORY_BOARD_RUNS_ROOT and
+        # announces the dir + the opt-outs on its first output line.
+        code, text, _ = run_cli(["run", "--source", SAMPLE, "--yes"])
+        self.assertEqual(code, rb.EXIT_OK)
+        out = os.path.join(self.runs_root, "sample-plan-2026-06-25")
+        self.assertIn(f"run artifacts → {out}", text)
+        self.assertIn("persistent default", text)
+        for rel in ["run-recipe.yaml", "run-metadata.md", "round-1/claude.md"]:
+            self.assertTrue(os.path.exists(os.path.join(out, rel)), rel)
+
+    def test_runs_root_flag_end_to_end(self):
+        other = tempfile.mkdtemp(prefix="ab-flag-root-e2e-")
+        self.addCleanup(shutil.rmtree, other, True)
+        code, _, _ = run_cli(["run", "--source", SAMPLE, "--yes", "--runs-root", other])
+        self.assertEqual(code, rb.EXIT_OK)
+        self.assertTrue(os.path.exists(os.path.join(other, "sample-plan-2026-06-25",
+                                                    "run-recipe.yaml")))
+
+    def test_ephemeral_run_end_to_end(self):
+        out = "/tmp/advisory-board-20260625-120000"
+        self.addCleanup(shutil.rmtree, out, True)
+        code, text, _ = run_cli(["run", "--source", SAMPLE, "--yes", "--ephemeral"])
+        self.assertEqual(code, rb.EXIT_OK)
+        self.assertIn(f"run artifacts → {out}", text)
+        self.assertIn("ephemeral", text)
+        self.assertTrue(os.path.exists(os.path.join(out, "run-recipe.yaml")))
+
+    def test_notice_is_neutral_for_explicit_out(self):
+        out = tempfile.mkdtemp(prefix="board-notice-")
+        self.addCleanup(shutil.rmtree, out, True)
+        code, text, _ = run_cli(["run", "--source", SAMPLE, "--out", out, "--yes"])
+        self.assertEqual(code, rb.EXIT_OK)
+        self.assertIn(f"run artifacts → {out}", text)
+        self.assertNotIn("persistent default", text)   # --out chose; no default hint
+
+    def test_dry_run_prints_no_notice(self):
+        # --dry-run output is a pinned surface (byte-diffed for determinism
+        # elsewhere); the run-start notice belongs to real runs only.
+        out = tempfile.mkdtemp(prefix="board-dry-")
+        self.addCleanup(shutil.rmtree, out, True)
+        code, text, _ = run_cli(["run", "--source", SAMPLE, "--out", out, "--dry-run"])
+        self.assertEqual(code, rb.EXIT_OK)
+        self.assertNotIn("run artifacts →", text)
+
+    def test_recipe_rerun_notice_warns_about_rewrite(self):
+        # A --from-recipe re-run reuses the recipe's RECORDED dir — which now
+        # persists — so the notice must say the replay rewrites it in place.
+        code1, _, _ = run_cli(["run", "--source", SAMPLE, "--yes"])
+        self.assertEqual(code1, rb.EXIT_OK)
+        recipe = os.path.join(self.runs_root, "sample-plan-2026-06-25", "run-recipe.yaml")
+        code2, text, _ = run_cli(["run", "--from-recipe", recipe, "--yes"])
+        self.assertEqual(code2, rb.EXIT_OK)
+        self.assertIn(f"run artifacts → {os.path.join(self.runs_root, 'sample-plan-2026-06-25')}",
+                      text)
+        self.assertIn("rewriting the recipe's recorded run dir", text)
+
+
+class TestHistory(EnvMixin):
+    """`run_board.py history` (v1.11 #5): the table over the runs root, read from
+    each run's verdict.json and degrading — never crashing — on partial, legacy,
+    or malformed run dirs."""
+
+    def _mk_run(self, name, verdict=None, recipe=None):
+        d = os.path.join(self.runs_root, name)
+        os.makedirs(d, exist_ok=True)
+        if verdict is not None:
+            with open(os.path.join(d, "verdict.json"), "w", encoding="utf-8") as fh:
+                fh.write(verdict if isinstance(verdict, str) else json.dumps(verdict))
+        if recipe is not None:
+            with open(os.path.join(d, "run-recipe.yaml"), "w", encoding="utf-8") as fh:
+                fh.write(recipe)
+        return d
+
+    @staticmethod
+    def _verdict(**kw):
+        base = {
+            "schema": "advisory-board/verdict@2",
+            "title": "Payments API idempotency keys",
+            "date": "2026-06-25",
+            "verdict": "block",
+            "confidence": "high",
+            "unanimous": True,
+            "rounds": 2,
+            "board": [
+                {"seat": "Claude", "model": "m", "round_verdicts": ["block", "block"]},
+                {"seat": "Codex", "model": "m", "round_verdicts": ["caution", "block"]},
+            ],
+        }
+        base.update(kw)
+        return base
+
+    def test_table_over_fixture_runs_incl_partial(self):
+        self._mk_run("payments-2026-06-25", verdict=self._verdict())
+        self._mk_run("pricing-2026-06-24", verdict=self._verdict(
+            title="Pricing decision", date="2026-06-24", verdict="caution",
+            confidence="medium", unanimous=False, lens_preset="business-decision"))
+        self._mk_run("half-run-2026-06-23", recipe=(
+            "title: Half-finished run\ndate: 2026-06-23\nboard:\n"
+            "  - seat: claude\n    provider: Anthropic\n"
+            "  - seat: codex\n    provider: OpenAI\n"))
+        code, text, _ = run_cli(["history"])
+        self.assertEqual(code, rb.EXIT_OK)
+        self.assertIn(f"runs root: {self.runs_root}", text)
+        rows = [ln for ln in text.splitlines() if ln.startswith("|")][2:]  # skip header+rule
+        self.assertEqual(len(rows), 3)
+        # newest first (date descending)
+        self.assertIn("2026-06-25", rows[0])
+        self.assertIn("2026-06-24", rows[1])
+        self.assertIn("2026-06-23", rows[2])
+        # verdict labels are the lens-aware HUMAN labels (machine token untouched
+        # in verdict.json): legacy software family for the absent-preset run,
+        # plain language for the business-decision run.
+        self.assertIn("DO NOT SHIP YET", rows[0])
+        self.assertIn("Proceed with care", rows[1])
+        self.assertIn("high", rows[0])
+        self.assertIn("medium", rows[1])
+        self.assertIn("yes", rows[0])
+        self.assertIn("no", rows[1])
+        self.assertIn("Claude, Codex", rows[0])
+        # the partial run degrades to its recipe, listed as incomplete — no crash
+        self.assertIn("Half-finished run", rows[2])
+        self.assertIn("incomplete", rows[2])
+        self.assertIn("claude, codex", rows[2])
+        self.assertIn("3 run(s), 1 incomplete", text)
+
+    def test_decision_field_wins_verbatim(self):
+        self._mk_run("invest-2026-06-25", verdict=self._verdict(
+            title="Series B", verdict="caution", decision="Invest, staged",
+            lens_preset="business-decision"))
+        _, text, _ = run_cli(["history"])
+        self.assertIn("Invest, staged", text)
+
+    def test_dropped_seat_is_marked(self):
+        v = self._verdict()
+        v["board"].append({"seat": "Gemini", "model": "m",
+                           "round_verdicts": ["block"], "dropped": True})
+        self._mk_run("dropped-2026-06-25", verdict=v)
+        _, text, _ = run_cli(["history"])
+        self.assertIn("Gemini (dropped)", text)
+
+    def test_multiline_title_stays_one_table_row(self):
+        # The recipe codec round-trips multi-line --title values, so a title can
+        # legally contain \n; the table must collapse it, never split the row.
+        self._mk_run("nl-2026-06-25", verdict=self._verdict(title="two\nlines"))
+        _, text, _ = run_cli(["history"])
+        rows = [ln for ln in text.splitlines() if ln.startswith("|")][2:]
+        self.assertEqual(len(rows), 1)
+        self.assertIn("two lines", rows[0])
+
+    def test_degrades_without_crashing_on_junk(self):
+        self._mk_run("malformed-verdict", verdict="{not json")
+        self._mk_run("verdict-not-a-dict", verdict="[1, 2]")
+        self._mk_run("no-token", verdict={"title": "No verdict token", "date": "2026-06-20"})
+        self._mk_run("bad-recipe", recipe=":::\n  what\n")
+        os.makedirs(os.path.join(self.runs_root, "stray-dir-no-markers"))  # skipped
+        with open(os.path.join(self.runs_root, "stray-file.txt"), "w") as fh:
+            fh.write("not a run\n")                                        # skipped
+        code, text, err = run_cli(["history"])
+        self.assertEqual(code, rb.EXIT_OK, err)
+        rows = [ln for ln in text.splitlines() if ln.startswith("|")][2:]
+        self.assertEqual(len(rows), 4, text)   # the two strays are not phantom rows
+        self.assertNotIn("stray-dir-no-markers", text)
+        self.assertIn("4 run(s), 4 incomplete", text)
+
+    def test_empty_and_missing_roots_are_answers_not_errors(self):
+        code, text, _ = run_cli(["history"])   # sandbox root exists but is empty
+        self.assertEqual(code, rb.EXIT_OK)
+        self.assertIn("no runs recorded under", text)
+        gone = os.path.join(self.runs_root, "never-created")
+        code, text, _ = run_cli(["history", "--runs-root", gone])
+        self.assertEqual(code, rb.EXIT_OK)
+        self.assertIn("no runs recorded under", text)
+
+    def test_flag_root_wins_over_env_root(self):
+        self._mk_run("env-run-2026-06-25", verdict=self._verdict(title="Env run"))
+        other = tempfile.mkdtemp(prefix="ab-hist-flag-")
+        self.addCleanup(shutil.rmtree, other, True)
+        os.makedirs(os.path.join(other, "flag-run-2026-06-25"))
+        with open(os.path.join(other, "flag-run-2026-06-25", "verdict.json"), "w") as fh:
+            json.dump(self._verdict(title="Flag run"), fh)
+        _, text, _ = run_cli(["history", "--runs-root", other])
+        self.assertIn("Flag run", text)
+        self.assertNotIn("Env run", text)
+
+    def test_history_lists_a_real_run_end_to_end(self):
+        # run (mock CLIs, no --out) -> the dir lands under the env root ->
+        # history lists it as incomplete (rounds ran; verdict.json is the
+        # synthesis step's artifact and wasn't produced) with the recipe's title.
+        code, _, _ = run_cli(["run", "--source", SAMPLE, "--yes"])
+        self.assertEqual(code, rb.EXIT_OK)
+        code, text, _ = run_cli(["history"])
+        self.assertEqual(code, rb.EXIT_OK)
+        self.assertIn("sample plan", text)
+        self.assertIn("incomplete", text)
+        self.assertIn("sample-plan-2026-06-25", text)   # the run-dir column
+        # drop a verdict into the run dir -> the same row becomes a complete run
+        with open(os.path.join(self.runs_root, "sample-plan-2026-06-25",
+                               "verdict.json"), "w") as fh:
+            json.dump(self._verdict(title="sample plan"), fh)
+        _, text, _ = run_cli(["history"])
+        self.assertIn("DO NOT SHIP YET", text)
+        self.assertNotIn("incomplete", text)
 
 
 if __name__ == "__main__":
