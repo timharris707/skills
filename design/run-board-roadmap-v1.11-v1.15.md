@@ -89,8 +89,8 @@ Testing: amend round-trip; gate reflects amendment; render marks human provenanc
 Gate: full suite.
 
 ### Phase 5 — Docs, review, release v1.12
-- [ ] SKILL.md + references updated (revise/ask/amend); CHANGELOG section on `main`; adversarial-review debts closed
-- [ ] Tag `advisory-board/v1.12.0` on Tim's explicit go → release green
+- [x] SKILL.md + references updated (revise/ask/amend); CHANGELOG section on `main`; adversarial-review debts closed _(docs verified covering all three features; every must-fix finding from the P2/P3/P4 reviews fixed in-phase; LOW leftovers parked in ## Later by design; `## [v1.12.0]` landed on main `10b6969` before the tag)_
+- [x] Tag `advisory-board/v1.12.0` on Tim's explicit go → release green _(go given 2026-07-02; release published + Latest, workflow green, suite 980 OK)_
 Gate: release Latest + full suite green.
 
 ## Milestone: v1.13 — Transform: the board hands back a fixed copy
