@@ -429,21 +429,21 @@ footer.colophon code { background: var(--surface-2); }
         </div>
       </div>
       <div class="gauge">
-        <svg class="ring" viewBox="0 0 120 120" width="118" height="118" role="img" aria-label="Overall progress 0%">
+        <svg class="ring" viewBox="0 0 120 120" width="118" height="118" role="img" aria-label="Overall progress 24%">
           <circle class="ring-track" cx="60" cy="60" r="52" fill="none" stroke-width="11"/>
           <circle class="ring-arc" cx="60" cy="60" r="52" fill="none" stroke-width="11"
                   stroke-linecap="round" transform="rotate(-90 60 60)"
-                  stroke-dasharray="326.7" stroke-dashoffset="326.7"/>
-          <text class="ring-pct" x="60" y="57" text-anchor="middle" dominant-baseline="middle">0%</text>
+                  stroke-dasharray="326.7" stroke-dashoffset="248.3"/>
+          <text class="ring-pct" x="60" y="57" text-anchor="middle" dominant-baseline="middle">24%</text>
           <text class="ring-sub" x="60" y="76" text-anchor="middle" dominant-baseline="middle">complete</text>
         </svg>
-        <div class="gauge-count"><b>0</b> / 38 tasks done</div>
+        <div class="gauge-count"><b>9</b> / 38 tasks done</div>
       </div>
     </div>
 
     <div class="rail">
       
-      <span class="rail-item todo"><i class="dot"></i>M1</span>
+      <span class="rail-item wip"><i class="dot"></i>M1</span>
       
       <span class="rail-item todo"><i class="dot"></i>M2</span>
       
@@ -475,16 +475,16 @@ footer.colophon code { background: var(--surface-2); }
     <div class="section-head"><h2 class="section-title">Milestones</h2><span class="rule"></span></div>
 
     
-    <article class="milestone todo">
+    <article class="milestone wip">
       <div class="ms-head">
         <div class="ms-num">1</div>
         <div class="ms-head-main">
           <h3 class="ms-title">v1.11 — Transparency &amp; foundations</h3>
           <div class="ms-meta">
-            <span class="badge todo"><span class="dot"></span>To do</span>
+            <span class="badge wip"><span class="dot"></span>In progress</span>
             <span class="ms-progress">
-              <span class="ms-bar"><span style="width:0%"></span></span>
-              0/13
+              <span class="ms-bar"><span style="width:69%"></span></span>
+              9/13
             </span>
           </div>
         </div>
@@ -495,19 +495,19 @@ footer.colophon code { background: var(--surface-2); }
       
 
       
-      <div class="phase todo">
+      <div class="phase done">
         <div class="phase-head">
           <span class="phase-dot"></span>
           <h4 class="phase-title">Phase 1 — Cost &amp; time capture + preflight estimate (#3a)</h4>
-          <span class="phase-state">To do</span>
+          <span class="phase-state">Done</span>
         </div>
         <ul class="checklist">
           
-          <li class="todo"><span class="tick"></span><span class="task-text">Per-seat token capture: <code>tokens_in</code>/<code>tokens_out</code> (nullable) on <code>SeatRoundResult</code>; per-adapter output parsers in <code>registry.py</code> (claude first; codex/gemini/antigravity/ollama best-effort, else unknown — never guess)</span></li>
+          <li class="done"><span class="tick">✓</span><span class="task-text">Per-seat token capture: <code>tokens_in</code>/<code>tokens_out</code> (nullable) on <code>SeatRoundResult</code>; per-adapter output parsers in <code>registry.py</code> (claude first; codex/gemini/antigravity/ollama best-effort, else unknown — never guess) <em>(PR #53)</em></span></li>
           
-          <li class="todo"><span class="tick"></span><span class="task-text">Pricing table in <code>constants.py</code> keyed by model id (frontier ids inline, dated) + a pure <code>estimate_run()</code> (source bytes × seats × rounds × cross-reading) surfaced by <code>--dry-run</code> and the existing large-run warning</span></li>
+          <li class="done"><span class="tick">✓</span><span class="task-text">Pricing table in <code>constants.py</code> keyed by model id (frontier ids inline, dated) + a pure <code>estimate_run()</code> (source bytes × seats × rounds × cross-reading) surfaced by <code>--dry-run</code> and the existing large-run warning <em>(PR #53)</em></span></li>
           
-          <li class="todo"><span class="tick"></span><span class="task-text">Render: per-seat tokens/cost columns in <code>run-metadata.tsv</code>, a cost/time line in <code>run-metadata.md</code> and the <code>final-consensus.html</code> footer, all with explicit &quot;if known / estimate&quot; wording</span></li>
+          <li class="done"><span class="tick">✓</span><span class="task-text">Render: per-seat tokens/cost columns in <code>run-metadata.tsv</code>, a cost/time line in <code>run-metadata.md</code> and the <code>final-consensus.html</code> footer, all with explicit &quot;if known / estimate&quot; wording <em>(PR #53)</em></span></li>
           
         </ul>
         
@@ -551,17 +551,17 @@ footer.colophon code { background: var(--surface-2); }
         
       </div>
       
-      <div class="phase todo">
+      <div class="phase done">
         <div class="phase-head">
           <span class="phase-dot"></span>
           <h4 class="phase-title">Phase 3 — Run history &amp; persistent runs root (#5)</h4>
-          <span class="phase-state">To do</span>
+          <span class="phase-state">Done</span>
         </div>
         <ul class="checklist">
           
-          <li class="todo"><span class="tick"></span><span class="task-text">Persistent default runs root (<code>~/.advisory-board/runs/&lt;slug&gt;-&lt;date&gt;/</code>), opt-out flag/env; <code>data-handling.md</code> notes that persisted artifacts inherit the run&#x27;s sensitivity handling</span></li>
+          <li class="done"><span class="tick">✓</span><span class="task-text">Persistent default runs root (<code>~/.advisory-board/runs/&lt;slug&gt;-&lt;date&gt;/</code>), opt-out flag/env; <code>data-handling.md</code> notes that persisted artifacts inherit the run&#x27;s sensitivity handling <em>(PR #52)</em></span></li>
           
-          <li class="todo"><span class="tick"></span><span class="task-text"><code>run_board.py history</code> — table (title, date, verdict, confidence, unanimous, seats) read from each run&#x27;s <code>verdict.json</code> + <code>run-metadata</code>; degrades gracefully on partial/legacy runs</span></li>
+          <li class="done"><span class="tick">✓</span><span class="task-text"><code>run_board.py history</code> — table (title, date, verdict, confidence, unanimous, seats) read from each run&#x27;s <code>verdict.json</code> + <code>run-metadata</code>; degrades gracefully on partial/legacy runs <em>(PR #52)</em></span></li>
           
         </ul>
         
@@ -578,15 +578,15 @@ footer.colophon code { background: var(--surface-2); }
         
       </div>
       
-      <div class="phase todo">
+      <div class="phase done">
         <div class="phase-head">
           <span class="phase-dot"></span>
           <h4 class="phase-title">Phase 4 — Setup doctor (#7)</h4>
-          <span class="phase-state">To do</span>
+          <span class="phase-state">Done</span>
         </div>
         <ul class="checklist">
           
-          <li class="todo"><span class="tick"></span><span class="task-text"><code>run_board.py doctor</code> sweeps <strong>every</strong> REGISTRY provider (installed → version/currency → auth → model resolves), prints per-provider fix-it steps (reusing preflight/toolchain probes) + a suggested first command; summarizes which boards are viable today (≥2 GO)</span></li>
+          <li class="done"><span class="tick">✓</span><span class="task-text"><code>run_board.py doctor</code> sweeps <strong>every</strong> REGISTRY provider (installed → version/currency → auth → model resolves), prints per-provider fix-it steps (reusing preflight/toolchain probes) + a suggested first command; summarizes which boards are viable today (≥2 GO) <em>(PR #50)</em></span></li>
           
         </ul>
         
@@ -603,19 +603,19 @@ footer.colophon code { background: var(--surface-2); }
         
       </div>
       
-      <div class="phase todo">
+      <div class="phase done">
         <div class="phase-head">
           <span class="phase-dot"></span>
           <h4 class="phase-title">Phase 5 — Structured digest + gap-fills (#13, #14)</h4>
-          <span class="phase-state">To do</span>
+          <span class="phase-state">Done</span>
         </div>
         <ul class="checklist">
           
-          <li class="todo"><span class="tick"></span><span class="task-text"><code>--digest-format markdown|json</code>: emit the round-2+ board packet&#x27;s sections/agreement/citations as typed JSON alongside the markdown (same parsed signals, no new reasoning)</span></li>
+          <li class="done"><span class="tick">✓</span><span class="task-text"><code>--digest-format markdown|json</code>: emit the round-2+ board packet&#x27;s sections/agreement/citations as typed JSON alongside the markdown (same parsed signals, no new reasoning) <em>(PR #51)</em></span></li>
           
-          <li class="todo"><span class="tick"></span><span class="task-text"><code>--timeout id=SECONDS</code> per-seat override threading through to spawn</span></li>
+          <li class="done"><span class="tick">✓</span><span class="task-text"><code>--timeout id=SECONDS</code> per-seat override threading through to spawn <em>(PR #51)</em></span></li>
           
-          <li class="todo"><span class="tick"></span><span class="task-text">Make <code>--output implementation-sequence</code> a real distinct render (sequence-first view from <code>next_actions[]</code>/blockers), not an alias of full-handoff</span></li>
+          <li class="done"><span class="tick">✓</span><span class="task-text">Make <code>--output implementation-sequence</code> a real distinct render (sequence-first view from <code>next_actions[]</code>/blockers), not an alias of full-handoff <em>(PR #51)</em></span></li>
           
         </ul>
         
@@ -1288,7 +1288,7 @@ footer.colophon code { background: var(--surface-2); }
 
   <!-- ===================== COLOPHON ===================== -->
   <footer class="colophon">
-    Rendered from <code>run-board-roadmap-v1.11-v1.15.md</code> &middot; 5 milestones &middot; 0/38 tasks complete. The markdown plan is the source of truth &mdash; regenerate with <code>render_plan.py</code>; never hand-edit this file.
+    Rendered from <code>run-board-roadmap-v1.11-v1.15.md</code> &middot; 5 milestones &middot; 9/38 tasks complete. The markdown plan is the source of truth &mdash; regenerate with <code>render_plan.py</code>; never hand-edit this file.
   </footer>
 
 </div>

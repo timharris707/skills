@@ -23,9 +23,9 @@ Know before you convene: what a run will cost and how long it takes, plus the su
 
 ### Phase 1 — Cost & time capture + preflight estimate (#3a)
 Capture what each seat actually spent and predict it before launch — always best-effort, never a gate.
-- [ ] Per-seat token capture: `tokens_in`/`tokens_out` (nullable) on `SeatRoundResult`; per-adapter output parsers in `registry.py` (claude first; codex/gemini/antigravity/ollama best-effort, else unknown — never guess)
-- [ ] Pricing table in `constants.py` keyed by model id (frontier ids inline, dated) + a pure `estimate_run()` (source bytes × seats × rounds × cross-reading) surfaced by `--dry-run` and the existing large-run warning
-- [ ] Render: per-seat tokens/cost columns in `run-metadata.tsv`, a cost/time line in `run-metadata.md` and the `final-consensus.html` footer, all with explicit "if known / estimate" wording
+- [x] Per-seat token capture: `tokens_in`/`tokens_out` (nullable) on `SeatRoundResult`; per-adapter output parsers in `registry.py` (claude first; codex/gemini/antigravity/ollama best-effort, else unknown — never guess) _(PR #53)_
+- [x] Pricing table in `constants.py` keyed by model id (frontier ids inline, dated) + a pure `estimate_run()` (source bytes × seats × rounds × cross-reading) surfaced by `--dry-run` and the existing large-run warning _(PR #53)_
+- [x] Render: per-seat tokens/cost columns in `run-metadata.tsv`, a cost/time line in `run-metadata.md` and the `final-consensus.html` footer, all with explicit "if known / estimate" wording _(PR #53)_
 Testing: parser fixtures per CLI; estimator pure-function tests; unknown-tokens run renders byte-identical to baseline.
 Gate: `cd skills/advisory-board && python3 -m unittest discover -s tests -t tests`
 
@@ -38,21 +38,21 @@ Gate: full suite.
 
 ### Phase 3 — Run history & persistent runs root (#5)
 Runs stop evaporating.
-- [ ] Persistent default runs root (`~/.advisory-board/runs/<slug>-<date>/`), opt-out flag/env; `data-handling.md` notes that persisted artifacts inherit the run's sensitivity handling
-- [ ] `run_board.py history` — table (title, date, verdict, confidence, unanimous, seats) read from each run's `verdict.json` + `run-metadata`; degrades gracefully on partial/legacy runs
+- [x] Persistent default runs root (`~/.advisory-board/runs/<slug>-<date>/`), opt-out flag/env; `data-handling.md` notes that persisted artifacts inherit the run's sensitivity handling _(PR #52)_
+- [x] `run_board.py history` — table (title, date, verdict, confidence, unanimous, seats) read from each run's `verdict.json` + `run-metadata`; degrades gracefully on partial/legacy runs _(PR #52)_
 Testing: history over fixture runs incl. a partial one; root override honored end-to-end.
 Gate: full suite.
 
 ### Phase 4 — Setup doctor (#7)
 The preflight, proactively, for a brand-new user.
-- [ ] `run_board.py doctor` sweeps **every** REGISTRY provider (installed → version/currency → auth → model resolves), prints per-provider fix-it steps (reusing preflight/toolchain probes) + a suggested first command; summarizes which boards are viable today (≥2 GO)
+- [x] `run_board.py doctor` sweeps **every** REGISTRY provider (installed → version/currency → auth → model resolves), prints per-provider fix-it steps (reusing preflight/toolchain probes) + a suggested first command; summarizes which boards are viable today (≥2 GO) _(PR #50)_
 Testing: mocked probes cover GO / NO-GO / not-installed / stale-CLI paths.
 Gate: full suite.
 
 ### Phase 5 — Structured digest + gap-fills (#13, #14)
-- [ ] `--digest-format markdown|json`: emit the round-2+ board packet's sections/agreement/citations as typed JSON alongside the markdown (same parsed signals, no new reasoning)
-- [ ] `--timeout id=SECONDS` per-seat override threading through to spawn
-- [ ] Make `--output implementation-sequence` a real distinct render (sequence-first view from `next_actions[]`/blockers), not an alias of full-handoff
+- [x] `--digest-format markdown|json`: emit the round-2+ board packet's sections/agreement/citations as typed JSON alongside the markdown (same parsed signals, no new reasoning) _(PR #51)_
+- [x] `--timeout id=SECONDS` per-seat override threading through to spawn _(PR #51)_
+- [x] Make `--output implementation-sequence` a real distinct render (sequence-first view from `next_actions[]`/blockers), not an alias of full-handoff _(PR #51)_
 Testing: digest JSON golden file; timeout reaches the spawn call; new output-shape snapshot.
 Gate: full suite.
 
