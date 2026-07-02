@@ -147,6 +147,35 @@ def drop_empty_optionals(out: str) -> str:
     out = re.sub(r'\s*<div class="highlight">\s*</div>', "", out)
     out = re.sub(r'\s*<span class="conf">confidence:\s*</span>', "", out)
     out = re.sub(r'\s*<span class="disclaimer">\s*</span>', "", out)
+    # Severity-filter elision line (v1.14 P1): drop the whole <p class="filter-note">
+    # when it rendered empty (a full --filter all render, or any pre-v1.14 data file),
+    # so the page is byte-identical to before. Present only on a filtered render. The
+    # authoring comment immediately above it is eaten too (like amend-sec) so the drop
+    # leaves no blank-line residue. Shared by the full + quick-verdict banners.
+    out = re.sub(
+        r'\s*(?:<!--(?:(?!-->).)*?-->\s*)?<p class="filter-note">\s*</p>',
+        "", out, flags=re.DOTALL)
+    # On a FILTERED render — and only there — an emptied full-handoff dissent /
+    # couldn't-verify section drops WHOLE (divider comment, authoring comment,
+    # heading, shell): a hollow "<h2>Dissent…</h2>" beside a filter-note saying
+    # dissent was removed would contradict the note. The gate is a NON-empty
+    # filter-note in this render: unfiltered pages — and filtered pages where
+    # nothing was actually dropped — keep today's bytes exactly (D5), including
+    # the pre-existing empty shell on a verdict with no dissent/caveat data.
+    # Both rules match only EMPTY sections (populated ones are no-ops) and are
+    # scoped to the full-handoff markup (no-ops for qv-*/seq-* templates).
+    if re.search(r'<p class="filter-note">\s*[^<\s]', out):
+        out = re.sub(
+            r'\s*(?:<!--(?:(?!-->).)*?-->\s*)*<section>\s*'
+            r'<h2>Dissent &amp; minority report</h2>\s*'
+            r'<div class="dissent">\s*<span class="d-flag">\s*</span>\s*'
+            r'</div>\s*</section>',
+            "", out, flags=re.DOTALL)
+        out = re.sub(
+            r"\s*(?:<!--(?:(?!-->).)*?-->\s*)*<section>\s*"
+            r"<h2>What the board couldn't verify</h2>\s*"
+            r'<div class="caveats">\s*<ul>\s*</ul>\s*</div>\s*</section>',
+            "", out, flags=re.DOTALL)
     # Drop the verdict-banner confidence pill when there's no confidence. Shared by both
     # the full handoff and the brief (same banner markup); no-op when the pill is filled.
     out = re.sub(r'<span class="conf-badge">\s*</span>', "", out)
@@ -285,6 +314,10 @@ def render(data: dict, template: str) -> str:
     # default it to "" so the {{ENDORSEMENT_SUMMARY}} line drops below rather than
     # dying on an unresolved token (and an endorsement-less run stays byte-identical).
     data.setdefault("endorsement_summary", "")
+    # v1.14 P1: the severity-filter elision line. Empty on a full (--filter all)
+    # render and on any pre-v1.14 handoff-data.json — the {{FILTER_NOTE}} line then
+    # drops below, keeping an unfiltered page byte-identical.
+    data.setdefault("filter_note", "")
     if isinstance(data.get("blockers"), list):
         # Copy each blocker row before defaulting its nested list, so an old
         # handoff-data.json passed in by the caller is never mutated.

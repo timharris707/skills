@@ -35,6 +35,13 @@ from datetime import datetime
 
 SEVERITY = {"ship": 0, "caution": 1, "block": 2}
 CONFIDENCE = {"low", "medium", "high"}
+# --min-severity (v1.14 P1): the FINDING severity a fail must rest on. It composes
+# WITH --fail-on (the verdict-token threshold), never against it — a fail requires
+# BOTH the verdict token to meet --fail-on AND a finding at/above this tier. Ranked
+# blocker > concern; dissent is a minority view, not a finding tier, so it never
+# counts (a caution whose only findings are concerns/dissent does not fail under
+# `blocker`). Absent = today's behavior (the verdict token alone drives the gate).
+FINDING_SEVERITY = {"concern": 0, "blocker": 1}
 SCHEMAS = {"advisory-board/verdict@1", "advisory-board/verdict@2"}
 CURRENT_SCHEMA = "advisory-board/verdict@2"
 REQUIRED = ("schema", "verdict", "confidence", "board", "rounds")
@@ -435,7 +442,25 @@ def refuted_citations(data: dict) -> list:
     return hits
 
 
-def gate_outcome(data: dict, fail_on: str):
+def _has_finding_at_severity(data: dict, min_severity: str) -> bool:
+    """True when the verdict carries at least one FINDING at or above `min_severity`
+    (blocker > concern). A blocker satisfies any tier; a concern satisfies `concern`
+    but not `blocker`. Dissent is a minority view, not a finding tier, so it never
+    counts (D5-style: this is exposure of the existing structured containers, not new
+    modeling). A non-list container counts as no findings — validate() already type-
+    checks these, so this stays robust for a directly-called gate too."""
+    rank = FINDING_SEVERITY[min_severity]
+    blockers = data.get("blockers")
+    if isinstance(blockers, list) and blockers:
+        return True   # a blocker is the top finding tier — satisfies every min-severity
+    if rank <= FINDING_SEVERITY["concern"]:
+        concerns = data.get("concerns")
+        if isinstance(concerns, list) and concerns:
+            return True
+    return False
+
+
+def gate_outcome(data: dict, fail_on: str, min_severity: str = None):
     """Decide the gate from OBSERVED cross-seat agreement, returning (outcome, reason).
 
     outcome is 'pass' | 'fail' | 'abstain'. abstain ("human required") fires when:
@@ -451,6 +476,16 @@ def gate_outcome(data: dict, fail_on: str):
     even if the seats lean the other way (blocking on a minority-but-correct concern is
     a legitimate, safe call). Only DE-escalation below the observed board is distrusted.
     The decision reads each seat's final-round verdict, never the gameable `confidence`.
+
+    `min_severity` (v1.14 P1; 'blocker' | 'concern' | None) COMPOSES WITH `fail_on`:
+    it is an ADDITIONAL condition for a FAIL, applied only after the verdict-token
+    decision above lands on 'fail'. A fail then requires the verdict to also carry a
+    finding at/above that tier; a caution/block verdict whose only findings are
+    concerns/dissent does NOT fail under 'blocker' — it PASSES (downgraded), with a
+    reason that names the missing tier. It can only turn a would-be fail into a pass;
+    it never escalates a pass, and it never touches the abstain integrity checks (a
+    refuted citation, a torn board, a verdict-vs-board contradiction all still abstain
+    regardless), so the safety floor is unchanged. None = today's behavior exactly.
     """
     refuted = refuted_citations(data)
     if refuted:
@@ -479,6 +514,15 @@ def gate_outcome(data: dict, fail_on: str):
         )
 
     if declared_fails:
+        # --min-severity narrows a would-be fail: the verdict must ALSO rest on a
+        # finding at/above the named tier. Applied last so it composes with (never
+        # replaces) the token threshold + abstain checks above.
+        if min_severity is not None and not _has_finding_at_severity(data, min_severity):
+            return "pass", (
+                f"verdict '{data['verdict']}' meets threshold '{fail_on}' but carries no "
+                f"'{min_severity}'-severity finding (--min-severity {min_severity}); "
+                "not failed"
+            )
         return "fail", f"verdict '{data['verdict']}' meets threshold '{fail_on}'"
     return "pass", f"verdict '{data['verdict']}' is below threshold '{fail_on}'"
 
@@ -726,6 +770,14 @@ def main(argv=None) -> int:
     parser.add_argument(
         "--fail-on", choices=("caution", "block"), default="block", help="threshold for --gate (default: block)"
     )
+    parser.add_argument(
+        "--min-severity", dest="min_severity", choices=("blocker", "concern"), default=None,
+        help="compose with --gate/--fail-on: a fail must ALSO rest on a finding at/above "
+             "this tier (blocker > concern; dissent never counts). With 'blocker', a "
+             "caution/block verdict whose only findings are concerns/dissent PASSES "
+             "instead of failing. Only narrows a fail to a pass — abstain (refuted "
+             "citation, torn board, verdict-vs-board contradiction) is unaffected. "
+             "Absent = today's behavior (the verdict token alone drives the gate).")
     parser.add_argument("--json", dest="as_json", action="store_true", help="echo normalized JSON and exit")
     args = parser.parse_args(argv)
 
@@ -739,7 +791,7 @@ def main(argv=None) -> int:
     print(summarize(data))
 
     if args.gate:
-        outcome, reason = gate_outcome(data, args.fail_on)
+        outcome, reason = gate_outcome(data, args.fail_on, args.min_severity)
         if outcome == "abstain":
             print(f"gate: ABSTAIN - {reason}", file=sys.stderr)
             return EXIT_ABSTAIN

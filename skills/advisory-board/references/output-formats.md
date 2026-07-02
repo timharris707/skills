@@ -29,6 +29,12 @@ An owner on a step comes from the verdict itself: a `next_actions[]` entry may b
 
 These are mechanical transforms of structured fields — no model call, so they're fast and reproducible.
 
+## Severity filter (`--filter`, v1.14)
+
+`--filter blockers|blockers+dissent|all` on `render_verdict.py` **and** `format_output.py` trims the **findings** sections by severity. `all` (default) is the full output, **byte-identical to no flag**; `blockers` shows blockers only; `blockers+dissent` adds dissent. The verdict banner and confidence are **never** filtered, and a dropped section is stated with counts (a loud elision line, e.g. `(filtered: 2 dissents, 4 couldn't-verify lines — --filter blockers)`) — never a silent truncation. The count names the **honest buckets that shape actually renders**: dissent *entries* and couldn't-verify *lines* (caveats + unverified/refuted evidence). It is not a raw `len(concerns)`/`len(caveats)` — concerns are never rendered as items in these shapes, so the note never claims a dropped "concern". Each shape filters only the findings it actually renders: the consensus md and full-handoff HTML filter dissent + the couldn't-verify bucket; the quick-verdict HTML and `format_output`'s `pr` render dissent but no couldn't-verify bucket, so their note reports only dropped dissent; `implementation-sequence` (actions + blockers only) is unchanged by any filter — rendered output *and* handoff-data; `tldr`/`slack` are unaffected. The same shape-owned rule governs a filtered `--handoff-data` file (a view feeding the HTML, never a machine echo): a slot is emptied only when that shape renders the bucket and the in-file `filter_note` counts it, so the artifact never silently loses content. **`--format json` refuses a non-`all` `--filter` (exit `2`)** — the JSON stays the faithful, unfiltered machine echo a gate reads.
+
+For the CI side, `board_verdict.py --gate --min-severity blocker|concern` (v1.14) narrows a **fail**: it composes with `--fail-on` so a fail must also rest on a finding at/above that tier (a caution whose only findings are concerns/dissent then passes under `blocker`), and never affects the `abstain` outcome. See `scripts/README.md` → *Severity filters* and `references/verdict-schema.md` → *Using it as a gate*.
+
 ## Print / PDF
 
 `final-consensus.html` carries a print stylesheet, so **Print → Save as PDF** produces a clean, shareable handoff with no extra tooling. Use it to attach the review to a ticket or send it to someone who won't open a repo.

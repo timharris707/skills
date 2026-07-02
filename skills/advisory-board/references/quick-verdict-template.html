@@ -168,6 +168,11 @@
   ol.qv-blockers .b-title { font-weight: 600; }
   ol.qv-blockers .b-sub { font-size: 15px; color: var(--ink-soft); margin-top: 2px; }
 
+  /* ---- severity-filter elision line (v1.14 P1); present only on a filtered render ---- */
+  .filter-note {
+    margin: 0 0 22px; font-size: 13px; font-style: italic; color: var(--ink-soft, #6b665c);
+  }
+
   /* ---- dissent line ---- */
   .qv-dissent {
     background: #fbf3ec; border: 1px dashed var(--caution-edge);
@@ -259,6 +264,11 @@
     <p class="headline">{{VERDICT}}</p>
     <p class="note">{{VERDICT_NOTE}}</p>
   </div>
+
+  <!-- {{FILTER_NOTE}}: OPTIONAL severity-filter elision line (v1.14 P1). Empty (and
+       the line dropped, byte-identical) on a full render; states what was filtered
+       when --filter dropped a findings section. -->
+  <p class="filter-note">{{FILTER_NOTE}}</p>
 
   <!-- ===================== MUST-RESOLVE (one line each) ===================== -->
   <section class="qv-sec qv-blockers-sec">

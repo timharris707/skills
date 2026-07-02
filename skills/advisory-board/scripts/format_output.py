@@ -18,6 +18,12 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _verdict_labels import human_label, is_software_lens, lens_disclaimer  # noqa: E402  lens-aware label + disclaimer
 from board_verdict import effective_confidence  # noqa: E402  the ONE amended-confidence source (v1.12 P4)
 from render_verdict import _action_line  # noqa: E402  the ONE next_actions[] normalizer (string or {action, owner})
+from _severity_filter import (  # noqa: E402  v1.14 P1: --filter tier exposure (shared with render_verdict)
+    DEFAULT_FILTER,
+    FILTER_CHOICES,
+    elision_note,
+    show_dissent,
+)
 
 
 def die(message: str) -> None:
@@ -66,7 +72,11 @@ def _disclaimer(data: dict):
     return lens_disclaimer(data.get("lens_preset"))
 
 
-def as_tldr(data: dict) -> str:
+def as_tldr(data: dict, filt: str = DEFAULT_FILTER) -> str:
+    # tldr renders only the verdict line + top blockers (the always-kept tier); it
+    # shows no dissent/concerns/caveats, so --filter drops nothing from it and carries
+    # no elision note. `filt` is accepted for a uniform renderer signature.
+    _ = filt
     blockers = data.get("blockers", [])
     tops = "; ".join(b.get("title", "blocker") for b in blockers[:3]) if blockers else ""
     title = data.get("title", "Review")
@@ -76,7 +86,7 @@ def as_tldr(data: dict) -> str:
     return f"{title}: {verdict_line(data)}.{tail}{note}"
 
 
-def as_pr(data: dict) -> str:
+def as_pr(data: dict, filt: str = DEFAULT_FILTER) -> str:
     out = [f"## Advisory board: {verdict_line(data)}", ""]
     if data.get("title"):
         out += [f"_{data['title']}_", ""]
@@ -87,13 +97,28 @@ def as_pr(data: dict) -> str:
             body = f" - {b['body']}" if b.get("body") else ""
             out.append(f"- [ ] **{b.get('title', 'blocker')}**{body}")
         out.append("")
-    dissent = data.get("dissent", [])
-    if dissent:
+    # _as_list + isinstance-dict guards a non-list/hand-authored container so the
+    # render loop and the elision count never fabricate entries from a string.
+    dissent = [d for d in (data.get("dissent") if isinstance(data.get("dissent"), list)
+                           else []) if isinstance(d, dict)]
+    show_diss = show_dissent(filt)
+    # Dissent is the middle severity tier — shown under `all`/`blockers+dissent`,
+    # elided under `blockers`. The PR shape renders no concerns/caveats section, so
+    # only the dissent drop is possible here; the loud note reports it.
+    if dissent and show_diss:
         out.append("### Dissent")
         for d in dissent:
             out.append(f"- _{d.get('who', '-')}:_ {d.get('body', '')}")
         out.append("")
-    actions = data.get("next_actions", [])
+    # Loud elision (v1.14 P1): the PR shape renders dissent but NO couldn't-verify
+    # section, so it can only drop dissent. The renderer passes the count of the
+    # dissent it hid; couldnt_verify_dropped stays 0 (this shape never shows it).
+    note = elision_note(filt, dissent_dropped=len(dissent) if not show_diss else 0)
+    if note:
+        out.append(f"_{note}_")
+        out.append("")
+    # Same non-list guard as dissent above: a string here would enumerate chars.
+    actions = data.get("next_actions") if isinstance(data.get("next_actions"), list) else []
     if actions:
         out.append("### Next actions")
         out += [f"1. {_action_line(a)}" for a in actions]
@@ -108,7 +133,10 @@ def as_pr(data: dict) -> str:
     return "\n".join(out)
 
 
-def as_slack(data: dict) -> str:
+def as_slack(data: dict, filt: str = DEFAULT_FILTER) -> str:
+    # slack renders only the verdict line + blocker titles + next steps; like tldr it
+    # shows no dissent/concerns/caveats, so --filter drops nothing and adds no note.
+    _ = filt
     out = [f"*Advisory board: {verdict_line(data)}*"]
     if data.get("title"):
         out.append(f"_{data['title']}_")
@@ -132,14 +160,35 @@ def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description="Render verdict.json into a shareable format.")
     parser.add_argument("path", nargs="?", default="verdict.json")
     parser.add_argument("--format", choices=("tldr", "pr", "slack", "json"), default="tldr")
+    parser.add_argument("--filter", dest="filter", choices=FILTER_CHOICES, default=DEFAULT_FILTER,
+                        help="severity filter for the findings sections (default: all). "
+                             "'blockers' keeps blockers only; 'blockers+dissent' adds dissent; "
+                             "'all' is today's full output. A dropped section is stated with counts "
+                             "(loud elision). Only the pr shape renders dissent, so the filter is a "
+                             "no-op for tldr/slack. REFUSED with --format json (see below).")
     args = parser.parse_args(argv)
 
     data = load(args.path)
     if args.format == "json":
+        # `--format json` is the FAITHFUL machine echo of the verdict (see
+        # references/verdict-schema.md and test_json_format_echoes_amendments_
+        # faithfully). Silently thinning it under a filter would hand tooling — a
+        # gate, a downstream reader — a verdict missing blockers/concerns without
+        # any signal, the exact silent-truncation this feature exists to avoid; and
+        # annotating the canonical echo with a non-schema `filter` key would break
+        # its faithful-mirror contract. So we REFUSE a non-default filter here with a
+        # clean exit 2 (the house pattern for a bad flag combination — cf. the
+        # --digest-format json refusal), never a thinned or annotated echo. The
+        # default `all` (a no-op) still echoes the whole verdict unchanged.
+        if args.filter != DEFAULT_FILTER:
+            die("--filter cannot combine with --format json: the JSON output is a "
+                "faithful, unfiltered echo of the verdict (filtering it would silently "
+                "drop verdict content from the machine artifact a gate reads). Filter "
+                "the human formats (tldr/pr/slack) instead, or drop --filter for json.")
         json.dump(data, sys.stdout, indent=2, ensure_ascii=False)
         print()
         return 0
-    print(RENDERERS[args.format](data))
+    print(RENDERERS[args.format](data, args.filter))
     return 0
 
 

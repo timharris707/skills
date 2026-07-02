@@ -289,6 +289,11 @@
   .caveats .c-claim { font-weight: 600; }
   .caveats .c-change { color: var(--ink-soft); }
 
+  /* ---- severity-filter elision line (v1.14 P1); present only on a filtered render ---- */
+  .filter-note {
+    margin: 0 0 18px; font-size: 13.5px; font-style: italic; color: var(--ink-soft);
+  }
+
   /* ---- simple lists ---- */
   ul.plain { margin: 0; padding-left: 22px; }
   ul.plain li { margin: 7px 0; font-size: 15.5px; }
@@ -430,6 +435,12 @@
     <p class="headline">{{VERDICT}}</p>
     <p class="note">{{VERDICT_NOTE}}</p>
   </div>
+
+  <!-- {{FILTER_NOTE}}: OPTIONAL severity-filter elision line (v1.14 P1). Empty on a
+       full (--filter all / no filter) render — the line is dropped when blank, so the
+       page is byte-identical. When a filter dropped a findings section, this states
+       which and how many; the verdict banner above is never filtered. -->
+  <p class="filter-note">{{FILTER_NOTE}}</p>
 
   <!-- ============== DELTA VS THE PREVIOUS RUN (revise runs only) ==============
        The renderer drops this whole section when the verdict carries no
