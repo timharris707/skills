@@ -10,6 +10,10 @@ reserved for an explicit production-ready call. The verdict-JSON schema is versi
 
 ## [Unreleased]
 
+_Nothing yet._
+
+## [v1.13.0] - 2026-07-02 — Transform: the board hands back a fixed copy
+
 ### Added
 - **The endorsement pass (v1.13 #2 / P4, D13) — the board votes on the fixed copy.** A
   `run --output revised-draft` run is now **board-endorsed** by default, not merely
