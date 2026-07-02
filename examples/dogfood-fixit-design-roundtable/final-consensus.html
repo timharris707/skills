@@ -1,0 +1,795 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>v1.13 fixit revision artifact design brief</title>
+<style>
+  :root {
+    --maxw: 820px;
+    /* light "Boardroom" body */
+    --page: #faf8f3;
+    --surface: #ffffff;
+    --surface-soft: #faf7f0;
+    --vellum: #f3eee3;
+    --ink: #11192b;
+    --ink-soft: #3a4459;
+    --ink-faint: #6e768a;
+    --line: #e4ddce;
+    --line-strong: #d8cfb8;
+    /* brand accents (both themes) */
+    --accent: #2347ff;          /* cobalt — signature */
+    --accent-deep: #0f2bc2;
+    --accent-tint: #eaedff;
+    --gold: #a8843c;            /* secondary — the lead seat */
+    /* dark "Signal" bands */
+    --dark: #0a0e1a;
+    --dark-2: #111726;
+    --dark-line: #232b3e;
+    --on-dark: #fbfaf7;
+    --on-dark-soft: #b9c0d0;
+    --on-dark-faint: #8a93a8;
+    --accent-bright: #5b8cff;
+    --gold-bright: #e2b658;
+    /* verdict palettes (muted — counsel, not error toasts) */
+    --ship-bg: #e9f1ec;     --ship-edge: #2f6f57;   --ship-ink: #235540;
+    --caution-bg: #fbf1de;  --caution-edge: #b07a1e; --caution-ink: #7a5410;
+    --block-bg: #f7e9e9;    --block-edge: #9e3636;  --block-ink: #7a2525;
+    --font-sans: "Panely Grotesk","Söhne","Inter","Helvetica Neue",Helvetica,Arial,"Segoe UI",system-ui,sans-serif;
+    --font-mono: "Berkeley Mono","JetBrains Mono",ui-monospace,"Menlo","Consolas",monospace;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--page);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: 17px;
+    line-height: 1.65;
+  }
+
+  /* ---- dark masthead band ---- */
+  header.masthead { background: var(--dark); color: var(--on-dark); padding: 30px 20px 28px; }
+  .band-inner { max-width: var(--maxw); margin: 0 auto; }
+  .brand-lockup { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+  .brand-mark { width: 46px; height: 46px; border-radius: 11px; overflow: hidden; flex: 0 0 auto; }
+  .brand-mark svg { display: block; width: 100%; height: 100%; }
+  .brand-name { display: flex; flex-direction: column; line-height: 1.1; }
+  .brand-name .p { font-size: 18px; font-weight: 700; letter-spacing: -0.01em; color: var(--on-dark); }
+  .brand-name .ab { font-size: 10.5px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--accent-bright); margin-top: 4px; }
+  header.masthead h1 { font-size: 29px; line-height: 1.18; font-weight: 700; margin: 0 0 8px; letter-spacing: -0.01em; color: var(--on-dark); }
+  .subtitle { font-size: 16px; color: var(--on-dark-soft); margin: 0 0 18px; max-width: 60ch; }
+  .meta-row { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(255,255,255,0.05); border: 1px solid var(--dark-line);
+    border-radius: 999px; padding: 5px 13px; font-size: 13px; color: var(--on-dark-soft);
+  }
+  .chip b { font-weight: 600; color: var(--on-dark); }
+
+  /* ---- body column ---- */
+  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 30px 20px 56px; }
+
+  /* ---- verdict banner ---- */
+  .verdict {
+    border-radius: 12px; padding: 22px 24px; margin: 4px 0 32px;
+    border: 1px solid transparent; border-left-width: 6px;
+  }
+  .verdict .label {
+    font-size: 12px; letter-spacing: 0.09em; text-transform: uppercase;
+    font-weight: 700; margin: 0 0 6px; opacity: 0.85;
+  }
+  .verdict .conf-badge {
+    display: inline-block; margin-left: 9px; font-size: 10.5px; letter-spacing: 0.05em;
+    font-weight: 700; padding: 1px 8px; border-radius: 999px;
+    background: rgba(0,0,0,0.07); vertical-align: 1.5px;
+  }
+  .verdict .headline { font-size: 23px; font-weight: 700; margin: 0; line-height: 1.25; }
+  .verdict .note { margin: 10px 0 0; font-size: 15.5px; line-height: 1.55; }
+  .verdict.ship    { background: var(--ship-bg);    border-color: var(--ship-edge);    color: var(--ship-ink); }
+  .verdict.caution { background: var(--caution-bg); border-color: var(--caution-edge); color: var(--caution-ink); }
+  .verdict.block   { background: var(--block-bg);   border-color: var(--block-edge);   color: var(--block-ink); }
+
+  /* ---- delta vs previous run (revise runs only; section drops when absent) ---- */
+  .delta-revises { margin: 0 0 6px; font-size: 13.5px; color: var(--ink-faint); }
+  .delta-traj { margin: 0 0 12px; font-size: 17px; font-weight: 700; }
+  .delta-note { margin: 0 0 12px; font-size: 14px; font-style: italic; color: var(--ink-faint); }
+  .delta-cols { display: flex; gap: 18px; flex-wrap: wrap; }
+  .delta-col { flex: 1 1 180px; }
+  .delta-col h4 {
+    font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--ink-faint); margin: 0 0 6px;
+  }
+  .delta-list { margin: 0; padding-left: 18px; font-size: 14px; line-height: 1.5; }
+
+  /* ---- sections ---- */
+  section { margin: 0 0 34px; }
+  h2 {
+    font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase;
+    font-weight: 700; color: var(--ink-faint); margin: 0 0 14px;
+    padding-bottom: 8px; border-bottom: 1px solid var(--line);
+  }
+
+  /* ---- plan callout ---- */
+  .plan {
+    background: var(--surface-soft); border: 1px solid var(--line);
+    border-left: 4px solid var(--accent); border-radius: 0 10px 10px 0;
+    padding: 16px 20px;
+  }
+  .plan p { margin: 0 0 10px; } .plan p:last-child { margin: 0; }
+
+  /* ---- seat cards ---- */
+  .seat {
+    background: var(--surface); border: 1px solid var(--line-strong);
+    border-radius: 12px; padding: 20px 22px; margin: 0 0 18px;
+  }
+  .seat-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 12px; margin-bottom: 4px; }
+  .seat-name { font-size: 19px; font-weight: 700; margin: 0; }
+  .seat-lens {
+    font-size: 12.5px; font-weight: 600; color: var(--accent);
+    background: var(--accent-tint); border-radius: 999px; padding: 3px 11px;
+  }
+  .seat-model { font-size: 13px; color: var(--ink-faint); font-family: var(--font-mono); }
+  .seat-status {
+    font-size: 11.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+    border-radius: 999px; padding: 3px 10px;
+  }
+  .seat-status.ran      { background: var(--vellum);     color: var(--ink-faint); }
+  .seat-status.degraded { background: var(--caution-bg); color: var(--caution-ink); }
+  .seat-status.dropped  { background: var(--block-bg);   color: var(--block-ink); }
+  .round { margin-top: 16px; padding-top: 16px; border-top: 1px dashed var(--line); }
+  .round:first-of-type { margin-top: 12px; }
+  .round-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .round-tag { font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-faint); }
+  /* per-round verdict pill */
+  .vpill { font-size: 12px; font-weight: 700; border-radius: 999px; padding: 3px 11px; line-height: 1.4; }
+  .vpill.ship    { background: var(--ship-bg);    color: var(--ship-ink); }
+  .vpill.caution { background: var(--caution-bg); color: var(--caution-ink); }
+  .vpill.block   { background: var(--block-bg);   color: var(--block-ink); }
+  .vpill.moved::after { content: " ↓"; }
+  .conf {
+    font-size: 11.5px; font-weight: 600; color: var(--ink-faint);
+    background: var(--surface-soft); border: 1px solid var(--line);
+    border-radius: 999px; padding: 2px 9px;
+  }
+
+  .review-body { font-size: 15.5px; color: var(--ink); }
+  .review-body strong { font-weight: 600; }
+  .review-body em { font-style: italic; }
+  .review-body a { color: var(--accent); text-decoration: underline; }
+  .review-body ul, .review-body ol { margin: 6px 0; padding-left: 22px; }
+  .review-body li { margin: 5px 0; }
+  .review-body p { margin: 6px 0; }
+  .review-body p.r-title { font-weight: 600; margin-top: 12px; }
+  .review-body blockquote {
+    margin: 8px 0; padding: 2px 0 2px 14px;
+    border-left: 3px solid var(--line-strong); color: var(--ink-soft);
+  }
+  .review-body pre {
+    background: var(--surface-soft); border: 1px solid var(--line);
+    border-radius: 8px; padding: 10px 12px; margin: 8px 0;
+    overflow-x: auto; font-size: 13px; line-height: 1.5;
+  }
+  .review-body pre code { background: none; border: 0; padding: 0; font-size: inherit; }
+  code {
+    font-family: var(--font-mono);
+    font-size: 0.86em; background: var(--vellum); border: 1px solid var(--line);
+    border-radius: 5px; padding: 1px 5px;
+  }
+
+  /* highlight callout (e.g. a seat that changed its verdict) */
+  .highlight {
+    background: #fff6e3; border: 1px solid #ecd9a3; border-radius: 10px;
+    padding: 12px 16px; margin: 14px 0 0; font-size: 14.5px; color: #6f5212;
+  }
+  .highlight b { color: #5a4209; }
+
+  /* ---- numbered blocker checklist ---- */
+  ol.blockers { list-style: none; counter-reset: blk; margin: 0; padding: 0; }
+  ol.blockers > li {
+    counter-increment: blk; position: relative;
+    background: var(--surface); border: 1px solid var(--line-strong);
+    border-radius: 11px; padding: 15px 18px 15px 56px; margin: 0 0 11px;
+  }
+  ol.blockers > li::before {
+    content: counter(blk); position: absolute; left: 14px; top: 14px;
+    width: 28px; height: 28px; border-radius: 50%;
+    background: var(--block-bg); color: var(--block-ink);
+    font-size: 14px; font-weight: 700; display: flex; align-items: center; justify-content: center;
+  }
+  ol.blockers .b-title { font-weight: 600; }
+  ol.blockers .b-body { font-size: 15px; color: var(--ink-soft); margin-top: 3px; }
+
+  /* ---- dissent (visually distinct) ---- */
+  .dissent {
+    background: #fbf3ec; border: 1px dashed var(--caution-edge);
+    border-radius: 12px; padding: 16px 20px;
+  }
+  .dissent .d-flag {
+    display: inline-block; font-size: 11.5px; font-weight: 700;
+    letter-spacing: 0.07em; text-transform: uppercase; color: var(--caution-ink);
+    background: var(--caution-bg); border-radius: 999px; padding: 3px 10px; margin-bottom: 8px;
+  }
+  .dissent p { margin: 6px 0; font-size: 15.5px; color: #5e4a31; }
+  .dissent .who { font-weight: 700; color: var(--caution-ink); }
+
+  /* ---- what the board couldn't verify (epistemic caveats) ---- */
+  .caveats {
+    background: var(--surface-soft); border: 1px solid var(--line);
+    border-left: 4px solid var(--ink-faint); border-radius: 0 12px 12px 0;
+    padding: 16px 20px;
+  }
+  .caveats ul { margin: 0; padding-left: 22px; }
+  .caveats li { margin: 7px 0; font-size: 15.5px; }
+  .caveats .c-claim { font-weight: 600; }
+  .caveats .c-change { color: var(--ink-soft); }
+
+  /* ---- simple lists ---- */
+  ul.plain { margin: 0; padding-left: 22px; }
+  ul.plain li { margin: 7px 0; font-size: 15.5px; }
+
+  .actions {
+    background: var(--surface-soft); border: 1px solid var(--line);
+    border-radius: 12px; padding: 16px 20px; font-size: 15.5px;
+  }
+  .actions ol { margin: 0; padding-left: 20px; }
+  .actions li { margin: 6px 0; }
+
+  /* ---- a note a person added by hand, attached to a blocker (amendment) ---- */
+  ol.blockers .blocker-sev-notes { margin: 8px 0 0; padding-left: 18px; }
+  ol.blockers .blocker-sev-notes li {
+    font-size: 14px; color: var(--accent-deep); margin: 3px 0; font-style: italic;
+  }
+
+  /* ---- changes a person made after the board reported (amendments) ----
+     Deliberately set apart from the board's own words: a gold left edge (the
+     human/chair color) says "a person changed this", not "the board said this". */
+  ol.amend-list { list-style: none; margin: 0; padding: 0; }
+  .amend-intro { margin: -6px 0 14px; font-size: 14px; font-style: italic; color: var(--ink-faint); }
+  ol.amend-list > li {
+    background: var(--surface); border: 1px solid var(--line-strong);
+    border-left: 4px solid var(--gold); border-radius: 0 11px 11px 0;
+    padding: 13px 18px; margin: 0 0 11px;
+  }
+  ol.amend-list .amend-who { font-weight: 700; }
+  ol.amend-list .amend-when { color: var(--ink-faint); font-size: 13px; }
+  ol.amend-list .amend-reason { margin: 4px 0 0; font-size: 15px; color: var(--ink-soft); }
+  ol.amend-list .amend-effect {
+    display: inline-block; margin-top: 8px; font-size: 13.5px; font-weight: 600;
+    color: var(--gold); background: #fff6e3; border: 1px solid #ecd9a3;
+    border-radius: 999px; padding: 2px 11px;
+  }
+
+  /* ---- dark footer / colophon band ---- */
+  footer.colophon { background: var(--dark); color: var(--on-dark-soft); padding: 26px 20px 32px; }
+  footer.colophon .disclaimer {
+    display: block; margin: 0 0 16px; font-style: italic;
+    color: var(--on-dark-faint); font-size: 13.5px;
+  }
+  .colophon-grid { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; justify-content: space-between; }
+  .colophon-about { flex: 1 1 320px; }
+  .footer-lockup { display: flex; align-items: center; gap: 9px; font-weight: 700; color: var(--on-dark); font-size: 14px; margin-bottom: 9px; }
+  .footer-lockup svg { width: 26px; height: 26px; display: block; }
+  .colophon-about p { margin: 0; font-size: 13.5px; line-height: 1.6; color: var(--on-dark-soft); max-width: 54ch; }
+  .colophon-cta { flex: 0 0 auto; }
+  .cta {
+    display: inline-block; background: var(--accent); color: #ffffff;
+    font-weight: 600; font-size: 14.5px; text-decoration: none;
+    padding: 10px 20px; border-radius: 9px;
+  }
+  .cta::after { content: " →"; }
+  footer.colophon .prov { display: block; margin-top: 12px; font-size: 11.5px; color: var(--on-dark-faint); font-family: var(--font-mono); }
+
+  /* ---- responsive ---- */
+  @media (max-width: 560px) {
+    body { font-size: 16px; }
+    .wrap { padding: 22px 15px 44px; }
+    header.masthead, footer.colophon { padding-left: 15px; padding-right: 15px; }
+    header.masthead h1 { font-size: 25px; }
+    .verdict .headline { font-size: 20px; }
+    .seat, ol.blockers > li { padding-left: 16px; padding-right: 16px; }
+    ol.blockers > li { padding-left: 50px; }
+    .colophon-cta { width: 100%; }
+  }
+
+  /* ---- print / PDF (Print -> Save as PDF) ---- */
+  @media print {
+    body { background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    header.masthead, footer.colophon { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .wrap { max-width: none; }
+    .verdict, .plan, .seat, .round, ol.blockers > li, .dissent, .actions { break-inside: avoid; }
+    a { color: inherit; text-decoration: none; }
+  }
+</style>
+</head>
+<body>
+
+  <!-- ===================== MASTHEAD (Panely / dark band) ===================== -->
+  <header class="masthead">
+    <div class="band-inner">
+      <div class="brand-lockup">
+        <span class="brand-mark"><svg viewBox="0 0 1000 1000" xmlns="http://www.w3.org/2000/svg"><defs><radialGradient id="bg" cx="50%" cy="38%" r="74%"><stop offset="0%" stop-color="#122046"/><stop offset="55%" stop-color="#0a1024"/><stop offset="100%" stop-color="#05070f"/></radialGradient><radialGradient id="vig" cx="50%" cy="50%" r="62%"><stop offset="60%" stop-color="#000000" stop-opacity="0"/><stop offset="100%" stop-color="#000000" stop-opacity="0.5"/></radialGradient><linearGradient id="cobalt" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#a9c2ff"/><stop offset="52%" stop-color="#5b8cff"/><stop offset="100%" stop-color="#2347ff"/></linearGradient><linearGradient id="gold" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#ffe6a3"/><stop offset="55%" stop-color="#e2b658"/><stop offset="100%" stop-color="#b9842e"/></linearGradient><radialGradient id="core" cx="50%" cy="42%" r="62%"><stop offset="0%" stop-color="#ffffff"/><stop offset="34%" stop-color="#dbe6ff"/><stop offset="70%" stop-color="#6f93ff"/><stop offset="100%" stop-color="#2347ff"/></radialGradient><radialGradient id="spark" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#eaf1ff"/><stop offset="100%" stop-color="#5b8cff"/></radialGradient><filter id="gM" x="-180%" y="-180%" width="460%" height="460%"><feGaussianBlur stdDeviation="14"/></filter><filter id="gL" x="-220%" y="-220%" width="540%" height="540%"><feGaussianBlur stdDeviation="32"/></filter></defs><rect width="1000" height="1000" fill="#05070f"/><rect width="1000" height="1000" fill="url(#bg)"/><circle cx="500" cy="500" r="220" fill="#3a5fff" opacity="0.12" filter="url(#gL)"/><circle cx="500" cy="500" r="312" fill="none" stroke="url(#cobalt)" stroke-width="3" opacity="0.7"/><circle cx="500" cy="500" r="210" fill="none" stroke="#4f7bff" stroke-width="2" opacity="0.32"/><circle cx="500" cy="500" r="120" fill="none" stroke="#4f7bff" stroke-width="2" opacity="0.22"/><g stroke="#4f7bff" stroke-width="2"><line x1="830" y1="500" x2="850" y2="500" opacity="0.4"/><line x1="500" y1="830" x2="500" y2="850" opacity="0.4"/><line x1="170" y1="500" x2="150" y2="500" opacity="0.4"/><line x1="500" y1="170" x2="500" y2="150" opacity="0.4"/><line x1="733.3" y1="733.3" x2="743.2" y2="743.2" opacity="0.16"/><line x1="266.7" y1="733.3" x2="256.8" y2="743.2" opacity="0.16"/><line x1="266.7" y1="266.7" x2="256.8" y2="256.8" opacity="0.16"/><line x1="733.3" y1="266.7" x2="743.2" y2="256.8" opacity="0.16"/></g><line x1="500" y1="250" x2="500" y2="188" stroke="#f7b500" stroke-width="3" opacity="0.45"/><circle cx="500" cy="188" r="46" fill="#e2b658" opacity="0.30" filter="url(#gM)"/><circle cx="500" cy="188" r="34" fill="#0a1430" stroke="url(#gold)" stroke-width="5"/><circle cx="500" cy="188" r="15" fill="url(#gold)"/><circle cx="770.2" cy="344" r="46" fill="#2f54e6" opacity="0.30" filter="url(#gM)"/><circle cx="770.2" cy="344" r="34" fill="#0a1430" stroke="url(#cobalt)" stroke-width="5"/><circle cx="770.2" cy="344" r="15" fill="url(#spark)"/><circle cx="770.2" cy="656" r="46" fill="#2f54e6" opacity="0.30" filter="url(#gM)"/><circle cx="770.2" cy="656" r="34" fill="#0a1430" stroke="url(#cobalt)" stroke-width="5"/><circle cx="770.2" cy="656" r="15" fill="url(#spark)"/><circle cx="500" cy="812" r="46" fill="#2f54e6" opacity="0.30" filter="url(#gM)"/><circle cx="500" cy="812" r="34" fill="#0a1430" stroke="url(#cobalt)" stroke-width="5"/><circle cx="500" cy="812" r="15" fill="url(#spark)"/><circle cx="229.8" cy="656" r="46" fill="#2f54e6" opacity="0.30" filter="url(#gM)"/><circle cx="229.8" cy="656" r="34" fill="#0a1430" stroke="url(#cobalt)" stroke-width="5"/><circle cx="229.8" cy="656" r="15" fill="url(#spark)"/><circle cx="229.8" cy="344" r="46" fill="#2f54e6" opacity="0.30" filter="url(#gM)"/><circle cx="229.8" cy="344" r="34" fill="#0a1430" stroke="url(#cobalt)" stroke-width="5"/><circle cx="229.8" cy="344" r="15" fill="url(#spark)"/><circle cx="500" cy="500" r="74" fill="none" stroke="#4f7bff" stroke-width="2" opacity="0.5"/><circle cx="500" cy="500" r="144" fill="#3a5fff" opacity="0.16" filter="url(#gL)"/><circle cx="500" cy="500" r="77" fill="url(#core)" opacity="0.5" filter="url(#gM)"/><circle cx="500" cy="500" r="48" fill="url(#core)" stroke="#ffffff" stroke-width="3"/><circle cx="500" cy="489" r="13" fill="#ffffff" opacity="0.92"/><rect width="1000" height="1000" fill="url(#vig)"/></svg></span>
+        <span class="brand-name"><span class="p">Advisory Board</span><span class="ab" style="text-transform:none; letter-spacing:0.03em; font-weight:600; margin-top:3px;">powered by Panely</span></span>
+      </div>
+      <h1>v1.13 fixit revision artifact design brief</h1>
+      <p class="subtitle">An independent multi-model review.</p>
+      <div class="meta-row">
+        <span class="chip"><b>Date</b> 2026-07-02</span>
+        <span class="chip"><b>Rounds</b> 2</span>
+        <span class="chip"><b>Board</b> Claude · Codex · Gemini</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+
+  <!-- ===================== VERDICT BANNER ===================== -->
+  
+  <div class="verdict caution">
+    <p class="label">Final verdict<span class="conf-badge">high confidence</span></p>
+    <p class="headline">SHIP WITH CHANGES — unanimous</p>
+    <p class="note"></p>
+  </div>
+
+  
+
+  <!-- ===================== PLAN UNDER REVIEW ===================== -->
+  <section>
+    <h2>What was reviewed</h2>
+    <div class="plan">
+      v1.13 fixit revision artifact design brief
+    </div>
+  </section>
+
+  <!-- ===================== SEAT REVIEWS ===================== -->
+  <section>
+    <h2>Board reviews — round by round</h2>
+
+    
+    <article class="seat">
+      <div class="seat-head">
+        <h3 class="seat-name">Claude</h3>
+        <span class="seat-lens">Architecture &amp; systems lens</span>
+        <span class="seat-model">claude-opus-4-8</span>
+        
+      </div>
+
+      
+      <div class="round">
+        <div class="round-head">
+          <span class="round-tag">Round 1</span>
+          
+          <span class="vpill caution">SHIP WITH CHANGES</span>
+          
+        </div>
+        <div class="review-body">
+          
+          <p>Both fact-checks are in and they confirm the substrate the design reuses — while surfacing two corrections the brief got wrong. I have what I need to rule. Here is my full board review.</p>
+<p>---</p>
+<p class="r-title">Claude seat review — v1.13 fix-it revision artifact (Architecture &amp; systems)</p>
+<p>I verified the brief's five "facts" and the reusable substrate against the code at the cited paths. The substrate claims are <strong>all true</strong> (synthesizer seat-choice, two-attempt retry, protected-key skeleton merge, <code>extract_json_object</code>, DATA-fence neutralizer, <code>--output</code> decorative, <code>get_opcodes</code> genuinely unused, pure-substitution HTML). Two brief claims are <strong>wrong or incomplete</strong>, and both change rulings. The design is architecturally sound and correctly patterned on the synthesizer — but three of its strawmen ship a real integrity hazard unless specific guardrails, currently left implicit, are made mandatory.</p>
+<p class="r-title">1. Verdict</p>
+<p><strong>CAUTION — proceed only with the changes below.</strong> Confidence: <strong>high</strong> (both fact-checks returned; every objection is code-backed with citations, not judgment calls). <em>What would flip it to SHIP:</em> adopt <strong>Q2(a) file-only</strong> (don't reopen <code>verdict.json</code>), make the <strong>diff-reconciliation check</strong> (Q3/Q5) a release-gating invariant, add <strong>title-uniqueness enforcement</strong> (Q1), default unparseable endorsement tokens to <strong>ABSTAIN</strong> (Q6), and reconcile the <strong><code>caveats</code> vs <code>dissent</code></strong> container error (Q3). None of these are "don't build it" — they are "build it slightly differently."</p>
+<p class="r-title">Per-question rulings</p>
+<p><strong>Q1 — Edit identity: CAUTION (titles are fine, but not as-is).</strong> Go with (a) titles to avoid a second schema evolution in two releases — that trade-off is correctly judged. But the strawman's premise ("titles are stable within a run") conflates <em>stable</em> with <em>unique</em>, and the code shows they are not unique: <code>board_verdict.py:45</code> defines the finding containers with no uniqueness constraint, <code>_finding_titles()</code> (<code>:525-532</code>) just appends every title, and <code>amend --on</code> (<code>:593-597</code>) resolves a duplicate by <strong>silently matching the first occurrence</strong> (<code>in</code> membership at <code>:594</code>). A synthesizer merging model output can absolutely emit two concerns with the same title. If <code>changes.json.edits[].resolves[]</code> keys by <code>{​list, title}</code> and a title is duplicated, the join is ambiguous <em>and</em> the Q3 completeness check ("every blocker resolved-or-unresolved") is unsound — it can be satisfied against the wrong instance. Ruling: keep titles, but make the conductor <strong>guarantee title-uniqueness-within-a-list at synthesis</strong> (disambiguate or refuse), and have the <code>changes</code> validator reject an ambiguous <code>resolves</code>. This also retro-fixes a latent <code>amend</code> bug for free.</p>
+<p><strong>Q2 — Mapping location: CAUTION — prefer (a), reject the (b) strawman.</strong> The pointer-in-<code>verdict.json</code> inverts the tool's own provenance direction and its write discipline. <code>previous_run</code> is written on the <strong>new</strong> run's verdict pointing <strong>back</strong> to the old run's sha (<code>revise.py:300, 328-332</code>; validated <code>board_verdict.py:146-168</code>) — downstream artifact → upstream artifact. The brief's (b) puts a pointer in <code>verdict.json</code> (upstream) pointing <strong>forward</strong> to <code>changes.json</code> (downstream): backwards. Worse, it reopens a finalized judgment record. <code>cli.py:554-613</code> is explicit that failure paths must not corrupt prior good state ("the stale verdict.json … is unlinked HERE — never higher up — so an unexpected exception above doesn't destroy a prior good state"), and <code>amend</code> guards <code>verdict.json</code> with an optimistic-sha check (<code>:622-625</code>) on the assumption it owns rewrites. With (a), "a revision failure cannot corrupt <code>verdict.json</code>" is <strong>structurally true</strong> because the revision step never opens it; with (b) it's a property you must carefully preserve. The (b) benefit — "verifiable from the verdict alone" — is largely illusory: the pointer gives you a sha but not the bytes, so you still need <code>changes.json</code> to verify anything. Ruling: (a) file-only; put a <code>verdict_sha256</code> reverse-pointer <strong>inside <code>changes.json</code></strong> (matching <code>previous_run</code>'s direction), and surface "this run produced an endorsed revised-draft (sha …)" on the run card / consensus render for discoverability. Note the plumbing already half-exists: <code>changes</code> is in <code>LIFECYCLE_KEYS</code> (<code>synthesizer.py:195-203</code>) so the model can't fabricate it — but that argues only that (b) is <em>feasible</em>, not that it's <em>right</em>.</p>
+<p><strong>Q3 — <code>changes.json</code> shape: CAUTION.</strong> The line-range-locator-plus-two-shas approach is correct and embedded before/after text should <strong>not</strong> be added — it would duplicate what the mechanical diff derives and create a second source of truth. But the schema's load-bearing integrity property is left implicit and must be made explicit: <strong>the <code>edits[]</code> must reconcile with the mechanical <code>original→revised</code> diff</strong> the conductor computes anyway (<code>get_opcodes</code>, per Q8). Every diff hunk must map to ≥1 edit entry and every edit locator must fall within a real hunk; otherwise "here is what I changed and why" is an unverifiable model assertion, not a fact about the bytes. Second: the completeness check is <strong>structural, not semantic</strong> — it proves nothing was silently dropped, not that any fix is adequate (that's the endorsement pass's job); state this honestly. Third, a factual fix: <strong>the third finding container is <code>dissent[]</code> (with a <code>who</code> field), not <code>caveats[]</code></strong> as the brief repeats (<code>board_verdict.py:45</code> <code>EVIDENCE_CONTAINERS = (&quot;blockers&quot;, &quot;dissent&quot;, &quot;concerns&quot;)</code>; no <code>caveats[]</code> finding list exists, and <code>amend</code>'s join surface is blocker/concern only). A <code>dissent</code> is a recorded <em>seat disagreement about judgment</em>, not a source defect — a fixed copy cannot "resolve" it. Scope <code>resolves</code> (and the completeness gate) to <strong>blockers + concerns</strong>, matching <code>amend</code>'s join surface; treat dissent as commentary. Model-authored fields limited to <code>summary</code>/<code>resolves</code>/<code>note</code> with the conductor computing <code>n</code>, locators-validation, shas, statuses is exactly right (skeleton-merge discipline, <code>synthesizer.py:459-485</code>).</p>
+<p><strong>Q4 — Prose vs code decision: SHIP (one clarification).</strong> (c) heuristic + override + recorded-resolved-value is the right call and matches the recipe-replay discipline (<code>recipe.py:240</code>); the failure mode of a <code>.py</code> redlined as prose is visible and recoverable. One gap: <strong>extensionless files</strong> (<code>Makefile</code>, <code>Dockerfile</code>, <code>LICENSE</code>) must fall into the unknown→refuse branch, not silently into prose — "no recognized extension" and "unknown extension" should route identically to "pass <code>--source-type</code>." With that, ship.</p>
+<p><strong>Q5 — One spawn or two: CAUTION.</strong> One spawn (a) is right for keeping mapping and text co-authored, but the strawman waves off its worst failure: a <strong>silently truncated-but-still-parseable</strong> revised block. The seat emits the <em>entire</em> revised source plus the JSON; for a large source that reply approaches the model's output ceiling, and a reply cut at 60% yields a <code>revised-draft.md</code> missing its tail with a clean-looking <code>changes.json</code> — shipped as "the board's fixed copy." Retry-on-<code>invalid</code> (<code>synthesizer.py:604-619</code>, <code>spawn.py:172</code>) only catches <em>unparseable</em>, not <em>truncated</em>. Two mandatory mitigations: (1) the <strong>Q3 diff-reconciliation check doubles as truncation detection</strong> — a truncated tail appears as a large trailing deletion hunk with no corresponding edit, which fails reconciliation and forces the reject path; (2) a <strong>source-size preflight</strong> that refuses loudly when the source is large enough that full-text + JSON risks the output cap. With those, (a) + the mirrored failure artifacts (<code>revised-draft-rejected.md</code> + <code>changes-rejected.json</code> + warning + exit 0, <code>--strict-exit</code>→4) is correct.</p>
+<p><strong>Q6 — Endorsement pass: SHIP on ON-by-default (i); CAUTION on failure posture.</strong> ON-by-default with <code>--no-endorse</code> is correct — un-endorsed, "board-endorsed" is marketing and R4 bites; the +40–60% spawn cost has an opt-out. But per-edit tokenized replies are parse-fragile at scale (15 edits × N seats), and the strawman doesn't state the failure posture. It must be explicit: <strong>a missing/unparseable per-edit position records as <code>ABSTAIN</code>, never <code>ENDORSE</code></strong> — defaulting silence to endorsement manufactures the exact consensus the feature exists to earn. The render must visibly distinguish "endorsed" from "abstained/silent." Second gap: seats can endorse/object to <code>edits</code> but not to <code>unresolved</code> entries — yet a seat's most important objection may be "you should <em>not</em> have left this unresolved." Extend the endorsement surface to cover <code>unresolved</code> too (this is what makes Q7 safe).</p>
+<p><strong>Q7 — Conflict posture: SHIP (with the Q6 tie-in).</strong> (c) apply-non-conflicting-and-surface-<code>unresolved</code> matches the tool's degrade-loudly-never-discard posture everywhere else, and exit-code neutrality for <code>unresolved</code>-nonempty is right (exit codes are about pipeline integrity, not content, consistent with <code>cli.py:554-613</code>). The one exposure: "these two findings conflict" is a <em>model assertion</em>, and a lazy revision seat can launder "I didn't do the hard edit" as "conflict." That is only caught if the endorsement pass can object to <code>unresolved</code> entries — so Q7's soundness <strong>depends on</strong> the Q6 extension. With that link, ship.</p>
+<p><strong>Q8 — Redline artifacts: CAUTION (two changes).</strong> Requiring a synthesis path (refuse <code>--output revised-draft</code> without <code>verdict.json</code>) is correct — the revision brief <em>is</em> "resolve these findings," and improvising from raw reviews would put a model where the conductor's skeleton belongs. Rejecting CriticMarkup is fine. But: (1) <strong>prose should also emit a <code>unified_diff</code> <code>.patch</code></strong> — it's free (<code>revise.py:259</code> already uses <code>unified_diff</code>), it's the standard review/apply mechanism, and it removes the reliance on the novel word-level HTML redline as the only "diff view." The brief is internally inconsistent here: its prose artifact set has no patch, yet it justifies dropping a text redline by saying "the … unified diff cover[s] … applying." (2) The word-level <code>&lt;ins&gt;/&lt;del&gt;</code> HTML redline is <strong>genuinely new machinery</strong> (<code>get_opcodes</code> confirmed unused; <code>render_handoff.py:217-286</code> is pure <code>{​{​TOKEN}}</code>/<code>{​block}</code> substitution) — build it as a <strong>separate Python function that emits a pre-rendered HTML string injected as one token/block</strong> (do <em>not</em> teach the substitution engine to diff — mirror how <code>delta_*</code> slots already inject rendered lists), sequence it <strong>last</strong>, and <strong>do not gate release on it</strong>. The applyable value lives in <code>revised-draft.*</code> + <code>.patch</code> + <code>changes.json</code>; the redline is a reading aid.</p>
+<p class="r-title">2. Strongest objections (ranked)</p>
+<ol><li><strong>Silent truncation ships a corrupted "board-endorsed" copy (Q5).</strong> The single highest-severity failure. Mitigation is the diff-reconciliation invariant + size preflight; without them the feature's flagship artifact can be a half-document that <em>looks</em> complete.</li><li><strong>The pointer inverts write-once and provenance direction for illusory benefit (Q2).</strong> Prefer file-only; reverse the pointer into <code>changes.json</code>.</li><li><strong>The title join key is not unique and the completeness check inherits that (Q1).</strong> Code-confirmed, not theoretical; <code>amend</code> already silently mis-joins on duplicates.</li><li><strong><code>caveats</code> doesn't exist — the third container is <code>dissent</code>, which isn't "resolvable" (Q3).</strong> The <code>resolves</code> enum and completeness scope are specified against the wrong container.</li><li><strong>Endorsement can manufacture consensus on parse failure, and can't object to <code>unresolved</code> (Q6/Q7).</strong> ABSTAIN-default and objectable-<code>unresolved</code> close both.</li></ol>
+<p class="r-title">3. Recommended execution sequence</p>
+<p>Fold these into the roadmap's D9+ / Phase 2–4 gating:</p>
+<ol><li><strong>Pre-work (blocking):</strong> decide Q2 (recommend file-only) and reconcile the <code>caveats</code>→<code>dissent</code> naming; both change the <code>changes@1</code> schema before a line is written.</li><li><strong>Phase 2a — join integrity:</strong> add title-uniqueness enforcement at synthesis + ambiguous-<code>resolves</code> refusal in the <code>changes</code> validator. Ship this even if it lands slightly ahead as a small <code>amend</code>-bug fix.</li><li><strong>Phase 2b — revision seat:</strong> generalize the synthesizer spawn path (seat-choice <code>synthesizer.py:205-233</code>, two-attempt retry, skeleton merge, DATA-fence) into a shared helper; add the source-size preflight and the <code>--source-type</code> resolution (Q4).</li><li><strong>Phase 2c — <code>changes.json</code> + reconciliation:</strong> author <code>changes@1</code> + its validator; implement the <strong>diff-reconciliation gate</strong> (edits ↔ mechanical <code>get_opcodes</code> diff) — this is the integrity spine and also the truncation guard.</li><li><strong>Phase 3 — artifacts:</strong> <code>revised-draft.*</code>, <code>.patch</code> (prose <em>and</em> code), then the word-level HTML redline as an isolated, golden-file-tested, non-release-gating module.</li><li><strong>Phase 4 — endorsement:</strong> ON-by-default, ABSTAIN-on-parse-failure, objectable <code>unresolved</code>; then release.</li><li><strong>Adversarial pass before merge</strong> (per project convention): re-run this board + finders on the built diff, with attention to the reconciliation gate and truncation handling.</li></ol>
+<p class="r-title">4. Invariants and guardrails</p>
+<ul><li><strong>INV-1 (integrity spine):</strong> <code>changes.json.edits[]</code> must reconcile 1:1-or-better with the mechanical <code>original→revised</code> diff. Every diff hunk ↔ ≥1 edit; every locator ⊂ a hunk. Reconciliation failure ⇒ reject path (retry, then <code>*-rejected</code> + exit 0 / <code>--strict-exit</code> 4). This one invariant also makes truncation a loud failure.</li><li><strong>INV-2:</strong> the revision step <strong>never opens <code>verdict.json</code></strong> (Q2a). A revision failure is then structurally incapable of corrupting the judgment record — matching the <code>cli.py:554-613</code> "don't destroy prior good state" discipline.</li><li><strong>INV-3:</strong> finding titles are unique within a list before any <code>resolves</code> join exists.</li><li><strong>INV-4:</strong> endorsement silence ⇒ <code>ABSTAIN</code>, rendered distinctly from <code>ENDORSE</code>. No model reply is ever <em>interpreted</em> as endorsement.</li><li><strong>INV-5:</strong> model authorship stays confined to <code>summary</code>/<code>resolves</code>/<code>note</code>; conductor owns <code>n</code>, shas, statuses, locator validation, provenance (<code>PROTECTED_SKELETON_KEYS</code> + <code>LIFECYCLE_KEYS</code>, <code>synthesizer.py:192-203</code>).</li><li><strong>INV-6 (D5):</strong> no-flag default run stays byte-identical; assert with the existing golden fixtures plus a new "revision path absent ⇒ zero new bytes" test.</li><li><strong>INV-7 (D6):</strong> source is never written; the revision step has no write path to the source, only to the run dir.</li></ul>
+<p class="r-title">5. Risks, stale assumptions, missing evidence</p>
+<ul><li><strong>Stale/incorrect assumption — <code>caveats[]</code>:</strong> the brief's product-context and Q3 name a container that isn't in the schema. Confirm against <code>board_verdict.py:45</code> before schema work; likely narrows <code>resolves</code> scope to blockers+concerns.</li><li><strong>Stale assumption — "titles are stable ⇒ safe join":</strong> stable ≠ unique (INV-3). Code-confirmed.</li><li><strong>Risk — output-cap ceiling:</strong> unquantified. <em>Missing evidence:</em> the practical max revised-source size per adapter before truncation. A quick empirical probe (largest source that reliably round-trips full-text + JSON) should set the preflight threshold; otherwise the threshold is a guess.</li><li><strong>Risk — model-authored patches for code:</strong> if you ever move from full-text+mechanical-diff to seat-emitted patches (to dodge the size ceiling), model patches notoriously fail to apply. Keep full-text + mechanical diff as the source of truth; a seat-emitted patch is at most an optimization to validate, never to trust.</li><li><strong>Missing evidence — endorsement parse reliability:</strong> no data on how often a seat returns 15 clean per-edit tokens. If it's flaky, ABSTAIN-default (INV-4) is doing heavy lifting; consider a compact tabular reply format to raise parse yield.</li><li><strong>Under-specified — dissent's role:</strong> if dissent stays out of <code>resolves</code>, does the revised draft acknowledge dissents at all? Decide explicitly rather than by omission.</li></ul>
+<p class="r-title">6. Concrete evidence (verified against the code)</p>
+<ul><li>Container error: <code>scripts/board_verdict.py:45</code> — <code>EVIDENCE_CONTAINERS = (&quot;blockers&quot;, &quot;dissent&quot;, &quot;concerns&quot;)</code>; no <code>caveats[]</code> list; <code>amend</code> joins blocker/concern only (<code>_finding_titles()</code> <code>:525-532</code>).</li><li>Title non-uniqueness: <code>board_verdict.py:594</code> — <code>in</code> membership; <code>amend --on</code> (<code>:593-597</code>) matches first duplicate silently.</li><li><code>changes</code> reservation is a <strong>key</strong> on <code>verdict.json</code>, not a file: <code>board_verdict.py:142-144</code> — <code>die(&quot;changes is reserved for the revision artifact (v1.13) and not yet defined; remove it&quot;)</code>; <code>changes.json</code> appears only in a tracker comment (<code>render_tracker.py:27</code>), no code references it.</li><li>Pointer direction: <code>revise.py:300, 328-332</code> — <code>previous_run = {​&quot;run_dir&quot;: …, &quot;verdict_sha256&quot;: …}</code> written on the <strong>new</strong> verdict, pointing to the <strong>old</strong> run (downstream→upstream).</li><li>Write-once discipline: <code>board_verdict.py:600</code> append-only amendments; <code>:622-625</code> optimistic-sha guard; <code>cli.py:554-613</code> stale-verdict unlinked only at the last moment to protect prior good state.</li><li>Substrate (all confirmed reusable): seat-choice <code>synthesizer.py:205-233</code>; two-attempt retry <code>synthesizer.py:604-619</code> + <code>spawn.py:172</code> (<code>RETRYABLE_FAILURES = {​TIMEOUT, INVALID}</code>); protected keys <code>synthesizer.py:192-203</code> (note <code>changes</code> already in <code>LIFECYCLE_KEYS</code>); <code>extract_json_object</code> <code>:386-419</code>; DATA-fence neutralizer <code>:68-79</code>.</li><li>Redline is new machinery: <code>get_opcodes</code> unused repo-wide; <code>unified_diff</code> only at <code>revise.py:259</code>; <code>SequenceMatcher.ratio()</code> only at <code>delta.py:82</code>; HTML render pure substitution <code>render_handoff.py:217-286</code>.</li><li><code>--output</code> decorative: parsed <code>cli.py:705</code>, printed <code>artifacts.py:103,373</code>, persisted <code>recipe.py:240</code>, branched nowhere; <code>render_verdict.py:917-952</code> <code>--shape</code> selects rendering. Confirms <code>--output revised-draft</code> is new plumbing (enum value + <code>_run_revision_step()</code>), as the brief says.</li></ul>
+<p class="r-title">7. What I'd ask the other seats to challenge</p>
+<ul><li><strong>To the pragmatist/product seat:</strong> is Q2(b)'s "provenance from <code>verdict.json</code> alone" a real user need, or am I over-weighting write-once purity? If a concrete sharing workflow needs it, my (a) recommendation weakens.</li><li><strong>To whoever owns cost:</strong> is ON-by-default endorsement's +40–60% spawn cost acceptable for <code>--tier quick</code> boards, or should the default flip below some seat count? I ruled ON; I want that pressure-tested.</li><li><strong>To a diff/tooling specialist:</strong> is full-text-emit + mechanical diff genuinely more robust than seat-emitted patches at scale, or does the output-cap ceiling force patch-emission for large code sooner than I think? My INV-1 assumes mechanical diff is ground truth.</li><li><strong>To anyone:</strong> find a case where the diff-reconciliation gate (INV-1) produces a <em>false reject</em> — a legitimate revision that fails reconciliation (e.g., whole-document reflow, reordering). If common, the gate needs a tolerance mode, and I'd want that designed now, not after it blocks a real run.</li></ul>
+<p>VERDICT: caution</p>
+        </div>
+      </div>
+      
+      <div class="round">
+        <div class="round-head">
+          <span class="round-tag">Round 2</span>
+          
+          <span class="vpill caution">SHIP WITH CHANGES</span>
+          
+        </div>
+        <div class="review-body">
+          
+          <p>Confirmed the linchpin: <code>rounds.py:232-234</code> fans seats out concurrently via <code>ThreadPoolExecutor(max_workers=len(seats))</code>. The endorsement pass is a dependency-free per-seat fan-out — structurally a review round — so it reuses that machinery and costs ~one extra round of wall-clock, not N sequential spawns. That directly rebuts Gemini's latency objection. I have what I need.</p>
+<p>A note on process: this is an advisory-board review task, and the conductor parses the <code>VERDICT:</code> token on my last line. I'm therefore returning the review as my reply rather than writing a plan file or calling ExitPlanMode — the task explicitly says "Do not write any files and do not return a plan-mode summary," and doing so would break the pipeline. All my actions this turn were read-only.</p>
+<p>---</p>
+<p class="r-title">Claude seat — Round 2 review</p>
+<p><strong>Role: architecture &amp; systems — invariants, failure modes, adversarial review.</strong> Every factual claim below is re-verified against <code>main</code>-lineage code in this worktree; citations are exact.</p>
+<p class="r-title">1. Updated verdict</p>
+<p class="r-title">CAUTION — proceed only with the changes below. Confidence: HIGH.</p>
+<p>The architecture is sound and the reuse-the-synthesizer-substrate instinct is correct. But three strawmen are <em>wrong as specified</em> (not merely under-refined), and each is backed by code, not taste: Q1 title-only identity, Q8's header inside the clean draft, and the <code>caveats</code> container that does not exist. Two more (Q5 truncation, Q6 latency) are right in intent but ship a defect without a named mechanism.</p>
+<p><strong>What flips this to SHIP:</strong> (1) Q1 → composite <code>{​list, index, title}</code> locator, conductor-validated; (2) Q8 → <code>revised-draft.*</code> is byte-clean, zero metadata header; (3) Q3 → fix <code>caveats</code>→<code>dissent</code> before any schema is written; (4) Q6 → dispatch endorsement concurrently (keep it ON by default); (5) Q5 → add a source-size preflight so oversized sources refuse rather than truncate. All five are specification tightenings; none touch the architecture.</p>
+<p><strong>Q-by-Q ledger (for D9+):</strong> Q1 <strong>CAUTION</strong> (composite locator, not title-only) · Q2 <strong>SHIP-b</strong> with non-circular pin + amend's write-guard (moved) · Q3 <strong>SHIP</strong> with 3 tightenings · Q4 <strong>SHIP-c</strong> · Q5 <strong>SHIP-a</strong> with truncation-defense trio · Q6 <strong>SHIP-i</strong> (ON) but <em>must parallelize</em> — dissent from Gemini's OFF · Q7 <strong>SHIP-c</strong> · Q8 <strong>SHIP</strong> with byte-clean-draft correction + verdict-required.</p>
+<p class="r-title">2. Where I changed my mind / where I still dissent</p>
+<p><strong>Changed — Q2, toward codex.</strong> In round 1 I insisted on (a) file-only, resting on verdict.json's "write-once" purity. That objection is weaker than I framed it: <strong><code>amend</code> already reopens and rewrites <code>verdict.json</code> post-synthesis</strong> (<code>board_verdict.py:535-537</code>, "Append ONE human amendment to a run's verdict.json"). Write-once is already gone as of v1.12. So a conductor-authored <code>changes</code> pointer is not a new category of mutation — it's the same append-style write. I adopt codex's (b) <strong>conditioned on</strong> its own guardrail (non-circular pin: verdict→changes→{​source,revised}, never mutual) plus reuse of amend's lost-update guard. Reason: codex, "write it atomically with the same lost-update discipline as amend… include a non-circular verdict pin."</p>
+<p><strong>Changed — Q1, toward codex.</strong> Round 1 I treated within-run title matching as tolerable. Codex is right that <code>changes.json</code> is <em>machine</em> provenance, not the human-in-the-loop <code>amend</code>, and the code backs the risk: <code>_finding_titles</code> (<code>:525-532</code>) appends every title <strong>with no uniqueness guard</strong>, and it only covers <code>blockers</code>+<code>concerns</code> (dissent is excluded). Two same-titled findings make an edit's <code>resolves</code> ambiguous with nothing to disambiguate. I move to codex's minimum: <code>{​list, index, title}</code>, conductor-asserting <code>data[list][index].title == title</code>. I still <strong>decline</strong> codex's stronger option — a real <code>id</code> on verdict@2 — as premature (a second schema evolution in two releases for a within-run consumer).</p>
+<p><strong>Still dissent — Q6, against Gemini.</strong> Gemini's flip-to-ship is "endorsement OFF-by-default or parallelized." I reject OFF-by-default: it converts "board-endorsed" into marketing and lets R4 bite (one seat's rewrite wearing the board's name). Gemini's "+40–60%" is a <strong>spawn-count</strong> figure (token cost — real) miscast as <strong>latency</strong>. The endorsement pass is dependency-free per-seat fan-out, structurally a review round, and rounds already fan out concurrently (<code>rounds.py:232-234</code>, <code>ThreadPoolExecutor(max_workers=len(seats))</code>). Reused, its <strong>wall-clock cost is ~one extra round</strong>, not N sequential spawns. So I adopt Gemini's <em>parallelize</em> as mandatory and reject its <em>default</em>. <code>--no-endorse</code> remains the escape valve for the genuine token-cost axis.</p>
+<p><strong>Agree, strengthened — Q8, with codex.</strong> Codex's "no metadata header inside the clean revised draft" is not a nit — it's a correctness bug in the strawman. See §3.</p>
+<p class="r-title">3. Strongest remaining objections</p>
+<ol><li><strong>The clean draft must be byte-clean (Q8).</strong> The strawman says <code>revised-draft.md</code> carries a "header noting run title, seat, unresolved count." That artifact is <em>the thing a human applies</em>. A header means applying it prepends board metadata to the user's document — and for <strong>code</strong>, <code>revised-draft.&lt;ext&gt;</code> with a header is a syntax-corrupt or semantically-wrong file the moment it's saved. Metadata belongs in <code>changes.json</code>, the HTML handoff, and the run card — <strong>never in the applied file.</strong> Invariant, not preference.</li><li><strong>Silent truncation still ships a corrupted "board-endorsed" copy (Q5).</strong> Still the highest-severity failure. One-spawn coupling (mapping can't drift from text) is worth keeping, but the retry set only catches <em>timeout</em>. Truncation produces a <em>plausible-looking</em> short reply. Defense must be three-layered (§5 INV-2). Gemini's instinct here is right even though its remedy (line-numbered patch instructions) trades one failure for a worse one — models computing their own line numbers is a fresh error class. Keep full-text emission; gate size instead.</li><li><strong>Title-only <code>resolves</code> is ambiguous by construction (Q1).</strong> No dup-title guard exists anywhere; <code>changes.json</code> has no human to disambiguate. Composite <code>{​list, index, title}</code> with a conductor equality-assert is the cheap fix.</li><li><strong><code>caveats</code> is a phantom container (Q3).</strong> The brief names <code>blockers/concerns/caveats</code>; the schema is <code>blockers/dissent/concerns</code>. Every <code>resolves.list</code> enum, the completeness rule, and the "best-effort" carve-out inherit this error. Fix the vocabulary before a line of schema is written or the validator and the artifact will disagree on day one.</li></ol>
+<p class="r-title">4. Recommended execution sequence</p>
+<ol><li><strong>Pre-work (blocking, no code):</strong> reconcile <code>caveats</code>→<code>dissent</code> across brief + schema; lock Q1 composite locator and Q2 pin direction. These change <code>changes@1</code> before it's authored.</li><li><strong>Phase 2a — schema + validator:</strong> <code>advisory-board/changes@1</code> with its own strict validator (mirror <code>board_verdict.py</code>), <code>resolves.list ∈ {​blockers,dissent,concerns}</code>, model-authored fields limited to <code>summary</code>/<code>resolves</code>/<code>note</code>; conductor computes <code>n</code>, <code>status</code>, shas, locator-validation. Compat test: old verdicts still validate; <code>changes</code>-key refusal at <code>:142-144</code> stays for the <em>key on verdict.json</em> while <code>verdict.json.changes</code> <em>pointer</em> is separately, explicitly allowed (they are not the same object — call this out or the reservation test contradicts Q2).</li><li><strong>Phase 2b — revision seat:</strong> generalize the synthesizer spawn path; <code>_run_revision_step()</code> after <code>_run_synthesis_step()</code> (<code>cli.py:497</code>); single spawn, DATA-fence + neutralizer; verdict-required and size preflight enforced at resolve time; reconciliation invariant on parse.</li><li><strong>Phase 3 — renders:</strong> <code>get_opcodes</code> word-level redline (new machinery — golden-file tested) for prose; <code>unified_diff</code> patch for code; <strong>byte-clean</strong> <code>revised-draft.*</code>.</li><li><strong>Phase 4 — endorsement (concurrent) + release:</strong> endorsement pass on the <code>rounds.py:232</code> <code>ThreadPoolExecutor</code>, ON by default, <code>--no-endorse</code> opt-out; <code>unresolved</code> entries are endorsement targets too (§5 INV-4).</li></ol>
+<p class="r-title">5. Invariants and guardrails</p>
+<ul><li><strong>INV-1 (reconciliation spine):</strong> every <code>edits[]</code> locator must fall inside a real hunk of the mechanical <code>original→revised</code> diff, and every diff hunk must be claimed by ≥1 edit. <code>status:&quot;applied&quot;</code> is <strong>conductor-computed from the diff</strong>, never model-asserted. Reconciliation failure ⇒ reject path (retry, then <code>changes-rejected.json</code> + exit 0 / exit 4 under <code>--strict-exit</code>). This is why embedded before/after text is unnecessary and undesirable — it would duplicate, and could contradict, the ground-truth diff.</li><li><strong>INV-2 (anti-truncation, three layers):</strong> (a) an opened DATA fence with no matching close ⇒ classified <code>invalid</code> ⇒ retry; (b) INV-1 reconciliation; (c) <strong>source-size preflight</strong> — refuse <code>--output revised-draft</code> loudly when source exceeds the single-spawn reliable-output budget (defer huge sources to a future per-hunk mode). Better a loud refusal at resolve time than a silently short board-endorsed copy.</li><li><strong>INV-3 (byte-clean applied artifact):</strong> <code>revised-draft.*</code> contains only the revised source bytes. Its sha256 in <code>changes.json.revised</code> must match the file on disk exactly. Any header/banner lives elsewhere.</li><li><strong>INV-4 (endorsement integrity):</strong> endorsement ON by default, dispatched concurrently; per-edit <code>ENDORSE/OBJECT/ABSTAIN</code> recorded as <code>{​seat, edit_n, position, note}</code>; <strong><code>unresolved</code> entries are also endorsement targets</strong> so a seat can object to how a conflict was characterized. Objections recorded, never auto-resolved (D6).</li><li><strong>INV-5 (provenance):</strong> revision + endorsement outputs merge into conductor-authored skeletons; <code>n</code>, shas, statuses, and the <code>verdict.json.changes</code> pointer are conductor-written and synthesizer-stripped if model-supplied (D8). Pin direction is acyclic: verdict → changes → {​source, revised}.</li><li><strong>Preserved:</strong> D5 byte-identity of the no-flags default; D6 source never written; failure never discards successful rounds.</li></ul>
+<p class="r-title">6. Risks, stale assumptions, missing evidence</p>
+<ul><li><strong>Stale (confirmed):</strong> <code>caveats[]</code> is not a container — <code>EVIDENCE_CONTAINERS = (&quot;blockers&quot;, &quot;dissent&quot;, &quot;concerns&quot;)</code> (<code>board_verdict.py:45</code>). Narrows/renames <code>resolves.list</code>.</li><li><strong>Code-backed gap (Q1):</strong> <code>_finding_titles</code> covers <code>blockers</code>+<code>concerns</code> only (<code>:528</code>) and has no dup-title guard. If <code>changes.json</code> must resolve <strong>dissent</strong> findings, it goes <em>beyond</em> the <code>amend</code> precedent — fine, but state it; the "amend sets the join-key precedent" claim is only 2/3 true.</li><li><strong>Reservation ambiguity (Q2):</strong> the validator refuses a top-level <code>changes</code> <strong>key</strong> (<code>:142-144</code>); Q2(b) adds a <code>changes</code> <strong>pointer object</strong>. The compat test must encode that these are distinct, or Phase-2b will read the refusal as forbidding the pointer.</li><li><strong>Concurrency audit (Q2):</strong> if both <code>amend</code> and the revision pointer-write can mutate <code>verdict.json</code>, the lost-update guard must be verified to cover both writers. Missing evidence: I did not audit amend's guard mechanism this round — Phase-2 task.</li><li><strong>New machinery risk (Q8):</strong> <code>get_opcodes()</code> appears <strong>nowhere</strong> in the repo; word-level-in-changed-lines redline is genuinely new — mandate golden files, and accept that paragraph <em>moves</em> render as delete+insert in v1.13.</li></ul>
+<p class="r-title">7. Concrete evidence</p>
+<ul><li>Containers: <code>scripts/board_verdict.py:45</code> — <code>EVIDENCE_CONTAINERS = (&quot;blockers&quot;, &quot;dissent&quot;, &quot;concerns&quot;)</code> (no <code>caveats</code>).</li><li>Amend join set + no dup guard: <code>scripts/board_verdict.py:525-532</code> — <code>_finding_titles</code> loops <code>(&quot;blockers&quot;, &quot;concerns&quot;)</code>, appends every <code>item[&quot;title&quot;]</code> unconditionally.</li><li><code>changes</code> reservation is a top-level <em>key</em> refusal on verdict data: <code>scripts/board_verdict.py:142-144</code> — <code>if &quot;changes&quot; in data: die(&quot;changes is reserved for the revision artifact (v1.13)…&quot;)</code>.</li><li>verdict.json already mutated post-synthesis (write-once is gone): <code>scripts/board_verdict.py:535-537</code> — <code>cmd_amend</code> "Append ONE human amendment to a run's verdict.json."</li><li><code>--output</code> decorative; <code>--shape</code> drives rendering: parsed at <code>_conductor/cli.py:706</code>, resolved/persisted at <code>_conductor/config.py:99,427</code> and <code>ask.py:297</code>; render branch is <code>render_verdict.py:897 if shape == &quot;quick-verdict&quot;</code>. <code>revised-draft</code> is absent from the <code>cli.py:706</code> choices — new plumbing, confirmed.</li><li>Diff substrate: <code>_conductor/revise.py:259</code> <code>difflib.unified_diff</code>; <code>_conductor/delta.py:15,82</code> <code>SequenceMatcher.ratio()</code>; <strong><code>get_opcodes</code> occurs nowhere</strong> — redline is new.</li><li>Concurrent fan-out (rebuts Gemini's latency framing): <code>_conductor/rounds.py:232-234</code> — <code>ThreadPoolExecutor(max_workers=len(seats))</code>, <code>pool.submit(_one, s)</code> per seat. (Synthesizer's <code>for seat in config.board</code> at <code>synthesizer.py:230,302</code> is single-spawn iteration, not the fan-out the endorsement pass should use.)</li></ul>
+<p>VERDICT: caution</p>
+        </div>
+      </div>
+      
+
+      
+
+    </article>
+    
+    <article class="seat">
+      <div class="seat-head">
+        <h3 class="seat-name">Codex</h3>
+        <span class="seat-lens">Implementation &amp; testing lens</span>
+        <span class="seat-model">gpt-5.5</span>
+        
+      </div>
+
+      
+      <div class="round">
+        <div class="round-head">
+          <span class="round-tag">Round 1</span>
+          
+          <span class="vpill caution">SHIP WITH CHANGES</span>
+          
+        </div>
+        <div class="review-body">
+          
+          <p class="r-title">Verdict</p>
+<p>Caution, high confidence. I would move to ship if Q1/Q3/Q8 are tightened: stable edit identity, diff-hunk anchoring, no metadata header inside the clean revised draft, and explicit endorsement semantics.</p>
+<p class="r-title">Q Rulings</p>
+<p>Q1: CAUTION. Do not key only by exact title. Titles are usable for <code>amend</code> because a human is in the loop, but <code>changes.json</code> is machine provenance. Use conductor-assigned optional finding ids now, or at minimum <code>{​list, index, title}</code> with duplicate-title detection.</p>
+<p>Q2: SHIP with guardrails. File plus <code>verdict.json.changes</code> pointer is right, but write it atomically with the same lost-update discipline as <code>amend</code>, and include a non-circular verdict pin in <code>changes.json</code>, such as <code>verdict_sha256_without_changes</code>.</p>
+<p>Q3: CAUTION. Original-only line ranges are too weak. They cannot cleanly represent insertions, deletions, or multi-hunk edits. Use diff-hunk locators with original and revised spans plus hunk hashes. Yes, every blocker must be resolved or unresolved; concerns/caveats can stay best effort.</p>
+<p>Q4: SHIP. Heuristic plus <code>--source-type prose|code</code> override is the right trade-off. Unknown extensions, stdin, and URL-like sources should refuse until explicit. Persist the resolved value in the recipe.</p>
+<p>Q5: SHIP the one-spawn design, but not static fences. Use per-run high-entropy output markers not present in source/verdict, or a robust JSON envelope. Keep rejected artifacts and strict-exit behavior aligned with synthesis.</p>
+<p>Q6: SHIP ON by default. But define semantics: “board-endorsed” only when every non-revision usable seat endorses. Any <code>OBJECT</code> or <code>ABSTAIN</code> makes the artifact “reviewed with objections/abstentions,” not endorsed. <code>--no-endorse</code> must label the artifact unendorsed.</p>
+<p>Q7: SHIP. Conflicts should produce partial work plus <code>unresolved</code>, no content-based exit-code change. If all blockers are unresolved, the draft may still exist, but every render/run-card/header sidecar must make that impossible to miss.</p>
+<p>Q8: CAUTION. Do not put a provenance header inside <code>revised-draft.md</code>; that pollutes the clean artifact the human applies. Put metadata in <code>changes.json</code>, HTML, or a sidecar. Also generate a unified diff for prose, not only HTML redline. Require a validated <code>verdict.json</code>, but do not require it to be synthesized; support human-authored verdicts via a post-hoc command or documented flow.</p>
+<p class="r-title">Strongest Objections</p>
+<p>The clean revised draft must be clean. A header inside prose changes the user’s document.</p>
+<p>Title-only identity will break on duplicate titles, hand edits, or later consumers. The current validator does not enforce finding-title uniqueness.</p>
+<p>The proposed <code>locator: lines from/to</code> is not enough for insertions, deletions, replacements spanning multiple hunks, or conductor validation of model-provided mappings.</p>
+<p>Endorsement needs an explicit aggregate state; raw rows alone let marketing outrun provenance.</p>
+<p>A same-run <code>--synthesize</code> requirement would exclude the project’s existing hand-authored-verdict workflow.</p>
+<p class="r-title">Recommended Execution Sequence</p>
+<ol><li>Record D9+ decisions before coding, especially identity, <code>changes</code> pointer, endorsement semantics, and clean-artifact rule.</li><li>Add schema/validator tests first: optional ids or <code>{​list,index,title}</code>, <code>changes</code> pointer, <code>changes.json</code>, duplicate-title behavior, blocker completeness.</li><li>Add <code>--source-type</code> config/recipe/run-card plumbing and resolve-time refusal rules.</li><li>Generalize synthesizer spawn substrate into reusable post-round model-spawn helpers.</li><li>Implement revision step: validated verdict in, robust section parsing, clean revised artifact, generated diff/patch, validated <code>changes.json</code>, rejected artifacts on failure.</li><li>Add local renderers: prose redline HTML, code patch fenced view, no XSS/template leakage.</li><li>Add endorsement pass and update <code>changes.json</code>/pointer only after successful validation.</li><li>Finish with fixture-heavy tests: duplicate titles, insert/delete-only edits, no trailing newline, path spaces, large sources, all-unresolved, objected endorsement.</li></ol>
+<p class="r-title">Invariants And Guardrails</p>
+<p>The source file is never written. Default/no-flag artifacts remain byte-identical. Models never mint provenance, ids, shas, statuses, or endorsement aggregates. <code>revised-draft.*</code> contains only the revised source content. Every blocker is accounted for. <code>changes.json</code> pins source, revised artifact, verdict basis, revision seat, source type, and endorsements. All HTML redline content is escaped before <code>&lt;ins&gt;/&lt;del&gt;</code> insertion. Patch paths are deterministic and safe.</p>
+<p class="r-title">Risks / Missing Evidence</p>
+<p>No size policy is stated for full-source rewrite responses. No patch-path policy is stated for files outside repo root, stdin, spaces, or absolute paths. No proof that static output fences survive adversarial source content. No UX language defines “endorsed” vs “objected” vs “unendorsed.” No post-hoc flow is specified for validated human-authored verdicts.</p>
+<p class="r-title">Concrete Evidence</p>
+<p><code>--output</code> currently only has three enum choices in <a href="skills/advisory-board/scripts/_conductor/cli.py:705">scripts/_conductor/cli.py</a>, and <code>config.output</code> is printed/persisted in <a href="skills/advisory-board/scripts/_conductor/artifacts.py:103">artifacts.py</a> and <a href="skills/advisory-board/scripts/_conductor/recipe.py:240">recipe.py</a>.</p>
+<p><code>SourceSpec.kind</code> is transport only in <a href="skills/advisory-board/scripts/_conductor/config.py:51">config.py</a>. <code>changes</code> is currently refused in <a href="skills/advisory-board/scripts/board_verdict.py:142">board_verdict.py</a>. <code>amend --on</code> uses title lists in <a href="skills/advisory-board/scripts/board_verdict.py:525">board_verdict.py</a>.</p>
+<p>The renderer is token/block substitution in <a href="skills/advisory-board/scripts/_render_engine.py:1">_render_engine.py</a>; current diff machinery is unified diff in <a href="skills/advisory-board/scripts/_conductor/revise.py:249">revise.py</a> and title similarity in <a href="skills/advisory-board/scripts/_conductor/delta.py:15">delta.py</a>.</p>
+<p class="r-title">Ask Other Seats</p>
+<p>Challenge whether <code>verdict.json</code> should be reopened at all, whether default endorsement cost is acceptable, whether optional ids are worth the schema churn, and whether the “board-endorsed” UX can stay honest when seats object.</p>
+<p>VERDICT: caution</p>
+        </div>
+      </div>
+      
+      <div class="round">
+        <div class="round-head">
+          <span class="round-tag">Round 2</span>
+          
+          <span class="vpill caution">SHIP WITH CHANGES</span>
+          
+        </div>
+        <div class="review-body">
+          
+          <p class="r-title">Updated Verdict</p>
+<p>CAUTION, high confidence. I would move to SHIP if the design adopts stable finding references, diff reconciliation, clean applyable draft artifacts, atomic <code>changes</code> pointer writes, and parallel endorsement fan-out.</p>
+<p class="r-title">Changed / Still Dissent</p>
+<p>Changed because of Claude: truncation is now a blocking Q5 concern for me. A one-spawn full rewrite is acceptable only with source-size preflight, strict fence parsing, and a mechanical original-to-revised diff reconciliation that rejects unaccounted edits.</p>
+<p>Changed because of Gemini: Q6 should not be a sequential endorsement loop. Keep endorsement ON by default, but fan out non-revision endorsement seats in parallel and record failed endorsement spawns as <code>ABSTAIN</code>/dropped rows.</p>
+<p>Still dissent with Claude on Q2: I still prefer <code>changes.json</code> plus a tiny conductor-written <code>verdict.json.changes</code> pointer, because the current schema/docs explicitly reserved <code>changes</code> for this feature. But it must be written with the same lost-update discipline as <code>amend</code>; file-only is the fallback if that cannot be made race-safe.</p>
+<p>Still dissent with the Q1 strawman: exact titles alone are too weak for machine provenance. Use conductor-assigned finding ids now, or at minimum <code>{​list, index, title}</code> with duplicate-title rejection.</p>
+<p class="r-title">Q Status</p>
+<p>Q1 CAUTION: no title-only mapping. Q2 SHIP with guardrails: file + pointer, atomically written, non-circular verdict pin in <code>changes.json</code>. Q3 CAUTION: schema shape is close, but <code>resolves</code> should target blockers/concerns only; line locators need diff-hunk reconciliation. Q4 SHIP: heuristic + explicit <code>--source-type</code>, with unknown/stdin requiring the flag. Q5 CAUTION: one spawn only with size/truncation/diff checks. Q6 SHIP if endorsement is ON by default and parallelized. Q7 SHIP: conflicts become <code>unresolved</code>, no content-based exit-code change. Q8 CAUTION: require <code>verdict.json</code>, but do not put metadata headers inside clean revised drafts.</p>
+<p class="r-title">Strongest Remaining Objections</p>
+<ol><li>Title-only edit identity can misbind edits when titles duplicate or drift.</li><li>A valid-looking partial rewrite could become the “fixed copy” unless diff reconciliation is mandatory.</li><li>The proposed <code>revised-draft.md</code> header makes the clean draft not clean; put run metadata in <code>changes.json</code>, HTML, or <code>revision/README.md</code>.</li><li>The brief’s <code>caveats</code> language does not match the implementation’s verdict-moving containers.</li><li>Sequential endorsements would make the default path slow enough that users will opt out, undercutting the “board-endorsed” claim.</li></ol>
+<p class="r-title">Recommended Execution Sequence</p>
+<ol><li>Lock D9 decisions first: finding reference format, Q2 pointer semantics, actual <code>changes@1</code> containers, clean-draft rule, endorsement default.</li><li>Add CLI/config/recipe plumbing: <code>--output revised-draft</code>, <code>--source-type</code>, <code>--no-endorse</code>, and resolve-time refusal unless synthesis is available.</li><li>Build <code>changes@1</code> validator and revision spawn by generalizing synthesizer substrate.</li><li>Add diff reconciliation before writing accepted artifacts.</li><li>Write clean draft, patch/redline view, <code>changes.json</code>, and only then atomically add the <code>verdict.json.changes</code> pointer.</li><li>Add parallel endorsement fan-out and record per-edit positions.</li><li>Cover duplicate titles, conflicting findings, unknown source type, truncation, rejected revision output, stale artifact races, and no-flags byte identity in tests.</li></ol>
+<p class="r-title">Invariants And Guardrails</p>
+<p>No source file is ever modified. No metadata is inserted into the clean revised draft. Models never mint shas, ids, statuses, provenance, or verdict pointers. Every blocker is either resolved or listed in <code>unresolved</code>; concerns are best-effort; dissent and caveats are not editable findings. Every edit maps to a real finding reference and to a mechanical diff hunk or legal insertion anchor. Revision failure preserves successful rounds and exits 0 by default, with strict mode affecting only pipeline failure. Endorsement objections are recorded, not resolved by another model loop.</p>
+<p class="r-title">Risks / Missing Evidence</p>
+<p>The design still needs a source-size/output-budget policy for full-file rewrites. URL wording should be tightened because URL sources are currently refused rather than fetched. Recipe validation will need new enum coverage for <code>output</code>/<code>source_type</code>. The redline renderer is genuinely new machinery, so golden tests need to include changed words, changed lines, insertions, deletions, HTML escaping, and unchanged large sections.</p>
+<p class="r-title">Concrete Evidence</p>
+<ul><li><a href="skills/advisory-board/scripts/board_verdict.py:45">board_verdict.py:45</a> defines evidence containers as <code>blockers</code>, <code>dissent</code>, <code>concerns</code>; <a href="skills/advisory-board/scripts/board_verdict.py:525">board_verdict.py:525</a> makes <code>amend --on</code> title-match only blockers/concerns.</li><li><a href="skills/advisory-board/scripts/board_verdict.py:142">board_verdict.py:142</a> rejects any current <code>changes</code> key; <a href="skills/advisory-board/references/verdict-schema.md:138">references/verdict-schema.md:138</a> reserves it for v1.13.</li><li><a href="skills/advisory-board/scripts/_conductor/cli.py:705">cli.py:705</a> has only the three current <code>--output</code> choices; <a href="skills/advisory-board/scripts/_conductor/config.py:427">config.py:427</a> merely stores the resolved value.</li><li><a href="skills/advisory-board/scripts/_conductor/config.py:52">config.py:52</a> shows <code>SourceSpec.kind</code> is <code>path|url|stdin</code>; <a href="skills/advisory-board/scripts/_conductor/config.py:155">config.py:155</a> refuses URL fetching.</li><li><code>rg</code> found no <code>get_opcodes</code>/<code>HtmlDiff</code>; current diff use is <code>SequenceMatcher</code> for verdict delta and <code>unified_diff</code> for revise context.</li><li><a href="skills/advisory-board/scripts/_conductor/cli.py:576">cli.py:576</a> preserves rounds on synth failure; <a href="skills/advisory-board/tests/test_run_board.py:7531">tests/test_run_board.py:7531</a> protects prior <code>verdict.json</code> from parse-failure reruns.</li></ul>
+<p>VERDICT: caution</p>
+        </div>
+      </div>
+      
+
+      
+
+    </article>
+    
+    <article class="seat">
+      <div class="seat-head">
+        <h3 class="seat-name">Gemini</h3>
+        <span class="seat-lens">Product &amp; operations lens</span>
+        <span class="seat-model">gemini-3.5-flash</span>
+        
+      </div>
+
+      
+      <div class="round">
+        <div class="round-head">
+          <span class="round-tag">Round 1</span>
+          
+          <span class="vpill caution">SHIP WITH CHANGES</span>
+          
+        </div>
+        <div class="review-body">
+          
+          <p>chat_summary_placeholderHere is the design review of the v1.13 "Transform: the board hands back a fixed copy" proposal from the Gemini seat (Product &amp; Operations).</p>
+<p class="r-title">1. Verdict &amp; Rationale</p>
+<p class="r-title">Verdict: CAUTION</p>
+<p class="r-title">Confidence: HIGH</p>
+<p><em>Change Factor:</em> This verdict would improve to <strong>SHIP</strong> if the latency-heavy sequential endorsement loop proposed in Q6 is optimized to be off-by-default or parallelized to avoid stalling the main user loop.</p>
+<p>---</p>
+<p class="r-title">2. Strongest Objections &amp; Operational Risks</p>
+<ul><li><strong>The Sequential Endorsement Bottleneck (Q6):</strong> Spawning additional review runs sequentially across all non-revision seats adds immense execution latency (up to 40-60% longer runs in a standard 3-seat board). This is highly disruptive to active CLI developer workflows.</li><li><strong>Post-Synthesis Write-Path Reopening (Q2):</strong> Modifying <code>verdict.json</code> <em>after</em> the synthesizer has finalized it violates transactional single-write guarantees. This exposes the file to dirty writes if concurrent actions (like human <code>amend</code> or CI validation gates) run simultaneously.</li><li><strong>Line-Range Locator Drift (Q3):</strong> Relying solely on line-range numbers without original context blocks means patches will break silently if a human makes minor local file modifications before applying the board's proposed changes.</li></ul>
+<p>---</p>
+<p class="r-title">3. Rulings on the Eight Questions (Q1–Q8)</p>
+<p class="r-title">Q1 — Edit Identity: Finding <code>id</code>s or exact titles?</p>
+<ul><li><strong>Ruling:</strong> <strong>(a) Key by exact finding title.</strong></li><li><strong>Rationale:</strong> Titles are fully functional in the codebase today, as seen in <code>amend --on</code> and <code>--revise</code> delta matching. A complete schema evolution to <code>@3</code> just to support unique IDs is unnecessary overhead and causes backward compatibility churn. Finding titles are stable during the short minutes between synthesis and revision.</li></ul>
+<p class="r-title">Q2 — Where does the mapping live: <code>changes.json</code> file vs. the reserved <code>changes</code> key?</p>
+<ul><li><strong>Ruling:</strong> <strong>(a) Separate <code>changes.json</code> artifact only.</strong> <em>(Dissenting from Strawman (b))</em></li><li><strong>Rationale:</strong> Once <code>verdict.json</code> is written by the synthesizer and verified, the write path should be closed. We must avoid reopening <code>verdict.json</code> post-synthesis. A sovereign, self-contained <code>changes.json</code> maintains pipeline isolation and protects the integrity of the canonical verdict.</li></ul>
+<p class="r-title">Q3 — <code>changes.json</code> Shape &amp; Locator Mechanics</p>
+<ul><li><strong>Ruling:</strong> <strong>Include line ranges + strict before/after context snippets.</strong> <em>(Dissenting from line-only)</em></li><li><strong>Rationale:</strong> Pure line-range locators are too fragile. Including short <code>before</code>/<code>after</code> blocks allows safety checks to confirm structural context matches before applying mutations. A complete validation check must be enforced: every blocker in the verdict must either map to an applied edit or be declared in the <code>unresolved</code> conflict array.</li></ul>
+<p class="r-title">Q4 — Prose vs. Code: What decides redline vs. patch?</p>
+<ul><li><strong>Ruling:</strong> <strong>(c) Heuristic default + flag override.</strong></li><li><strong>Rationale:</strong> Fully automatic detection fails on ambiguous extensions, and fully manual flags add friction. Heuristic detection for common extensions, combined with mandatory <code>--source-type</code> flags for stdin/URLs, recorded in the recipe, balances exact CLI ergonomics with reproducible replays.</li></ul>
+<p class="r-title">Q5 — One spawn or two: How does the revision seat return text + mapping?</p>
+<ul><li><strong>Ruling:</strong> <strong>(a) One spawn with two fenced sections.</strong></li><li><strong>Rationale:</strong> A single spawn guarantees transactional consistency. Splicing text and JSON metadata in a single response prevents text-mapping drift and avoids doubling input token volume, operational latency, and API costs.</li></ul>
+<p class="r-title">Q6 — Endorsement pass: Shape and default</p>
+<ul><li><strong>Ruling:</strong> <strong>(ii) OFF by default, opt-in via <code>--endorse</code>.</strong> <em>(Dissenting from Strawman (i))</em></li><li><strong>Rationale:</strong> Running an endorsement pass on every revision run introduces substantial latency overhead. Given that applying the revision is always a human decision under D6, the feature's primary integrity is preserved without forcing a mandatory multi-seat consensus loop. The endorsement pass must be an explicit, optional opt-in.</li></ul>
+<p class="r-title">Q7 — Failure posture when findings conflict</p>
+<ul><li><strong>Ruling:</strong> <strong>(c) Apply non-conflicting edits; surface conflicts in <code>unresolved</code>.</strong></li><li><strong>Rationale:</strong> Graceful degradation is a core operational standard. If the board produces conflicting recommendations, the revision seat should resolve what it can and log conflicts in <code>unresolved</code> rather than failing the run or choosing a side silently. It should not affect the final exit code.</li></ul>
+<p class="r-title">Q8 — Redline artifacts: Exactly what does P3 render?</p>
+<ul><li><strong>Ruling:</strong> <strong>Ship as specified by the strawman.</strong></li><li><strong>Rationale:</strong> Outputting clean draft files alongside unified <code>.patch</code> files (via standard <code>difflib</code>) and word-level HTML rendering is clean and idiomatic. Non-standard markdown formats (like CriticMarkup) add unnecessary rendering and parsing complexity.</li></ul>
+<p>---</p>
+<p class="r-title">4. Recommended Execution Sequence</p>
+<ol><li><strong>Phase 1 (CLI &amp; Configuration):</strong> Add parsing and validation for <code>--output revised-draft</code> and <code>--source-type</code>.</li><li><strong>Phase 2 (Draft Generation):</strong> Build single-spawn prompts, fence parsers, and validation rules for <code>changes.json</code>.</li><li><strong>Phase 3 (Diff Engine):</strong> Wire <code>difflib</code> to generate unified patches for code and inline word-level HTML renders for prose.</li><li><strong>Phase 4 (Endorsement Pass):</strong> Add the optional, concurrent endorsement step, recording responses in <code>changes.json</code>.</li></ol>
+<p>---</p>
+<p class="r-title">5. Invariants and Guardrails</p>
+<ul><li><strong>D5/D6 Compliance:</strong> Source files must never be modified by the CLI. The revision remains an opt-in artifact.</li><li><strong>Fail-Safe Exit:</strong> Revision/endorsement failures must never discard successful round reviews or delete valid synthesized <code>verdict.json</code> files.</li><li><strong>Egress Bounds:</strong> Operation must utilize existing egress consent hashes; no new external data categories may be introduced.</li></ul>
+<p>---</p>
+<p class="r-title">6. Risks, Stale Assumptions, &amp; Missing Evidence</p>
+<ul><li><strong>Complex Mapping Failure:</strong> Models struggle to reliably map multi-point edits back to a structured JSON schema when edits cross-cut files. We need high-complexity integration test fixtures to ensure JSON-to-text formatting doesn't truncate.</li><li><strong>Target Workspace State:</strong> Developers may modify local files between running a review and applying a patch, causing standard patch tools to fail.</li></ul>
+<p>---</p>
+<p class="r-title">7. Other Seats to Challenge</p>
+<ul><li><strong>The Claude Seat:</strong> Challenge whether full-file rewrites in single-spawns lead to high truncation rates, and if line-by-line patch instructions should be returned instead.</li><li><strong>The Codex/Gemini Seats:</strong> Challenge whether title-based matching in <code>changes.json</code> is robust enough for downstream CI systems.</li></ul>
+<p>VERDICT: caution</p>
+        </div>
+      </div>
+      
+      <div class="round">
+        <div class="round-head">
+          <span class="round-tag">Round 2</span>
+          
+          <span class="vpill caution">SHIP WITH CHANGES</span>
+          
+        </div>
+        <div class="review-body">
+          
+          <p class="r-title">Round 2 Board Review — Gemini (Product &amp; Operations)</p>
+<p class="r-title">1. Updated Verdict</p>
+<ul><li><strong>Verdict:</strong> <strong>CAUTION</strong></li><li><strong>Confidence:</strong> <strong>HIGH</strong></li><li><strong>What would change it:</strong> Committing to an architecture that parallelizes the endorsement pass, assigns post-synthesis sequential string IDs to findings to act as robust join keys, and guarantees that the clean revised drafts contain no tool-authored metadata headers.</li></ul>
+<p>---</p>
+<p class="r-title">2. Changed Mind &amp; Dissent</p>
+<ul><li><strong>Where we CHANGED OUR MIND:</strong><ul><li><strong>Q1 (Edit identity — Agreed with Codex):</strong> We change our mind to support Codex's caution against <strong>Q1(a) (pure exact-title matching)</strong>. While human-driven <code>amend --on</code> uses titles, machine-driven revision provenance is too fragile under exact title matching. We propose a hybrid/refined solution: The conductor should assign sequential string IDs (e.g., <code>&quot;blocker-1&quot;</code>, <code>&quot;concern-2&quot;</code>) to blockers and concerns at merge time (post-synthesis). The revision seat then keys its <code>changes.json</code> to these IDs. This avoids a heavy <code>@3</code> schema evolution while delivering absolute machine precision.</li><li><strong>Q6 (Endorsement Pass Default — Agreed with Parallelization):</strong> We change our mind regarding the default posture of the endorsement pass. To protect the integrity of a truly "board-endorsed" revision (solving the marketing risk R4), we agree it must be <strong>ON by default, but executed in parallel, with a <code>--no-endorse</code> flag to opt-out</strong>. In Round 1, we flagged the immense latency penalty of sequential spawns; parallelizing the spawns cuts this latency to a single round's duration, satisfying both speed and quality standards.</li></ul></li><li><strong>Where we STILL DISSENT:</strong><ul><li><strong>Q2 (Pointer Location — Dissented from Claude):</strong> We still dissent from Claude's push for <strong>Q2(a) (file-only)</strong> and maintain that <strong>Q2(b) (file + pointer inside <code>verdict.json</code>) is correct</strong>. Claude fears that reopening <code>verdict.json</code> violates the write-once feel and invites concurrency issues. However, the entire execution is a single-process pipeline. By holding the synthesized verdict in memory and writing <code>verdict.json</code> to disk <em>once</em> at the very end of the run (after synthesis, revision, and parallel endorsements are done), we completely avoid "reopening" a file while ensuring <code>verdict.json</code> remains a self-contained, cryptographically verifiable index of the run.</li></ul></li></ul>
+<p>---</p>
+<p class="r-title">3. Strongest Remaining Objections</p>
+<ul><li><strong>Silent Truncation and Lack of Structural Validation (Q5):</strong> Full-file rewrites of large sources in a single spawn are prone to token limits. If the CLI silently writes a truncated file as "board-endorsed," it corrupts user work (R4). We must enforce <strong>strict validation of closed fences</strong>. Putting the JSON mapping <em>first</em> and the revised draft <em>second</em> ensures that if the draft is truncated, the missing closing fence is caught mechanically, failing the run safely.</li><li><strong>Header Pollution in Clean Drafts (Q8):</strong> Placing tool-authored metadata headers inside <code>revised-draft.md</code> or <code>revised-draft.&lt;ext&gt;</code> introduces unnecessary user friction when copy-pasting or applying the files. The clean drafts must be completely clean and immediately apply-able, leaving metadata to <code>changes.json</code> and the HTML handoff.</li><li><strong>The Caveat Schema Inconsistency:</strong> The brief and Q3 treat <code>caveats[]</code> as structured findings that can be resolved. As proven by the code, caveats are simple string arrays with no titles or evidence, making them un-resolvable. The revision step must strictly limit its focus to resolving <code>blockers</code> and <code>concerns</code>.</li></ul>
+<p>---</p>
+<p class="r-title">4. Recommended Execution Sequence</p>
+<ol><li><strong>Phase 1: Foundation &amp; Pre-Work (Blocking)</strong><ul><li>Update <code>board_verdict.py</code> and <code>_conductor/synthesizer.py</code> to assign standard sequential IDs (<code>blocker-1</code>, <code>concern-1</code>) to <code>blockers</code> and <code>concerns</code> post-synthesis.</li><li>Refine the validator to allow the <code>changes</code> key in <code>verdict.json</code> only when <code>--output revised-draft</code> is active.</li></ul></li><li><strong>Phase 2: Revision Step (Single Spawn &amp; Reconciliation)</strong><ul><li>Implement <code>_run_revision_step()</code>.</li><li>Use a single spawn with a strict block order: [JSON Mapping First, Clean Revised Draft Second].</li><li>Build a parser that strictly validates closed fences for both blocks.</li><li>Implement Claude's INV-1 diff-reconciliation invariant (<code>difflib</code> over original vs revised must match the locator map 1:1).</li></ul></li><li><strong>Phase 3: Parallel Endorsement Pass</strong><ul><li>Spawn parallel non-revision seat reviews to collect endorsements in one concurrent step, appending results to <code>changes.json</code>.</li></ul></li><li><strong>Phase 4: Rendering &amp; Local Artifacts</strong><ul><li>Implement line/word-level <code>&lt;ins&gt;/&lt;del&gt;</code> redline generation using <code>difflib.SequenceMatcher</code> for the HTML handoff.</li><li>Write clean, header-free <code>revised-draft</code> files and <code>.patch</code> diffs.</li></ul></li></ol>
+<p>---</p>
+<p class="r-title">5. Invariants and Guardrails</p>
+<ul><li><strong>Fenced-Block Integrity:</strong> An unclosed data fence for either the JSON or the draft must trigger a parse rejection, preventing silent truncations.</li><li><strong>INV-1 Reconciliation:</strong> The mechanical diff must map 1:1 to the edit locators. Any discrepancy must reject the revision draft.</li><li><strong>Size Preflight Barrier:</strong> Set an upper limit on source file size (e.g., 800 lines or 4000 tokens) for revision generation. If exceeded, refuse revision with a clear error or warning, preventing guaranteed truncation.</li><li><strong>Late-Write Pipeline:</strong> Defer writing <code>verdict.json</code> to the filesystem until the entire pipeline is finalized, preventing file reopening.</li></ul>
+<p>---</p>
+<p class="r-title">6. Risks, Stale Assumptions, and Missing Evidence</p>
+<ul><li><strong>Stale Assumption: Caveats as findings:</strong> As proven by <code>scripts/board_verdict.py:45</code> and <code>references/verdict-schema.md</code>, <code>caveats</code> are simple lists of strings and not structured findings. They cannot be resolved or mapped.</li><li><strong>Truncation Vulnerability:</strong> Single-spawn execution for full-file generation on larger code files is highly risky.</li><li><strong>Concurrency Risk in Manual Amendments:</strong> If a user runs <code>amend</code> after a revision is generated, the <code>changes</code> pointer in <code>verdict.json</code> must be preserved. We must ensure <code>amend</code>'s optimistic file locking does not strip the <code>changes</code> field.</li></ul>
+<p>---</p>
+<p class="r-title">7. Concrete Evidence</p>
+<ul><li><strong>EVIDENCE_CONTAINERS error:</strong> <code>scripts/board_verdict.py:45</code> and <code>scripts/verify_evidence.py:107</code> both define <code>EVIDENCE_CONTAINERS = (&quot;blockers&quot;, &quot;dissent&quot;, &quot;concerns&quot;)</code>. There is no <code>caveats</code> container.</li><li><strong>Caveat array structure:</strong> <code>references/verdict-schema.md</code> shows <code>&quot;caveats&quot;: [&quot;Reviewed the plan, not the code...&quot;]</code>.</li><li><strong>Finding Titles limited to blockers/concerns:</strong> <code>scripts/board_verdict.py:527</code> uses <code>for key in (&quot;blockers&quot;, &quot;concerns&quot;)</code> to extract titles, confirming caveats are completely out of scope for matching.</li><li><strong>Changes reservation error:</strong> <code>scripts/board_verdict.py:142</code> checks <code>if &quot;changes&quot; in data: die(...)</code>, which confirms the reserved key is blocked.</li></ul>
+<p>VERDICT: caution</p>
+        </div>
+      </div>
+      
+
+      
+
+    </article>
+    
+
+  </section>
+
+  <!-- ===================== CONSENSUS BLOCKERS ===================== -->
+  <section>
+    <h2>Consensus blockers — must fix before ship</h2>
+    <ol class="blockers">
+      
+      <li>
+        <span class="b-title">Title-only edit identity is ambiguous by construction (Q1)</span>
+        <div class="b-body">All three seats moved off pure title matching for the revision&#x27;s `resolves` join key. Unlike the human-in-the-loop `amend`, `changes.json` is machine provenance with no human to disambiguate, and there is no duplicate-title guard anywhere: `_finding_titles` appends every finding title unconditionally and covers only blockers+concerns. Two same-titled findings make an edit&#x27;s `resolves` ambiguous with nothing to break the tie. Board minimum is a composite `{​list, index, title}` with a conductor equality-assert / duplicate-title rejection (Claude, Codex); Gemini would go further to conductor-assigned sequential IDs.</div>
+      </li>
+      
+      <li>
+        <span class="b-title">`caveats` is a phantom container the schema must be fixed against (Q3)</span>
+        <div class="b-body">The brief and Q3 treat `caveats[]` as structured, resolvable findings (blockers/concerns/caveats), but the implementation&#x27;s evidence containers are blockers/dissent/concerns, and caveats are plain string arrays with no titles or evidence — un-resolvable by construction. Every `resolves.list` enum, the completeness rule, and the best-effort carve-out inherit this error. The vocabulary must be reconciled (`caveats`→`dissent`) before any schema line is written, or the validator and the artifact disagree on day one. Codex and Gemini restrict resolvable findings to blockers+concerns; Claude&#x27;s enum also admits dissent.</div>
+      </li>
+      
+      <li>
+        <span class="b-title">Silent truncation ships a corrupted &quot;board-endorsed&quot; copy (Q5)</span>
+        <div class="b-body">Claude&#x27;s highest-severity failure and a top objection for all three seats: a single-spawn full-file rewrite of a large source can truncate and produce a plausible-looking short reply that gets written as the &quot;fixed copy.&quot; The retry set only catches timeout, not truncation. Defense must be layered: strict fence parsing (an opened DATA fence with no matching close ⇒ reject/retry), a mechanical original→revised diff reconciliation (every edit locator maps to a real diff hunk 1:1; status computed from the diff, never model-asserted), and a source-size preflight that refuses oversized `--output revised-draft` loudly rather than truncating. Gemini proposes emitting the JSON mapping first and the draft second so a missing closing fence is caught mechanically.</div>
+      </li>
+      
+      <li>
+        <span class="b-title">Metadata header inside the clean revised draft corrupts the applied artifact (Q8)</span>
+        <div class="b-body">The strawman&#x27;s `revised-draft.*` carries a header (run title, seat, unresolved count). But that artifact is the thing a human applies — a header prepends board metadata to the user&#x27;s document, and for code produces a syntax-corrupt or semantically-wrong file the moment it is saved. All three seats agree the draft must be byte-clean; metadata belongs in `changes.json`, the HTML handoff, and the run card, never in the applied file. Its sha256 in `changes.json.revised` must match the file on disk exactly.</div>
+      </li>
+      
+      <li>
+        <span class="b-title">Sequential endorsement makes the default path slow and self-defeating (Q6)</span>
+        <div class="b-body">The board converged on endorsement ON by default (otherwise &quot;board-endorsed&quot; becomes marketing and one seat&#x27;s rewrite wears the whole board&#x27;s name), but it MUST be dispatched concurrently. Gemini&#x27;s round-1 &quot;+40–60%&quot; is a spawn/token-cost figure miscast as latency; the endorsement pass is a dependency-free per-seat fan-out — structurally a review round — and rounds already fan out concurrently, so reused its wall-clock cost is ~one extra round, not N sequential spawns. `--no-endorse` remains the opt-out for the genuine token-cost axis.</div>
+      </li>
+      
+    </ol>
+  </section>
+
+  <!-- ===================== DISSENT / MINORITY REPORT ===================== -->
+  
+  <section>
+    <h2>Dissent &amp; minority report</h2>
+    <div class="dissent">
+      <span class="d-flag">Dissent on the record</span>
+      
+      <p><span class="who">Gemini:</span> On Q2, dissents from any design that reopens and appends `verdict.json` to add the `changes` pointer. Argues the run is a single-process pipeline, so the verdict should be held in memory and `verdict.json` written to disk once at the very end (after synthesis, revision, and parallel endorsements), never reopened — keeping it a self-contained, cryptographically verifiable index. Claude and Codex instead reuse `amend`&#x27;s atomic lost-update guard, noting `amend` already reopens verdict.json post-synthesis so write-once is already gone.</p>
+      
+      <p><span class="who">Claude:</span> On Q1, prefers the composite `{​list, index, title}` locator with a conductor equality-assert and declines Codex&#x27;s stronger option of minting a real `id` on verdict@2, calling it premature — a second schema evolution in two releases for a within-run consumer. Codex favors conductor-assigned finding IDs now (composite as the minimum fallback); Gemini favors conductor-assigned sequential string IDs (`blocker-1`, `concern-2`).</p>
+      
+      <p><span class="who">Claude:</span> On the scope of resolvable findings, Claude&#x27;s changes@1 enum allows `resolves.list ∈ {​blockers, dissent, concerns}`, treating dissent findings as resolvable, and acknowledges this goes beyond the amend precedent. Codex and Gemini restrict resolvable findings to blockers+concerns only — &quot;dissent and caveats are not editable findings.&quot;</p>
+      
+    </div>
+  </section>
+
+  <!-- ===================== WHAT THE BOARD COULDN'T VERIFY ===================== -->
+  
+  <section>
+    <h2>What the board couldn't verify</h2>
+    <div class="caveats">
+      <ul>
+        
+        <li><span class="c-claim">Claude did not audit amend&#x27;s lost-update guard mechanism this round — whether it covers both the amend writer and the revision pointer-writer is a Phase-2 task, not yet verified.</span> — <span class="c-change"></span></li>
+        
+        <li><span class="c-claim">The claim that amend sets the join-key precedent is only 2/3 true: amend&#x27;s _finding_titles covers blockers+concerns, not dissent — so resolving dissent findings would go beyond the amend precedent.</span> — <span class="c-change"></span></li>
+        
+        <li><span class="c-claim">`scripts/board_verdict.py:525` (code) could not be resolved.</span> — <span class="c-change"></span></li>
+        
+        <li><span class="c-claim">`scripts/board_verdict.py:528` (code) could not be resolved.</span> — <span class="c-change"></span></li>
+        
+        <li><span class="c-claim">`scripts/board_verdict.py:45` (code) could not be resolved.</span> — <span class="c-change"></span></li>
+        
+        <li><span class="c-claim">`scripts/verify_evidence.py:107` (code) could not be resolved.</span> — <span class="c-change"></span></li>
+        
+        <li><span class="c-claim">`scripts/_conductor/rounds.py:232` (code) could not be resolved.</span> — <span class="c-change"></span></li>
+        
+        <li><span class="c-claim">`scripts/_conductor/config.py:52` (code) could not be resolved.</span> — <span class="c-change"></span></li>
+        
+        <li><span class="c-claim">`scripts/_conductor/config.py:155` (code) could not be resolved.</span> — <span class="c-change"></span></li>
+        
+        <li><span class="c-claim">`rg &#x27;get_opcodes|HtmlDiff&#x27;` (command) could not be re-executed (off-allowlist or not runnable).</span> — <span class="c-change"></span></li>
+        
+        <li><span class="c-claim">`scripts/_conductor/revise.py:259` (code) could not be resolved.</span> — <span class="c-change"></span></li>
+        
+        <li><span class="c-claim">`scripts/_conductor/delta.py:15` (code) could not be resolved.</span> — <span class="c-change"></span></li>
+        
+        <li><span class="c-claim">`scripts/board_verdict.py:142` (code) could not be resolved.</span> — <span class="c-change"></span></li>
+        
+        <li><span class="c-claim">`references/verdict-schema.md:138` (code) could not be resolved.</span> — <span class="c-change"></span></li>
+        
+        <li><span class="c-claim">`scripts/board_verdict.py:535` (code) could not be resolved.</span> — <span class="c-change"></span></li>
+        
+      </ul>
+    </div>
+  </section>
+
+  <!-- ===================== OPEN QUESTIONS ===================== -->
+  <section>
+    <h2>Open questions</h2>
+    <ul class="plain">
+      
+      <li>Q1 join-key format is unsettled: composite {​list, index, title} with equality-assert vs conductor-assigned sequential IDs vs a real id on verdict@2.</li>
+      
+      <li>Q2 write-safety mechanism is unsettled: reuse amend&#x27;s atomic lost-update guard (reopen/append) vs a late-write pipeline that writes verdict.json once at the end and never reopens it.</li>
+      
+      <li>Whether the revision step may resolve dissent findings, or only blockers+concerns.</li>
+      
+    </ul>
+  </section>
+
+  <!-- ===================== NEXT ACTIONS ===================== -->
+  <section>
+    <h2>Next actions</h2>
+    <div class="actions">
+      <ol>
+        
+        <li>Pre-work (blocking, no code): reconcile `caveats`→`dissent` across the brief + schema, and lock the D9 decisions — Q1 join-key format, Q2 pointer/write semantics, changes@1 containers, clean-draft rule, and endorsement default — before authoring changes@1.</li>
+        
+        <li>Adopt a non-title edit identity: composite {​list, index, title} with a conductor equality-assert / duplicate-title rejection (or conductor-assigned finding IDs).</li>
+        
+        <li>Restrict `resolves.list` to real evidence containers; drop caveats (plain string arrays) from the resolvable set.</li>
+        
+        <li>Build the advisory-board/changes@1 schema and its own strict validator (mirroring board_verdict.py); limit model-authored fields to summary/resolves/note, with the conductor computing n, status, shas, and validating locators.</li>
+        
+        <li>Generalize the synthesizer spawn path into _run_revision_step() after _run_synthesis_step(); single spawn with a DATA fence + neutralizer.</li>
+        
+        <li>Add a source-size preflight that loudly refuses oversized `--output revised-draft`, plus strict fence parsing (unclosed fence ⇒ reject/retry).</li>
+        
+        <li>Add mechanical original→revised diff reconciliation (INV-1): every edit locator maps 1:1 to a real diff hunk; status &quot;applied&quot; is conductor-computed from the diff, never model-asserted; reconciliation failure ⇒ reject path.</li>
+        
+        <li>Emit a byte-clean revised-draft.* with no metadata header; its sha256 in changes.json.revised must match the file on disk.</li>
+        
+        <li>Parallelize the endorsement pass on the rounds.py ThreadPoolExecutor; keep it ON by default with a `--no-endorse` opt-out; record per-edit ENDORSE/OBJECT/ABSTAIN (and treat `unresolved` entries as endorsement targets).</li>
+        
+        <li>Write the verdict.json.changes pointer atomically (amend&#x27;s lost-update discipline or late-write) with an acyclic pin: verdict → changes → {​source, revised}.</li>
+        
+        <li>Add CLI/config/recipe plumbing: `--output revised-draft`, `--source-type`, `--no-endorse`, resolve-time refusal unless synthesis is available, and new recipe enum coverage for output/source_type.</li>
+        
+        <li>Cover in tests: duplicate titles, conflicting findings, unknown source type, truncation, rejected revision output, stale-artifact races, no-flags byte identity, and redline golden files.</li>
+        
+      </ol>
+    </div>
+  </section>
+
+  </main>
+
+  <!-- ===================== FOOTER / COLOPHON (Panely / dark band) ===================== -->
+  
+  <footer class="colophon">
+    <div class="band-inner">
+      <div class="colophon-grid">
+        <div class="colophon-about">
+          <div class="footer-lockup">
+            <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect x="2" y="2" width="96" height="96" rx="22" fill="#0a0e1a"/><circle cx="50" cy="50" r="30" fill="none" stroke="#3a5fd9" stroke-width="3" opacity="0.55"/><circle cx="50" cy="20" r="10" fill="#0a0e1a" stroke="#e2b658" stroke-width="4"/><circle cx="50" cy="20" r="4" fill="#e2b658"/><circle cx="76" cy="65" r="10" fill="#0a0e1a" stroke="#3d6bff" stroke-width="4"/><circle cx="76" cy="65" r="4" fill="#3d6bff"/><circle cx="24" cy="65" r="10" fill="#0a0e1a" stroke="#3d6bff" stroke-width="4"/><circle cx="24" cy="65" r="4" fill="#3d6bff"/><circle cx="50" cy="50" r="13" fill="#5b8cff"/><circle cx="50" cy="50" r="5.5" fill="#ffffff"/></svg>
+            <span>Advisory Board <span style="font-weight:400; color:var(--on-dark-soft); font-size:11.5px; letter-spacing:0.02em;">powered by Panely</span></span>
+          </div>
+          <p>Convene Claude, Codex, and Gemini on your own subscriptions — the ones you already pay for, no new accounts and no API keys — to review the same material and reach one clear verdict.</p>
+        </div>
+        <div class="colophon-cta">
+          <a class="cta" href="https://panely.ai">panely.ai</a>
+        </div>
+      </div>
+      <span class="prov">Board: Claude · Codex · Gemini · 2 rounds · 2026-07-02 · Seat-reported tokens (where known — some seats reported no usage): 343,846 · est. cost ~$1.72–$10.32 at list prices dated 2026-07-01 (an estimate, not a bill)</span>
+    </div>
+  </footer>
+
+</body>
+</html>

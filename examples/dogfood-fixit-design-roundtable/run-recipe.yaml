@@ -1,0 +1,60 @@
+schema: advisory-board/run-recipe@1
+title: v1.13 fixit revision artifact design brief
+date: 2026-07-02
+
+# run shape
+mode: advisory
+sensitivity: redacted
+rounds: "2"
+max_rounds: 3
+cross_reading: summaries
+lens: software-architecture
+output: full-handoff
+out_dir: examples/dogfood-fixit-design-roundtable
+
+# prompt template (bump/hash changes when the egressed prompt shape changes)
+prompt_template: advisory-board/round1@2
+prompt_template_sha256: 27f5d18e3de3d13bfbce812ba2e9d9ee2d9239d9b3bc03c08dd2f3323538c57d
+
+# synthesizer (M2): spawn a no-lens seat after rounds to draft verdict.json
+synthesize: true
+synthesizer_seat: null
+synthesizer_template: advisory-board/synthesizer@2
+synthesizer_template_sha256: 45b369761090907f3dbac017c8393a829ea4bba5378cc294f624b4fe375cf008
+
+# source
+source_kind: path
+source_ref: examples/dogfood-fixit-design-roundtable/design-brief.md
+source_bytes: 17299
+source_lines: 142
+source_sha256: db1db9c0d38bf9d906ace77f019270e5ecb8ace39334513e263ca51153360044
+
+# board (seat -> provider, model, lens, reasoning)
+board:
+  - seat: claude
+    provider: Anthropic
+    model: claude-opus-4-8
+    lens: Architecture & systems — design soundness, invariants, failure modes, adversarial review
+    reasoning: max
+  - seat: codex
+    provider: OpenAI
+    model: gpt-5.5
+    lens: Implementation & testing — repo-grounded execution, migration, test strategy, edge cases
+    reasoning: xhigh
+  - seat: gemini
+    provider: Google
+    model: gemini-3.5-flash
+    lens: Product & operations — rollout, latency, observability, evaluation, user-workflow risk
+    reasoning: HIGH
+
+# egress (consent is bound to the content hash in egress-manifest.md)
+egress_consent: tiered
+egress_providers:
+  - claude seat -> Anthropic
+  - codex seat -> OpenAI
+  - gemini seat -> Google
+
+# isolation posture (follows mode); 'partial' = some seats not network-isolated
+isolation_network: "on"
+isolation_network_unenforced:
+isolation_filesystem: open

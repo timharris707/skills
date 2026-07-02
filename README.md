@@ -46,7 +46,7 @@ Every run ends in a single, self-contained HTML handoff that opens offline in an
 
 **Also built for engineers:** point the board at a real codebase and advisors cite exact `path:line` evidence. Every run also emits a machine-readable [`verdict.json`](./examples/payments-idempotency-review/verdict.json); `scripts/board_verdict.py --gate` turns the board's `ship | caution | block` call into a CI exit code, and `scripts/format_output.py` reshapes it into a PR comment, Slack message, or TL;DR. See the technical [payments idempotency review](https://htmlpreview.github.io/?https://github.com/timharris707/skills/blob/main/examples/payments-idempotency-review/final-consensus.html) for a code-grounded run.
 
-**More runs to browse:** the [side-project go-full-time decision](./examples/side-project-go-full-time-review/) and the [API rate-limiter readiness review](./examples/ratelimiter-readiness-review/).
+**More runs to browse:** the [side-project go-full-time decision](./examples/side-project-go-full-time-review/), the [API rate-limiter readiness review](./examples/ratelimiter-readiness-review/), and the board [dogfooding the design of its own next feature](https://htmlpreview.github.io/?https://github.com/timharris707/skills/blob/main/examples/dogfood-fixit-design-roundtable/final-consensus.html) — a 3-seat design roundtable with preserved cross-model dissent.
 
 The look comes from one template, [`handoff-template.html`](./skills/advisory-board/references/handoff-template.html), so any agent that installs the skill renders the same clean output.
 
