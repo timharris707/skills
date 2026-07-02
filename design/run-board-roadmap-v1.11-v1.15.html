@@ -424,20 +424,20 @@ footer.colophon code { background: var(--surface-2); }
           
           <span class="chip"><b>Baseline</b> advisory-board/v1.10.0 · `main` @ `be4c9b2` · 676 tests green</span>
           
-          <span class="chip"><b>Status</b> M1 SHIPPED (`advisory-board/v1.11.0`, 2026-07-01) · M2 SHIPPED (`advisory-board/v1.12.0`, 2026-07-02) · M3 (v1.13) in flight — P1 D9–D14 · P2 revision seat (PR #67) · P3 redline + snippets (PR #68) · P4 endorsement + release next</span>
+          <span class="chip"><b>Status</b> M1 SHIPPED (`advisory-board/v1.11.0`, 2026-07-01) · M2 SHIPPED (`advisory-board/v1.12.0`, 2026-07-02) · M3 SHIPPED (`advisory-board/v1.13.0`, 2026-07-02 — P1 D9–D14 · P2 PR #67 · P3 PR #68 · P4 PR #69) · M4 (v1.14) next — severity filters first</span>
           
         </div>
       </div>
       <div class="gauge">
-        <svg class="ring" viewBox="0 0 120 120" width="118" height="118" role="img" aria-label="Overall progress 68%">
+        <svg class="ring" viewBox="0 0 120 120" width="118" height="118" role="img" aria-label="Overall progress 74%">
           <circle class="ring-track" cx="60" cy="60" r="52" fill="none" stroke-width="11"/>
           <circle class="ring-arc" cx="60" cy="60" r="52" fill="none" stroke-width="11"
                   stroke-linecap="round" transform="rotate(-90 60 60)"
-                  stroke-dasharray="326.7" stroke-dashoffset="104.6"/>
-          <text class="ring-pct" x="60" y="57" text-anchor="middle" dominant-baseline="middle">68%</text>
+                  stroke-dasharray="326.7" stroke-dashoffset="84.9"/>
+          <text class="ring-pct" x="60" y="57" text-anchor="middle" dominant-baseline="middle">74%</text>
           <text class="ring-sub" x="60" y="76" text-anchor="middle" dominant-baseline="middle">complete</text>
         </svg>
-        <div class="gauge-count"><b>26</b> / 38 tasks done</div>
+        <div class="gauge-count"><b>28</b> / 38 tasks done</div>
       </div>
     </div>
 
@@ -447,7 +447,7 @@ footer.colophon code { background: var(--surface-2); }
       
       <span class="rail-item done"><i class="dot"></i>M2</span>
       
-      <span class="rail-item wip"><i class="dot"></i>M3</span>
+      <span class="rail-item done"><i class="dot"></i>M3</span>
       
       <span class="rail-item todo"><i class="dot"></i>M4</span>
       
@@ -808,16 +808,16 @@ footer.colophon code { background: var(--surface-2); }
 
     </article>
     
-    <article class="milestone wip">
+    <article class="milestone done">
       <div class="ms-head">
         <div class="ms-num">3</div>
         <div class="ms-head-main">
           <h3 class="ms-title">v1.13 — Transform: the board hands back a fixed copy</h3>
           <div class="ms-meta">
-            <span class="badge wip"><span class="dot"></span>In progress</span>
+            <span class="badge done"><span class="dot"></span>Done</span>
             <span class="ms-progress">
-              <span class="ms-bar"><span style="width:67%"></span></span>
-              4/6
+              <span class="ms-bar"><span style="width:100%"></span></span>
+              6/6
             </span>
           </div>
         </div>
@@ -905,17 +905,17 @@ footer.colophon code { background: var(--surface-2); }
         
       </div>
       
-      <div class="phase todo">
+      <div class="phase done">
         <div class="phase-head">
           <span class="phase-dot"></span>
           <h4 class="phase-title">Phase 4 — Endorsement pass, docs, review, release v1.13</h4>
-          <span class="phase-state">To do</span>
+          <span class="phase-state">Done</span>
         </div>
         <ul class="checklist">
           
-          <li class="todo"><span class="tick"></span><span class="task-text">One-shot endorse/object pass by non-revision seats — ON by default for <code>--output revised-draft</code>, parallel fan-out, <code>--no-endorse</code> opt-out (D13) — recorded per seat in <code>changes.json</code></span></li>
+          <li class="done"><span class="tick">✓</span><span class="task-text">One-shot endorse/object pass by non-revision seats — ON by default for <code>--output revised-draft</code>, parallel fan-out, <code>--no-endorse</code> opt-out (D13) — recorded per seat in <code>changes.json</code> <em>Per-edit AND per-unresolved votes, conductor-built rows, id-axis seat identity (duplicate-provider boards disambiguated), honest egress wording, dropped-row contract validator-enforced. Board review → <code>--revise</code> re-review: 5 blockers cleared → unanimous SHIP WITH CHANGES @ high confidence. Suite 1209 → 1282.</em> <em>(PR #69)</em></span></li>
           
-          <li class="todo"><span class="tick"></span><span class="task-text">Docs + CHANGELOG on <code>main</code>; tag <code>advisory-board/v1.13.0</code> under Tim&#x27;s standing release go (2026-07-02, v1.13–v1.15) → release green</span></li>
+          <li class="done"><span class="tick">✓</span><span class="task-text">Docs + CHANGELOG on <code>main</code>; tag <code>advisory-board/v1.13.0</code> under Tim&#x27;s standing release go (2026-07-02, v1.13–v1.15) → release green <em>CHANGELOG <code>## [v1.13.0] - 2026-07-02 — Transform: the board hands back a fixed copy</code> landed on main (<code>367928e</code>) before the annotated tag; release workflow verified green.</em></span></li>
           
         </ul>
         
@@ -1323,7 +1323,7 @@ footer.colophon code { background: var(--surface-2); }
 
   <!-- ===================== COLOPHON ===================== -->
   <footer class="colophon">
-    Rendered from <code>run-board-roadmap-v1.11-v1.15.md</code> &middot; 5 milestones &middot; 26/38 tasks complete. The markdown plan is the source of truth &mdash; regenerate with <code>render_plan.py</code>; never hand-edit this file.
+    Rendered from <code>run-board-roadmap-v1.11-v1.15.md</code> &middot; 5 milestones &middot; 28/38 tasks complete. The markdown plan is the source of truth &mdash; regenerate with <code>render_plan.py</code>; never hand-edit this file.
   </footer>
 
 </div>

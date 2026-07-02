@@ -5,7 +5,7 @@
 - **Source:** 2026-07-01 four-agent review (feature surface · conductor architecture · artifacts/examples · market scan) + Tim's selection of items 1–14 from the ranked slate
 - **Owner:** Tim
 - **Baseline:** advisory-board/v1.10.0 · `main` @ `be4c9b2` · 676 tests green
-- **Status:** M1 SHIPPED (`advisory-board/v1.11.0`, 2026-07-01) · M2 SHIPPED (`advisory-board/v1.12.0`, 2026-07-02) · M3 (v1.13) in flight — P1 D9–D14 · P2 revision seat (PR #67) · P3 redline + snippets (PR #68) · P4 endorsement + release next
+- **Status:** M1 SHIPPED (`advisory-board/v1.11.0`, 2026-07-01) · M2 SHIPPED (`advisory-board/v1.12.0`, 2026-07-02) · M3 SHIPPED (`advisory-board/v1.13.0`, 2026-07-02 — P1 D9–D14 · P2 PR #67 · P3 PR #68 · P4 PR #69) · M4 (v1.14) next — severity filters first
 
 ## Overview
 
@@ -114,8 +114,8 @@ Testing: redline golden files (prose + code); snippet embedding on a grounded fi
 Gate: full suite.
 
 ### Phase 4 — Endorsement pass, docs, review, release v1.13
-- [ ] One-shot endorse/object pass by non-revision seats — ON by default for `--output revised-draft`, parallel fan-out, `--no-endorse` opt-out (D13) — recorded per seat in `changes.json`
-- [ ] Docs + CHANGELOG on `main`; tag `advisory-board/v1.13.0` under Tim's standing release go (2026-07-02, v1.13–v1.15) → release green
+- [x] One-shot endorse/object pass by non-revision seats — ON by default for `--output revised-draft`, parallel fan-out, `--no-endorse` opt-out (D13) — recorded per seat in `changes.json` _Per-edit AND per-unresolved votes, conductor-built rows, id-axis seat identity (duplicate-provider boards disambiguated), honest egress wording, dropped-row contract validator-enforced. Board review → `--revise` re-review: 5 blockers cleared → unanimous SHIP WITH CHANGES @ high confidence. Suite 1209 → 1282._ _(PR #69)_
+- [x] Docs + CHANGELOG on `main`; tag `advisory-board/v1.13.0` under Tim's standing release go (2026-07-02, v1.13–v1.15) → release green _CHANGELOG `## [v1.13.0] - 2026-07-02 — Transform: the board hands back a fixed copy` landed on main (`367928e`) before the annotated tag; release workflow verified green._
 Gate: release Latest + full suite green.
 
 ## Milestone: v1.14 — Signal quality & run experience
