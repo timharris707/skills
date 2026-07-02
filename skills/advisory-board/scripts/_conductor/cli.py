@@ -224,8 +224,14 @@ def _execute_run(config, args) -> int:
     # packet). Refuse the meaningless combination up front — loudly, not silently.
     digest_json = getattr(args, "digest_format", "markdown") == "json"
     if digest_json and config.cross_reading != "summaries":
+        # Name the real cause: under --tier the offending value may come from the
+        # preset, not a flag the user typed (an explicit flag still wins over it).
+        cause = ""
+        if config.tier and getattr(args, "cross_reading", None) is None:
+            cause = (f", set by --tier {config.tier} — an explicit "
+                     "--cross-reading summaries overrides the tier")
         die("--digest-format json serializes the structured digest, which requires "
-            f"--cross-reading summaries (this run uses {config.cross_reading!r})",
+            f"--cross-reading summaries (this run uses {config.cross_reading!r}{cause})",
             EXIT_USAGE)
 
     blobs = build_packet(config)
@@ -649,6 +655,16 @@ def add_run_options(parser: argparse.ArgumentParser) -> None:
                              "--rounds 1|2|3. Persisted in the recipe so an auto run reproduces.")
     parser.add_argument("--cross-reading", dest="cross_reading",
                         choices=("none", "summaries", "full"))
+    parser.add_argument("--tier", choices=("quick", "standard", "deep"),
+                        help="one-flag cost/depth posture, applied as a BASE that explicit "
+                             "flags always override. quick: 1 round, summaries cross-reading, "
+                             "reduced per-seat reasoning (claude high, codex medium; seats "
+                             "without an effort knob untouched — model ids never change). "
+                             "standard: today's defaults (a no-op). deep: 3 rounds, full "
+                             "cross-reading, default max-tier reasoning (codex stays at "
+                             "xhigh, its API ceiling). The recipe records the RESOLVED "
+                             "values, never the tier, so --from-recipe replays exactly — "
+                             "the pair is refused.")
     parser.add_argument("--lens", action="append", metavar="PRESET | SEAT=LENS",
                         help=f"lens preset for the board (default {DEFAULT_LENS}); repeat with "
                              "SEAT=LENS to give one seat its own focus (a free-form string, or a "

@@ -26,6 +26,9 @@ __all__ = [
     "FAILURE_MODEL",
     "MODEL_PRICING_USD_PER_MTOK",
     "PRICING_AS_OF",
+    "TIER_PRESETS",
+    "TIERS_AS_OF",
+    "tier_provenance_line",
     "price_band_usd",
     "estimate_run",
     "render_estimate",
@@ -98,6 +101,68 @@ LENS_PRESETS = {
     ],
 }
 DEFAULT_LENS = "software-architecture"
+
+# --------------------------------------------------------------------------- #
+# Run tiers (v1.11 #3b): one flag — `--tier quick|standard|deep` — that sets the
+# run's whole cost/depth posture. Applied in config resolution as a BASE beneath
+# explicit flags (--rounds / --cross-reading / per-seat reasoning always win;
+# built-in defaults fill last) and NEVER persisted: run-recipe.yaml records the
+# RESOLVED values, so --from-recipe replays exactly without knowing the tier
+# (the pair is refused as contradictory).
+#
+# Model ids are deliberately NOT a tier knob: swapping in unverified "budget"
+# ids risks model-404ing the board, so every tier runs the pinned REGISTRY
+# models and dials rounds / cross-reading / reasoning instead.
+#
+# `reasoning` is keyed by PROVIDER (the REGISTRY name — so every claude seat on
+# a duplicate/aliased board moves together) and lists only providers whose CLI
+# exposes an effort knob to move; gemini / antigravity / ollama have none and
+# stay untouched at every tier.
+#
+# HARD CEILING: codex's reasoning tops out at `xhigh` — `model_reasoning_effort=
+# max` is a hard API 400 (see the v1.10 notes). No tier may set codex above
+# xhigh; test-guarded.
+# --------------------------------------------------------------------------- #
+
+TIERS_AS_OF = "2026-07-01"   # levels last checked against the pinned CLIs' effort knobs
+TIER_PRESETS = {
+    # quick — the cheap pass: one round, digest cross-reading, reduced reasoning
+    # on the seats that have the knob (claude high, codex medium).
+    "quick": {
+        "rounds": "1",
+        "cross_reading": "summaries",
+        "reasoning": {"claude": "high", "codex": "medium"},
+    },
+    # standard — exactly today's defaults; the flag is allowed and a no-op
+    # (still noted in run-metadata provenance, since it was asked for).
+    "standard": {
+        "rounds": "2",
+        "cross_reading": "summaries",
+        "reasoning": {},   # registry defaults untouched
+    },
+    # deep — the high-stakes posture: three rounds, full cross-reading, and the
+    # registry-default (max-tier) reasoning: claude stays max, codex stays
+    # xhigh (its ceiling — never max).
+    "deep": {
+        "rounds": "3",
+        "cross_reading": "full",
+        "reasoning": {},   # registry defaults ARE the maximum safe tier
+    },
+}
+
+
+def tier_provenance_line(name: str) -> str:
+    """The one-line run-metadata provenance for a `--tier` run: the tier name
+    plus the base values it set, rendered from TIER_PRESETS so the dict stays
+    the single source of truth. Only rendered when the flag was given — a
+    no-tier run's artifacts stay byte-identical."""
+    preset = TIER_PRESETS[name]
+    reasoning = preset["reasoning"]
+    effort = (", ".join(f"{provider}={level}" for provider, level in reasoning.items())
+              or "registry defaults")
+    return (f"{name} (--tier) — base: rounds {preset['rounds']} · cross-reading "
+            f"{preset['cross_reading']} · reasoning {effort}; explicit flags override")
+
 
 # Failure classes (design §13). Tool-agnostic; consumed in full by M3.
 FAILURE_TIMEOUT = "Timeout"

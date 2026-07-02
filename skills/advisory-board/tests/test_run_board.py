@@ -922,6 +922,141 @@ class TestFromRecipe(EnvMixin):
             self.assertIn("max_rounds: 5", fh.read())
 
 
+class TestTierPresets(EnvMixin):
+    """--tier quick|standard|deep (v1.11 #3b): one flag for the run's cost/depth
+    posture, applied as a BASE beneath explicit flags. The recipe records the
+    RESOLVED values, never the tier name, so --from-recipe replays exactly."""
+
+    def test_quick_dials_rounds_cross_reading_and_reasoning(self):
+        c = _config(tier="quick")
+        self.assertEqual(c.tier, "quick")
+        self.assertEqual(c.rounds, "1")
+        self.assertEqual(c.cross_reading, "summaries")
+        reasoning = {s.name: s.reasoning for s in c.board}
+        self.assertEqual(reasoning["claude"], "high")
+        self.assertEqual(reasoning["codex"], "medium")
+        # seats without an effort knob stay at the registry default
+        self.assertEqual(reasoning["gemini"], rb.REGISTRY["gemini"].default_reasoning)
+        # model ids are deliberately NOT a tier knob
+        models = {s.name: s.model for s in c.board}
+        self.assertEqual(models["claude"], rb.REGISTRY["claude"].default_model)
+        self.assertEqual(models["codex"], rb.REGISTRY["codex"].default_model)
+
+    def test_deep_dials_rounds_and_cross_reading_only(self):
+        c = _config(tier="deep")
+        self.assertEqual(c.rounds, "3")
+        self.assertEqual(c.cross_reading, "full")
+        reasoning = {s.name: s.reasoning for s in c.board}
+        self.assertEqual(reasoning["claude"], "max")    # registry default IS the max tier
+        self.assertEqual(reasoning["codex"], "xhigh")   # ceiling — max is a hard API 400
+
+    def test_standard_matches_a_no_tier_run(self):
+        base, std = _config(), _config(tier="standard")
+        self.assertIsNone(base.tier)
+        self.assertEqual(std.tier, "standard")
+        self.assertEqual((std.rounds, std.cross_reading), (base.rounds, base.cross_reading))
+        self.assertEqual([(s.id, s.model, s.reasoning) for s in std.board],
+                         [(s.id, s.model, s.reasoning) for s in base.board])
+
+    def test_explicit_flags_beat_the_tier(self):
+        c = _config(tier="quick", rounds="3", cross_reading="full")
+        self.assertEqual(c.rounds, "3")
+        self.assertEqual(c.cross_reading, "full")
+
+    def test_duplicate_seats_of_a_provider_move_together(self):
+        # reasoning is keyed by PROVIDER (the registry name, seat.name), so both
+        # claude seats dial down together under quick.
+        c = _config(tier="quick", board="claude,claude,codex")
+        self.assertEqual([s.reasoning for s in c.board if s.name == "claude"],
+                         ["high", "high"])
+
+    def test_no_tier_may_set_codex_above_xhigh(self):
+        # HARD CEILING: codex model_reasoning_effort=max is a hard API 400 (v1.10 notes).
+        for name, preset in rb.TIER_PRESETS.items():
+            self.assertNotEqual(preset["reasoning"].get("codex"), "max", name)
+            board = resolve_board(parse_board("claude,codex,gemini"),
+                                  "software-architecture", {},
+                                  reasoning_base=preset["reasoning"])
+            codex = next(s for s in board if s.name == "codex")
+            self.assertNotEqual(codex.reasoning, "max", name)
+
+    def test_tier_with_from_recipe_is_refused(self):
+        with self.assertRaises(SystemExit) as cm:
+            _config(tier="quick", from_recipe="run-recipe.yaml")
+        self.assertEqual(cm.exception.code, rb.EXIT_USAGE)
+
+    def test_unknown_tier_exits(self):
+        with self.assertRaises(SystemExit) as cm:
+            _config(tier="banana")
+        self.assertEqual(cm.exception.code, rb.EXIT_USAGE)
+
+    def test_recipe_records_resolved_values_never_the_tier(self):
+        recipe = rb.config_to_recipe(_config(tier="quick"))
+        self.assertNotIn("tier", recipe)
+        self.assertEqual(recipe["rounds"], "1")
+        self.assertEqual(recipe["cross_reading"], "summaries")
+        reasoning = {e["seat"]: e["reasoning"] for e in recipe["board"]}
+        self.assertEqual(reasoning["claude"], "high")
+        self.assertEqual(reasoning["codex"], "medium")
+        # key check, not substring: the recipe legitimately contains "tiered"
+        # (egress_consent), which would false-positive a bare assertNotIn("tier").
+        text = rb.dump_recipe(recipe, comments=rb.RECIPE_COMMENTS)
+        self.assertNotIn("\ntier:", text)
+
+    def test_recipe_replay_reproduces_a_quick_run_without_the_tier(self):
+        c = _config(tier="quick")
+        path = os.path.join(tempfile.mkdtemp(prefix="board-tier-"), "run-recipe.yaml")
+        with open(path, "w") as fh:
+            fh.write(rb.dump_recipe(rb.config_to_recipe(c)))
+        r = rb.resolve_config(_args(source=None, from_recipe=path))
+        self.assertIsNone(r.tier)
+        self.assertEqual(r.rounds, "1")
+        self.assertEqual(r.cross_reading, "summaries")
+        self.assertEqual([(s.id, s.model, s.reasoning) for s in r.board],
+                         [(s.id, s.model, s.reasoning) for s in c.board])
+
+    def test_run_metadata_notes_the_tier(self):
+        out = tempfile.mkdtemp(prefix="board-tier-run-")
+        code, _, _ = run_cli(["run", "--source", SAMPLE, "--out", out, "--yes",
+                              "--tier", "quick"])
+        self.assertEqual(code, rb.EXIT_OK)
+        with open(os.path.join(out, "run-metadata.md")) as fh:
+            meta = fh.read()
+        self.assertIn("Tier: quick (--tier)", meta)
+        self.assertIn("explicit flags override", meta)
+        with open(os.path.join(out, "run-recipe.yaml")) as fh:
+            recipe = rb.load_recipe(fh.read())
+        self.assertNotIn("tier", recipe)         # dict KEYS — resolved values only
+        self.assertEqual(recipe["rounds"], "1")
+
+    def test_no_tier_run_has_no_tier_line(self):
+        out = tempfile.mkdtemp(prefix="board-no-tier-")
+        code, _, _ = run_cli(["run", "--source", SAMPLE, "--out", out, "--yes"])
+        self.assertEqual(code, rb.EXIT_OK)
+        with open(os.path.join(out, "run-metadata.md")) as fh:
+            self.assertNotIn("Tier:", fh.read())
+
+    def test_digest_json_refusal_names_the_tier_that_caused_it(self):
+        # --tier deep sets cross-reading `full`; the --digest-format json refusal
+        # must name the tier as the cause, not just a flag the user never passed.
+        out = tempfile.mkdtemp(prefix="board-tier-dj-")
+        code, _, err = run_cli(["run", "--source", SAMPLE, "--out", out, "--yes",
+                                "--tier", "deep", "--digest-format", "json"])
+        self.assertEqual(code, rb.EXIT_USAGE)
+        self.assertIn("set by --tier deep", err)
+
+    def test_digest_json_refusal_blames_the_flag_when_explicit(self):
+        # The user passed --cross-reading full themselves — the tier is not the
+        # cause (explicit flags win), so the message must not claim it is.
+        out = tempfile.mkdtemp(prefix="board-tier-dj2-")
+        code, _, err = run_cli(["run", "--source", SAMPLE, "--out", out, "--yes",
+                                "--tier", "quick", "--cross-reading", "full",
+                                "--digest-format", "json"])
+        self.assertEqual(code, rb.EXIT_USAGE)
+        self.assertIn("this run uses 'full'", err)
+        self.assertNotIn("set by --tier", err)
+
+
 # --------------------------------------------------------------------------- #
 # Delegation to existing scripts
 # --------------------------------------------------------------------------- #

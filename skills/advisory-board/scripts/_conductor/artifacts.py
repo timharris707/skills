@@ -10,6 +10,7 @@ from _conductor.constants import (
     PRICING_AS_OF,
     SENSITIVITY_SCHEMA,
     price_band_usd,
+    tier_provenance_line,
 )
 from _conductor.config import (
     RunConfig,
@@ -329,6 +330,12 @@ def render_run_metadata(config: RunConfig, preflight: list, approval: EgressAppr
         f"Date: {config.date}   ·   Rounds: {config.rounds}   ·   Cross-reading: {config.cross_reading}",
         f"Mode: {config.mode}   ·   Sensitivity: {config.sensitivity}   ·   Output: {config.output}",
         f"Lens preset: {config.lens}",
+    ]
+    # --tier provenance (v1.11 #3b): one line, and ONLY when the flag was given —
+    # a no-tier run's run-metadata.md stays byte-identical to baseline.
+    if config.tier:
+        lines.append(f"Tier: {tier_provenance_line(config.tier)}")
+    lines += [
         "",
         "## Seats",
         "",

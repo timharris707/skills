@@ -16,6 +16,7 @@ from _conductor.constants import (
     DEFAULT_LENS,
     DEFAULT_MAX_ROUNDS,
     LENS_PRESETS,
+    TIER_PRESETS,
     die,
     now_date,
     now_stamp,
@@ -102,6 +103,10 @@ class RunConfig:
     repo: Optional[str] = None       # repo-grounding: a local repo seats may read (read-only)
     repo_include: Optional[list] = None   # optional fnmatch globs narrowing the grounding scope
     repo_exclude: Optional[list] = None   # optional fnmatch globs removed from the grounding scope
+    tier: Optional[str] = None       # --tier preset name — PROVENANCE ONLY (v1.11 #3b): the
+                                     # preset resolves into rounds/cross_reading/reasoning above;
+                                     # never recipe-persisted (recipes record the RESOLVED values),
+                                     # rendered as one run-metadata line only when the flag was given
     # Runtime-populated (NOT by resolve_config): the resolved+snapshotted+hashed read
     # surface, computed once at pre-spawn (cli.cmd_run) so every consent surface reads
     # one source of truth. None until then, and always None for an ungrounded run.
@@ -189,13 +194,19 @@ def resolve_board(seat_specs: list, lens_preset: str, model_overrides: dict,
                   lens_overrides: Optional[dict] = None,
                   reasoning_overrides: Optional[dict] = None,
                   timeout_default: Optional[int] = None,
-                  timeout_overrides: Optional[dict] = None) -> list:
+                  timeout_overrides: Optional[dict] = None,
+                  reasoning_base: Optional[dict] = None) -> list:
     lenses = LENS_PRESETS.get(lens_preset)
     if lenses is None:
         die(f"unknown lens preset {lens_preset!r}; choose from {', '.join(sorted(LENS_PRESETS))}")
     lens_overrides = lens_overrides or {}
     reasoning_overrides = reasoning_overrides or {}
     timeout_overrides = timeout_overrides or {}
+    # reasoning_base (v1.11 --tier): a per-PROVIDER reasoning floor/base sitting
+    # BETWEEN an explicit per-seat override and the registry default. Keyed by
+    # provider (not seat id) so every seat of that provider on a duplicate or
+    # aliased board moves together; providers absent from the map are untouched.
+    reasoning_base = reasoning_base or {}
     ids = assign_seat_ids(seat_specs)
     # Uniqueness guard — replaces today's SILENT collapse of two same-named seats with a
     # loud failure. Only reachable when a user aliases two seats identically (auto-numbering
@@ -230,9 +241,11 @@ def resolve_board(seat_specs: list, lens_preset: str, model_overrides: dict,
             # so `--model claude=…` still works for a single-Claude board.
             model=model_overrides.get(sid, adapter.default_model),
             lens=lens,
-            # Reasoning has no CLI flag today; the only per-seat source is a recipe
-            # (recorded reasoning restored on --from-recipe), else the registry default.
-            reasoning=reasoning_overrides.get(sid, adapter.default_reasoning),
+            # Reasoning precedence: an explicit per-seat value (today only a recipe's
+            # recorded reasoning, restored on --from-recipe) > the tier's per-provider
+            # base (--tier, v1.11 #3b) > the registry default.
+            reasoning=reasoning_overrides.get(
+                sid, reasoning_base.get(provider, adapter.default_reasoning)),
             # Timeout: per-seat --timeout id=SECONDS wins, else a bare --timeout SECONDS,
             # else None (the spawn falls back to the adapter cap). A run-time knob only —
             # deliberately NOT persisted in the recipe (like the old global --timeout).
@@ -297,6 +310,21 @@ def resolve_config(args) -> RunConfig:
     # id=SECONDS overrides one seat. Resolved onto each SeatConfig below.
     timeout_default, timeout_overrides = parse_timeout_args(getattr(args, "timeout", None))
 
+    # --tier (v1.11 #3b): one flag for the run's cost/depth posture, applied as a
+    # BASE beneath explicit flags — --rounds/--cross-reading/per-seat reasoning
+    # always win, built-in defaults fill last. Refused alongside --from-recipe:
+    # the recipe records the RESOLVED values (rounds, cross-reading, per-seat
+    # reasoning), never the tier name, so replay is exact without a tier — a
+    # tier that could never change anything would be a silently-ignored flag.
+    tier = getattr(args, "tier", None)
+    if tier is not None and tier not in TIER_PRESETS:
+        die(f"--tier must be one of {', '.join(TIER_PRESETS)}; got {tier!r}")
+    if tier and getattr(args, "from_recipe", None):
+        die("--tier and --from-recipe are contradictory: the recipe already records "
+            "the resolved values (rounds, cross-reading, per-seat reasoning), so it "
+            "replays exactly without a tier — tiers only shape a fresh run")
+    tier_vals = TIER_PRESETS.get(tier) or {}
+
     if getattr(args, "from_recipe", None):
         base = recipe_to_config(args.from_recipe)
     else:
@@ -335,7 +363,8 @@ def resolve_config(args) -> RunConfig:
 
     board = resolve_board(seat_specs, lens_preset, model_overrides, lens_overrides,
                           reasoning_overrides,
-                          timeout_default=timeout_default, timeout_overrides=timeout_overrides)
+                          timeout_default=timeout_default, timeout_overrides=timeout_overrides,
+                          reasoning_base=tier_vals.get("reasoning"))
 
     mode = getattr(args, "mode", None) or (base or {}).get("mode") or "gate"
     if mode not in ("gate", "advisory"):
@@ -345,7 +374,10 @@ def resolve_config(args) -> RunConfig:
     if sensitivity not in ("public", "redacted", "local-only"):
         die(f"--sensitivity must be public, redacted, or local-only; got {sensitivity!r}")
 
-    rounds = str(getattr(args, "rounds", None) or (base or {}).get("rounds") or "2")
+    # Rounds/cross-reading precedence: explicit flag > recipe > tier base > default.
+    # (--tier + --from-recipe is refused above, so recipe and tier never coexist.)
+    rounds = str(getattr(args, "rounds", None) or (base or {}).get("rounds")
+                 or tier_vals.get("rounds") or "2")
     if rounds not in ("1", "2", "3", "auto"):
         die(f"--rounds must be 1, 2, 3, or auto; got {rounds!r}")
 
@@ -362,7 +394,8 @@ def resolve_config(args) -> RunConfig:
     if max_rounds < 1:
         die(f"--max-rounds must be >= 1; got {max_rounds}")
 
-    cross = getattr(args, "cross_reading", None) or (base or {}).get("cross_reading") or "summaries"
+    cross = (getattr(args, "cross_reading", None) or (base or {}).get("cross_reading")
+             or tier_vals.get("cross_reading") or "summaries")
     if cross not in ("none", "summaries", "full"):
         die(f"--cross-reading must be none, summaries, or full; got {cross!r}")
 
@@ -452,6 +485,7 @@ def resolve_config(args) -> RunConfig:
         repo=repo,
         repo_include=repo_include,
         repo_exclude=repo_exclude,
+        tier=tier,
     )
 
 
