@@ -30,9 +30,9 @@ from _conductor.endorsement import (
     endorsement_template_sha,
 )
 from _conductor.rubric import (
-    RUBRIC_PROPOSAL_TEMPLATE_VERSION,
     RUBRIC_CHAIR_TEMPLATE_VERSION,
     rubric_proposal_template_sha,
+    rubric_proposal_template_version,
     rubric_chair_template_sha,
 )
 
@@ -330,8 +330,8 @@ def config_to_recipe(config: RunConfig) -> dict:
     if config.rubric:
         recipe["rubric"] = True
         recipe["chair_seat"] = config.chair_seat
-        recipe["rubric_proposal_template"] = RUBRIC_PROPOSAL_TEMPLATE_VERSION
-        recipe["rubric_proposal_template_sha256"] = rubric_proposal_template_sha()
+        recipe["rubric_proposal_template"] = rubric_proposal_template_version(config)
+        recipe["rubric_proposal_template_sha256"] = rubric_proposal_template_sha(config)
         recipe["rubric_chair_template"] = RUBRIC_CHAIR_TEMPLATE_VERSION
         recipe["rubric_chair_template_sha256"] = rubric_chair_template_sha()
     return recipe

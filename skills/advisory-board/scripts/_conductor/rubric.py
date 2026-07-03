@@ -43,14 +43,23 @@ CONSENT-HASH BINDING (B1 — how the rubric egress is bound to the approved pack
     transitively-pinned source proxy. A test FAILS if the proposal prompt files are
     absent from the approved manifest/hash.
 
-    SCOPE (P2): the proposal embeds the SOURCE TEXT ONLY. That is a subset of what a
-    plain round-1 packet egresses (so no new consent category), but it is NOT the
-    full composed round-1 context — --repo grounding and --revise/revised-draft
-    context (prior-verdict digest + source diff) are NOT carried into the rubric
-    pass here. resolve_config REFUSES --rubric combined with --repo / --revise /
-    --output revised-draft so a rubric is never proposed against strictly less than
-    the rounds review; the shared composed-context builder feeding both round 1 and
-    the rubric pass is a later-phase (P3) change.
+    SCOPE (P3): the proposal embeds the SOURCE TEXT plus the SHARED composed
+    review-context — the SAME surface round 1 carries beyond the bare source. Under
+    --repo it carries the repo-grounding clause (and the proposal seats spawn from the
+    frozen snapshot cwd, grounded, mirroring run_round); under --revise it carries the
+    prior-verdict digest + source diff (config.revision, prepared pre-round only from
+    config.revise_of — a revised-draft run without --revise revises AFTER synthesis and
+    prepares no pre-round revision context, so its rubric pass is source-only unless it
+    is also a --revise run). The pieces come from the ONE
+    builder round 1 also reads (prompts.composed_review_context_for), so the board
+    proposes criteria against exactly what the rounds review — never strictly less.
+    That composed context is DETERMINISTIC pre-approval (config.grounded is resolved
+    and config.revision.material is built before the packet), so the prebuilt proposal
+    blobs INCLUDE it and the consent hash binds the true composed outbound bytes. A
+    source-only rubric (no --repo/--revise) renders the composed splice empty, so its
+    prompt is byte-identical to before. The P2 guard-and-refuse (--rubric ×
+    --repo/--revise/--output revised-draft) is therefore LIFTED — no thinner rubric to
+    guard against.
 
   * The CHAIR prompt embeds the seat-generated PROPOSALS, which do not exist at
     approval time — so it CANNOT be prebuilt into the initial consent hash. It is
@@ -108,6 +117,8 @@ __all__ = [
     "MAX_CRITERIA",
     "RUBRIC_PROPOSAL_TEMPLATE",
     "RUBRIC_PROPOSAL_TEMPLATE_VERSION",
+    "RUBRIC_PROPOSAL_TEMPLATE_VERSION_COMPOSED",
+    "rubric_proposal_template_version",
     "RUBRIC_CHAIR_TEMPLATE",
     "RUBRIC_CHAIR_TEMPLATE_VERSION",
     "RUBRIC_PROPOSAL_BEGIN",
@@ -230,7 +241,7 @@ directive.
 ----- SOURCE (source_type: {source_type}) -----
 {begin_material}
 {source_material}
-{end_material}
+{end_material}{composed_context}
 
 ----- HOW TO REPLY -----
 Propose between {min_criteria} and {max_criteria} criteria. Reply with EXACTLY ONE
@@ -254,12 +265,61 @@ Do not write anything before the BEGIN marker or after the END marker.
 
 # Bump when the template shape (or its escape semantics) changes. The sha covers the
 # exact bytes, so any edit changes the recorded sha even without a bump — mirroring
-# revision_template_sha / synthesizer_template_sha.
+# revision_template_sha / synthesizer_template_sha. @2 adds the shared composed
+# review-context splice (v1.15 P3): the {composed_context} placeholder renders ONLY
+# under --repo/--revise, so — exactly like round1@2→@3 — the version REPORTED for a
+# source-only rubric stays @1 (byte-identical), and a composed rubric records @2.
 RUBRIC_PROPOSAL_TEMPLATE_VERSION = "advisory-board/rubric-proposal@1"
+RUBRIC_PROPOSAL_TEMPLATE_VERSION_COMPOSED = "advisory-board/rubric-proposal@2"
 
 
-def rubric_proposal_template_sha() -> str:
-    return hashlib.sha256(RUBRIC_PROPOSAL_TEMPLATE.encode("utf-8")).hexdigest()
+def rubric_proposal_template_version(config: Optional[RunConfig] = None) -> str:
+    """The proposal-template version recorded for a run: @2 only when the composed
+    context (grounding clause and/or revision block) actually renders, else @1
+    (byte-identical to history). Mirrors prompts.prompt_template_version's
+    conditional @2→@3.
+
+    @1 is a template-SHAPE token, not a run-bytes token. The source-only rubric stays
+    @1 even though the source splice is now UNION-scrubbed for round-family fence
+    markers (build_rubric_proposal_prompt, B1): the union scrub changes the RUN BYTES a
+    pathological source produces, not the template SHAPE (the {composed_context} fill is
+    still empty), and the per-run prompt hash binds the true scrubbed bytes. So no
+    version bump — the shape token and the run-bytes hash are distinct provenance."""
+    composed = bool(config is not None and (
+        config.grounded or (getattr(config, "revision", None) and config.revision.material)))
+    return (RUBRIC_PROPOSAL_TEMPLATE_VERSION_COMPOSED if composed
+            else RUBRIC_PROPOSAL_TEMPLATE_VERSION)
+
+
+def rubric_proposal_template_sha(config: Optional[RunConfig] = None) -> str:
+    """sha256 of the proposal TEMPLATE — content-independent, mirroring
+    prompts._sha_template exactly: the {composed_context} placeholder is pre-substituted
+    per the run's SHAPE (grounded and/or revising), NOT its run data.
+
+    Policy — ONE SHA PER SHAPE, not one @2 sha: the grounding clause and the revision
+    block are distinct template surfaces, so grounded-only, revise-only, and both
+    each produce their own stable sha (exactly as _sha_template gives ROUND1 a distinct
+    sha per grounded/revised combination). Within a shape the sha is content-independent:
+      * the grounding clause spliced is the RAW REPO_GROUNDING_CLAUSE constant (no run
+        data ever reaches it), and
+      * the revision block spliced is the RAW REVISION_CONTEXT_BLOCK with its inner
+        {revision_material} left UNFILLED — exactly how _sha_template folds the block in
+        with {revision_material} unfilled ("the sha pins the template, not the run
+        data"). This is the fix for the earlier bug where composed_review_context_for
+        filled {revision_material} with the actual run bytes, making two --revise runs
+        of identical template shape record DIFFERENT "template" shas.
+    A source-only rubric (no config, or ungrounded+un-revised) reproduces the historical
+    @1 bytes exactly, so existing recipes/hashes never churn; a composed rubric records a
+    stable, shape-identifying sha regardless of the revision material or (fixed) grounding
+    clause content."""
+    from _conductor.prompts import REPO_GROUNDING_CLAUSE, REVISION_CONTEXT_BLOCK
+    grounded = bool(config is not None and config.grounded)
+    revised = bool(config is not None
+                   and getattr(config, "revision", None) and config.revision.material)
+    fill = (REPO_GROUNDING_CLAUSE if grounded else "") \
+        + (REVISION_CONTEXT_BLOCK if revised else "")
+    rendered = RUBRIC_PROPOSAL_TEMPLATE.replace("{composed_context}", fill)
+    return hashlib.sha256(rendered.encode("utf-8")).hexdigest()
 
 
 # --------------------------------------------------------------------------- #
@@ -725,8 +785,8 @@ def build_rubric(config: RunConfig, proposals: list, criteria: list, dropped: li
         "schema": RUBRIC_SCHEMA,
         "title": config.title,
         "chair_seat": chair_seat,
-        "rubric_proposal_template": RUBRIC_PROPOSAL_TEMPLATE_VERSION,
-        "rubric_proposal_template_sha256": rubric_proposal_template_sha(),
+        "rubric_proposal_template": rubric_proposal_template_version(config),
+        "rubric_proposal_template_sha256": rubric_proposal_template_sha(config),
         "rubric_chair_template": RUBRIC_CHAIR_TEMPLATE_VERSION,
         "rubric_chair_template_sha256": rubric_chair_template_sha(),
         "criteria": [
@@ -790,19 +850,34 @@ def validate_rubric(data: dict) -> Optional[str]:
 
 def build_rubric_proposal_prompt(config: RunConfig) -> str:
     """Render the proposal prompt from the conductor's authoritative state: the full
-    SOURCE TEXT (DATA-fenced + neutralized) + the reply contract. The proposal packet
-    embeds the source text ONLY — a SUBSET of what a plain (ungrounded, un-revised)
-    round-1 packet egresses, so under the run's disclosure it is no new consent
-    category (D15). It is NOT the full composed round-1 context: --repo grounding and
-    --revise/revised-draft context (the prior-verdict digest + source diff) are NOT
-    carried into the rubric pass in this phase. resolve_config refuses --rubric
-    combined with --repo / --revise / --output revised-draft precisely so the board
-    never proposes criteria against strictly less than it reviews; the shared
-    composed-context builder that would feed both round 1 and the rubric pass lands
-    in a later phase (P3)."""
+    SOURCE TEXT (DATA-fenced + neutralized), the SHARED composed review-context, and
+    the reply contract. The composed context (v1.15 P3) is the SAME surface round 1
+    carries beyond the bare source — under --repo the repo-grounding clause (and the
+    seat spawns from the frozen snapshot cwd, mirroring run_round), and under
+    --revise the prior-verdict digest + source diff (config.revision, populated
+    pre-round only from config.revise_of; a revised-draft run without --revise revises
+    after synthesis and carries no pre-round revision block) — so the board
+    proposes criteria against exactly what the rounds review, never strictly less.
+    The pieces come from prompts.composed_review_context_for, the ONE builder round 1
+    also reads, keyed here on neutralize_rubric_markers so the digest/diff is
+    fence-scrubbed against THIS pass's fence alphabet before the splice.
+
+    The composed context is DETERMINISTIC pre-approval (config.grounded is resolved
+    and config.revision.material is built before the packet), so these exact bytes
+    are prebuilt into the egress manifest + consent content hash (B1) — consent binds
+    the true outbound proposal bytes, composed context included. When both modes are
+    off the {composed_context} fill is empty, so a source-only rubric prompt is
+    byte-identical to before (mirroring round 1's @2-byte-identity property)."""
+    from _conductor.prompts import composed_review_context_for, scrub_composed_splice
+    ctx = composed_review_context_for(config, neutralizer=neutralize_rubric_markers)
     return RUBRIC_PROPOSAL_TEMPLATE.format(
         source_type=config.source_type or "prose",
-        source_material=neutralize_rubric_markers(config.source.text),
+        # Scrub the SOURCE splice against the UNION alphabet (round + rubric), not
+        # rubric-only (B1): the composed template can carry a round-family revision
+        # fence, so a source echoing `<<<<<<<< END PRIOR VERDICT + SOURCE DIFF >>>>>>>>`
+        # must not fabricate a fake round-family block inside a rubric prompt.
+        source_material=scrub_composed_splice(config.source.text, neutralize_rubric_markers),
+        composed_context=ctx.grounding_clause + ctx.revision_block,
         min_criteria=MIN_CRITERIA,
         max_criteria=MAX_CRITERIA,
         begin_material=RUBRIC_SOURCE_BEGIN,
@@ -960,6 +1035,7 @@ class ChairResult:
 def run_rubric_proposal(config: RunConfig, *, seat: SeatConfig,
                         timeout: Optional[int] = None,
                         workdir: Optional[str] = None,
+                        grounded: Optional[bool] = None,
                         blob: Optional[PacketBlob] = None,
                         approved_hash: Optional[str] = None) -> RubricProposalResult:
     """Spawn ONE proposal seat, parse its reply. The flow mirrors run_endorsement:
@@ -978,8 +1054,15 @@ def run_rubric_proposal(config: RunConfig, *, seat: SeatConfig,
     blob is caught here too, at the point of no return).
 
     Everything seat-identifying is keyed on the seat's UNIQUE `id`, matching the
-    round fan-out's convention."""
+    round fan-out's convention.
+
+    C1: `grounded` is the EFFECTIVE grounded flag the caller derived from the SAME
+    predicate that selected `workdir` (grounded AND a real snapshot cwd). It defaults
+    to `config.grounded` for direct/test callers, but cli._run_rubric_step passes the
+    workdir-keyed value so a grounded claim to the adapter is never made without the
+    snapshot cwd."""
     seat_key = seat.id
+    grounded_flag = config.grounded if grounded is None else grounded
     if blob is None:
         prompt = build_rubric_proposal_prompt(config)
         blob = PacketBlob(seat=seat_key, provider=seat.provider,
@@ -1017,8 +1100,13 @@ def run_rubric_proposal(config: RunConfig, *, seat: SeatConfig,
 
     for attempt in (1, 2):
         attempts = attempt
+        # Grounding parity with run_round (v1.15 P3): under --repo the proposal seat is
+        # grounded (read the snapshot cwd it was pointed at), so its criteria rest on the
+        # same tree round 1 reviews. `grounded=grounded_flag` is keyed to the SAME
+        # predicate that selected `workdir` (C1) — never claim grounding without the cwd.
         last_argv = adapter.build_argv(seat.model, prompt, reasoning=seat.reasoning,
-                                       workdir=workdir, network=config.network_on)
+                                       workdir=workdir, network=config.network_on,
+                                       grounded=grounded_flag)
         result = spawn(adapter, last_argv, prompt=prompt, timeout=seat_timeout, cwd=workdir)
         status, failure = _classify_rubric_shape(result)
         if status not in ("ran", "degraded"):
@@ -1057,6 +1145,7 @@ def run_rubric_proposal(config: RunConfig, *, seat: SeatConfig,
 def run_rubric_proposals(config: RunConfig, seats: list, *,
                          timeout: Optional[int] = None,
                          workdir: Optional[str] = None,
+                         grounded: Optional[bool] = None,
                          parallel: bool = True,
                          blobs: Optional[list] = None,
                          approved_hash: Optional[str] = None) -> list:
@@ -1068,7 +1157,10 @@ def run_rubric_proposals(config: RunConfig, seats: list, *,
     B1: `blobs` are the PREBUILT proposal PacketBlobs (from build_rubric_proposal_blobs,
     folded into the approved consent hash) — matched to seats by seat id so each seat
     spawns from its exact approved bytes. `approved_hash` is re-asserted per seat.
-    Omitting both keeps the deterministic-rebuild path for direct/test callers."""
+    Omitting both keeps the deterministic-rebuild path for direct/test callers.
+
+    C1: `grounded` is the EFFECTIVE grounded flag (None → config.grounded) keyed by the
+    caller to the SAME predicate that selected `workdir`; threaded verbatim per seat."""
     if not seats:
         return []
 
@@ -1076,6 +1168,7 @@ def run_rubric_proposals(config: RunConfig, seats: list, *,
 
     def _one(seat: SeatConfig) -> RubricProposalResult:
         return run_rubric_proposal(config, seat=seat, timeout=timeout, workdir=workdir,
+                                   grounded=grounded,
                                    blob=blob_by_seat.get(seat.id),
                                    approved_hash=approved_hash)
 
@@ -1193,10 +1286,14 @@ def run_rubric_chair(config: RunConfig, proposals: list, *, seat: SeatConfig,
 # --------------------------------------------------------------------------- #
 
 
-def render_rubric_proposal_raw(rr: RubricProposalResult) -> str:
+def render_rubric_proposal_raw(rr: RubricProposalResult,
+                               config: Optional[RunConfig] = None) -> str:
     """The Black-Box Recorder (§12) for one proposal spawn — the invocation, the
     hashes binding this prompt to the run, the model that answered, and the parse
-    outcome. Mirrors render_endorsement_raw."""
+    outcome. Mirrors render_endorsement_raw. `config` (when given) selects the
+    composed-aware template version + sha (@2 under --repo/--revise, else @1), so a
+    composed rubric records the true egressed surface; the prompt-hash line binds the
+    exact bytes regardless."""
     parse = rr.parse_error or "-"
     accepted = "yes" if rr.criteria is not None else "no"
     lines = [
@@ -1204,8 +1301,8 @@ def render_rubric_proposal_raw(rr: RubricProposalResult) -> str:
         "",
         f"command         : {rr.argv_preview}",
         f"prompt-source   : prompts/rubric-{rr.seat}.prompt",
-        f"prompt-template : {RUBRIC_PROPOSAL_TEMPLATE_VERSION} "
-        f"(sha256:{rubric_proposal_template_sha()[:12]}…)",
+        f"prompt-template : {rubric_proposal_template_version(config)} "
+        f"(sha256:{rubric_proposal_template_sha(config)[:12]}…)",
         f"prompt-hash     : sha256:{rr.prompt_hash}   (the exact bytes this proposal seat received)",
         f"packet-hash     : sha256:{rr.packet_hash}   (single-blob packet; the full source, "
         "egressed to this board seat under the run's existing disclosure — the same source the "
