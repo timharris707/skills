@@ -424,20 +424,20 @@ footer.colophon code { background: var(--surface-2); }
           
           <span class="chip"><b>Baseline</b> advisory-board/v1.10.0 · `main` @ `be4c9b2` · 676 tests green</span>
           
-          <span class="chip"><b>Status</b> M1 SHIPPED (`advisory-board/v1.11.0`, 2026-07-01) · M2 SHIPPED (`advisory-board/v1.12.0`, 2026-07-02) · M3 SHIPPED (`advisory-board/v1.13.0`, 2026-07-02) · M4 SHIPPED (`advisory-board/v1.14.0`, 2026-07-02 — P1 PR #71 · P2 PR #73 · P3 PR #75) · M5 (v1.15) IN FLIGHT — P1 design pass done (D15–D20; docs PR #78, roundtable 2026-07-02), P2 rubric round + chair merge shipped (PR #80, merge `9b38a8e`, 2026-07-02), P3 next</span>
+          <span class="chip"><b>Status</b> M1 SHIPPED (`advisory-board/v1.11.0`, 2026-07-01) · M2 SHIPPED (`advisory-board/v1.12.0`, 2026-07-02) · M3 SHIPPED (`advisory-board/v1.13.0`, 2026-07-02) · M4 SHIPPED (`advisory-board/v1.14.0`, 2026-07-02 — P1 PR #71 · P2 PR #73 · P3 PR #75) · M5 (v1.15) IN FLIGHT — P1 design pass done (D15–D20; docs PR #78, roundtable 2026-07-02), P2 rubric round + chair merge shipped (PR #80, merge `9b38a8e`, 2026-07-02), P3 scoring rounds + score-based convergence shipped (composed-context prerequisite PR #82, merge `13512bb`, 2026-07-03; checklist PR #84, merge `77cca26`, 2026-07-03, suite 1577 OK), P4 next</span>
           
         </div>
       </div>
       <div class="gauge">
-        <svg class="ring" viewBox="0 0 120 120" width="118" height="118" role="img" aria-label="Overall progress 84%">
+        <svg class="ring" viewBox="0 0 120 120" width="118" height="118" role="img" aria-label="Overall progress 91%">
           <circle class="ring-track" cx="60" cy="60" r="52" fill="none" stroke-width="11"/>
           <circle class="ring-arc" cx="60" cy="60" r="52" fill="none" stroke-width="11"
                   stroke-linecap="round" transform="rotate(-90 60 60)"
-                  stroke-dasharray="326.7" stroke-dashoffset="52.3"/>
-          <text class="ring-pct" x="60" y="57" text-anchor="middle" dominant-baseline="middle">84%</text>
+                  stroke-dasharray="326.7" stroke-dashoffset="29.4"/>
+          <text class="ring-pct" x="60" y="57" text-anchor="middle" dominant-baseline="middle">91%</text>
           <text class="ring-sub" x="60" y="76" text-anchor="middle" dominant-baseline="middle">complete</text>
         </svg>
-        <div class="gauge-count"><b>37</b> / 44 tasks done</div>
+        <div class="gauge-count"><b>40</b> / 44 tasks done</div>
       </div>
     </div>
 
@@ -1058,8 +1058,8 @@ footer.colophon code { background: var(--surface-2); }
           <div class="ms-meta">
             <span class="badge wip"><span class="dot"></span>In progress</span>
             <span class="ms-progress">
-              <span class="ms-bar"><span style="width:36%"></span></span>
-              4/11
+              <span class="ms-bar"><span style="width:64%"></span></span>
+              7/11
             </span>
           </div>
         </div>
@@ -1119,19 +1119,19 @@ footer.colophon code { background: var(--surface-2); }
         
       </div>
       
-      <div class="phase todo">
+      <div class="phase done">
         <div class="phase-head">
           <span class="phase-dot"></span>
           <h4 class="phase-title">Phase 3 — Scoring rounds + score-based convergence (D17, D19)</h4>
-          <span class="phase-state">To do</span>
+          <span class="phase-state">Done</span>
         </div>
         <ul class="checklist">
           
-          <li class="todo"><span class="tick"></span><span class="task-text">Rubric injection into round prompts (conditional placeholder, the <code>{revision_context}</code> precedent) with conductor-assigned criterion ids <code>c1</code>…<code>cN</code>; <code>SCORE cN: &lt;1–5&gt;</code> per-criterion parser with <code>parse_verdict</code>-style hardening (last qualifying line per id wins, quoted/hedged rejected) + optional <code>RUBRIC-NOTE:</code> objection line</span></li>
+          <li class="done"><span class="tick">✓</span><span class="task-text">Rubric injection into round prompts (conditional placeholder, the <code>{revision_context}</code> precedent) with conductor-assigned criterion ids <code>c1</code>…<code>cN</code>; <code>SCORE cN: &lt;1–5&gt;</code> per-criterion parser with <code>parse_verdict</code>-style hardening (last qualifying line per id wins, quoted/hedged rejected) + optional <code>RUBRIC-NOTE:</code> objection line <em>Prerequisite: shared <code>ComposedReviewContext</code> builder shipped first (PR #82, merge <code>13512bb</code>) so rubric proposal prompts see the same <code>--repo</code>/<code>--revise</code> context surface as round 1, with <code>scrub_composed_splice</code> hardening (union-alphabet fence scrubbing) against cross-family fence forgery caught independently by the Opus finder and the 2-seat board. On the injection itself (PR #84): parser hardened past the checklist wording — ASCII-only, unsigned digits only (finder catch: Arabic-Indic/fullwidth digits and <code>-3</code> were parsing); the post-approval consent surface is a two-link chain of custody (outbound blobs == config rebuild; rubric-stripped rebuild == <code>approval.round1_hash</code>), tightened from a config-rebuild-only re-assert to binding the true outbound blobs per the <code>--revise</code> re-review&#x27;s split BLOCK/CAUTION verdict.</em> <em>(PR #82, PR #84)</em></span></li>
           
-          <li class="todo"><span class="tick"></span><span class="task-text">Rubric-aware round runner: seat usability stays defined by the VERDICT token (unchanged); a missing/invalid SCORE triggers the standard two-attempt retry then degrades to a partial scorecard cell (rendered &quot;—&quot;, never imputed; partial totals marked) — never an unusable seat</span></li>
+          <li class="done"><span class="tick">✓</span><span class="task-text">Rubric-aware round runner: seat usability stays defined by the VERDICT token (unchanged); a missing/invalid SCORE triggers the standard two-attempt retry then degrades to a partial scorecard cell (rendered &quot;—&quot;, never imputed; partial totals marked) — never an unusable seat <em>Per D19&#x27;s ruling there is no score-specific retry; the checklist&#x27;s &quot;triggers the standard two-attempt retry&quot; wording was struck by the design board — a missing/invalid score degrades directly to a partial cell.</em> <em>(PR #84)</em></span></li>
           
-          <li class="todo"><span class="tick"></span><span class="task-text">Convergence widened, one boolean: moved = verdict_shift OR new_cites OR any criterion score changed; a criterion absent in both rounds is non-movement; <code>--max-rounds</code> stays the ceiling; round-done detail names the still-moving criteria</span></li>
+          <li class="done"><span class="tick">✓</span><span class="task-text">Convergence widened, one boolean: moved = verdict_shift OR new_cites OR any criterion score changed; a criterion absent in both rounds is non-movement; <code>--max-rounds</code> stays the ceiling; round-done detail names the still-moving criteria <em>(PR #84)</em></span></li>
           
         </ul>
         
@@ -1143,7 +1143,7 @@ footer.colophon code { background: var(--surface-2); }
         
         <div class="gate">
           <span class="g-label">Validation gate</span>
-          <code>cd skills/advisory-board &amp;&amp; python3 -m unittest discover -s tests -t tests</code>
+          <code>`cd skills/advisory-board &amp;&amp; python3 -m unittest discover -s tests -t tests` ✓ (1577 OK)</code>
         </div>
         
       </div>
@@ -1395,7 +1395,7 @@ footer.colophon code { background: var(--surface-2); }
 
   <!-- ===================== COLOPHON ===================== -->
   <footer class="colophon">
-    Rendered from <code>run-board-roadmap-v1.11-v1.15.md</code> &middot; 5 milestones &middot; 37/44 tasks complete. The markdown plan is the source of truth &mdash; regenerate with <code>render_plan.py</code>; never hand-edit this file.
+    Rendered from <code>run-board-roadmap-v1.11-v1.15.md</code> &middot; 5 milestones &middot; 40/44 tasks complete. The markdown plan is the source of truth &mdash; regenerate with <code>render_plan.py</code>; never hand-edit this file.
   </footer>
 
 </div>
