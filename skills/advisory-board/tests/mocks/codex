@@ -47,6 +47,13 @@ case "$*" in *"PRIOR RUN CONTEXT"*) is_ask=1; is_review=0 ;; esac
 # ENDORSEMENT seat" and asks for one ENDORSE/OBJECT/ABSTAIN per target.
 is_endorse=0
 case "$*" in *"You are an ENDORSEMENT seat"*) is_endorse=1; is_review=0 ;; esac
+# `rubric` (v1.15 P2): the proposal prompt frames the seat as "proposing RUBRIC
+# criteria"; the chair prompt frames it as "the CHAIR". codex is a proposer (never
+# the default chair — claude chairs a default board), but a test may make it chair.
+is_rubric_proposal=0
+case "$*" in *"You are proposing RUBRIC criteria"*) is_rubric_proposal=1; is_review=0 ;; esac
+is_rubric_chair=0
+case "$*" in *"You are the CHAIR"*) is_rubric_chair=1; is_review=0 ;; esac
 model=""
 for a in "$@"; do
   case "$a" in model=*) model="${a#model=}" ;; esac
@@ -152,6 +159,42 @@ EOF_TARGETS
   echo "<<<<<<<< END ENDORSEMENT >>>>>>>>"
 }
 
+# v1.15 P2 rubric. codex proposes 3 valid weighted criteria; as chair (test-only) it
+# folds all conductor-minted proposal ids (id=pN lines) into one weight-100 criterion.
+# MOCK_CODEX_RUBRIC_MODE: ok | empty (drop the proposal -> a usable-proposal short).
+rubric_mode="${MOCK_CODEX_RUBRIC_MODE:-ok}"
+emit_rubric_proposal() {
+  echo "model: ${model:-unknown}" >&2
+  echo "<<<<<<<< BEGIN RUBRIC PROPOSAL >>>>>>>>"
+  cat <<'JSON'
+{ "criteria": [
+  {"title": "Migration safety", "description": "Is the schema/data migration backward-compatible.", "weight": 4},
+  {"title": "Test coverage", "description": "Is the concurrent-retry race actually tested.", "weight": 3},
+  {"title": "Rollback", "description": "Is the rollback path exercised in staging.", "weight": 2}
+] }
+JSON
+  echo "<<<<<<<< END RUBRIC PROPOSAL >>>>>>>>"
+}
+emit_rubric_chair() {
+  echo "model: ${model:-unknown}" >&2
+  local ids="" line rest pid first=1 arr="["
+  while IFS= read -r line; do
+    case "$line" in
+      *"- id="*) rest="${line##*- id=}"; pid="${rest%% *}"; ids="$ids $pid" ;;
+    esac
+  done <<EOF_IDS
+$prompt
+EOF_IDS
+  for pid in $ids; do
+    if [ "$first" -eq 1 ]; then first=0; else arr="$arr, "; fi
+    arr="$arr\"$pid\""
+  done
+  arr="$arr]"
+  echo "<<<<<<<< BEGIN MERGED RUBRIC >>>>>>>>"
+  printf '{ "criteria": [ {"title": "Merged rubric", "description": "All proposed criteria folded.", "weight": 100, "subsumes": %s} ], "dropped": [] }\n' "$arr"
+  echo "<<<<<<<< END MERGED RUBRIC >>>>>>>>"
+}
+
 case "$mode" in
   nogo_smoke) exit 1 ;;
   empty)      exit 0 ;;
@@ -178,10 +221,20 @@ case "$mode" in
   stub)
     if [ "$is_review" = "1" ]; then echo "Done — wrote the review."; else echo "ready"; fi
     exit 0 ;;
+  # rubric_empty: a real round review + proposal drop (empty stdout on the rubric
+  # proposal -> NoOutput -> the proposal is unusable). Lets a test drive one seat's
+  # proposal to drop while the board still reaches the >=2 floor with the others.
+  rubric_empty)
+    if [ "$is_rubric_proposal" = "1" ]; then exit 0
+    elif [ "$is_rubric_chair" = "1" ]; then emit_rubric_chair
+    elif [ "$is_review" = "1" ]; then emit_review; else echo "ready"; fi
+    exit 0 ;;
   degraded)
     echo "warning: sandbox note" >&2
     if [ "$is_review" = "1" ]; then emit_review
     elif [ "$is_endorse" = "1" ]; then emit_endorse
+    elif [ "$is_rubric_proposal" = "1" ]; then emit_rubric_proposal
+    elif [ "$is_rubric_chair" = "1" ]; then emit_rubric_chair
     elif [ "$is_ask" = "1" ]; then emit_answer; else echo "ready"; fi
     exit 1 ;;
   # Unknown model: codex emits an invalid_request_error to STDERR (grounded 2026-06-25).
@@ -189,6 +242,9 @@ case "$mode" in
   *)
     if [ "$is_review" = "1" ]; then emit_review
     elif [ "$is_endorse" = "1" ]; then emit_endorse
+    elif [ "$is_rubric_proposal" = "1" ]; then
+      if [ "$rubric_mode" = "empty" ]; then exit 0; else emit_rubric_proposal; fi
+    elif [ "$is_rubric_chair" = "1" ]; then emit_rubric_chair
     elif [ "$is_ask" = "1" ]; then emit_answer; else echo "ready"; fi
     exit 0 ;;
 esac

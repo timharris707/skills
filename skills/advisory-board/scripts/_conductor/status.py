@@ -85,7 +85,7 @@ STATES = ("started", "running", "done", "dropped", "retry", "skipped")
 # so consumers can rely on the enum, but no current conductor path emits them.
 # The top-level stages a run moves through (each may fire started/done). `round`
 # is per-round (carries a round number); the rest are once-per-run phases.
-STAGES = ("preflight", "egress", "round", "synthesis", "revision", "endorsement", "run")
+STAGES = ("preflight", "egress", "rubric", "round", "synthesis", "revision", "endorsement", "run")
 
 
 def _atomic_write_text(path: str, text: str) -> None:

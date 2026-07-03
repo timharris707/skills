@@ -52,6 +52,8 @@ __all__ = [
     "source_type_from_ext",
     "resolve_source_type",
     "source_has_carriage_return",
+    "resolve_revision_seat_id",
+    "resolve_chair_seat_id",
 ]
 
 
@@ -133,6 +135,14 @@ class RunConfig:
     # is the token-cost opt-out. Meaningful ONLY on a revised-draft run (resolved to
     # False otherwise so a normal run's config/recipe are byte-identical to before).
     endorse: bool = False
+    # Rubric-first deliberation (v1.15 #P2 — D15/D16/D18/D20): an orthogonal,
+    # recipe-recorded boolean. When on, a proposal fan-out + a mechanically-
+    # reconciled CHAIR merge run BEFORE round 1 and rubric.json becomes the pre-round
+    # artifact of record. `chair_seat` names the board seat whose adapter spawns the
+    # chair merge (the UNIQUE-ID axis, like revision_seat — D16). Both default to
+    # off/None, so a non-rubric run's config and recipe are byte-identical to before.
+    rubric: bool = False             # --rubric: run the pre-round rubric pass
+    chair_seat: Optional[str] = None  # which board seat's adapter runs the chair merge
     repo: Optional[str] = None       # repo-grounding: a local repo seats may read (read-only)
     repo_include: Optional[list] = None   # optional fnmatch globs narrowing the grounding scope
     repo_exclude: Optional[list] = None   # optional fnmatch globs removed from the grounding scope
@@ -437,6 +447,34 @@ def resolve_revision_seat_id(selector: str, board: list) -> str:
     board_ids = ", ".join(s.id for s in board)
     die(f"--revision-seat {selector!r} is not one of this run's board seats "
         f"({board_ids}); the revision seat egresses to that seat's provider, which "
+        "the run's disclosure only covers for board seats")
+
+
+def resolve_chair_seat_id(selector: str, board: list) -> str:
+    """Resolve a `--chair-seat` selector to a UNIQUE board-seat id (D16), mirroring
+    `resolve_revision_seat_id` exactly — NOT the synthesizer's by-name lookup. A
+    unique id wins outright; a bare provider name is accepted only when it maps to
+    exactly ONE board seat; an ambiguous name (a duplicate-provider board) is
+    refused, listing the candidate ids so the caller can disambiguate. The chair
+    egresses to a board provider — the run's disclosure only covers board seats — so
+    an off-board selector is refused too.
+
+    On every non-duplicate board a seat's id == its provider name, so this is an
+    identity for the common case."""
+    by_id = {s.id: s for s in board}
+    if selector in by_id:
+        return selector
+    matches = [s for s in board if s.name == selector]
+    if len(matches) == 1:
+        return matches[0].id
+    if len(matches) > 1:
+        die(f"--chair-seat {selector!r} is ambiguous: this board has "
+            f"{len(matches)} {selector!r} seats. Name the exact seat by its id — "
+            f"one of {', '.join(s.id for s in matches)} (the same ids --model and "
+            "--timeout use).")
+    board_ids = ", ".join(s.id for s in board)
+    die(f"--chair-seat {selector!r} is not one of this run's board seats "
+        f"({board_ids}); the chair egresses to that seat's provider, which "
         "the run's disclosure only covers for board seats")
 
 
@@ -748,6 +786,26 @@ def resolve_config(args) -> RunConfig:
         # recorded changes.revision_seat, and choose_revision_seat all share one axis.
         revision_seat = resolve_revision_seat_id(revision_seat, board)
 
+    # Rubric-first deliberation (v1.15 #P2 — D15/D16/D20): --rubric is an orthogonal
+    # boolean. CLI flag wins; else a recipe replay's recorded boolean; else off. The
+    # recipe records the RESOLVED value (like `synthesize`/`endorse`), so a replay
+    # reproduces the same posture without consulting the CLI flag. --chair-seat names
+    # the board seat whose adapter spawns the chair merge — the UNIQUE-ID axis (like
+    # --revision-seat, NOT the synthesizer's by-name lookup — D16); only accepted with
+    # --rubric.
+    cli_rubric = bool(getattr(args, "rubric", False))
+    recipe_rubric = bool((base or {}).get("rubric"))
+    rubric = cli_rubric or recipe_rubric
+    chair_seat = (getattr(args, "chair_seat", None) or (base or {}).get("chair_seat"))
+    if chair_seat is not None:
+        if not rubric:
+            die("--chair-seat is only accepted with --rubric (it names the board seat "
+                "whose adapter spawns the chair merge)")
+        # Resolve to a canonical board-seat id here so the run key, the recorded
+        # chair_seat, and choose_chair_seat all share one axis (a duplicate-provider
+        # seat is individually selectable; an ambiguous bare name is refused).
+        chair_seat = resolve_chair_seat_id(chair_seat, board)
+
     # Repo-grounding (design/run-board-repo-grounding.md): a local repo seats may
     # read read-only. Resolved + validated as a directory here; the scope/snapshot
     # and the consent/network safety policy are applied at run time (P2/P3).
@@ -776,6 +834,40 @@ def resolve_config(args) -> RunConfig:
             die(f"--revise must name a prior run directory or its verdict.json; "
                 f"got {revise_of!r}")
 
+    # Guard-and-refuse composed rubric context (v1.15 P2 — mirrors the --chair-seat
+    # guard above). In P2 rubric PROPOSAL prompts are composed from the SOURCE TEXT
+    # ONLY (build_rubric_proposal_blobs → config.source.text), while round-1 prompts
+    # under --repo carry the repo-grounding clause and run from the frozen snapshot
+    # cwd, and under --revise/revised-draft embed the prior-verdict digest + source
+    # diff. The board would then propose criteria against strictly LESS than it
+    # reviews, degrading silently. The shared composed-context builder that feeds
+    # both round 1 and the rubric pass is P3 work — until it lands, refuse the
+    # unsound combinations up front (loud, pre-spawn) rather than ship a thinner
+    # rubric than the review. Naming the offending flag so the user knows which to
+    # drop (or wait for P3).
+    if rubric:
+        if repo is not None:
+            die("--rubric cannot be combined with --repo yet: the rubric proposal "
+                "pass composes from the source text only, so it would propose "
+                "criteria without the repo-grounding context the rounds review "
+                "against. The composed rubric context (shared with round 1) ships in "
+                "a later phase (P3); until then run --rubric without --repo, or --repo "
+                "without --rubric")
+        if revise_of is not None:
+            die("--rubric cannot be combined with --revise yet: the rubric proposal "
+                "pass composes from the source text only, so it would propose "
+                "criteria without the prior-verdict digest + source diff the rounds "
+                "review against. The composed rubric context (shared with round 1) "
+                "ships in a later phase (P3); until then run --rubric without "
+                "--revise, or --revise without --rubric")
+        if output == "revised-draft":
+            die("--rubric cannot be combined with --output revised-draft yet: the "
+                "rubric proposal pass composes from the source text only, so it would "
+                "propose criteria without the revision/endorsement context. The "
+                "composed rubric context (shared with round 1) ships in a later phase "
+                "(P3); until then run --rubric without --output revised-draft, or "
+                "--output revised-draft without --rubric")
+
     return RunConfig(
         title=title,
         date=date,
@@ -800,6 +892,8 @@ def resolve_config(args) -> RunConfig:
         source_type=source_type,
         revision_seat=revision_seat,
         endorse=endorse,
+        rubric=rubric,
+        chair_seat=chair_seat,
         repo=repo,
         repo_include=repo_include,
         repo_exclude=repo_exclude,

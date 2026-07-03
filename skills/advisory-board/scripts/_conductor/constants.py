@@ -231,13 +231,37 @@ _EST_SUMMARY_TOKENS = 400                  # per peer review under --cross-readi
 _EST_MINUTES_PER_ROUND = (1.0, 5.0)        # frontier seats at high reasoning, parallel fan-out
 
 
-def estimate_run(source_bytes: int, models: list, rounds: int, cross_reading: str) -> dict:
+# Rubric-first pass (v1.15 #P2): a pre-round-1 proposal fan-out (every seat) plus a
+# single chair-merge spawn. Modeled honestly in the estimator — nothing else models
+# a pre-round pass. Each proposal seat reads the full source (source + overhead in,
+# a short criteria list out); the chair reads the pooled proposals (no source), a
+# short merged rubric out. Coarse bands, consistent with the estimator's philosophy.
+_EST_RUBRIC_PROPOSAL_OUT_TOKENS = (200, 700)   # (low, high) per seat: 3–7 criteria
+_EST_RUBRIC_CHAIR_IN_TOKENS = (400, 1_600)     # the pooled board proposals
+_EST_RUBRIC_CHAIR_OUT_TOKENS = (200, 700)      # the merged rubric + partition
+_EST_RUBRIC_MINUTES = (0.5, 3.0)               # proposal fan-out + chair, ≈ one round
+
+
+def estimate_run(source_bytes: int, models: list, rounds: int, cross_reading: str,
+                 rubric: bool = False, chair_model: Optional[str] = None) -> dict:
     """Pure preflight estimate: token band + cost band + rough minutes.
 
     Inputs are the run's shape only (source size, the per-seat model ids, the
-    round count, the cross-reading mode) — no I/O, no clock, fully deterministic.
-    The returned numbers are labeled estimates wherever they are rendered; they
-    inform the human before launch and never gate anything.
+    round count, the cross-reading mode, and whether the rubric pass runs) — no I/O,
+    no clock, fully deterministic. The returned numbers are labeled estimates
+    wherever they are rendered; they inform the human before launch and never gate
+    anything.
+
+    `rubric` (v1.15 #P2): when True, add the pre-round-1 proposal fan-out (every
+    seat) + one chair-merge spawn to the token/cost/time bands. Default False keeps
+    a non-rubric estimate byte-identical.
+
+    `chair_model` (v1.15 #P2): the model that will actually run the chair merge (the
+    caller's claude-if-seated → board[0] projection of choose_chair_seat). The chair
+    spawn is priced on THIS model, not models[0] — on a mixed board the projected
+    chair (e.g. a seated `claude`) is often NOT models[0], so pricing it on models[0]
+    could misprice the merge. Defaults to models[0] when not supplied, keeping older
+    callers byte-identical.
     """
     seats = len(models)
     rounds = max(1, int(rounds))
@@ -258,8 +282,26 @@ def estimate_run(source_bytes: int, models: list, rounds: int, cross_reading: st
     per_seat_in_hi = base_in * rounds + cross_hi * (rounds - 1)
     per_seat_out_lo, per_seat_out_hi = out_lo * rounds, out_hi * rounds
 
-    tokens_low = seats * (per_seat_in_lo + per_seat_out_lo)
-    tokens_high = seats * (per_seat_in_hi + per_seat_out_hi)
+    # Rubric-first (v1.15 #P2): each seat's PROPOSAL spawn (full source in, a short
+    # criteria list out), added to that seat's own per-seat band so the cost is
+    # priced per-model. The CHAIR spawn is one extra board-seat call (pooled proposals
+    # in, a short merged rubric out); it is priced on the projected chair model
+    # (`chair_model`, the caller's claude-if-seated → board[0] projection of
+    # choose_chair_seat) — NOT blindly models[0], which on a mixed board is often not
+    # the seat that chairs. Both are gated on `rubric`, so a non-rubric estimate is
+    # byte-identical (all rubric terms are 0).
+    prop_out_lo, prop_out_hi = _EST_RUBRIC_PROPOSAL_OUT_TOKENS if rubric else (0, 0)
+    rub_seat_in_lo = base_in if rubric else 0
+    rub_seat_in_hi = base_in if rubric else 0
+    chair_in_lo, chair_in_hi = _EST_RUBRIC_CHAIR_IN_TOKENS if rubric else (0, 0)
+    chair_out_lo, chair_out_hi = _EST_RUBRIC_CHAIR_OUT_TOKENS if rubric else (0, 0)
+
+    tokens_low = seats * (per_seat_in_lo + per_seat_out_lo
+                          + rub_seat_in_lo + prop_out_lo)
+    tokens_high = seats * (per_seat_in_hi + per_seat_out_hi
+                           + rub_seat_in_hi + prop_out_hi)
+    tokens_low += chair_in_lo + chair_out_lo
+    tokens_high += chair_in_hi + chair_out_hi
 
     cost_low = cost_high = 0.0
     priced_any = False
@@ -271,23 +313,40 @@ def estimate_run(source_bytes: int, models: list, rounds: int, cross_reading: st
                 unpriced.append(model)
             continue
         p_in, p_out = prices
-        cost_low += (per_seat_in_lo * p_in + per_seat_out_lo * p_out) / 1_000_000
-        cost_high += (per_seat_in_hi * p_in + per_seat_out_hi * p_out) / 1_000_000
+        cost_low += ((per_seat_in_lo + rub_seat_in_lo) * p_in
+                     + (per_seat_out_lo + prop_out_lo) * p_out) / 1_000_000
+        cost_high += ((per_seat_in_hi + rub_seat_in_hi) * p_in
+                      + (per_seat_out_hi + prop_out_hi) * p_out) / 1_000_000
         priced_any = True
+    # The chair spawn, priced on the ACTUAL projected chair model (`chair_model`,
+    # defaulting to models[0]) when it is priceable; an unpriced chair model is folded
+    # into `unpriced` like any seat.
+    if rubric and models:
+        the_chair_model = chair_model if chair_model is not None else models[0]
+        chair_prices = MODEL_PRICING_USD_PER_MTOK.get(the_chair_model)
+        if chair_prices and chair_prices[0] is not None and chair_prices[1] is not None:
+            cp_in, cp_out = chair_prices
+            cost_low += (chair_in_lo * cp_in + chair_out_lo * cp_out) / 1_000_000
+            cost_high += (chair_in_hi * cp_in + chair_out_hi * cp_out) / 1_000_000
+            priced_any = True
+        elif the_chair_model not in unpriced:
+            unpriced.append(the_chair_model)
 
     m_lo, m_hi = _EST_MINUTES_PER_ROUND
+    rub_m_lo, rub_m_hi = _EST_RUBRIC_MINUTES if rubric else (0.0, 0.0)
     return {
         "seats": seats,
         "rounds": rounds,
         "cross_reading": cross_reading,
+        "rubric": rubric,
         "tokens_low": tokens_low,
         "tokens_high": tokens_high,
         "cost_low_usd": cost_low if priced_any else None,
         "cost_high_usd": cost_high if priced_any else None,
         "cost_is_partial": priced_any and bool(unpriced),
         "unpriced_models": unpriced,
-        "minutes_low": rounds * m_lo,
-        "minutes_high": rounds * m_hi,
+        "minutes_low": rounds * m_lo + rub_m_lo,
+        "minutes_high": rounds * m_hi + rub_m_hi,
     }
 
 
@@ -297,6 +356,12 @@ def render_estimate(est: dict) -> list:
         f"tokens  : ~{est['tokens_low']:,}–{est['tokens_high']:,} across the board "
         f"({est['seats']} seat(s) × {est['rounds']} round(s), cross-reading: {est['cross_reading']})",
     ]
+    # Rubric-first (v1.15 #P2): a one-line note that the token/cost/time bands ALREADY
+    # include the pre-round proposal fan-out + chair merge. Only when --rubric — a
+    # non-rubric estimate is byte-identical (the key is absent/False).
+    if est.get("rubric"):
+        lines.append("rubric  : the bands above include the pre-round proposal fan-out "
+                     "(every seat) + one chair merge")
     if est["cost_low_usd"] is None:
         lines.append("cost    : unknown — no verified list price for "
                      f"{', '.join(est['unpriced_models'])} (see constants.MODEL_PRICING_USD_PER_MTOK)")

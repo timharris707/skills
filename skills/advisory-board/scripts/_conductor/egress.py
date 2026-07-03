@@ -137,6 +137,13 @@ class EgressApproval:
     # packet hash AND this scope hash (the manifest of files a seat could read). None
     # for an ungrounded run, so its recorded approval is byte-identical to before.
     scope_hash: Optional[str] = None
+    # B1 (v1.15 P2): the sub-hash of JUST the round-1 prompts, when the approved
+    # content_hash covers MORE than round 1 (i.e. it also folds in the prebuilt rubric
+    # proposal prompts). run_round's round-1 pre-spawn guard checks the exact round-1
+    # bytes against THIS when set, since packet_hash(round-1 blobs) no longer equals
+    # the full content_hash. None on a non-rubric run, so its behavior is unchanged
+    # (the guard falls back to content_hash — the round-1 packet IS the whole packet).
+    round1_hash: Optional[str] = None
 
 
 def render_egress_manifest(config: RunConfig, blobs: list, content_hash: str) -> str:
@@ -267,6 +274,15 @@ def disclosure_line(config: RunConfig) -> str:
                 f"question, {material}a mechanical digest of the prior verdict, and the "
                 "addressed seat(s)' own prior review from that run. Proceed?")
     base = f"This review sends your source material to {pretty}."
+    if getattr(config, "rubric", False):
+        # A --rubric run adds a pre-round rubric pass BEFORE round 1: every seat gets an
+        # extra proposal spawn carrying the SAME source (same bytes, same providers), and
+        # one seat gets a chair spawn merging the board's proposals. No new bytes or
+        # providers beyond the review itself — name it so the consent surface enumerates
+        # the extra spawns (CHANGELOG's "purpose mention"), not a new exposure class.
+        base += (f" A pre-round rubric pass first sends the same source to {pretty} as one "
+                 "extra proposal spawn per seat, then a single chair spawn merges the "
+                 "board's proposals (same bytes, same providers — no new exposure).")
     if config.grounding is not None:
         base += (f" Seats may also read & quote any of {config.grounding.n_files} files under "
                  f"{config.grounding.repo_root}, which can be transmitted to {pretty} and fan "

@@ -195,7 +195,12 @@ def run_round(config: RunConfig, blobs: list, approval: EgressApproval, *,
     run's approval rather than re-prompting.
     """
     round_packet_hash = packet_hash(blobs)
-    if round_no == 1 and round_packet_hash != approval.content_hash:
+    # The round-1 bytes must match what consent bound. Normally the approved
+    # content_hash IS the round-1 packet hash; under --rubric (B1) the approved
+    # content_hash ALSO folds in the prebuilt rubric proposal prompts, so the round-1
+    # sub-hash is recorded separately on the approval — check against that when present.
+    expected_round1 = approval.round1_hash or approval.content_hash
+    if round_no == 1 and round_packet_hash != expected_round1:
         die("egress hash drift: the packet no longer matches the approved content "
             "hash — refusing to spawn the board", EXIT_EGRESS_BLOCKED)
     # The same hard stop for the repo scope (R7) — but on EVERY grounded round, not just

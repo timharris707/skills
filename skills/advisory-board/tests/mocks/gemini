@@ -44,6 +44,12 @@ case "$*" in *"PRIOR RUN CONTEXT"*) is_ask=1; is_review=0 ;; esac
 # ENDORSEMENT seat" and asks for one ENDORSE/OBJECT/ABSTAIN per target.
 is_endorse=0
 case "$*" in *"You are an ENDORSEMENT seat"*) is_endorse=1; is_review=0 ;; esac
+# `rubric` (v1.15 P2): the proposal prompt frames the seat as "proposing RUBRIC
+# criteria"; the chair prompt frames it as "the CHAIR".
+is_rubric_proposal=0
+case "$*" in *"You are proposing RUBRIC criteria"*) is_rubric_proposal=1; is_review=0 ;; esac
+is_rubric_chair=0
+case "$*" in *"You are the CHAIR"*) is_rubric_chair=1; is_review=0 ;; esac
 
 # Round detection (the round-N>=2 template header names the round); drives the
 # `moving` mode's cross-round VERDICT shift (M1).
@@ -130,6 +136,40 @@ EOF_TARGETS
   echo "<<<<<<<< END ENDORSEMENT >>>>>>>>"
 }
 
+# v1.15 P2 rubric. gemini proposes 3 valid weighted criteria; as chair (test-only)
+# it folds all conductor-minted proposal ids into one weight-100 criterion.
+emit_rubric_proposal() {
+  echo "model: ${model:-unknown}" >&2
+  echo "<<<<<<<< BEGIN RUBRIC PROPOSAL >>>>>>>>"
+  cat <<'JSON'
+{ "criteria": [
+  {"title": "Product risk", "description": "Does enabling for all clients at once risk a bad rollout.", "weight": 3},
+  {"title": "Data durability", "description": "Is the 24h TTL choice safe for the key store.", "weight": 2},
+  {"title": "Observability", "description": "Can the team see double-charges when they happen.", "weight": 2}
+] }
+JSON
+  echo "<<<<<<<< END RUBRIC PROPOSAL >>>>>>>>"
+}
+emit_rubric_chair() {
+  echo "model: ${model:-unknown}" >&2
+  local ids="" line rest pid first=1 arr="["
+  while IFS= read -r line; do
+    case "$line" in
+      *"- id="*) rest="${line##*- id=}"; pid="${rest%% *}"; ids="$ids $pid" ;;
+    esac
+  done <<EOF_IDS
+$prompt
+EOF_IDS
+  for pid in $ids; do
+    if [ "$first" -eq 1 ]; then first=0; else arr="$arr, "; fi
+    arr="$arr\"$pid\""
+  done
+  arr="$arr]"
+  echo "<<<<<<<< BEGIN MERGED RUBRIC >>>>>>>>"
+  printf '{ "criteria": [ {"title": "Merged rubric", "description": "All proposed criteria folded.", "weight": 100, "subsumes": %s} ], "dropped": [] }\n' "$arr"
+  echo "<<<<<<<< END MERGED RUBRIC >>>>>>>>"
+}
+
 case "$mode" in
   nogo_smoke) echo "auth error" >&2; exit 1 ;;
   empty)      exit 0 ;;
@@ -154,6 +194,8 @@ case "$mode" in
     echo "[router] retrying with fallback" >&2
     if [ "$is_review" = "1" ]; then emit_review
     elif [ "$is_endorse" = "1" ]; then emit_endorse
+    elif [ "$is_rubric_proposal" = "1" ]; then emit_rubric_proposal
+    elif [ "$is_rubric_chair" = "1" ]; then emit_rubric_chair
     elif [ "$is_ask" = "1" ]; then emit_answer; else echo "ready"; fi
     exit 1 ;;
   model_proposal)
@@ -167,6 +209,8 @@ case "$mode" in
     echo "[router] retrying with fallback" >&2
     if [ "$is_review" = "1" ]; then emit_review
     elif [ "$is_endorse" = "1" ]; then emit_endorse
+    elif [ "$is_rubric_proposal" = "1" ]; then emit_rubric_proposal
+    elif [ "$is_rubric_chair" = "1" ]; then emit_rubric_chair
     elif [ "$is_ask" = "1" ]; then emit_answer; else echo "ready"; fi
     exit 0 ;;
 esac

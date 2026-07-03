@@ -30,6 +30,13 @@ done
 prompt="$(cat)"
 is_review=0
 case "$prompt" in *"MATERIAL UNDER REVIEW"*) is_review=1 ;; esac
+# `rubric` (v1.15 P2): the proposal prompt frames the seat as "proposing RUBRIC
+# criteria"; the chair prompt frames it as "the CHAIR" (local models never egress,
+# but the rubric pass runs on any board seat, ollama included).
+is_rubric_proposal=0
+case "$prompt" in *"You are proposing RUBRIC criteria"*) is_rubric_proposal=1; is_review=0 ;; esac
+is_rubric_chair=0
+case "$prompt" in *"You are the CHAIR"*) is_rubric_chair=1; is_review=0 ;; esac
 
 emit_review() {
   cat <<'REVIEW'
@@ -58,6 +65,38 @@ Challenge the single-node assumption and the replay-after-crash path.
 REVIEW
 }
 
+# v1.15 P2 rubric. ollama proposes 3 valid weighted criteria; as chair it folds all
+# conductor-minted proposal ids into one weight-100 criterion.
+emit_rubric_proposal() {
+  echo "<<<<<<<< BEGIN RUBRIC PROPOSAL >>>>>>>>"
+  cat <<'JSON'
+{ "criteria": [
+  {"title": "Durability", "description": "Does the single-node store give an exactly-once guarantee.", "weight": 3},
+  {"title": "Replay safety", "description": "Is partial-failure replay handled.", "weight": 2},
+  {"title": "Clock assumptions", "description": "Are TTL clock assumptions verified on target hosts.", "weight": 1}
+] }
+JSON
+  echo "<<<<<<<< END RUBRIC PROPOSAL >>>>>>>>"
+}
+emit_rubric_chair() {
+  local ids="" line rest pid first=1 arr="["
+  while IFS= read -r line; do
+    case "$line" in
+      *"- id="*) rest="${line##*- id=}"; pid="${rest%% *}"; ids="$ids $pid" ;;
+    esac
+  done <<EOF_IDS
+$prompt
+EOF_IDS
+  for pid in $ids; do
+    if [ "$first" -eq 1 ]; then first=0; else arr="$arr, "; fi
+    arr="$arr\"$pid\""
+  done
+  arr="$arr]"
+  echo "<<<<<<<< BEGIN MERGED RUBRIC >>>>>>>>"
+  printf '{ "criteria": [ {"title": "Merged rubric", "description": "All proposed criteria folded.", "weight": 100, "subsumes": %s} ], "dropped": [] }\n' "$arr"
+  echo "<<<<<<<< END MERGED RUBRIC >>>>>>>>"
+}
+
 case "$mode" in
   nogo_smoke) echo "Error: could not connect to ollama server" >&2; exit 1 ;;
   empty)      exit 0 ;;
@@ -67,9 +106,15 @@ case "$mode" in
     exit 0 ;;
   degraded)
     echo "loading model" >&2   # stderr noise, usable stdout
-    if [ "$is_review" = "1" ]; then emit_review; else echo "ready"; fi
+    if [ "$is_review" = "1" ]; then emit_review
+    elif [ "$is_rubric_proposal" = "1" ]; then emit_rubric_proposal
+    elif [ "$is_rubric_chair" = "1" ]; then emit_rubric_chair
+    else echo "ready"; fi
     exit 1 ;;
   *)
-    if [ "$is_review" = "1" ]; then emit_review; else echo "ready"; fi
+    if [ "$is_review" = "1" ]; then emit_review
+    elif [ "$is_rubric_proposal" = "1" ]; then emit_rubric_proposal
+    elif [ "$is_rubric_chair" = "1" ]; then emit_rubric_chair
+    else echo "ready"; fi
     exit 0 ;;
 esac
