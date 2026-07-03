@@ -70,6 +70,15 @@ case "$prompt" in *"You are the REVISION seat"*) is_revision=1; is_review=0 ;; e
 is_endorse=0
 case "$prompt" in *"You are an ENDORSEMENT seat"*) is_endorse=1; is_review=0 ;; esac
 
+# `rubric` (v1.15 P2): the proposal prompt frames the seat as "proposing RUBRIC
+# criteria" (fenced JSON `criteria` reply); the chair prompt frames the seat as "the
+# CHAIR" (fenced JSON `criteria`+`dropped` merge). Both markers are stricter than
+# "MATERIAL UNDER REVIEW", so check them and clear is_review when matched.
+is_rubric_proposal=0
+case "$prompt" in *"You are proposing RUBRIC criteria"*) is_rubric_proposal=1; is_review=0 ;; esac
+is_rubric_chair=0
+case "$prompt" in *"You are the CHAIR"*) is_rubric_chair=1; is_review=0 ;; esac
+
 # Which round is this? The round-N (N>=2) template header names the round; round 1
 # has no such marker. Used by the `moving` mode to shift its VERDICT across rounds.
 round=1
@@ -602,6 +611,187 @@ emit_endorse() {
   esac
 }
 
+# v1.15 P2 rubric emitters. The PROPOSAL reply is a single fenced JSON `criteria`
+# array (3–7 entries, each title/description/weight). MOCK_CLAUDE_RUBRIC_MODE
+# switches: ok (3 valid criteria) | too_few (2 -> invalid) | bad_weight (a
+# zero/negative weight -> invalid) | garbage (non-JSON) | missing_fence (no closing
+# fence). The CHAIR reply is a single fenced JSON `criteria`+`dropped` merge; the
+# mock reads the conductor-minted `id=pN` lines from the prompt and folds ALL of them
+# into ONE criterion (weight 100) so the partition + weight-sum hold by construction.
+# MOCK_CLAUDE_CHAIR_MODE switches: ok | bad_weight (weights don't sum to 100) |
+# bad_partition (drop one proposal AND don't dropped-list it -> reconciliation fails)
+# | phantom (subsume a p999 that was never minted) | garbage | missing_fence |
+# retry_once_then_ok (B2: attempt 1 rejects on weight-sum, attempt 2 succeeds — needs
+# a fresh $MOCK_CHAIR_COUNTER file path to count attempts across the two processes).
+rubric_mode="${MOCK_CLAUDE_RUBRIC_MODE:-ok}"
+chair_mode="${MOCK_CLAUDE_CHAIR_MODE:-ok}"
+
+emit_rubric_proposal() {
+  echo "model: ${model:-unknown}" >&2
+  case "$rubric_mode" in
+    garbage)
+      echo "<<<<<<<< BEGIN RUBRIC PROPOSAL >>>>>>>>"
+      echo "{ criteria: not-valid-json"
+      echo "<<<<<<<< END RUBRIC PROPOSAL >>>>>>>>"
+      ;;
+    missing_fence)
+      echo "<<<<<<<< BEGIN RUBRIC PROPOSAL >>>>>>>>"
+      echo '{ "criteria": [ {"title": "Correctness", "description": "Does it work.", "weight": 3} ] }'
+      # no closing fence -> parse failure -> invalid -> retry -> dropped
+      ;;
+    too_few)
+      echo "<<<<<<<< BEGIN RUBRIC PROPOSAL >>>>>>>>"
+      cat <<'JSON'
+{ "criteria": [
+  {"title": "Correctness", "description": "Does the design work as claimed.", "weight": 3},
+  {"title": "Risk", "description": "What breaks under load.", "weight": 2}
+] }
+JSON
+      echo "<<<<<<<< END RUBRIC PROPOSAL >>>>>>>>"
+      ;;
+    bad_weight)
+      echo "<<<<<<<< BEGIN RUBRIC PROPOSAL >>>>>>>>"
+      cat <<'JSON'
+{ "criteria": [
+  {"title": "Correctness", "description": "Does the design work.", "weight": 0},
+  {"title": "Risk", "description": "What breaks under load.", "weight": 2},
+  {"title": "Clarity", "description": "Is it clearly specified.", "weight": 1}
+] }
+JSON
+      echo "<<<<<<<< END RUBRIC PROPOSAL >>>>>>>>"
+      ;;
+    *)
+      echo "<<<<<<<< BEGIN RUBRIC PROPOSAL >>>>>>>>"
+      cat <<'JSON'
+{ "criteria": [
+  {"title": "Correctness", "description": "Does the design work as claimed under the stated assumptions.", "weight": 5},
+  {"title": "Concurrency safety", "description": "Are races and double-charges prevented.", "weight": 3},
+  {"title": "Operational clarity", "description": "Is the rollout and failure handling specified.", "weight": 2}
+] }
+JSON
+      echo "<<<<<<<< END RUBRIC PROPOSAL >>>>>>>>"
+      ;;
+  esac
+}
+
+# Read the conductor-minted proposal ids (id=pN lines) from the prompt into a space-
+# separated list — the chair echoes these verbatim in its subsumes/dropped partition.
+_chair_proposal_ids() {
+  local ids=""
+  while IFS= read -r line; do
+    case "$line" in
+      *"- id="*)
+        local rest="${line##*- id=}"
+        local pid="${rest%% *}"
+        ids="$ids $pid"
+        ;;
+    esac
+  done <<EOF_IDS
+$prompt
+EOF_IDS
+  printf '%s' "${ids# }"
+}
+
+# Emit a JSON string array of the given space-separated ids (for a subsumes list).
+_json_id_array() {
+  local first=1 out="["
+  for pid in $1; do
+    if [ "$first" -eq 1 ]; then first=0; else out="$out, "; fi
+    out="$out\"$pid\""
+  done
+  printf '%s]' "$out"
+}
+
+# A fail-once-then-succeed chair path (B2): the FIRST attempt emits a weight-sum≠100
+# merge (a mechanical reject), the SECOND attempt emits a valid one. Attempts are
+# counted across the two spawned processes via a counter FILE at $MOCK_CHAIR_COUNTER
+# (the test sets it to a fresh path); absent the file, it behaves like the first
+# attempt. This proves the mechanical checks retry once (attempts == 2 then success).
+_chair_attempt() {
+  local n=1
+  if [ -n "${MOCK_CHAIR_COUNTER:-}" ]; then
+    if [ -f "$MOCK_CHAIR_COUNTER" ]; then n="$(cat "$MOCK_CHAIR_COUNTER")"; n=$((n + 1)); fi
+    printf '%s' "$n" >"$MOCK_CHAIR_COUNTER"
+  fi
+  printf '%s' "$n"
+}
+
+emit_rubric_chair() {
+  echo "model: ${model:-unknown}" >&2
+  local ids; ids="$(_chair_proposal_ids)"
+  case "$chair_mode" in
+    retry_once_then_ok)
+      local attempt; attempt="$(_chair_attempt)"
+      if [ "$attempt" = "1" ]; then
+        # First attempt: weights sum to 99 → the weight-sum invariant rejects → retry.
+        echo "<<<<<<<< BEGIN MERGED RUBRIC >>>>>>>>"
+        printf '{ "criteria": [ {"title": "Merged", "description": "All criteria folded.", "weight": 99, "subsumes": %s} ], "dropped": [] }\n' "$(_json_id_array "$ids")"
+        echo "<<<<<<<< END MERGED RUBRIC >>>>>>>>"
+      else
+        # Second attempt: a valid merge (weight 100) → success on attempt 2.
+        echo "<<<<<<<< BEGIN MERGED RUBRIC >>>>>>>>"
+        printf '{ "criteria": [ {"title": "Merged rubric", "description": "All proposed criteria folded into one weighted rubric.", "weight": 100, "subsumes": %s} ], "dropped": [] }\n' "$(_json_id_array "$ids")"
+        echo "<<<<<<<< END MERGED RUBRIC >>>>>>>>"
+      fi
+      ;;
+    garbage)
+      echo "<<<<<<<< BEGIN MERGED RUBRIC >>>>>>>>"
+      echo "{ criteria: not-valid-json"
+      echo "<<<<<<<< END MERGED RUBRIC >>>>>>>>"
+      ;;
+    missing_fence)
+      echo "<<<<<<<< BEGIN MERGED RUBRIC >>>>>>>>"
+      echo '{ "criteria": [], "dropped": [] }'
+      # no closing fence -> parse failure -> invalid -> retry -> refuse
+      ;;
+    bad_weight)
+      # All ids subsumed, but the single criterion weight is 99, not 100 -> the
+      # weight-sum invariant rejects (retryable once, then refuse).
+      echo "<<<<<<<< BEGIN MERGED RUBRIC >>>>>>>>"
+      printf '{ "criteria": [ {"title": "Merged", "description": "All criteria folded.", "weight": 99, "subsumes": %s} ], "dropped": [] }\n' "$(_json_id_array "$ids")"
+      echo "<<<<<<<< END MERGED RUBRIC >>>>>>>>"
+      ;;
+    bad_partition)
+      # Drop the LAST id from the subsumes list and do NOT dropped-list it -> the
+      # partition reconciliation rejects (a proposal accounted for nowhere).
+      local kept="" last=""
+      for pid in $ids; do
+        if [ -n "$last" ]; then kept="$kept $last"; fi
+        last="$pid"
+      done
+      kept="${kept# }"
+      echo "<<<<<<<< BEGIN MERGED RUBRIC >>>>>>>>"
+      printf '{ "criteria": [ {"title": "Merged", "description": "Most criteria folded.", "weight": 100, "subsumes": %s} ], "dropped": [] }\n' "$(_json_id_array "$kept")"
+      echo "<<<<<<<< END MERGED RUBRIC >>>>>>>>"
+      ;;
+    phantom)
+      # Subsume a p999 that was never minted -> reconciliation rejects (phantom id).
+      echo "<<<<<<<< BEGIN MERGED RUBRIC >>>>>>>>"
+      printf '{ "criteria": [ {"title": "Merged", "description": "Folded with a phantom.", "weight": 100, "subsumes": %s} ], "dropped": [] }\n' "$(_json_id_array "$ids p999")"
+      echo "<<<<<<<< END MERGED RUBRIC >>>>>>>>"
+      ;;
+    two_criteria)
+      # A well-formed TWO-criterion merge: fold all-but-last into c1 (weight 60), the
+      # last into c2 (weight 40) -> sum 100, partition complete. Needs >=2 proposals.
+      local kept="" last=""
+      for pid in $ids; do
+        if [ -n "$last" ]; then kept="$kept $last"; fi
+        last="$pid"
+      done
+      kept="${kept# }"
+      echo "<<<<<<<< BEGIN MERGED RUBRIC >>>>>>>>"
+      printf '{ "criteria": [ {"title": "Core", "description": "The core criteria.", "weight": 60, "subsumes": %s}, {"title": "Secondary", "description": "The remaining criterion.", "weight": 40, "subsumes": %s} ], "dropped": [] }\n' "$(_json_id_array "$kept")" "$(_json_id_array "$last")"
+      echo "<<<<<<<< END MERGED RUBRIC >>>>>>>>"
+      ;;
+    *)
+      # ok: all ids folded into ONE criterion, weight 100, nothing dropped.
+      echo "<<<<<<<< BEGIN MERGED RUBRIC >>>>>>>>"
+      printf '{ "criteria": [ {"title": "Merged rubric", "description": "All proposed criteria folded into one weighted rubric.", "weight": 100, "subsumes": %s} ], "dropped": [] }\n' "$(_json_id_array "$ids")"
+      echo "<<<<<<<< END MERGED RUBRIC >>>>>>>>"
+      ;;
+  esac
+}
+
 case "$mode" in
   moving_cites)
     if [ "$is_review" = "1" ]; then emit_moving_cites; else echo "ready"; fi
@@ -634,6 +824,8 @@ case "$mode" in
       esac
     elif [ "$is_revision" = "1" ]; then emit_revise
     elif [ "$is_endorse" = "1" ]; then emit_endorse
+    elif [ "$is_rubric_proposal" = "1" ]; then emit_rubric_proposal
+    elif [ "$is_rubric_chair" = "1" ]; then emit_rubric_chair
     elif [ "$is_review" = "1" ]; then emit_review
     elif [ "$is_ask" = "1" ]; then emit_answer
     else echo "ready"; fi
@@ -648,6 +840,8 @@ case "$mode" in
       esac
     elif [ "$is_revision" = "1" ]; then emit_revise
     elif [ "$is_endorse" = "1" ]; then emit_endorse
+    elif [ "$is_rubric_proposal" = "1" ]; then emit_rubric_proposal
+    elif [ "$is_rubric_chair" = "1" ]; then emit_rubric_chair
     elif [ "$is_review" = "1" ]; then emit_review
     elif [ "$is_ask" = "1" ]; then emit_answer
     else echo "ready"; fi

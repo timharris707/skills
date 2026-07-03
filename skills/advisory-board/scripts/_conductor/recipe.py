@@ -29,6 +29,12 @@ from _conductor.endorsement import (
     ENDORSEMENT_TEMPLATE_VERSION,
     endorsement_template_sha,
 )
+from _conductor.rubric import (
+    RUBRIC_PROPOSAL_TEMPLATE_VERSION,
+    RUBRIC_CHAIR_TEMPLATE_VERSION,
+    rubric_proposal_template_sha,
+    rubric_chair_template_sha,
+)
 
 __all__ = [
     "_scalar_to_yaml",
@@ -315,6 +321,19 @@ def config_to_recipe(config: RunConfig) -> dict:
         if config.endorse:
             recipe["endorsement_template"] = ENDORSEMENT_TEMPLATE_VERSION
             recipe["endorsement_template_sha256"] = endorsement_template_sha()
+    # Rubric-first (v1.15 #P2 — D20): --rubric changes record-artifact shape (a new
+    # rubric/ dir + rubric.json + a run-card block), so it IS persisted (the
+    # `synthesize`/`endorse` precedent, NOT the presentation-flag exemption). Only
+    # added on a rubric run, so every other recipe stays byte-identical; the chair
+    # seat + both template versions/shas land so a --from-recipe replay reproduces the
+    # same pass and template bytes.
+    if config.rubric:
+        recipe["rubric"] = True
+        recipe["chair_seat"] = config.chair_seat
+        recipe["rubric_proposal_template"] = RUBRIC_PROPOSAL_TEMPLATE_VERSION
+        recipe["rubric_proposal_template_sha256"] = rubric_proposal_template_sha()
+        recipe["rubric_chair_template"] = RUBRIC_CHAIR_TEMPLATE_VERSION
+        recipe["rubric_chair_template_sha256"] = rubric_chair_template_sha()
     return recipe
 
 
@@ -392,6 +411,17 @@ def validate_recipe(recipe: dict) -> None:
             die(f"recipe: 'revision_seat' must be a seat id string or null; got {rs!r}")
     if "endorse" in recipe and not isinstance(recipe["endorse"], bool):
         die(f"recipe: 'endorse' must be true or false; got {recipe['endorse']!r}")
+    # Rubric-first fields (optional; present only for a --rubric recipe).
+    if "rubric" in recipe and not isinstance(recipe["rubric"], bool):
+        die(f"recipe: 'rubric' must be true or false; got {recipe['rubric']!r}")
+    if recipe.get("chair_seat") is not None:
+        cs = recipe["chair_seat"]
+        # chair_seat is a UNIQUE seat id (the same axis --model/--timeout/--revision-seat
+        # use). Shape-only here; resolve_config.resolve_chair_seat_id does the
+        # authoritative board-membership + disambiguation check once the board is
+        # resolved, so a bad selector still fails loudly there.
+        if not isinstance(cs, str) or not cs.strip():
+            die(f"recipe: 'chair_seat' must be a seat id string or null; got {cs!r}")
     # Repo-grounding fields (optional; present only for a grounded recipe).
     if "repo" in recipe and not (isinstance(recipe["repo"], str) and recipe["repo"].strip()):
         die(f"recipe: 'repo' must be a non-empty string path; got {recipe['repo']!r}")

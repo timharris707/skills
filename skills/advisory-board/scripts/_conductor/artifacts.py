@@ -160,6 +160,32 @@ def render_run_card(config: RunConfig) -> str:
             lines.append(
                 "  endorsement   : off (--no-endorse) — the fixed copy is findings-mapped, "
                 "not board-endorsed")
+    if config.rubric:
+        # Rubric-first (v1.15 #P2): a conditional block, mirroring the revised-draft /
+        # grounding blocks. Chair-seat PROJECTION — call the SAME selector execution
+        # uses (rubric.choose_chair_seat, the UNIQUE-ID axis), not a by-name dict: a
+        # by-name lookup collapses duplicate providers to the LAST seat, so on a
+        # claude,claude,codex board the card could name a different chair (claude#2)
+        # than execution picks (claude#1). We pass usable_seats=None — the card
+        # renders before any proposal runs, exactly the state where choose_chair_seat
+        # falls through to its "claude if seated, else first board seat" default, so
+        # the projection matches execution's default chair. The criteria count is a
+        # post-merge value not knowable at card time, so the card names only the pass
+        # + the chair; run-metadata carries the merged count after the run. Deferred
+        # import: rubric imports config/egress at module scope (as artifacts does), so
+        # a top-level import would risk an import cycle during package init.
+        from _conductor.rubric import choose_chair_seat
+        chosen_seat = choose_chair_seat(config, preferred=config.chair_seat)
+        lines += [
+            f"  rubric        : ON — before round 1, {len(config.board)} seat(s) each propose "
+            "3–7 weighted criteria;",
+            f"                  chair={chosen_seat.id} → {chosen_seat.provider} merges them into "
+            "one weighted rubric (→ rubric.json).",
+            "                  Weights sum to 100; <2 usable proposals or an unreconcilable merge "
+            "REFUSES the run before any",
+            "                  opinion round spends a token. No new egress (proposals see the same "
+            "source round 1 sends).",
+        ]
     if config.grounding is not None:
         g = config.grounding
         lines += [
@@ -271,6 +297,28 @@ def render_artifact_tree(config: RunConfig) -> str:
         f"{config.out_dir}/",
         top,
         seat_prompts,
+    ]
+    # Rubric-first (v1.15 #P2): the proposal fan-out + chair merge run BEFORE round 1,
+    # so their artifacts list before the rounds. Gated on config.rubric so a non-rubric
+    # run's tree is byte-identical. The proposal seat prompts + per-seat records are
+    # always written. The chair spawn (and thus its prompt + chair.md/chair.raw) runs
+    # ONLY if the proposal floor clears (≥2 usable) — a floor refusal returns before
+    # the chair, writing rubric-rejected.json and NO chair files — so the chair files
+    # are marked conditional here rather than over-promised. On the success path
+    # rubric.json is the accepted pre-round artifact; on any refusal rubric-rejected.json
+    # lands instead.
+    if config.rubric:
+        rubric_seat_prompts = "\n".join(
+            f"  prompts/rubric-{s.id}.prompt" for s in config.board
+        )
+        parts += [
+            rubric_seat_prompts,
+            "  rubric/<seat>.md   rubric/<seat>.raw",
+            "  prompts/rubric-chair.prompt   rubric/chair.md   rubric/chair.raw   "
+            "(only if ≥2 usable proposals; skipped on a proposal-floor refusal)",
+            "  rubric.json   (on success)   ·   rubric-rejected.json   (on a refusal)",
+        ]
+    parts += [
         *rounds,
     ]
     if packet_rounds:

@@ -118,6 +118,23 @@ from _conductor.endorsement import (
     render_endorsement_raw,
     run_endorsement_pass,
 )
+from _conductor.rubric import (
+    RUBRIC_CHAIR_TEMPLATE_VERSION,
+    RUBRIC_PROPOSAL_TEMPLATE_VERSION,
+    RUBRIC_REFUSAL_EXIT,
+    MIN_USABLE_PROPOSALS,
+    build_rubric_proposal_blobs,
+    choose_chair_seat,
+    mint_proposals,
+    render_chair_md,
+    render_chair_raw,
+    render_rubric_proposal_md,
+    render_rubric_proposal_raw,
+    rubric_chair_template_sha,
+    rubric_proposal_template_sha,
+    run_rubric_chair,
+    run_rubric_proposals,
+)
 
 __all__ = [
     "cmd_init",
@@ -126,6 +143,7 @@ __all__ = [
     "cmd_doctor",
     "_maybe_update_tools",
     "cmd_run",
+    "_run_rubric_step",
     "_run_revision_step",
     "_run_endorsement_pass",
     "cmd_ask",
@@ -268,7 +286,24 @@ def _execute_run(config, args) -> int:
             EXIT_USAGE)
 
     blobs = build_packet(config)
-    content_hash = packet_hash(blobs)
+    # B1: under --rubric, the PROPOSAL-pass prompts are deterministic pre-run (they
+    # embed the SOURCE TEXT ONLY — a subset of what a plain round-1 packet egresses,
+    # so no new consent category), so they are prebuilt HERE and folded into the
+    # egress manifest + consent CONTENT HASH — consent binds the exact outbound
+    # proposal bytes, not just the round-1 prompts. NB: the proposal is source-only in
+    # this phase; it is NOT the full composed round-1 context — --repo grounding and
+    # --revise/revised-draft context are not carried into the rubric pass, and
+    # resolve_config refuses --rubric with --repo/--revise/--output revised-draft
+    # until the shared composed-context builder lands (P3). The rubric step spawns
+    # from these exact blobs (re-asserting the hash first). `blobs` stays the round-1
+    # packet the round fan-out consumes; `egress_blobs` is what the gate, manifest,
+    # and content hash cover (round-1 ∪ rubric-proposal). The CHAIR prompt
+    # is a board-generated derivative (it embeds seat proposals that don't exist yet)
+    # and follows the round-2 precedent — its packet hash is logged at spawn, not in
+    # this initial consent hash. (See rubric.py's CONSENT-HASH BINDING docstring.)
+    rubric_blobs = build_rubric_proposal_blobs(config) if config.rubric else []
+    egress_blobs = blobs + rubric_blobs
+    content_hash = packet_hash(egress_blobs)
 
     if getattr(args, "dry_run", False):
         print(render_run_card(config))
@@ -281,7 +316,7 @@ def _execute_run(config, args) -> int:
             print(f"  {seat.name}: {_argv_preview(argv)}")
         print()
         print("=== egress manifest (preview) ===")
-        print(render_egress_manifest(config, blobs, content_hash), end="")
+        print(render_egress_manifest(config, egress_blobs, content_hash), end="")
         print()
         print("=== artifact tree it WOULD create ===")
         print(render_artifact_tree(config))
@@ -291,8 +326,15 @@ def _execute_run(config, args) -> int:
         # the run shape (deterministic), best-effort, and never a gate.
         print("=== estimate (best effort — never a gate) ===")
         est_rounds = config.max_rounds if config.rounds == "auto" else int(config.rounds)
+        # Price the chair spawn on the ACTUAL projected chair seat's model (not
+        # board[0]): choose_chair_seat is the same claude-if-seated → board[0]
+        # projection the run uses, honoring --chair-seat. Only computed under --rubric;
+        # the config is already resolved, so the preferred chair is on-board (no die()).
+        est_chair_model = (choose_chair_seat(config, preferred=config.chair_seat).model
+                           if config.rubric else None)
         est = estimate_run(config.source.nbytes, [s.model for s in config.board],
-                           est_rounds, config.cross_reading)
+                           est_rounds, config.cross_reading, rubric=config.rubric,
+                           chair_model=est_chair_model)
         for line in render_estimate(est):
             print(f"  {line}")
         if config.rounds == "auto":
@@ -367,10 +409,16 @@ def _execute_run(config, args) -> int:
     print("\n=== egress gate ===")
     print(disclosure_line(config))
     approval = enforce_egress_gate(
-        config, blobs,
+        config, egress_blobs,
         assume_yes=getattr(args, "yes", False),
         skip_gate=getattr(args, "skip_sensitivity_gate", False),
     )
+    # B1: when the approved content hash folds in the prebuilt rubric proposal prompts,
+    # record the round-1 SUB-hash so run_round's round-1 pre-spawn guard can re-assert
+    # the exact round-1 bytes (packet_hash(round-1 blobs) no longer == content_hash).
+    # None on a non-rubric run, so the guard's fallback keeps identical behavior.
+    if rubric_blobs:
+        approval.round1_hash = packet_hash(blobs)
     print(f"egress: {'APPROVED' if approval.approved else 'REFUSED'} "
           f"({approval.mode}) — {approval.detail}")
     print(f"content hash: sha256:{content_hash}")
@@ -381,7 +429,7 @@ def _execute_run(config, args) -> int:
         # nothing the gate refused may be materialized (the pre-spawn hard stop).
         os.makedirs(config.out_dir, exist_ok=True)
         _write(os.path.join(config.out_dir, "egress-manifest.md"),
-               render_egress_manifest(config, blobs, content_hash))
+               render_egress_manifest(config, egress_blobs, content_hash))
         _write(os.path.join(config.out_dir, "sensitivity.json"),
                render_sensitivity_json(config, approval))
         tracker.finish("egress-blocked", "egress refused at the gate")
@@ -389,7 +437,9 @@ def _execute_run(config, args) -> int:
     tracker.stage("egress", "done", f"approved ({approval.mode})")
 
     # 3. Approved: persist the exact approved packet + provenance BEFORE spawning.
-    write_pre_spawn_artifacts(config, blobs, approval, content_hash)
+    #    egress_blobs (round-1 ∪ rubric-proposal) is the full approved packet — the
+    #    manifest + the on-disk prompt files cover the rubric proposal prompts too.
+    write_pre_spawn_artifacts(config, egress_blobs, approval, content_hash)
     # The run has committed to spawning + materialized its dir — NOW the live view
     # may write status.json/status.html (before this, a NO-GO preflight or a refused
     # egress must leave no dir; RH-1). This flush carries the full pre-spawn history
@@ -408,7 +458,7 @@ def _execute_run(config, args) -> int:
     try:
         return _run_after_activate(
             config, args, tracker, blobs, approval, content_hash,
-            preflight, digest_json, _seat_cb, _write)
+            preflight, digest_json, _seat_cb, _write, rubric_blobs=rubric_blobs)
     finally:
         try:
             tracker.finish_if_unfinished(
@@ -419,13 +469,31 @@ def _execute_run(config, args) -> int:
 
 
 def _run_after_activate(config, args, tracker, blobs, approval, content_hash,
-                        preflight, digest_json, _seat_cb, _write) -> int:
+                        preflight, digest_json, _seat_cb, _write,
+                        *, rubric_blobs=None) -> int:
     """The post-activate run body (rounds → synthesis/hand-off). Split out of
     _execute_run so its caller can wrap it in the abort guard: everything here runs
     AFTER the live view committed to disk, so any abnormal exit must land in that
     guard's finally to stamp a terminal outcome + a static html. Returns the run's
     exit code; raises on a die()/interrupt/exception exactly as before (the guard
     re-raises untouched)."""
+    # 3b. Rubric-first (v1.15 #P2 — D15/D16/D18/D20): a pre-round-1 pass. When --rubric
+    #     is on, every seat proposes weighted criteria in parallel and one chair merges
+    #     them into rubric.json BEFORE any opinion round spends a token. It runs INSIDE
+    #     this guard (so an abort still stamps a terminal status), AFTER egress consent
+    #     (the proposal packet embeds the same source the round-1 packet already sends —
+    #     no new consent category). A refusal (<2 usable proposals, or a chair merge the
+    #     conductor can't reconcile) returns RUBRIC_REFUSAL_EXIT — the run cannot
+    #     proceed to a meaningful board without a rubric, and nothing valuable exists yet
+    #     to protect (D20's one non-never-fail-the-run posture). On success rubric.json
+    #     is written and the run proceeds to round 1. (Injecting the rubric into the
+    #     round prompts + scoring is P3's job; P2 stops at rubric.json.)
+    if config.rubric:
+        refusal = _run_rubric_step(config, blobs, approval, tracker=tracker,
+                                   _write=_write, rubric_blobs=rubric_blobs)
+        if refusal is not None:
+            return refusal
+
     # 4. Round-1 fan-out (M3) — the first real spawn. run_round re-asserts the
     #    egress hash one last time, then feeds each seat its approved blob verbatim
     #    (so the bytes that actually leave equal what consent was bound to), with
@@ -606,6 +674,193 @@ def _run_after_activate(config, args, tracker, blobs, approval, content_hash,
           f"-o {config.out_dir}/final-consensus.md")
     print(f"  4. run_board.py validate {config.out_dir}/verdict.json --gate")
     return EXIT_OK
+
+
+def _run_rubric_step(config, blobs, approval, *, tracker=None, _write=None,
+                     rubric_blobs=None):
+    """The v1.15 rubric-first pass (D15/D16/D18/D20). Runs BEFORE round 1 (from
+    _run_after_activate, gated on config.rubric). Two spawns:
+
+      1. PROPOSAL fan-out: every board seat proposes 3–7 weighted criteria in
+         parallel (the same ThreadPoolExecutor shape as a round). The conductor mints
+         the proposal ids (§11). Floor: ≥2 usable proposals or REFUSE.
+      2. CHAIR merge: one board seat (chosen on the unique-id axis, D16) merges the
+         proposals into rubric.json; the conductor reconciles the partition + the
+         weight-sum-to-100 invariant mechanically. Chair final failure REFUSES.
+
+    Returns None on success (rubric.json written; the run proceeds to round 1) or the
+    refusal exit code (RUBRIC_REFUSAL_EXIT) on a refusal. A refusal writes
+    rubric-rejected.json + the raw records for the post-mortem, stamps the tracker,
+    and prints a loud message. This is D20's one place the never-fail-the-run posture
+    does NOT apply — the refusal lands before any opinion round has produced value."""
+    import shutil
+    import tempfile
+    tk = tracker if tracker is not None else NullTracker()
+    write = _write if _write is not None else globals()["_write"]
+    tk.stage("rubric", "started")
+
+    # B1: the rubric PROPOSAL prompts are prebuilt into the approved consent hash (in
+    # _execute_run). Recover the exact approved proposal blobs (passed down, or rebuilt
+    # deterministically as a fallback) and re-assert the FULL approved packet hash —
+    # round-1 ∪ rubric-proposal — before anything egresses. This is a DIRECT binding:
+    # the exact outbound proposal bytes are in approval.content_hash, not a source
+    # proxy. A per-seat re-assertion also runs inside run_rubric_proposal.
+    if rubric_blobs is None:
+        rubric_blobs = build_rubric_proposal_blobs(config)
+    egress_blobs = list(blobs) + list(rubric_blobs)
+
+    # Re-assert the egress hash one last time before the rubric pass egresses the
+    # source (defense-in-depth, mirroring run_round's pre-spawn hard stop). The
+    # approved packet (round-1 prompts AND the prebuilt proposal prompts) MUST still
+    # hash to exactly what consent was bound to, or nothing leaves the machine. The
+    # repo-scope re-hash applies whenever the run is grounded (the frozen tree the
+    # seats read is bound to the approved scope). A drift is the same labeled NO-GO
+    # (EXIT_EGRESS_BLOCKED), never an uncaught traceback.
+    if packet_hash(egress_blobs) != approval.content_hash:
+        die("egress hash drift: the packet no longer matches the approved content "
+            "hash — refusing to spawn the rubric pass", EXIT_EGRESS_BLOCKED)
+    if config.grounding is not None and config.grounding.snapshot_dir:
+        from _conductor.grounding import rehash_snapshot
+        try:
+            current_scope_hash = rehash_snapshot(config.grounding.snapshot_dir)
+        except (ValueError, OSError):
+            die("repo scope snapshot is missing or unreadable — refusing to spawn the "
+                "rubric pass", EXIT_EGRESS_BLOCKED)
+        if current_scope_hash != approval.scope_hash:
+            die("repo scope hash drift: the snapshot no longer matches the approved scope "
+                "hash — refusing to spawn the rubric pass", EXIT_EGRESS_BLOCKED)
+
+    # -- 1. Proposal fan-out ------------------------------------------------- #
+    print(f"\n=== rubric proposals ({RUBRIC_PROPOSAL_TEMPLATE_VERSION}; "
+          f"sha256:{rubric_proposal_template_sha()[:12]}…) ===")
+    print(f"  {len(config.board)} seat(s) each propose 3–7 weighted criteria (parallel "
+          "fan-out; each is sent the full source under the run's existing disclosure — "
+          "the same source round 1 sends, no new consent category).")
+
+    workdir = tempfile.mkdtemp(prefix="advisory-board-rubric-") if config.fs_scoped else None
+    try:
+        # B1: spawn from the exact prebuilt proposal blobs bound into the approved
+        # consent hash (re-asserted per seat), not a fresh rebuild at spawn time.
+        prop_results = run_rubric_proposals(config, config.board, workdir=workdir,
+                                            blobs=rubric_blobs,
+                                            approved_hash=approval.content_hash)
+    finally:
+        if workdir:
+            shutil.rmtree(workdir, ignore_errors=True)
+
+    # Persist each proposal's black-box + prompt + human record (mirrors revision/).
+    rub_dir = os.path.join(config.out_dir, "rubric")
+    os.makedirs(rub_dir, exist_ok=True)
+    for rr in prop_results:
+        write(os.path.join(config.out_dir, "prompts", f"rubric-{rr.seat}.prompt"),
+              rr.prompt_text)
+        write(os.path.join(rub_dir, f"{rr.seat}.md"), render_rubric_proposal_md(rr))
+        write(os.path.join(rub_dir, f"{rr.seat}.raw"), render_rubric_proposal_raw(rr))
+        write(os.path.join(config.out_dir, "logs", f"rubric-{rr.seat}.stderr"), rr.stderr or "")
+
+    usable = [rr for rr in prop_results if rr.usable]
+    summary = ", ".join(f"{rr.seat}={'usable' if rr.usable else 'dropped'}"
+                        for rr in prop_results)
+    print(f"  proposals: {summary}  ·  {len(usable)} of {len(prop_results)} usable")
+
+    # Floor (D15/D20): fewer than two usable proposals REFUSES the run before any
+    # opinion round spends a token.
+    if len(usable) < MIN_USABLE_PROPOSALS:
+        return _refuse_rubric(
+            config, tk, write,
+            reason=(f"only {len(usable)} usable rubric proposal(s) — a rubric needs at "
+                    f"least {MIN_USABLE_PROPOSALS} to merge (inspect rubric/*.raw and "
+                    "logs/, fix the failed seats, and re-run, or run without --rubric)"),
+            chair_result=None)
+
+    # -- 2. Mint proposal ids + chair merge --------------------------------- #
+    # The conductor mints the ids — a model never mints identity (§11). In BOARD
+    # order, keeping only the seats that produced a usable proposal.
+    usable_ids = [rr.seat for rr in usable]
+    per_seat = [(rr.seat, rr.criteria) for rr in usable]
+    proposals = mint_proposals(per_seat)
+
+    chair_seat = choose_chair_seat(config, usable_seats=usable_ids,
+                                   preferred=config.chair_seat)
+    print(f"\n=== rubric chair ({chair_seat.id}; {RUBRIC_CHAIR_TEMPLATE_VERSION}; "
+          f"sha256:{rubric_chair_template_sha()[:12]}…) ===")
+    print(f"  chair merges {len(proposals)} proposal(s) into one weighted rubric; the "
+          "conductor reconciles the partition (every proposal subsumed or dropped) and "
+          "the weight-sum-to-100 invariant mechanically (§11).")
+
+    workdir = tempfile.mkdtemp(prefix="advisory-board-chair-") if config.fs_scoped else None
+    try:
+        cr = run_rubric_chair(config, proposals, seat=chair_seat,
+                              timeout=chair_seat.timeout_s, workdir=workdir)
+    finally:
+        if workdir:
+            shutil.rmtree(workdir, ignore_errors=True)
+
+    # Always persist the chair's black-box + prompt + human record.
+    if cr.prompt_text:
+        write(os.path.join(config.out_dir, "prompts", "rubric-chair.prompt"), cr.prompt_text)
+    write(os.path.join(rub_dir, "chair.md"), render_chair_md(cr))
+    write(os.path.join(rub_dir, "chair.raw"), render_chair_raw(cr))
+    write(os.path.join(config.out_dir, "logs", f"rubric-chair-{cr.seat}.stderr"), cr.stderr or "")
+
+    print(f"  chair: {cr.status}"
+          + (f" ({cr.failure_class})" if cr.failure_class else "")
+          + f"  ·  elapsed {cr.elapsed_s:.1f}s  ·  packet sha256:{cr.packet_hash[:12]}…")
+
+    if cr.rubric is None:
+        reason = (cr.reject_error or cr.parse_error or cr.failure_class
+                  or "chair merge dropped")
+        return _refuse_rubric(config, tk, write,
+                              reason=f"the chair could not merge the proposals ({reason})",
+                              chair_result=cr)
+
+    # -- 3. Success: write rubric.json (the pre-round artifact of record) ---- #
+    rubric_path = os.path.join(config.out_dir, "rubric.json")
+    rejected_path = os.path.join(config.out_dir, "rubric-rejected.json")
+    if os.path.exists(rejected_path):
+        os.unlink(rejected_path)   # a prior refusal peer; this run produced a rubric
+    with open(rubric_path, "w", encoding="utf-8", newline="") as handle:
+        json.dump(cr.rubric, handle, indent=2, ensure_ascii=False)
+        handle.write("\n")
+    n_criteria = len(cr.rubric["criteria"])
+    n_dropped = len(cr.rubric.get("dropped") or [])
+    tk.stage("rubric", "done", f"{n_criteria} criteria merged")
+    print(f"\nwrote {rubric_path} (advisory-board/rubric@1 — validated; "
+          f"{n_criteria} criteria from {len(proposals)} proposal(s), {n_dropped} dropped; "
+          "weights sum to 100)")
+    print("  (the rubric is the pre-round artifact of record. Injecting it into the "
+          "round prompts + per-criterion scoring is the next milestone phase; this run "
+          "proceeds to the opinion rounds unchanged.)")
+    return None
+
+
+def _refuse_rubric(config, tk, write, *, reason: str, chair_result) -> int:
+    """The rubric refusal path (D20): write rubric-rejected.json + (when the chair
+    ran) its raw record for the post-mortem, stamp the tracker, print a loud message,
+    and return the non-zero refusal exit code. This is the ONE place the
+    never-fail-the-run posture does not apply — nothing valuable exists yet."""
+    rejected_path = os.path.join(config.out_dir, "rubric-rejected.json")
+    rubric_path = os.path.join(config.out_dir, "rubric.json")
+    # Never ship a stale accepted rubric alongside a refusal.
+    if os.path.exists(rubric_path):
+        os.unlink(rubric_path)
+    record = {
+        "schema": "advisory-board/rubric@1",
+        "rejected": True,
+        "reason": reason,
+        "chair_seat": (chair_result.seat if chair_result is not None
+                       else (config.chair_seat or "(not selected)")),
+    }
+    with open(rejected_path, "w", encoding="utf-8") as handle:
+        json.dump(record, handle, indent=2, ensure_ascii=False)
+        handle.write("\n")
+    tk.finish("no-rubric", f"rubric refused ({reason})")
+    print(f"\n⚠ RUBRIC REFUSED — {reason}")
+    print(f"  the refusal was recorded to {rejected_path}")
+    print("  No opinion round ran — nothing valuable was discarded (D20). The rubric "
+          "pass runs before round 1 precisely so a failure lands before any tokens are "
+          "spent on the board.")
+    return RUBRIC_REFUSAL_EXIT
 
 
 def _run_synthesis_step(config, rounds_done: list, args, last_dir: str, *,
@@ -1253,6 +1508,25 @@ def add_run_options(parser: argparse.ArgumentParser) -> None:
                              "on each edit + unresolved conflict, recorded in "
                              "changes.json.endorsements — so the fixed copy is board-endorsed, "
                              "not just findings-mapped. Only accepted with --output revised-draft.")
+    parser.add_argument("--rubric", action="store_true",
+                        help="RUBRIC-FIRST (v1.15): before round 1, every seat proposes 3–7 "
+                             "weighted criteria (a parallel fan-out under the run's existing "
+                             "egress disclosure — the same source the round-1 packet sends), then "
+                             "one board seat (the CHAIR) merges them into one weighted rubric the "
+                             "conductor reconciles mechanically (every proposal subsumed or "
+                             "dropped-with-reason; weights sum to exactly 100). rubric.json becomes "
+                             "the pre-round artifact of record. Fewer than two usable proposals, or "
+                             "a chair merge that can't be reconciled, REFUSES the run before any "
+                             "opinion round spends a token. Orthogonal to --tier/--lens; recorded "
+                             "in the recipe so --from-recipe replays it.")
+    parser.add_argument("--chair-seat", dest="chair_seat", metavar="SEAT",
+                        help="which board seat's CLI/adapter spawns the rubric CHAIR merge "
+                             "(default: claude if seated, else the first seat with a usable "
+                             "proposal). Selected on the UNIQUE seat-id axis (the same ids --model "
+                             "and --revision-seat use), so a duplicate-provider seat is individually "
+                             "selectable and an ambiguous provider name is refused. Must be a board "
+                             "seat — the chair egresses to that provider, covered by the run's "
+                             "existing disclosure. Only accepted with --rubric.")
     parser.add_argument("--out", help="exact output directory (default: a persistent "
                                       "<runs root>/<slug>-<date> — see --runs-root/--ephemeral)")
     parser.add_argument("--runs-root", dest="runs_root", metavar="DIR",

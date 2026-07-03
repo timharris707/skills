@@ -38,6 +38,14 @@ cat >/dev/null 2>&1
 
 is_review=0
 case "$*" in *"MATERIAL UNDER REVIEW"*) is_review=1 ;; esac
+# `rubric` (v1.15 P2): the proposal prompt frames the seat as "proposing RUBRIC
+# criteria"; the chair prompt frames it as "the CHAIR". (antigravity is refused with
+# --repo grounding, but a plain --rubric run is fine.)
+prompt="$*"
+is_rubric_proposal=0
+case "$*" in *"You are proposing RUBRIC criteria"*) is_rubric_proposal=1; is_review=0 ;; esac
+is_rubric_chair=0
+case "$*" in *"You are the CHAIR"*) is_rubric_chair=1; is_review=0 ;; esac
 model=""
 prev=""
 for a in "$@"; do
@@ -73,6 +81,40 @@ Challenge the freeze-writes step's blast radius on latency SLOs.
 REVIEW
 }
 
+# v1.15 P2 rubric. agy proposes 3 valid weighted criteria; as chair (test-only) it
+# folds all conductor-minted proposal ids into one weight-100 criterion.
+emit_rubric_proposal() {
+  echo "model: ${model:-unknown}" >&2
+  echo "<<<<<<<< BEGIN RUBRIC PROPOSAL >>>>>>>>"
+  cat <<'JSON'
+{ "criteria": [
+  {"title": "Cutover safety", "description": "Is the constraint landing safe with in-flight requests.", "weight": 3},
+  {"title": "Evidence quality", "description": "Is the no-double-charge claim demonstrated.", "weight": 3},
+  {"title": "Latency impact", "description": "Does the freeze-writes step threaten SLOs.", "weight": 1}
+] }
+JSON
+  echo "<<<<<<<< END RUBRIC PROPOSAL >>>>>>>>"
+}
+emit_rubric_chair() {
+  echo "model: ${model:-unknown}" >&2
+  local ids="" line rest pid first=1 arr="["
+  while IFS= read -r line; do
+    case "$line" in
+      *"- id="*) rest="${line##*- id=}"; pid="${rest%% *}"; ids="$ids $pid" ;;
+    esac
+  done <<EOF_IDS
+$prompt
+EOF_IDS
+  for pid in $ids; do
+    if [ "$first" -eq 1 ]; then first=0; else arr="$arr, "; fi
+    arr="$arr\"$pid\""
+  done
+  arr="$arr]"
+  echo "<<<<<<<< BEGIN MERGED RUBRIC >>>>>>>>"
+  printf '{ "criteria": [ {"title": "Merged rubric", "description": "All proposed criteria folded.", "weight": 100, "subsumes": %s} ], "dropped": [] }\n' "$arr"
+  echo "<<<<<<<< END MERGED RUBRIC >>>>>>>>"
+}
+
 case "$mode" in
   nogo_smoke) echo "auth error" >&2; exit 1 ;;
   empty)      exit 0 ;;
@@ -82,9 +124,15 @@ case "$mode" in
     exit 0 ;;
   degraded)
     echo "harness note" >&2
-    if [ "$is_review" = "1" ]; then emit_review; else echo "ready"; fi
+    if [ "$is_review" = "1" ]; then emit_review
+    elif [ "$is_rubric_proposal" = "1" ]; then emit_rubric_proposal
+    elif [ "$is_rubric_chair" = "1" ]; then emit_rubric_chair
+    else echo "ready"; fi
     exit 1 ;;
   *)
-    if [ "$is_review" = "1" ]; then emit_review; else echo "ready"; fi
+    if [ "$is_review" = "1" ]; then emit_review
+    elif [ "$is_rubric_proposal" = "1" ]; then emit_rubric_proposal
+    elif [ "$is_rubric_chair" = "1" ]; then emit_rubric_chair
+    else echo "ready"; fi
     exit 0 ;;
 esac

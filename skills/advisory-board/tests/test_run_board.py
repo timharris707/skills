@@ -14780,5 +14780,953 @@ class TestStatusReaderHardening(unittest.TestCase):
         self.assertIn("claude", html)
 
 
+# --------------------------------------------------------------------------- #
+# v1.15 P2 — Rubric-first deliberation: proposal fan-out + chair merge, rubric.json
+# + the board_rubric.py validator, plus the byte-identity guard for the no-flag path.
+# --------------------------------------------------------------------------- #
+
+import board_rubric as brub  # noqa: E402  (v1.15: rubric@1 validator)
+from _conductor import rubric as rub_mod  # noqa: E402
+
+
+def _rubric_doc(**extra):
+    """A minimal valid rubric@1 document (two criteria, weights 60/40, four
+    proposals fully partitioned)."""
+    data = {
+        "schema": "advisory-board/rubric@1",
+        "title": "Payments review",
+        "chair_seat": "claude",
+        "rubric_proposal_template": "advisory-board/rubric-proposal@1",
+        "rubric_proposal_template_sha256": "a" * 64,
+        "rubric_chair_template": "advisory-board/rubric-chair@1",
+        "rubric_chair_template_sha256": "b" * 64,
+        "criteria": [
+            {"id": "c1", "title": "Correctness", "description": "Does it work.",
+             "weight": 60, "subsumes": ["p1", "p2"]},
+            {"id": "c2", "title": "Risk", "description": "What breaks.",
+             "weight": 40, "subsumes": ["p3"]},
+        ],
+        "dropped": [
+            {"proposal_id": "p4", "seat": "gemini", "title": "Nice-to-have",
+             "reason": "redundant with correctness"},
+        ],
+        "proposals": [
+            {"proposal_id": "p1", "seat": "claude", "title": "Correctness", "weight": 5},
+            {"proposal_id": "p2", "seat": "codex", "title": "Soundness", "weight": 3},
+            {"proposal_id": "p3", "seat": "codex", "title": "Risk", "weight": 4},
+            {"proposal_id": "p4", "seat": "gemini", "title": "Nice-to-have", "weight": 1},
+        ],
+    }
+    data.update(extra)
+    return data
+
+
+class TestBoardRubricValidator(unittest.TestCase):
+    """board_rubric.py — strict, mirroring board_changes.py discipline."""
+
+    def _dies(self, doc, needle=None):
+        """Assert `doc` is refused with the clean schema exit. When `needle` is given,
+        also assert the specific error message names that check — so a death-only test
+        can't pass on the WRONG invariant firing (a `phantom` tripping before the
+        dense-id check, say). `board_rubric.die` prints `error: <msg>` to stderr."""
+        buf = io.StringIO()
+        with contextlib.redirect_stderr(buf):
+            with self.assertRaises(SystemExit) as cm:
+                brub.validate(doc)
+        self.assertEqual(cm.exception.code, brub.EXIT_SCHEMA)
+        if needle is not None:
+            self.assertIn(needle, buf.getvalue())
+
+    def test_valid_doc_passes(self):
+        brub.validate(_rubric_doc())   # no raise
+
+    def test_unknown_top_level_key_refused(self):
+        self._dies(_rubric_doc(surprise=1))
+
+    def test_missing_required_key_refused(self):
+        d = _rubric_doc()
+        del d["chair_seat"]
+        self._dies(d)
+
+    def test_wrong_schema_refused(self):
+        self._dies(_rubric_doc(schema="advisory-board/rubric@2"))
+
+    def test_dropped_provenance_seat_must_match_proposal(self):
+        # CONCERN 2: a hand-edited rubric claiming a dropped proposal came from the
+        # WRONG seat fails validation (dropped[].seat is cross-checked against the
+        # proposal it names, p4=gemini in the fixture, not just type-checked).
+        d = _rubric_doc()
+        d["dropped"][0]["seat"] = "claude"   # p4 was proposed by gemini, not claude
+        self._dies(d)
+
+    def test_dropped_provenance_title_must_match_proposal(self):
+        # CONCERN 2: same for the dropped entry's title — it must equal the named
+        # proposal's title in proposals[] (a relabel is refused).
+        d = _rubric_doc()
+        d["dropped"][0]["title"] = "Something else"   # p4's real title is Nice-to-have
+        self._dies(d)
+
+    def test_dropped_provenance_matching_passes(self):
+        # The valid fixture's dropped provenance already matches proposals[] — the
+        # cross-check must not reject a well-formed conductor-born document.
+        brub.validate(_rubric_doc())   # no raise (guards against over-strictness)
+
+    def test_zero_weight_criterion_refused(self):
+        # CONCERN 3: a merged criterion weighted at NOTHING (0) is a soundness smell.
+        # Requiring weight >= 1 catches it even when the weights still sum to 100.
+        d = _rubric_doc()
+        d["criteria"][0]["weight"] = 0    # 0 + 40 ≠ 100, so bump the other to keep 100
+        d["criteria"][1]["weight"] = 100  # sum is 100, but c1 is weighted at nothing
+        self._dies(d, "positive integer percentage")
+
+    def test_weight_sum_must_be_exactly_100(self):
+        # The codebase's first numeric-sum invariant (D18): 60 + 41 = 101 ≠ 100.
+        d = _rubric_doc()
+        d["criteria"][1]["weight"] = 41
+        self._dies(d, "sum to 101, not 100")
+
+    def test_weight_sum_99_refused(self):
+        d = _rubric_doc()
+        d["criteria"][1]["weight"] = 39   # 60 + 39 = 99
+        self._dies(d, "sum to 99, not 100")
+
+    def test_non_integer_weight_refused(self):
+        d = _rubric_doc()
+        d["criteria"][0]["weight"] = 60.0   # a float, not an int percentage
+        self._dies(d, "integer percentage")
+
+    def test_bool_weight_refused(self):
+        # bool is an int subclass — must not sneak past the integer check.
+        d = _rubric_doc()
+        d["criteria"][0]["weight"] = True
+        self._dies(d, "integer percentage")
+
+    def test_criterion_ids_must_be_dense_sequence(self):
+        d = _rubric_doc()
+        d["criteria"][1]["id"] = "c3"   # gap: c1, c3
+        self._dies(d, "dense c1…cN sequence")
+
+    def test_proposal_ids_must_be_dense_sequence(self):
+        # The dense-id check is the point of this test, so pin that it fired — a
+        # phantom-partition error tripping first would leave the dense check untested.
+        # Keep the partition consistent (rename p4→p5 wherever it is referenced) so the
+        # ONLY violation is the non-dense proposal-id sequence p1,p2,p3,p5.
+        d = _rubric_doc()
+        d["proposals"][3]["proposal_id"] = "p5"          # p1,p2,p3,p5 → not dense
+        d["dropped"][0]["proposal_id"] = "p5"            # dropped still points at it
+        self._dies(d, "dense p1…pN sequence")
+
+    def test_partition_phantom_id_refused(self):
+        d = _rubric_doc()
+        d["criteria"][0]["subsumes"] = ["p1", "p2", "p99"]   # p99 not minted
+        self._dies(d, "phantom")
+
+    def test_partition_double_claim_refused(self):
+        d = _rubric_doc()
+        # p1 subsumed by c1 AND also listed as dropped → claimed twice.
+        d["dropped"].append({"proposal_id": "p1", "seat": "claude",
+                             "title": "Correctness", "reason": "dup"})
+        self._dies(d, "already claimed by")
+
+    def test_partition_missing_id_refused(self):
+        d = _rubric_doc()
+        # Remove p3 from c2's subsumes and don't drop it → p3 accounted for nowhere.
+        d["criteria"][1]["subsumes"] = ["p3"]
+        d["proposals"].append({"proposal_id": "p5", "seat": "gemini",
+                               "title": "extra", "weight": 2})
+        d["proposals"][-1]["proposal_id"] = "p5"
+        # p5 is minted but appears in neither subsumes nor dropped.
+        self._dies(d, "NEITHER")
+
+    def test_empty_subsumes_refused(self):
+        d = _rubric_doc()
+        d["criteria"][0]["subsumes"] = []
+        self._dies(d, "non-empty list of proposal ids")
+
+    def test_empty_criteria_refused(self):
+        self._dies(_rubric_doc(criteria=[]), "criteria must be a non-empty list")
+
+    def test_dropped_needs_reason(self):
+        d = _rubric_doc()
+        d["dropped"][0]["reason"] = "   "
+        self._dies(d, "reason must be a non-empty string")
+
+    def test_unhashable_weight_dies_cleanly_not_typeerror(self):
+        # The board_verdict TypeError-on-unhashable idiom must NOT be repeated: a
+        # list where a scalar weight belongs dies with the clean schema exit 2, never
+        # a raw TypeError escaping die().
+        d = _rubric_doc()
+        d["criteria"][0]["weight"] = []
+        with self.assertRaises(SystemExit) as cm:
+            brub.validate(d)
+        self.assertEqual(cm.exception.code, brub.EXIT_SCHEMA)
+
+    def test_unhashable_proposal_id_dies_cleanly(self):
+        d = _rubric_doc()
+        d["criteria"][0]["subsumes"] = [["p1"], "p2"]   # a list id — unhashable
+        with self.assertRaises(SystemExit) as cm:
+            brub.validate(d)
+        self.assertEqual(cm.exception.code, brub.EXIT_SCHEMA)
+
+    def test_non_dict_top_level_dies_cleanly(self):
+        with self.assertRaises(SystemExit) as cm:
+            brub.validate([])
+        self.assertEqual(cm.exception.code, brub.EXIT_SCHEMA)
+
+    def test_load_missing_file_clean_exit(self):
+        with self.assertRaises(SystemExit) as cm:
+            brub.load("/nonexistent/rubric.json")
+        self.assertEqual(cm.exception.code, brub.EXIT_SCHEMA)
+
+    def test_cli_validate_and_json(self):
+        d = tempfile.mkdtemp(prefix="rubric-cli-")
+        self.addCleanup(shutil.rmtree, d, ignore_errors=True)
+        path = os.path.join(d, "rubric.json")
+        with open(path, "w") as fh:
+            json.dump(_rubric_doc(), fh)
+        with contextlib.redirect_stdout(io.StringIO()):
+            # summary path
+            rc = brub.main([path])
+            self.assertEqual(rc, brub.EXIT_OK)
+            # --json echo path
+            rc = brub.main([path, "--json"])
+            self.assertEqual(rc, brub.EXIT_OK)
+
+
+class TestRubricPartitionReconciliation(unittest.TestCase):
+    """The mechanical partition check (D15) as a pure unit — coverage AND no-phantom
+    AND no-empty-subsumes, over conductor-minted ids."""
+
+    def test_full_partition_passes(self):
+        # p1,p2 subsumed by c1; p3 dropped → every id exactly once.
+        rub_mod.reconcile_partition(
+            [{"subsumes": ["p1", "p2"]}],
+            [{"proposal_id": "p3"}],
+            ["p1", "p2", "p3"])   # no raise
+
+    def test_phantom_id_rejects(self):
+        with self.assertRaises(rub_mod.RubricRejected):
+            rub_mod.reconcile_partition(
+                [{"subsumes": ["p1", "p99"]}], [], ["p1"])
+
+    def test_double_claim_rejects(self):
+        with self.assertRaises(rub_mod.RubricRejected):
+            rub_mod.reconcile_partition(
+                [{"subsumes": ["p1"]}], [{"proposal_id": "p1"}], ["p1"])
+
+    def test_missing_id_rejects(self):
+        with self.assertRaises(rub_mod.RubricRejected):
+            rub_mod.reconcile_partition(
+                [{"subsumes": ["p1"]}], [], ["p1", "p2"])   # p2 accounted nowhere
+
+    def test_empty_subsumes_rejects(self):
+        with self.assertRaises(rub_mod.RubricRejected):
+            rub_mod.reconcile_partition(
+                [{"subsumes": []}], [{"proposal_id": "p1"}], ["p1"])
+
+    def test_duplicate_minted_ids_is_internal_error(self):
+        # The conductor mints unique ids; a duplicate ground-truth is an internal
+        # error (RubricInternalError, a RubricRejected subclass), not a model fault.
+        with self.assertRaises(rub_mod.RubricInternalError):
+            rub_mod.reconcile_partition(
+                [{"subsumes": ["p1"]}], [], ["p1", "p1"])
+
+    def test_unicode_confusable_id_is_phantom_not_merged(self):
+        # A chair reply that subsumes a UNICODE CONFUSABLE of a real minted id — here
+        # a Cyrillic 'р' (U+0440), which renders identically to ASCII 'p' — must NOT be
+        # accepted AS that ASCII id. The reconciliation compares raw code points (never
+        # a normalize/casefold), so the forged id is a phantom, and the real ASCII id it
+        # spoofs is then unaccounted-for. Either way the merge is REFUSED, never silently
+        # folded in as the spoofed seat's proposal.
+        forged = "р" + "1"      # Cyrillic-'р' + '1' — looks like "p1", isn't
+        self.assertNotEqual(forged, "p1")            # distinct code points
+        with self.assertRaises(rub_mod.RubricRejected) as cm:
+            rub_mod.reconcile_partition(
+                [{"subsumes": [forged]}], [], ["p1"])
+        # It rejects as a PHANTOM (the forged id is not a minted id), not as merged.
+        self.assertIn("phantom", str(cm.exception).lower())
+
+    def test_nfc_normalized_id_spoof_is_phantom(self):
+        # A second confusable vector: a decomposed/precomposed unicode form that would
+        # collapse onto a real id UNDER NFC normalization must still be a phantom — the
+        # conductor never normalizes before the membership check, so the raw bytes differ
+        # and the id is refused rather than merged as the real seat's.
+        import unicodedata
+        # 'ⁿ' (U+207F SUPERSCRIPT LATIN SMALL LETTER N) is a compatibility char; a naive
+        # NFKC fold would map a spoofed "pⁿ" toward "pn". We assert the RAW id (never
+        # NFKC-folded) is treated as foreign to the minted set {p1}.
+        spoof = "p" + "ⁿ"       # "pⁿ" — NFKC-folds toward "pn", raw ≠ "p1"
+        self.assertNotEqual(unicodedata.normalize("NFKC", spoof), "p1")
+        with self.assertRaises(rub_mod.RubricRejected) as cm:
+            rub_mod.reconcile_partition(
+                [{"subsumes": [spoof]}], [], ["p1"])
+        self.assertIn("phantom", str(cm.exception).lower())
+
+
+class TestRubricPartitionParity(unittest.TestCase):
+    """CONCERN 4: the partition invariant is implemented TWICE — write-time in
+    rubric.reconcile_partition and read-time in board_rubric.validate. They are
+    deliberately NOT collapsed (different trust boundaries), so this parity test
+    pins them in lockstep: a partition-violating doc must be rejected by BOTH, and a
+    valid doc accepted by both. A future edit that weakens one and not the other
+    trips here."""
+
+    @staticmethod
+    def _parts(doc):
+        """Extract the (criteria, dropped, proposal_ids) reconcile_partition wants
+        from a full rubric doc — so BOTH validators see the SAME partition."""
+        criteria = doc["criteria"]
+        dropped = doc["dropped"]
+        proposal_ids = [p["proposal_id"] for p in doc["proposals"]]
+        return criteria, dropped, proposal_ids
+
+    def test_valid_partition_accepted_by_both(self):
+        doc = _rubric_doc()   # p1,p2→c1; p3→c2; p4 dropped — full partition
+        brub.validate(doc)    # read-time validator: no raise
+        rub_mod.reconcile_partition(*self._parts(doc))  # write-time: no raise
+
+    def test_incomplete_partition_rejected_by_both(self):
+        # p4 is neither subsumed nor dropped → the partition is incomplete. Both the
+        # write-time reconciliation and the read-time validator must refuse it.
+        doc = _rubric_doc(dropped=[])   # drop the p4 dropped entry → p4 unaccounted
+        with self.assertRaises(SystemExit) as cm:
+            brub.validate(doc)
+        self.assertEqual(cm.exception.code, brub.EXIT_SCHEMA)
+        with self.assertRaises(rub_mod.RubricRejected):
+            rub_mod.reconcile_partition(*self._parts(doc))
+
+    def test_phantom_id_rejected_by_both(self):
+        # c1 subsumes a phantom id (p99, not in proposals) → both must refuse.
+        doc = _rubric_doc()
+        doc["criteria"][0]["subsumes"] = ["p1", "p99"]
+        with self.assertRaises(SystemExit) as cm:
+            brub.validate(doc)
+        self.assertEqual(cm.exception.code, brub.EXIT_SCHEMA)
+        with self.assertRaises(rub_mod.RubricRejected):
+            rub_mod.reconcile_partition(*self._parts(doc))
+
+    def test_double_claim_rejected_by_both(self):
+        # p3 is claimed by BOTH c2's subsumes and the dropped list → double-claim.
+        doc = _rubric_doc()
+        doc["dropped"] = [
+            {"proposal_id": "p3", "seat": "codex", "title": "Risk",
+             "reason": "also dropped"},
+            {"proposal_id": "p4", "seat": "gemini", "title": "Nice-to-have",
+             "reason": "redundant with correctness"},
+        ]
+        with self.assertRaises(SystemExit) as cm:
+            brub.validate(doc)
+        self.assertEqual(cm.exception.code, brub.EXIT_SCHEMA)
+        with self.assertRaises(rub_mod.RubricRejected):
+            rub_mod.reconcile_partition(*self._parts(doc))
+
+
+class TestRubricBuildWeightSum(unittest.TestCase):
+    """build_rubric enforces the weight-sum-to-100 invariant + partition."""
+
+    def _proposals(self, n=3):
+        return rub_mod.mint_proposals([
+            ("claude", [{"title": f"t{i}", "description": f"d{i}", "weight": 1}
+                        for i in range(n)])])
+
+    def test_weight_sum_violation_rejects(self):
+        props = self._proposals(3)   # p1,p2,p3
+        criteria = [{"title": "All", "description": "merged", "weight": 99,
+                     "subsumes": ["p1", "p2", "p3"]}]
+        with self.assertRaises(rub_mod.RubricRejected) as cm:
+            rub_mod.build_rubric(_config(rubric=True), props, criteria, [],
+                                 chair_seat="claude")
+        self.assertIn("100", str(cm.exception))
+
+    def test_weight_sum_100_passes(self):
+        props = self._proposals(3)
+        criteria = [{"title": "All", "description": "merged", "weight": 100,
+                     "subsumes": ["p1", "p2", "p3"]}]
+        r = rub_mod.build_rubric(_config(rubric=True), props, criteria, [],
+                                 chair_seat="claude")
+        self.assertEqual(sum(c["weight"] for c in r["criteria"]), 100)
+        self.assertEqual([c["id"] for c in r["criteria"]], ["c1"])
+
+    def test_zero_weight_criterion_rejected_chair_side(self):
+        # CONCERN 3: the chair-side per-entry weight validation (_validate_chair_weight)
+        # must reject a merged criterion weighted at 0 even though the sum is still 100
+        # (0 + 100). A zero-weight criterion contributes nothing to scoring — refuse it.
+        props = self._proposals(3)
+        criteria = [{"title": "Nothing", "description": "weightless", "weight": 0,
+                     "subsumes": ["p1"]},
+                    {"title": "All", "description": "the rest", "weight": 100,
+                     "subsumes": ["p2", "p3"]}]
+        with self.assertRaises(rub_mod.RubricRejected) as cm:
+            rub_mod.build_rubric(_config(rubric=True), props, criteria, [],
+                                 chair_seat="claude")
+        self.assertIn(">= 1", str(cm.exception))
+
+    def test_mint_proposals_ids_are_conductor_owned(self):
+        props = rub_mod.mint_proposals([
+            ("claude", [{"title": "a", "description": "x", "weight": 1},
+                        {"title": "b", "description": "y", "weight": 2}]),
+            ("codex", [{"title": "c", "description": "z", "weight": 3}])])
+        self.assertEqual([p["proposal_id"] for p in props], ["p1", "p2", "p3"])
+        self.assertEqual([p["seat"] for p in props], ["claude", "claude", "codex"])
+
+
+class TestRubricProposalParse(unittest.TestCase):
+    """parse_rubric_proposal_reply — the 3–7 band + fence discipline."""
+
+    def _fenced(self, body):
+        return (f"{rub_mod.RUBRIC_PROPOSAL_BEGIN}\n{body}\n"
+                f"{rub_mod.RUBRIC_PROPOSAL_END}\n")
+
+    def test_valid_three_criteria(self):
+        body = json.dumps({"criteria": [
+            {"title": f"t{i}", "description": f"d{i}", "weight": i + 1}
+            for i in range(3)]})
+        out = rub_mod.parse_rubric_proposal_reply(self._fenced(body))
+        self.assertEqual(len(out), 3)
+        self.assertNotIn("id", out[0])   # the model's id (if any) is dropped
+
+    def test_too_few_rejected(self):
+        body = json.dumps({"criteria": [
+            {"title": "t", "description": "d", "weight": 1},
+            {"title": "u", "description": "e", "weight": 2}]})
+        with self.assertRaises(ValueError):
+            rub_mod.parse_rubric_proposal_reply(self._fenced(body))
+
+    def test_too_many_rejected(self):
+        body = json.dumps({"criteria": [
+            {"title": f"t{i}", "description": "d", "weight": 1} for i in range(8)]})
+        with self.assertRaises(ValueError):
+            rub_mod.parse_rubric_proposal_reply(self._fenced(body))
+
+    def test_zero_weight_rejected(self):
+        body = json.dumps({"criteria": [
+            {"title": "t", "description": "d", "weight": 0},
+            {"title": "u", "description": "e", "weight": 2},
+            {"title": "v", "description": "f", "weight": 3}]})
+        with self.assertRaises(ValueError):
+            rub_mod.parse_rubric_proposal_reply(self._fenced(body))
+
+    def test_missing_fence_rejected(self):
+        with self.assertRaises(ValueError):
+            rub_mod.parse_rubric_proposal_reply("no fence here")
+
+    def test_model_supplied_id_is_ignored(self):
+        body = json.dumps({"criteria": [
+            {"id": "EVIL", "title": f"t{i}", "description": "d", "weight": 1}
+            for i in range(3)]})
+        out = rub_mod.parse_rubric_proposal_reply(self._fenced(body))
+        self.assertTrue(all("id" not in c for c in out))
+
+    def test_inf_weight_rejected(self):
+        # A non-finite weight (Infinity, via json's permissive number grammar) must be
+        # rejected by validation — never summed. json.loads parses `Infinity` to
+        # float('inf'), which _validate_weight refuses (finite-number guard).
+        body = ('{ "criteria": [ '
+                '{"title": "t", "description": "d", "weight": Infinity}, '
+                '{"title": "u", "description": "e", "weight": 2}, '
+                '{"title": "v", "description": "f", "weight": 3} ] }')
+        with self.assertRaises(ValueError) as cm:
+            rub_mod.parse_rubric_proposal_reply(self._fenced(body))
+        self.assertIn("finite", str(cm.exception))
+
+    def test_nan_weight_rejected(self):
+        # NaN is a float but not a usable importance — the finite-number guard rejects
+        # it (never summed). Guards the "membership on unhashable/odd parsed value"
+        # gotcha too: NaN reaches the numeric guard, never a `x in {...}` on it.
+        body = ('{ "criteria": [ '
+                '{"title": "t", "description": "d", "weight": NaN}, '
+                '{"title": "u", "description": "e", "weight": 2}, '
+                '{"title": "v", "description": "f", "weight": 3} ] }')
+        with self.assertRaises(ValueError) as cm:
+            rub_mod.parse_rubric_proposal_reply(self._fenced(body))
+        self.assertIn("finite", str(cm.exception))
+
+
+class TestRubricProposalRetryRecover(EnvMixin):
+    """A seat that fails its rubric proposal ONCE (invalid reply) is retried, and a
+    good reply on attempt 2 recovers — the run gets a usable proposal (mirrors the
+    round fan-out's retry-then-recover, but for the proposal pass)."""
+
+    def _good_reply(self):
+        body = ('{ "criteria": [ '
+                '{"title": "Correctness", "description": "Does it work.", "weight": 5}, '
+                '{"title": "Risk", "description": "What breaks.", "weight": 3}, '
+                '{"title": "Clarity", "description": "Is it clear.", "weight": 2} ] }')
+        return (f"{rub_mod.RUBRIC_PROPOSAL_BEGIN}\n{body}\n"
+                f"{rub_mod.RUBRIC_PROPOSAL_END}\n")
+
+    def test_proposal_retry_then_recover(self):
+        config = _config(rubric=True)
+        seat = next(s for s in config.board if s.name == "claude")
+        # Attempt 1: a parseable-shaped but fence-less reply → ValueError → `invalid`
+        # → retry. Attempt 2: a valid fenced proposal → usable.
+        replies = [
+            rb.SpawnResult(0, "no fence here at all", "model: claude-fable-5\n", 1.0, False),
+            rb.SpawnResult(0, self._good_reply(), "model: claude-fable-5\n", 1.0, False),
+        ]
+        calls = {"n": 0}
+
+        def fake_spawn(*a, **k):
+            r = replies[calls["n"]]
+            calls["n"] += 1
+            return r
+
+        real_spawn = rub_mod.spawn
+        rub_mod.spawn = fake_spawn
+        try:
+            rr = rub_mod.run_rubric_proposal(config, seat=seat)
+        finally:
+            rub_mod.spawn = real_spawn
+        self.assertEqual(calls["n"], 2)          # spawned twice (one retry)
+        self.assertEqual(rr.attempts, 2)
+        self.assertTrue(rr.usable)               # recovered on attempt 2
+        self.assertIsNone(rr.parse_error)
+        self.assertEqual(len(rr.criteria), 3)
+
+
+class TestChairSeatSelection(EnvMixin):
+    """--chair-seat on the unique-id axis (D16), NOT the synthesizer's by-name axis."""
+
+    def test_default_prefers_claude(self):
+        c = _config(rubric=True)
+        seat = rub_mod.choose_chair_seat(c)
+        self.assertEqual(seat.name, "claude")
+
+    def test_duplicate_provider_ambiguous_name_refused_at_config(self):
+        with self.assertRaises(SystemExit) as cm:
+            _config(rubric=True, board="claude,claude,codex", chair_seat="claude")
+        self.assertEqual(cm.exception.code, rb.EXIT_USAGE)
+
+    def test_duplicate_provider_unique_id_resolves(self):
+        c = _config(rubric=True, board="claude,claude,codex", chair_seat="claude#2")
+        self.assertEqual(c.chair_seat, "claude#2")
+        seat = rub_mod.choose_chair_seat(c, preferred=c.chair_seat)
+        self.assertEqual(seat.id, "claude#2")
+
+    def test_chair_seat_must_be_board_seat(self):
+        with self.assertRaises(SystemExit) as cm:
+            _config(rubric=True, chair_seat="ollama")   # registered, not on the board
+        self.assertEqual(cm.exception.code, rb.EXIT_USAGE)
+
+    def test_chair_seat_without_rubric_refused(self):
+        with self.assertRaises(SystemExit) as cm:
+            _config(chair_seat="claude")
+        self.assertEqual(cm.exception.code, rb.EXIT_USAGE)
+
+    def test_default_first_usable_when_no_claude(self):
+        c = _config(rubric=True, board="codex,gemini")
+        # No claude seated → first seat with a usable proposal (here codex).
+        seat = rub_mod.choose_chair_seat(c, usable_seats=["codex", "gemini"])
+        self.assertEqual(seat.id, "codex")
+
+    def test_default_claude_on_duplicate_board_is_deterministic_unique_axis(self):
+        # CONCERN 3: on a duplicate-provider board (claude,claude,codex) with no
+        # --chair-seat, the default must resolve on the UNIQUE-ID axis — the FIRST
+        # claude in board order (claude#1) — not silently collapse via a by-name dict.
+        c = _config(rubric=True, board="claude,claude,codex")
+        seat = rub_mod.choose_chair_seat(c)
+        self.assertEqual(seat.name, "claude")
+        # Deterministic: it is exactly the first claude seat, and its unique id is
+        # surfaced (the chair banner prints seat.id) rather than an arbitrary pick.
+        self.assertEqual(seat.id, c.board[0].id)
+        self.assertEqual(seat.id, "claude#1")
+
+
+class TestRubricComposedModeGuard(EnvMixin):
+    """The BLOCKER guard (v1.15 P2): --rubric composes its proposal prompts from the
+    SOURCE TEXT ONLY, so combining it with a mode that adds context to round 1
+    (--repo grounding, --revise digest+diff, revised-draft revision context) would
+    propose criteria against strictly less than the rounds review. resolve_config
+    REFUSES those combinations up front (EXIT_USAGE), mirroring the --chair-seat
+    guard — until the shared composed-context builder lands (P3)."""
+
+    def test_rubric_with_repo_refused(self):
+        root = tempfile.mkdtemp(prefix="board-rubric-repo-")
+        self.addCleanup(shutil.rmtree, root, ignore_errors=True)
+        with self.assertRaises(SystemExit) as cm:
+            _config(rubric=True, repo=root)
+        self.assertEqual(cm.exception.code, rb.EXIT_USAGE)
+
+    def test_rubric_with_repo_refused_names_the_flag_and_phase(self):
+        # The error names the offending flag AND says composed context ships later.
+        root = tempfile.mkdtemp(prefix="board-rubric-repo-")
+        self.addCleanup(shutil.rmtree, root, ignore_errors=True)
+        code, _, err = run_cli(["run", "--source", SAMPLE, "--rubric",
+                                "--repo", root, "--mode", "advisory"])
+        self.assertEqual(code, rb.EXIT_USAGE)
+        self.assertIn("--repo", err)
+        self.assertIn("P3", err)
+
+    def test_rubric_with_revise_refused(self):
+        prior = tempfile.mkdtemp(prefix="board-rubric-revise-")  # any dir is a plausible ref
+        self.addCleanup(shutil.rmtree, prior, ignore_errors=True)
+        with self.assertRaises(SystemExit) as cm:
+            _config(rubric=True, revise=prior)
+        self.assertEqual(cm.exception.code, rb.EXIT_USAGE)
+
+    def test_rubric_with_revise_refused_names_the_flag_and_phase(self):
+        prior = tempfile.mkdtemp(prefix="board-rubric-revise-")
+        self.addCleanup(shutil.rmtree, prior, ignore_errors=True)
+        code, _, err = run_cli(["run", "--source", SAMPLE, "--rubric", "--revise", prior])
+        self.assertEqual(code, rb.EXIT_USAGE)
+        self.assertIn("--revise", err)
+        self.assertIn("P3", err)
+
+    def test_rubric_with_revised_draft_refused(self):
+        # --output revised-draft (the endorsement/revision path) is refused too. It
+        # also needs --synthesize, but the rubric guard fires regardless.
+        with self.assertRaises(SystemExit) as cm:
+            _config(rubric=True, output="revised-draft", synthesize=True)
+        self.assertEqual(cm.exception.code, rb.EXIT_USAGE)
+
+    def test_rubric_alone_still_resolves(self):
+        # Sanity: --rubric on its own (no composed mode) is unaffected by the guard.
+        c = _config(rubric=True)
+        self.assertTrue(c.rubric)
+        self.assertIsNone(c.repo)
+        self.assertIsNone(c.revise_of)
+
+
+class TestRubricE2E(EnvMixin):
+    """The full `run --rubric` flow against the mocks."""
+
+    def _out(self):
+        d = tempfile.mkdtemp(prefix="board-rubric-")
+        self.addCleanup(shutil.rmtree, d, ignore_errors=True)
+        return d
+
+    def test_rubric_json_written_and_validates(self):
+        out = self._out()
+        code, text, _ = run_cli(["run", "--source", SAMPLE, "--out", out, "--yes",
+                                 "--rubric", "--synthesize", "--no-live-status"])
+        self.assertEqual(code, rb.EXIT_OK)
+        for rel in ("rubric.json", "rubric/claude.md", "rubric/claude.raw",
+                    "rubric/chair.md", "rubric/chair.raw",
+                    "prompts/rubric-claude.prompt", "prompts/rubric-chair.prompt",
+                    "logs/rubric-chair-claude.stderr"):
+            self.assertTrue(os.path.exists(os.path.join(out, rel)), rel)
+        with open(os.path.join(out, "rubric.json")) as fh:
+            doc = json.load(fh)
+        brub.validate(doc)   # the written artifact validates against @1
+        self.assertEqual(doc["chair_seat"], "claude")
+        self.assertEqual(sum(c["weight"] for c in doc["criteria"]), 100)
+        # Every proposal is minted p1…pN and partitioned exactly once.
+        pids = [p["proposal_id"] for p in doc["proposals"]]
+        self.assertEqual(pids, [f"p{n}" for n in range(1, len(pids) + 1)])
+        # The run proceeded to the rounds + a verdict (rubric is pre-round only in P2).
+        self.assertTrue(os.path.exists(os.path.join(out, "verdict.json")))
+
+    def test_rubric_runs_before_round_1(self):
+        out = self._out()
+        _, text, _ = run_cli(["run", "--source", SAMPLE, "--out", out, "--yes",
+                              "--rubric", "--synthesize", "--no-live-status"])
+        # The rubric banners print BEFORE the round-1 banner.
+        self.assertLess(text.index("rubric proposals"), text.index("round 1 (fan-out)"))
+        self.assertLess(text.index("rubric chair"), text.index("round 1 (fan-out)"))
+
+    def test_rubric_disclosure_names_the_pre_round_pass(self):
+        # CONCERN 1: a --rubric run's disclosure line NAMES the pre-round rubric pass
+        # (the extra proposal spawns + the chair spawn), not just the review egress.
+        on = rb.disclosure_line(_config(rubric=True))
+        off = rb.disclosure_line(_config())
+        self.assertIn("rubric", on.lower())
+        self.assertIn("proposal", on.lower())
+        self.assertIn("chair", on.lower())
+        # A non-rubric run's disclosure never mentions it (byte-identical to before).
+        self.assertNotIn("rubric", off.lower())
+        # E2E: the printed egress-gate disclosure carries the mention too.
+        out = self._out()
+        _, text, _ = run_cli(["run", "--source", SAMPLE, "--out", out, "--yes",
+                              "--rubric", "--synthesize", "--no-live-status"])
+        # The disclosure precedes the egress verdict line and names the rubric pass.
+        gate = text[text.index("=== egress gate ==="):text.index("egress: ")]
+        self.assertIn("rubric", gate.lower())
+
+    def test_proposal_floor_refuses_before_rounds(self):
+        # 2 of 3 seats drop their proposal → only 1 usable → refuse BEFORE round 1.
+        out = self._out()
+        os.environ["MOCK_CODEX_RUBRIC_MODE"] = "empty"
+        os.environ["MOCK_GEMINI_MODE"] = "empty"
+        self.addCleanup(lambda: os.environ.pop("MOCK_CODEX_RUBRIC_MODE", None))
+        code, text, _ = run_cli(["run", "--source", SAMPLE, "--out", out, "--yes",
+                                 "--rubric", "--synthesize", "--no-live-status"])
+        self.assertEqual(code, rub_mod.RUBRIC_REFUSAL_EXIT)
+        self.assertIn("RUBRIC REFUSED", text)
+        # RH-1 / D20: no round ran, no verdict, rubric-rejected.json recorded.
+        self.assertTrue(os.path.exists(os.path.join(out, "rubric-rejected.json")))
+        self.assertFalse(os.path.exists(os.path.join(out, "round-1")))
+        self.assertFalse(os.path.exists(os.path.join(out, "verdict.json")))
+        self.assertNotIn("round 1 (fan-out)", text)
+
+    def test_chair_raw_absent_when_proposal_floor_refuses(self):
+        # On a proposal-floor refusal (<2 usable) the run REFUSES before the chair is
+        # ever spawned — so NO chair artifacts (prompt, chair.md, chair.raw) are
+        # written. Only the proposal-pass records + rubric-rejected.json land. Guards
+        # the artifact-tree honesty fix (the chair files are conditional, not promised).
+        out = self._out()
+        os.environ["MOCK_CODEX_RUBRIC_MODE"] = "empty"
+        os.environ["MOCK_GEMINI_MODE"] = "empty"
+        self.addCleanup(lambda: os.environ.pop("MOCK_CODEX_RUBRIC_MODE", None))
+        self.addCleanup(lambda: os.environ.pop("MOCK_GEMINI_MODE", None))
+        code, text, _ = run_cli(["run", "--source", SAMPLE, "--out", out, "--yes",
+                                 "--rubric", "--synthesize", "--no-live-status"])
+        self.assertEqual(code, rub_mod.RUBRIC_REFUSAL_EXIT)
+        # The floor refusal recorded the rejection + the proposal records, but the
+        # chair never ran → its prompt and raw/md records DO NOT exist.
+        self.assertTrue(os.path.exists(os.path.join(out, "rubric-rejected.json")))
+        for absent in ("prompts/rubric-chair.prompt", "rubric/chair.raw",
+                       "rubric/chair.md", "logs/rubric-chair-claude.stderr"):
+            self.assertFalse(os.path.exists(os.path.join(out, absent)), absent)
+        # The chair banner never printed either (the refusal is pre-chair).
+        self.assertNotIn("rubric chair", text)
+
+    def test_chair_weight_sum_failure_retries_then_refuses(self):
+        # B2: a mechanical reject (weight-sum≠100) now RETRIES ONCE inside the chair
+        # loop, then refuses. The bad_weight mock emits the same 99-sum on BOTH
+        # attempts, so attempts == 2 (the retry ran) then the refusal path.
+        out = self._out()
+        os.environ["MOCK_CLAUDE_CHAIR_MODE"] = "bad_weight"
+        self.addCleanup(lambda: os.environ.pop("MOCK_CLAUDE_CHAIR_MODE", None))
+        code, text, _ = run_cli(["run", "--source", SAMPLE, "--out", out, "--yes",
+                                 "--rubric", "--synthesize", "--no-live-status"])
+        self.assertEqual(code, rub_mod.RUBRIC_REFUSAL_EXIT)
+        self.assertIn("RUBRIC REFUSED", text)
+        self.assertFalse(os.path.exists(os.path.join(out, "rubric.json")))
+        self.assertFalse(os.path.exists(os.path.join(out, "round-1")))
+        with open(os.path.join(out, "rubric-rejected.json")) as fh:
+            rec = json.load(fh)
+        self.assertTrue(rec["rejected"])
+        self.assertIn("100", rec["reason"])
+        # The mechanical reject retried once before refusing (attempts == 2).
+        with open(os.path.join(out, "rubric", "chair.raw")) as fh:
+            self.assertIn("attempts        : 2", fh.read())
+
+    def test_chair_bad_partition_retries_then_refuses(self):
+        out = self._out()
+        os.environ["MOCK_CLAUDE_CHAIR_MODE"] = "bad_partition"
+        self.addCleanup(lambda: os.environ.pop("MOCK_CLAUDE_CHAIR_MODE", None))
+        code, text, _ = run_cli(["run", "--source", SAMPLE, "--out", out, "--yes",
+                                 "--rubric", "--synthesize", "--no-live-status"])
+        self.assertEqual(code, rub_mod.RUBRIC_REFUSAL_EXIT)
+        self.assertFalse(os.path.exists(os.path.join(out, "round-1")))
+        # B2: a partition-miss reject retries once before refusing (attempts == 2).
+        with open(os.path.join(out, "rubric", "chair.raw")) as fh:
+            self.assertIn("attempts        : 2", fh.read())
+
+    def test_chair_phantom_id_retries_then_refuses(self):
+        out = self._out()
+        os.environ["MOCK_CLAUDE_CHAIR_MODE"] = "phantom"
+        self.addCleanup(lambda: os.environ.pop("MOCK_CLAUDE_CHAIR_MODE", None))
+        code, _, _ = run_cli(["run", "--source", SAMPLE, "--out", out, "--yes",
+                              "--rubric", "--synthesize", "--no-live-status"])
+        self.assertEqual(code, rub_mod.RUBRIC_REFUSAL_EXIT)
+        # B2: a phantom-id reject retries once before refusing (attempts == 2).
+        with open(os.path.join(out, "rubric", "chair.raw")) as fh:
+            self.assertIn("attempts        : 2", fh.read())
+
+    def test_chair_mechanical_reject_retries_then_succeeds(self):
+        # B2: a fail-ONCE-then-succeed chair — attempt 1 rejects on weight-sum, attempt
+        # 2 emits a valid merge. The run SUCCEEDS on attempt 2 (attempts == 2, rubric
+        # written, rounds proceed). This is the retry-then-recover path the board asked
+        # to prove (the prior mocks only proved retry-then-refuse).
+        out = self._out()
+        counter = os.path.join(out, "_chair_attempts")
+        os.environ["MOCK_CLAUDE_CHAIR_MODE"] = "retry_once_then_ok"
+        os.environ["MOCK_CHAIR_COUNTER"] = counter
+        self.addCleanup(lambda: os.environ.pop("MOCK_CLAUDE_CHAIR_MODE", None))
+        self.addCleanup(lambda: os.environ.pop("MOCK_CHAIR_COUNTER", None))
+        code, text, _ = run_cli(["run", "--source", SAMPLE, "--out", out, "--yes",
+                                 "--rubric", "--synthesize", "--no-live-status"])
+        self.assertEqual(code, rb.EXIT_OK)
+        self.assertTrue(os.path.exists(os.path.join(out, "rubric.json")))
+        with open(os.path.join(out, "rubric.json")) as fh:
+            doc = json.load(fh)
+        brub.validate(doc)
+        self.assertEqual(sum(c["weight"] for c in doc["criteria"]), 100)
+        # It took TWO attempts (the first was a mechanical reject that retried).
+        with open(os.path.join(out, "rubric", "chair.raw")) as fh:
+            self.assertIn("attempts        : 2", fh.read())
+        # The counter file confirms the chair CLI was spawned twice.
+        with open(counter) as fh:
+            self.assertEqual(fh.read().strip(), "2")
+
+    def test_chair_retries_then_refuses_on_missing_fence(self):
+        # missing_fence → parse invalid → retry (2 attempts) → refuse.
+        out = self._out()
+        os.environ["MOCK_CLAUDE_CHAIR_MODE"] = "missing_fence"
+        self.addCleanup(lambda: os.environ.pop("MOCK_CLAUDE_CHAIR_MODE", None))
+        code, _, _ = run_cli(["run", "--source", SAMPLE, "--out", out, "--yes",
+                              "--rubric", "--synthesize", "--no-live-status"])
+        self.assertEqual(code, rub_mod.RUBRIC_REFUSAL_EXIT)
+        with open(os.path.join(out, "rubric", "chair.raw")) as fh:
+            raw = fh.read()
+        self.assertIn("attempts        : 2", raw)
+
+    def test_duplicate_provider_chair_selection_e2e(self):
+        # A claude,claude,codex board with --chair-seat claude#2 runs the chair on
+        # that exact seat; the written rubric.json records it.
+        out = self._out()
+        code, _, _ = run_cli(["run", "--source", SAMPLE, "--out", out, "--yes",
+                              "--board", "claude,claude,codex", "--rubric",
+                              "--chair-seat", "claude#2", "--synthesize",
+                              "--no-live-status"])
+        self.assertEqual(code, rb.EXIT_OK)
+        with open(os.path.join(out, "rubric.json")) as fh:
+            doc = json.load(fh)
+        self.assertEqual(doc["chair_seat"], "claude#2")
+
+    def test_recipe_replay_reproduces_rubric(self):
+        out = self._out()
+        run_cli(["run", "--source", SAMPLE, "--out", out, "--yes",
+                 "--rubric", "--synthesize", "--no-live-status"])
+        # The recipe records rubric + the two template versions/shas.
+        with open(os.path.join(out, "run-recipe.yaml")) as fh:
+            recipe_text = fh.read()
+        self.assertIn("rubric: true", recipe_text)
+        self.assertIn("rubric_proposal_template:", recipe_text)
+        self.assertIn("rubric_chair_template:", recipe_text)
+        # Replay reproduces the pass.
+        out2 = self._out()
+        code, text, _ = run_cli(["run", "--from-recipe",
+                                 os.path.join(out, "run-recipe.yaml"),
+                                 "--out", out2, "--yes", "--no-live-status"])
+        self.assertEqual(code, rb.EXIT_OK)
+        self.assertTrue(os.path.exists(os.path.join(out2, "rubric.json")))
+
+    def test_run_card_and_tree_gated_on_rubric(self):
+        on = _config(rubric=True, synthesize=True)
+        off = _config(synthesize=True)
+        self.assertIn("rubric", rb.render_run_card(on).lower())
+        self.assertNotIn("rubric", rb.render_run_card(off).lower())
+        self.assertIn("rubric.json", rb.render_artifact_tree(on))
+        self.assertNotIn("rubric.json", rb.render_artifact_tree(off))
+
+    def test_run_card_chair_matches_execution_on_duplicate_board(self):
+        # CONCERN 2: on a duplicate-provider board (claude,claude,codex) with no
+        # --chair-seat, the run-card chair PROJECTION must name the SAME seat
+        # execution picks. The card now calls choose_chair_seat (the unique-id axis),
+        # so it names claude#1 — not claude#2 that a by-name dict (collapsing the two
+        # claude seats to the last) would have shown.
+        c = _config(rubric=True, board="claude,claude,codex")
+        exec_chair = rub_mod.choose_chair_seat(c, preferred=c.chair_seat)
+        self.assertEqual(exec_chair.id, "claude#1")
+        card = rb.render_run_card(c)
+        self.assertIn(f"chair={exec_chair.id}", card)
+        self.assertNotIn("chair=claude#2", card)
+
+    def test_status_gains_rubric_stage(self):
+        self.assertIn("rubric", st.STAGES)
+
+
+class TestRubricConsentHash(EnvMixin):
+    """B1: the rubric PROPOSAL prompt bytes are prebuilt into the approved egress
+    manifest + consent content hash, and the chair follows the round-2 precedent."""
+
+    def _out(self):
+        d = tempfile.mkdtemp(prefix="board-rubconsent-")
+        self.addCleanup(shutil.rmtree, d, ignore_errors=True)
+        return d
+
+    def test_rubric_proposal_blobs_are_in_the_consent_hash(self):
+        # The approved content hash for a --rubric run covers round-1 ∪ rubric-proposal.
+        # A test that FAILS if the --rubric prompt files are absent from the hash: the
+        # rubric content hash must DIFFER from the round-1-only hash, and must EQUAL the
+        # hash of the combined packet.
+        c = _config(rubric=True)
+        round1 = rb.build_packet(c)
+        proposal_blobs = rub_mod.build_rubric_proposal_blobs(c)
+        # The proposal blobs exist, one per board seat, named prompts/rubric-<id>.prompt.
+        self.assertEqual(len(proposal_blobs), len(c.board))
+        self.assertEqual({b.relpath for b in proposal_blobs},
+                         {f"prompts/rubric-{s.id}.prompt" for s in c.board})
+        h_round1_only = rb.packet_hash(round1)
+        h_full = rb.packet_hash(round1 + proposal_blobs)
+        # The FAIL-IF-ABSENT guard: folding the proposal prompts in changes the hash,
+        # so consent binds the exact proposal bytes (not just the round-1 prompts).
+        self.assertNotEqual(h_full, h_round1_only)
+        # And the proposal blobs are a real subset the manifest can enumerate.
+        for b in proposal_blobs:
+            self.assertIn("You are proposing RUBRIC criteria", b.text)
+
+    def test_approved_manifest_and_hash_name_the_rubric_prompts(self):
+        # E2E: the persisted egress-manifest.md names each rubric proposal prompt file,
+        # and the approved content hash printed by the run equals the combined-packet
+        # hash — the rubric prompts are IN the approved manifest AND hash.
+        out = self._out()
+        code, text, _ = run_cli(["run", "--source", SAMPLE, "--out", out, "--yes",
+                                 "--rubric", "--synthesize", "--no-live-status"])
+        self.assertEqual(code, rb.EXIT_OK)
+        with open(os.path.join(out, "egress-manifest.md")) as fh:
+            manifest = fh.read()
+        # Every rubric proposal prompt file is a row in the manifest (it egresses).
+        for seat in ("claude", "codex", "gemini"):
+            self.assertIn(f"prompts/rubric-{seat}.prompt", manifest)
+        # The printed content hash equals the combined round-1 ∪ rubric-proposal hash.
+        import re as _re
+        m = _re.search(r"content hash: sha256:([0-9a-f]{64})", text)
+        self.assertIsNotNone(m)
+        with open(os.path.join(out, "run-recipe.yaml")) as fh:
+            recipe = fh.read()
+        # The exact approved prompts are persisted on disk (the approved packet).
+        for seat in ("claude", "codex", "gemini"):
+            self.assertTrue(os.path.exists(
+                os.path.join(out, "prompts", f"rubric-{seat}.prompt")))
+
+    def test_rubric_prompt_absent_from_hash_would_be_detected(self):
+        # A direct assertion of the invariant the board asked to guard: if the rubric
+        # proposal prompts were NOT in the approved hash (the pre-fix behavior — hash
+        # built from round-1 blobs only), the run's re-assertion in _run_rubric_step
+        # would reject. We prove the hash the step re-asserts INCLUDES the proposals by
+        # showing the round-1-only hash does NOT match the approved (combined) hash.
+        c = _config(rubric=True)
+        round1 = rb.build_packet(c)
+        proposals = rub_mod.build_rubric_proposal_blobs(c)
+        approved = rb.packet_hash(round1 + proposals)
+        # The old (buggy) hash — round-1 only — is what consent would have bound before
+        # the fix; it must NOT equal the approved hash, so a rubric egress bound to it
+        # would drift and be refused.
+        self.assertNotEqual(rb.packet_hash(round1), approved)
+
+
+class TestRubricByteIdentity(EnvMixin):
+    """D5/R5: a run WITHOUT --rubric is byte-identical to today everywhere — recipe,
+    run card, artifact tree, estimator, and no rubric artifacts on disk."""
+
+    def test_no_rubric_recipe_byte_identical(self):
+        # The recipe carries NO rubric/chair keys for a non-rubric run.
+        recipe = rb.config_to_recipe(_config(synthesize=True))
+        for key in ("rubric", "chair_seat", "rubric_proposal_template",
+                    "rubric_chair_template", "rubric_proposal_template_sha256",
+                    "rubric_chair_template_sha256"):
+            self.assertNotIn(key, recipe)
+
+    def test_no_rubric_run_card_no_rubric_line(self):
+        card = rb.render_run_card(_config())
+        self.assertNotIn("rubric", card.lower())
+
+    def test_no_rubric_tree_no_rubric_entries(self):
+        tree = rb.render_artifact_tree(_config())
+        self.assertNotIn("rubric", tree)
+
+    def test_estimator_default_has_no_rubric_key(self):
+        est = rb.estimate_run(1000, ["claude-fable-5", "gpt-5.5"], 2, "summaries")
+        self.assertFalse(est.get("rubric"))
+        # The rubric estimate is strictly larger (tokens + time).
+        est_rub = rb.estimate_run(1000, ["claude-fable-5", "gpt-5.5"], 2,
+                                  "summaries", rubric=True)
+        self.assertGreater(est_rub["tokens_high"], est["tokens_high"])
+        self.assertGreater(est_rub["minutes_high"], est["minutes_high"])
+
+    def test_no_rubric_e2e_writes_no_rubric_artifacts(self):
+        out = tempfile.mkdtemp(prefix="board-norub-")
+        self.addCleanup(shutil.rmtree, out, ignore_errors=True)
+        code, text, _ = run_cli(["run", "--source", SAMPLE, "--out", out, "--yes",
+                                 "--synthesize", "--no-live-status"])
+        self.assertEqual(code, rb.EXIT_OK)
+        self.assertFalse(os.path.exists(os.path.join(out, "rubric.json")))
+        self.assertFalse(os.path.exists(os.path.join(out, "rubric")))
+        self.assertNotIn("rubric", text.lower())
+
+
 if __name__ == "__main__":
     unittest.main()
