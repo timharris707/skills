@@ -14,6 +14,8 @@ The Markdown + HTML handoff is the default deliverable. From the same run you ca
 
 All render from the same `verdict.json` (plus the optional `--run <run-dir>` for per-round prose), so the shapes never disagree. `--shape` defaults to `full-handoff`. For `full-handoff`/`quick-verdict` it picks the `--html` template only; `implementation-sequence` also switches the Markdown to the sequence view (default filename `implementation-sequence.md`, so it never masquerades as `final-consensus.md`).
 
+**Rubric scorecard (v1.15).** When a run carries a `verdict.json.scorecard` pointer (a synthesized `--rubric` run), `full-handoff` gains a `## Rubric scorecard` section — in both `final-consensus.md` and the HTML — with the criteria + weights, each seat's weighted total and coarse band (`weak`/`mixed`/`strong`) plus a per-round history/trajectory column, coverage/partial marks, recorded `RUBRIC-NOTE` objections, and the chair's dropped-criteria provenance. It reads `scorecard.json` best-effort and enforces the pinned pointer sha before rendering a value — a missing, malformed, or sha-mismatched artifact drops the section rather than showing something unverified. A non-rubric run's render carries zero extra bytes for it (the section whole-drops). Any severe token↔band contradiction is surfaced as a loud line in the primary verdict summary, never gated. See `references/verdict-schema.md` → *Lifecycle fields* for the pointer shape and `SKILL.md` § Round Protocol for how scores are produced.
+
 An owner on a step comes from the verdict itself: a `next_actions[]` entry may be either a plain string or `{"action": "...", "owner": "..."}` — the renderer adds nothing the board didn't say.
 
 ## Derived from `verdict.json` (deterministic)

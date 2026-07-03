@@ -167,6 +167,25 @@ them (or a `changes` key) gets exactly the same checks as an `@2` file.
   model-forbidden: the synthesizer merge strips a model-supplied `changes` (a model must not
   fabricate revision provenance). See `references/changes-schema.md` for the `changes.json`
   schema itself.
+- `rubric` / `scorecard` (optional objects, **tool-authored** — v1.15) — pointers to the
+  run's rubric-first artifacts, present only on a `run --rubric --synthesize` run (the
+  artifacts themselves stand alone without `--synthesize`; the pointers appear only once
+  there is a `verdict.json` to pin them to). Both follow the `changes` pointer shape and
+  discipline byte-for-byte: each is **exactly** `{artifact: <non-empty string>, sha256:
+  <64 lowercase hex>}`, strict-when-present, model-forbidden (the synthesizer merge strips a
+  model-supplied `rubric`/`scorecard` key), and **never read by the gate** — scores are
+  informational only (see `SKILL.md` § Round Protocol and `references/prompt-templates.md`).
+  `rubric` points at `rubric.json` (schema `advisory-board/rubric@1` — the pre-round merged
+  criteria + chair partition); `scorecard` points at `scorecard.json` (schema
+  `advisory-board/scorecard@1` — the post-rounds per-seat score trajectory, weighted
+  totals, coarse `weak`/`mixed`/`strong` bands, and any token↔band `contradictions[]`). A
+  verdict without `--rubric` is byte-for-byte the same schema as before — both fields
+  simply absent.
+
+```json
+"rubric": { "artifact": "rubric.json", "sha256": "3a7c…64 hex…" },
+"scorecard": { "artifact": "scorecard.json", "sha256": "9b1e…64 hex…" }
+```
 
 ```json
 "previous_run": {
@@ -214,7 +233,9 @@ file *may* carry `evidence[]`, and a malformed item is rejected regardless of ve
   {low, medium, high} (so the effective confidence can never resolve to garbage); a `changes`
   key, when present, is **exactly** `{artifact: <non-empty string>, sha256: <64 lowercase hex>}`
   (the v1.13 revision-artifact pointer — unknown keys, a missing key, or a malformed sha are
-  rejected).
+  rejected); `rubric` and `scorecard` keys, when present, are validated identically (the v1.15
+  pointers to `rubric.json`/`scorecard.json` — the same shared `{artifact, sha256}` check as
+  `changes`, unknown keys and malformed shas rejected the same way).
 - confidence-amendment **chain consistency**: the `from` of each confidence change must equal
   the effective confidence in force at that point (seeded from the board's own `confidence`),
   so a hand-edited chain that would render false provenance is rejected (exit `2`). The `amend`
