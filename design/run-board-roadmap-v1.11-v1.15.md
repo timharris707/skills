@@ -5,7 +5,7 @@
 - **Source:** 2026-07-01 four-agent review (feature surface · conductor architecture · artifacts/examples · market scan) + Tim's selection of items 1–14 from the ranked slate
 - **Owner:** Tim
 - **Baseline:** advisory-board/v1.10.0 · `main` @ `be4c9b2` · 676 tests green
-- **Status:** M1 SHIPPED (`advisory-board/v1.11.0`, 2026-07-01) · M2 SHIPPED (`advisory-board/v1.12.0`, 2026-07-02) · M3 SHIPPED (`advisory-board/v1.13.0`, 2026-07-02) · M4 SHIPPED (`advisory-board/v1.14.0`, 2026-07-02 — P1 PR #71 · P2 PR #73 · P3 PR #75) · M5 (v1.15) IN FLIGHT — P1 design pass done (D15–D20; docs PR #78, roundtable 2026-07-02), P2 rubric round + chair merge shipped (PR #80, merge `9b38a8e`, 2026-07-02), P3 scoring rounds + score-based convergence shipped (composed-context prerequisite PR #82, merge `13512bb`, 2026-07-03; checklist PR #84, merge `77cca26`, 2026-07-03, suite 1577 OK), P4 scorecard/schema pointers/renders shipped (PR #86, merge `f420cd1`, 2026-07-03, suite 1661 OK), P5 next
+- **Status:** M1 SHIPPED (`advisory-board/v1.11.0`, 2026-07-01) · M2 SHIPPED (`advisory-board/v1.12.0`, 2026-07-02) · M3 SHIPPED (`advisory-board/v1.13.0`, 2026-07-02) · M4 SHIPPED (`advisory-board/v1.14.0`, 2026-07-02 — P1 PR #71 · P2 PR #73 · P3 PR #75) · M5 SHIPPED (`advisory-board/v1.15.0`, 2026-07-03 — P1 design pass PR #78, P2 rubric round + chair merge PR #80 merge `9b38a8e`, P3 scoring rounds + score-based convergence PR #82 merge `13512bb` + PR #84 merge `77cca26` suite 1577 OK, P4 scorecard/schema pointers/renders PR #86 merge `f420cd1` suite 1661 OK, P5 release-prep docs PR #88, tag on `610017d`, release workflow green, repo Latest, suite 1661 OK) — **v1.11 → v1.15 train complete**, all fourteen items shipped
 
 ## Overview
 
@@ -173,7 +173,7 @@ Testing: validator strictness (unknown keys, weight sums, band computation); bod
 Gate: `cd skills/advisory-board && python3 -m unittest discover -s tests -t tests` ✓ (1661 OK)
 
 ### Phase 5 — Docs, review, release v1.15
-- [ ] Docs + CHANGELOG on `main`; tag `advisory-board/v1.15.0` under Tim's standing release go (2026-07-02, covers v1.15.0) → release green
+- [x] Docs + CHANGELOG on `main`; tag `advisory-board/v1.15.0` under Tim's standing release go (2026-07-02, covers v1.15.0) → release green _CHANGELOG `## [v1.15.0] - 2026-07-03 — Rubric-first deliberation` + docs sweep landed on main (PR #88) before the annotated tag; tag `advisory-board/v1.15.0` on `610017d`; release workflow green; repo Latest; suite 1661 OK._
 Gate: release Latest + full suite green.
 
 ## Decisions
