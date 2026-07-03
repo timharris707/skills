@@ -64,6 +64,14 @@ class RevisionContext:
     source_verified: Optional[bool]  # sha-matched the prior recipe? None = no source
     prior_sensitivity: Optional[str]  # the prior run's declared sensitivity, if recorded
     note: str                    # one-line provenance summary
+    # v1.15 P4 (D20): the prior run's agreed rubric (rubric.json), carried forward
+    # MECHANICALLY on a --revise --rubric run so scores stay comparable across
+    # revisions — re-agreement is NOT offered. None when the prior run carried no
+    # (or an invalid) rubric, or this is not a --rubric run: the current run then does
+    # its own proposal + chair pass. Read here (pre-approval, from the prior run dir —
+    # deterministic), so the carried criteria's scoring block lands in the round-1
+    # packet and is covered by the consent hash, per the §11 no-re-reasoning precedent.
+    carried_rubric: Optional[dict] = None
 
 
 # Sensitivity strictness order for the escalation gate below.
@@ -324,9 +332,54 @@ def prepare_revision(config) -> RevisionContext:
               "reviewed draft (same source_sha256) — this is a re-review, "
               "not a revision")
 
+    # v1.15 P4 (D20): carry the prior rubric forward on a --revise --rubric run. Read
+    # from the prior run dir (deterministic, pre-approval) and validated; the current
+    # run then reuses these EXACT criteria (no fresh proposal + chair pass, no
+    # re-agreement) so scores are comparable across revisions. Only meaningful when
+    # config.rubric is set; a non-rubric revise never reads it.
+    carried_rubric = _load_prior_rubric(run_dir) if getattr(config, "rubric", False) else None
+
     material = digest + "\n\n" + diff_block
     return RevisionContext(run_dir=run_dir, previous_run=previous_run,
                            material=material, diff_available=diff_available,
                            source_recovered_from=source_from,
                            source_verified=verified if prior_text is not None else None,
-                           prior_sensitivity=prior_sensitivity, note=note)
+                           prior_sensitivity=prior_sensitivity, note=note,
+                           carried_rubric=carried_rubric)
+
+
+def _load_prior_rubric(run_dir: str) -> Optional[dict]:
+    """Best-effort read + strict-validate of the prior run's rubric.json (v1.15 P4).
+    Returns the rubric dict when the prior run carried a valid rubric, else None (the
+    prior run wasn't a --rubric run, or its rubric.json is missing/malformed/invalid —
+    the current run then does its own proposal + chair pass rather than carrying a bad
+    rubric forward). Validated through board_rubric so a hand-corrupted prior artifact
+    can never be silently injected into the new rounds."""
+    path = os.path.join(run_dir, "rubric.json")
+    if not os.path.isfile(path) or os.path.islink(path):
+        return None
+    try:
+        with open(path, encoding="utf-8") as handle:
+            data = json.load(handle)
+    except (OSError, ValueError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    # Strict validation via board_rubric (lazy import + SystemExit capture, mirroring
+    # rubric.validate_rubric). A prior rubric that no longer validates is NOT carried.
+    import contextlib
+    import io
+    try:
+        import board_rubric
+    except ImportError:
+        return None
+    buf = io.StringIO()
+    try:
+        with contextlib.redirect_stderr(buf):
+            board_rubric.validate(data)
+    except SystemExit:
+        print(f"note: --revise: the prior run's rubric.json did not validate "
+              f"({buf.getvalue().strip() or 'schema error'}) — it will NOT be carried "
+              "forward; this run agrees a fresh rubric")
+        return None
+    return data

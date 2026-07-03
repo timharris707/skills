@@ -61,8 +61,15 @@ EVIDENCE_CONTAINERS = ("blockers", "dissent", "concerns")
 # them. `changes` (v1.13) is the tool-authored pointer to the revision artifact —
 # a strict `{artifact, sha256}` object validated when present (the "changes"
 # block in validate() below), and — like the others — stripped from synthesizer
-# merges (LIFECYCLE_KEYS) so no model can forge it.
-LIFECYCLE_FIELDS = ("previous_run", "amendments", "changes")
+# merges (LIFECYCLE_KEYS) so no model can forge it. `rubric`/`scorecard` (v1.15
+# P4) are the same shape of tool-authored `{artifact, sha256}` pointer for a
+# --rubric run's rubric.json / scorecard.json artifacts of record — validated
+# strictly when present, invisible when absent (a non-rubric verdict is
+# byte-identical), stripped from synthesizer merges, and NEVER read by the gate.
+LIFECYCLE_FIELDS = ("previous_run", "amendments", "changes", "rubric", "scorecard")
+# The tool-authored `{artifact, sha256}` sidecar pointers (v1.13/v1.15). Each is
+# validated by the SAME strict-when-present shape check (_validate_artifact_pointer).
+ARTIFACT_POINTERS = ("changes", "rubric", "scorecard")
 AMENDMENT_REQUIRED = ("author", "timestamp", "reason")
 
 EXIT_OK = 0
@@ -176,44 +183,56 @@ def iter_evidence_containers(data: dict):
     yield "verdict", data  # the top level may carry a bare evidence[]
 
 
+def _validate_artifact_pointer(data: dict, key: str) -> None:
+    """A TOOL-AUTHORED `{artifact, sha256}` sidecar pointer (`changes` v1.13;
+    `rubric`/`scorecard` v1.15) — written by the conductor with amend's discipline,
+    NEVER by a model (the synthesizer merge strips it, see synthesizer.LIFECYCLE_KEYS).
+    Strict-when-present, exactly {artifact, sha256} and nothing else: an acyclic pin
+    (verdict → artifact). Absent means absent — a verdict without it validates and
+    gates byte-identically."""
+    if key not in data:
+        return
+    ptr = data[key]
+    if not isinstance(ptr, dict):
+        die(f"{key} must be an object when present; got {type(ptr).__name__}")
+    unknown = set(ptr) - {"artifact", "sha256"}
+    if unknown:
+        die(f"{key}: unknown key(s): {', '.join(sorted(unknown))} "
+            f"({key} is exactly {{artifact, sha256}} — the artifact pointer)")
+    for field in ("artifact", "sha256"):
+        if field not in ptr:
+            die(f"{key} missing '{field}' ({key} is the pointer {{artifact, sha256}})")
+    if not isinstance(ptr["artifact"], str) or not ptr["artifact"].strip():
+        die(f"{key}.artifact must be a non-empty string")
+    # The renderer joins {key}.artifact onto run_dir to load the artifact, so it must
+    # be a BARE filename: an absolute path or `..` component would read outside the run
+    # dir (the renderer's islink check misses absolute targets and parent-dir symlinks).
+    # Mirrors board_changes' bare-filename gate — refuse the escape at the validator,
+    # confine at the load.
+    art = ptr["artifact"]
+    if (os.sep in art or (os.altsep and os.altsep in art)
+            or os.path.isabs(art) or ".." in art.replace("\\", "/").split("/")):
+        die(f"{key}.artifact must be a bare filename (no path separator, no "
+            f"'..', not absolute); got {art!r}")
+    sha = ptr["sha256"]
+    if (not isinstance(sha, str) or len(sha) != 64
+            or any(c not in "0123456789abcdef" for c in sha)):
+        die(f"{key}.sha256 must be 64 lowercase hex chars (the sha256 of the "
+            f"{art} bytes)")
+
+
 def _validate_lifecycle(data: dict) -> None:
     """Lifecycle fields (since v1.12): validated strictly WHEN PRESENT, invisible
     when absent — an existing verdict without them validates and gates
     byte-identically. These fields carry lineage and human provenance, not board
     reasoning, so gate_outcome() never reads them."""
-    # `changes` (v1.13): a TOOL-AUTHORED pointer to the revision artifact
-    # (changes.json), written by the conductor's revision step with amend's
-    # discipline — NEVER by a model (the synthesizer merge strips it, see
-    # synthesizer.LIFECYCLE_KEYS). Strict-when-present, exactly {artifact, sha256}
-    # and nothing else: an acyclic pin (verdict → changes → {source, revised}).
-    if "changes" in data:
-        changes = data["changes"]
-        if not isinstance(changes, dict):
-            die(f"changes must be an object when present; got {type(changes).__name__}")
-        unknown = set(changes) - {"artifact", "sha256"}
-        if unknown:
-            die(f"changes: unknown key(s): {', '.join(sorted(unknown))} "
-                "(changes is exactly {artifact, sha256} — the revision-artifact pointer)")
-        for key in ("artifact", "sha256"):
-            if key not in changes:
-                die(f"changes missing '{key}' (changes is the pointer {{artifact, sha256}})")
-        if not isinstance(changes["artifact"], str) or not changes["artifact"].strip():
-            die("changes.artifact must be a non-empty string")
-        # The renderer joins changes.artifact onto run_dir to load changes.json, so
-        # it must be a BARE filename: an absolute path or `..` component would read
-        # outside the run dir (the renderer's islink check misses absolute targets
-        # and parent-dir symlinks). Mirrors board_changes' bare-filename gate on
-        # revised.artifact — refuse the escape at the validator, confine at the load.
-        art = changes["artifact"]
-        if (os.sep in art or (os.altsep and os.altsep in art)
-                or os.path.isabs(art) or ".." in art.replace("\\", "/").split("/")):
-            die("changes.artifact must be a bare filename (no path separator, no "
-                f"'..', not absolute); got {art!r}")
-        sha = changes["sha256"]
-        if (not isinstance(sha, str) or len(sha) != 64
-                or any(c not in "0123456789abcdef" for c in sha)):
-            die("changes.sha256 must be 64 lowercase hex chars (the sha256 of the "
-                "changes.json bytes)")
+    # `changes` (v1.13) / `rubric`, `scorecard` (v1.15 P4): TOOL-AUTHORED
+    # `{artifact, sha256}` pointers to the sidecar artifacts of record, all the same
+    # strict-when-present shape (see _validate_artifact_pointer). Written by the
+    # conductor with amend's discipline — NEVER by a model (the synthesizer merge
+    # strips them, see synthesizer.LIFECYCLE_KEYS).
+    for _pointer_key in ARTIFACT_POINTERS:
+        _validate_artifact_pointer(data, _pointer_key)
 
     if "previous_run" in data:
         prev = data["previous_run"]

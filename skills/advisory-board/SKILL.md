@@ -63,7 +63,7 @@ Preflight — run `references/preflight.md` before launching: for each seat, che
 
 ## Seats
 
-Give each seat a distinct lens so the board covers more ground than any single reviewer, and match the lenses to the subject. Pick a ready-made lens set from `references/lens-presets.md` — `software-architecture` (default), `product-strategy`, `research-paper`, `legal-contract`, `business-decision`, `writing-editing` — or compose your own. For software and technical work, the default split:
+Give each seat a distinct lens so the board covers more ground than any single reviewer, and match the lenses to the subject. Pick a ready-made lens set from `references/lens-presets.md` — `software-architecture` (default), `product-strategy`, `research-paper`, `legal-contract`, `business-decision`, `writing-editing`, `stakeholder-panel` (convene "the room this decision would face") — or compose your own. For software and technical work, the default split:
 
 - Claude: architecture, systems, and adversarial design review.
 - Codex: repo-grounded implementation, migration, testing, and execution.

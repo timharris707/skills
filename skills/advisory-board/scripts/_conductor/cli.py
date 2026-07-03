@@ -287,7 +287,18 @@ def _execute_run(config, args) -> int:
             f"--cross-reading summaries (this run uses {config.cross_reading!r}{cause})",
             EXIT_USAGE)
 
-    blobs = build_packet(config)
+    # v1.15 P4 (D20): on a --revise --rubric run whose prior run carried a valid rubric,
+    # the prior rubric is carried forward MECHANICALLY — no fresh proposal + chair pass.
+    # Its criteria are DETERMINISTIC pre-approval (read from the prior run dir in
+    # prepare_revision), so the round-1 scoring block is built into the packet HERE and
+    # covered by the consent hash (the §11 no-re-reasoning precedent — unlike the
+    # post-approval chair merge, which cannot be pre-hashed). When there's no carried
+    # rubric, this is None and the run does its own proposal + chair pass below.
+    carried_rubric = (config.revision.carried_rubric
+                      if (config.rubric and config.revision is not None) else None)
+    carried_criteria = (carried_rubric.get("criteria") if carried_rubric else None) or None
+
+    blobs = build_packet(config, rubric_criteria=carried_criteria)
     # B1: under --rubric, the PROPOSAL-pass prompts are deterministic pre-run — each
     # embeds the source PLUS the SHARED composed review-context (P3): the same surface
     # round 1 carries beyond the bare source (the --repo grounding clause and/or the
@@ -306,7 +317,13 @@ def _execute_run(config, args) -> int:
     # prompt is a board-generated derivative (it embeds seat proposals that don't exist
     # yet) and follows the round-2 precedent — its packet hash is logged at spawn, not
     # in this initial consent hash. (See rubric.py's CONSENT-HASH BINDING docstring.)
-    rubric_blobs = build_rubric_proposal_blobs(config) if config.rubric else []
+    # A carried-rubric revise run runs NO proposal pass (the criteria are already in
+    # blobs' round-1 scoring block), so there are no separate rubric-proposal blobs to
+    # hash — the carried criteria egress inside the round-1 packet, exactly like any
+    # other round-1 content. A fresh --rubric run (no carried rubric) builds the
+    # proposal blobs as before.
+    rubric_blobs = (build_rubric_proposal_blobs(config)
+                    if (config.rubric and carried_rubric is None) else [])
     egress_blobs = blobs + rubric_blobs
     content_hash = packet_hash(egress_blobs)
 
@@ -335,10 +352,14 @@ def _execute_run(config, args) -> int:
         # board[0]): choose_chair_seat is the same claude-if-seated → board[0]
         # projection the run uses, honoring --chair-seat. Only computed under --rubric;
         # the config is already resolved, so the preferred chair is on-board (no die()).
+        # A carried-rubric revise run runs NO proposal or chair spawn (the criteria are
+        # reused mechanically), so it prices like a non-rubric run for the extra-spawn
+        # cost — the scoring block rides inside the existing round prompts.
+        does_rubric_pass = config.rubric and carried_rubric is None
         est_chair_model = (choose_chair_seat(config, preferred=config.chair_seat).model
-                           if config.rubric else None)
+                           if does_rubric_pass else None)
         est = estimate_run(config.source.nbytes, [s.model for s in config.board],
-                           est_rounds, config.cross_reading, rubric=config.rubric,
+                           est_rounds, config.cross_reading, rubric=does_rubric_pass,
                            chair_model=est_chair_model)
         for line in render_estimate(est):
             print(f"  {line}")
@@ -463,7 +484,8 @@ def _execute_run(config, args) -> int:
     try:
         return _run_after_activate(
             config, args, tracker, blobs, approval, content_hash,
-            preflight, digest_json, _seat_cb, _write, rubric_blobs=rubric_blobs)
+            preflight, digest_json, _seat_cb, _write, rubric_blobs=rubric_blobs,
+            carried_rubric=carried_rubric)
     finally:
         try:
             tracker.finish_if_unfinished(
@@ -510,7 +532,7 @@ def _print_scoring_summary(results: list, criterion_ids) -> None:
 
 def _run_after_activate(config, args, tracker, blobs, approval, content_hash,
                         preflight, digest_json, _seat_cb, _write,
-                        *, rubric_blobs=None) -> int:
+                        *, rubric_blobs=None, carried_rubric=None) -> int:
     """The post-activate run body (rounds → synthesis/hand-off). Split out of
     _execute_run so its caller can wrap it in the abort guard: everything here runs
     AFTER the live view committed to disk, so any abnormal exit must land in that
@@ -533,11 +555,37 @@ def _run_after_activate(config, args, tracker, blobs, approval, content_hash,
     # and the round bytes are byte-identical to a non-rubric run (D5/D6).
     rubric_criteria = None
     criterion_ids = None
-    if config.rubric:
+    merged_rubric = None   # the full rubric.json dict (P4: scorecard reads its criteria)
+    if config.rubric and carried_rubric is not None:
+        # v1.15 P4 (D20): a --revise --rubric run carrying the prior rubric forward
+        # MECHANICALLY. No proposal + chair pass — the criteria were read pre-approval
+        # from the prior run dir and their scoring block is ALREADY in blobs (built into
+        # the round-1 packet in _execute_run, covered by the consent hash). Re-agreement
+        # is NOT offered (the §11 no-re-reasoning precedent; scores stay comparable
+        # across revisions). Write the carried rubric.json into THIS run dir so the run
+        # is self-contained and the scorecard/verdict pointer bind a local artifact.
+        merged_rubric = carried_rubric
+        rubric_criteria = carried_rubric.get("criteria") or []
+        criterion_ids = tuple(c["id"] for c in rubric_criteria
+                              if isinstance(c, dict) and c.get("id"))
+        tracker.stage("rubric", "done",
+                      f"{len(rubric_criteria)} criteria carried from the prior run")
+        rubric_path = os.path.join(config.out_dir, "rubric.json")
+        _write(rubric_path, json.dumps(carried_rubric, indent=2, ensure_ascii=False) + "\n")
+        prior = config.revision.run_dir if config.revision is not None else "?"
+        print(f"\n=== rubric (carried forward from {prior}) ===")
+        print(f"  {len(rubric_criteria)} criteria carried MECHANICALLY from the prior "
+              "run's rubric.json (no re-agreement, D20) — scores stay comparable across "
+              "revisions. The criteria were injected into the round-1 packet pre-approval "
+              "(inside the consent hash).")
+        print(f"wrote {rubric_path} (advisory-board/rubric@1 — carried, re-validated)")
+        # blobs already carry the scoring block (built in _execute_run) — do NOT rebuild.
+    elif config.rubric:
         outcome = _run_rubric_step(config, blobs, approval, tracker=tracker,
                                    _write=_write, rubric_blobs=rubric_blobs)
         if isinstance(outcome, int):
             return outcome   # a refusal exit code — nothing valuable ran yet (D20)
+        merged_rubric = outcome
         # Success: the merged rubric dict. Rebuild the round-1 packet WITH the scoring
         # block. This scored packet is a DERIVATIVE of already-approved material (the
         # proposal fan-out consent-hashed prompts + the chair merge, covered by the
@@ -560,7 +608,8 @@ def _run_after_activate(config, args, tracker, blobs, approval, content_hash,
     print("\n=== round 1 (fan-out) ===")
     tracker.round_started(1)
     r1 = run_round(config, blobs, approval, round_no=1, on_seat=_seat_cb,
-                   criterion_ids=criterion_ids, rubric_criteria=rubric_criteria)
+                   criterion_ids=criterion_ids, rubric_criteria=rubric_criteria,
+                   rubric_pre_consent=carried_rubric is not None)
     write_round_artifacts(config, r1, 1)
     rounds_done = [r1]
     tracker.round_done(1, f"{sum(1 for r in r1 if r.usable)} of {len(r1)} usable"
@@ -687,6 +736,37 @@ def _run_after_activate(config, args, tracker, blobs, approval, content_hash,
         # so the file is absent there and the pill drops → byte-identical (D5).
         _write(os.path.join(config.out_dir, "echo-score.json"),
                json.dumps(echo, indent=2, ensure_ascii=False) + "\n")
+
+    # scorecard.json (v1.15 #P4 — D17/D18): the post-rounds SCORING artifact of record
+    # on a --rubric run. Written AFTER the rounds (rubric.json is written BEFORE — the
+    # D18 two-artifact split by time), from the conductor's own state: the merged
+    # rubric's criteria + the per-round SeatRoundResult scores (PARSED, never a model
+    # JSON field). It STANDS ALONE (like the round artifacts) — no --synthesize needed;
+    # the verdict pointer appears only when synthesis runs (below). A validation failure
+    # WARNS and writes nothing — the rounds/verdict still stand (D14, a scorecard hiccup
+    # never discards the board). It is written for ANY round count (even a single scored
+    # round carries a trajectory), unlike echo-score which needs a final transition.
+    if merged_rubric is not None:
+        from _conductor.scorecard import build_scorecard, validate_scorecard
+        try:
+            scorecard = build_scorecard(
+                config, merged_rubric, rounds_done,
+                chair_seat=merged_rubric.get("chair_seat", "?"))
+            err = validate_scorecard(scorecard)
+        except (KeyError, TypeError, ValueError) as exc:
+            scorecard, err = None, f"scorecard assembly error: {exc}"
+        if scorecard is not None and err is None:
+            _write(os.path.join(config.out_dir, "scorecard.json"),
+                   json.dumps(scorecard, indent=2, ensure_ascii=False) + "\n")
+            contra = len(scorecard.get("contradictions") or [])
+            print(f"\nwrote {config.out_dir}/scorecard.json (advisory-board/scorecard@1 — "
+                  f"validated; {len(scorecard.get('criteria') or [])} criteria, "
+                  f"{len(scorecard.get('scores') or [])} score row(s)"
+                  + (f", {contra} token↔band contradiction(s) — informational, never gated"
+                     if contra else "") + ")")
+        else:
+            print(f"\n⚠ scorecard.json NOT written — {err}. The rounds and verdict still "
+                  "stand (a scorecard hiccup never discards the board).")
 
     # Provenance after the last fan-out (carries every round's outcome + the M1
     # convergence trace: per-transition movement and why the loop stopped).
@@ -1043,6 +1123,16 @@ def _run_synthesis_step(config, rounds_done: list, args, last_dir: str, *,
         with open(verdict_path, "w", encoding="utf-8", newline="") as handle:
             handle.write(verdict_bytes)
         print(f"\nwrote {verdict_path} (synthesized; advisory-board/verdict@2 — validated)")
+        # v1.15 P4: pin the tool-authored rubric/scorecard pointers into verdict.json.
+        # The artifacts STAND ALONE (written above, --synthesize-independent) — the
+        # pointers appear ONLY when synthesis runs (there's no verdict.json to pin to
+        # otherwise). Each write shifts the on-disk sha, so the returned baseline is
+        # chained into the next pointer write AND handed to the revision step (whose
+        # own changes-pointer guard must sha-guard the LATEST bytes, not the pre-pointer
+        # verdict). A pointer write failure is loud but never fatal — the artifact still
+        # stands on its own (D14).
+        verdict_sha256 = hashlib.sha256(verdict_bytes.encode("utf-8")).hexdigest()
+        verdict_sha256 = _pin_rubric_scorecard_pointers(config, verdict_path, verdict_sha256)
         # --output revised-draft (v1.13 #2): a validated verdict.json now exists, so
         # the revision step runs — analogous placement/shape to the synthesis step,
         # gated on config.output. A revision failure never discards the verdict/rounds
@@ -1051,8 +1141,7 @@ def _run_synthesis_step(config, rounds_done: list, args, last_dir: str, *,
         if config.output == "revised-draft":
             return _run_revision_step(config, sr.verdict_data, rounds_done, args,
                                       verdict_path=verdict_path,
-                                      verdict_sha256=hashlib.sha256(
-                                          verdict_bytes.encode("utf-8")).hexdigest(),
+                                      verdict_sha256=verdict_sha256,
                                       tracker=tk)
         tk.finish("ok", "verdict synthesized")
         print("\nNext — the deterministic M5 chain (human still gates ship/abstain):")
@@ -1119,33 +1208,70 @@ def _revised_draft_name(config, *, rejected: bool) -> str:
     return stem + ext
 
 
-def _write_verdict_changes_pointer(verdict_path: str, changes_sha256: str, *,
-                                   baseline_sha256: str) -> "tuple":
-    """Write `verdict.json.changes = {artifact, sha256}` (D10) with amend's full
-    write discipline: re-read + re-validate, an optimistic sha guard against the
-    bytes synthesis wrote (a race/outside edit refuses), symlink-preserving
-    realpath, mkstemp + rename, mode preservation. The pointer is acyclic
-    (verdict → changes → {source, revised}); changes.json never references the
-    verdict by hash. Returns (ok, detail)."""
+def _pin_rubric_scorecard_pointers(config, verdict_path: str, baseline_sha256: str) -> str:
+    """Pin `verdict.json.rubric` and `verdict.json.scorecard` — the tool-authored
+    `{artifact, sha256}` pointers (v1.15 P4) — when those sidecar artifacts exist on
+    disk. Only meaningful on a --rubric run; a no-op otherwise (rubric.json absent →
+    nothing pinned → verdict byte-identical to a non-rubric synthesized run). Each
+    pointer's sha256 is over the artifact's EXACT on-disk bytes (binary), the same value
+    the artifact's own writer produced. Returns the on-disk verdict sha AFTER the writes
+    (chained forward for the revision step's changes pointer)."""
+    if not config.rubric:
+        return baseline_sha256
+    import board_verdict
+    sha = baseline_sha256
+    for key, artifact in (("rubric", "rubric.json"), ("scorecard", "scorecard.json")):
+        art_path = os.path.join(config.out_dir, artifact)
+        if not os.path.exists(art_path):
+            continue   # a refused rubric never gets here; a rejected scorecard is absent
+        # _file_sha256 returns None (never raises) on an unreadable artifact — guard it
+        # explicitly so we skip with a clear message rather than trying to pin a None sha.
+        art_sha = board_verdict._file_sha256(art_path)
+        if art_sha is None:
+            print(f"  ⚠ could not read {artifact} to pin its pointer — pointer NOT "
+                  "written; the artifact still stands on its own")
+            continue
+        ok, detail, sha = _write_verdict_pointer(
+            verdict_path, key, artifact, art_sha, baseline_sha256=sha)
+        if ok:
+            print(f"  {detail}")
+        else:
+            print(f"  ⚠ {detail}")
+    return sha
+
+
+def _write_verdict_pointer(verdict_path: str, key: str, artifact: str, sha256: str, *,
+                           baseline_sha256: str) -> "tuple":
+    """Write `verdict.json.<key> = {artifact, sha256}` (a tool-authored sidecar pointer:
+    `changes` D10; `rubric`/`scorecard` v1.15 P4) with amend's full write discipline:
+    re-read + re-validate, an optimistic sha guard against the bytes on disk (a
+    race/outside edit refuses), symlink-preserving realpath, mkstemp + rename, mode
+    preservation. The pointer is acyclic (verdict → artifact); the artifact never
+    references the verdict by hash. `baseline_sha256` is the on-disk sha the caller last
+    saw — chained across sequential pointer writes (each write shifts it), so a second
+    pointer guards against the FIRST pointer's bytes, not the pre-pointer verdict.
+    Returns (ok, detail, new_baseline_sha256) — the new baseline is the just-written
+    file's sha on success, else the unchanged input baseline."""
     import tempfile
     import board_verdict
     # Resolve through any symlink so we read AND write the real target (amend's rule).
     path = os.path.realpath(verdict_path)
     current_sha = board_verdict._file_sha256(path)
     if current_sha != baseline_sha256:
-        return (False, "verdict.json changed since synthesis wrote it — the changes "
-                "pointer was NOT written (optimistic-concurrency guard); changes.json "
-                "still stands on its own")
+        return (False, f"verdict.json changed since it was last written — the {key} "
+                "pointer was NOT written (optimistic-concurrency guard); "
+                f"{artifact} still stands on its own", baseline_sha256)
     try:
         data = board_verdict.load(path)   # re-read + re-validate before touching
     except SystemExit:
-        return (False, "verdict.json failed re-validation before the pointer write — "
-                "pointer NOT written")
-    data["changes"] = {"artifact": "changes.json", "sha256": changes_sha256}
+        return (False, f"verdict.json failed re-validation before the {key} pointer "
+                "write — pointer NOT written", baseline_sha256)
+    data[key] = {"artifact": artifact, "sha256": sha256}
     try:
         board_verdict.validate(data)      # the pointer must itself validate (strict-when-present)
     except SystemExit:
-        return (False, "the changes pointer failed verdict schema validation — NOT written")
+        return (False, f"the {key} pointer failed verdict schema validation — NOT written",
+                baseline_sha256)
 
     dest_dir = os.path.dirname(path) or "."
     try:
@@ -1154,7 +1280,7 @@ def _write_verdict_changes_pointer(verdict_path: str, changes_sha256: str, *,
         orig_mode = 0o644
     tmp = None
     try:
-        fd, tmp = tempfile.mkstemp(dir=dest_dir, prefix=".verdict.json.changes.", suffix=".tmp")
+        fd, tmp = tempfile.mkstemp(dir=dest_dir, prefix=f".verdict.json.{key}.", suffix=".tmp")
         # newline="" writes byte-exact (no platform \n → \r\n translation) so the
         # bytes on disk are the bytes the guard hashes in binary — a later re-read /
         # re-guard of this same file must not diverge from what we wrote.
@@ -1165,19 +1291,31 @@ def _write_verdict_changes_pointer(verdict_path: str, changes_sha256: str, *,
         # Re-check the race guard just before the swap (a narrowing, not a lock).
         if board_verdict._file_sha256(path) != baseline_sha256:
             board_verdict._cleanup(tmp)
-            return (False, "verdict.json changed while writing the changes pointer — NOT written")
+            return (False, f"verdict.json changed while writing the {key} pointer — "
+                    "NOT written", baseline_sha256)
         os.replace(tmp, path)
     except OSError as exc:
         if tmp is not None:
             board_verdict._cleanup(tmp)
-        return (False, f"cannot write the changes pointer to verdict.json: {exc}")
+        return (False, f"cannot write the {key} pointer to verdict.json: {exc}", baseline_sha256)
     except BaseException:
         # A non-OSError (e.g. KeyboardInterrupt) between mkstemp and replace must
         # not leave a scratch tmp behind (parity with amend's write path).
         if tmp is not None:
             board_verdict._cleanup(tmp)
         raise
-    return (True, "wrote verdict.json.changes pointer (sha-bound to changes.json)")
+    new_baseline = board_verdict._file_sha256(path)
+    return (True, f"wrote verdict.json.{key} pointer (sha-bound to {artifact})", new_baseline)
+
+
+def _write_verdict_changes_pointer(verdict_path: str, changes_sha256: str, *,
+                                   baseline_sha256: str) -> "tuple":
+    """Back-compat shim for the revision step's changes pointer (D10). Delegates to the
+    shared `_write_verdict_pointer` and returns the original `(ok, detail)` 2-tuple."""
+    ok, detail, _ = _write_verdict_pointer(
+        verdict_path, "changes", "changes.json", changes_sha256,
+        baseline_sha256=baseline_sha256)
+    return (ok, detail)
 
 
 def _run_endorsement_pass(config, rr, revision_seat, args) -> list:

@@ -45,6 +45,14 @@ Running via `run_board.py`, the board preset is `--lens <preset>` (it sets the v
 - **Clarity & style** — concision, flow, precision, tone for the audience.
 - **Audience & impact** — does it land, what is missing, what a skeptic seizes on.
 
+### `stakeholder-panel`
+"The room this decision would face" — three distinct stakeholder archetypes, one per seat, in a fixed **seat-order binding**:
+- **The decision owner** — the executive who must answer for the outcome: does it deliver, at what cost, what do we tell the board.
+- **The end user** — the person this lands on: does it actually help them, what friction or harm does it create, would they choose it.
+- **The compliance & risk reviewer** — the gatekeeper who signs off: what rule, obligation, or downside does this trip, and can we defend it.
+
+The lens string **is** the persona (there is no separate structured-persona object). The seat-order binding is positional: a **4th** seat repeats the reviewer voice, a **2-seat** board drops the third archetype. It pairs naturally with weighted-rubric scoring — `--rubric --lens stakeholder-panel` convenes the room *and* scores the decision against criteria the panel itself agrees — but the two flags are **orthogonal**: `--lens stakeholder-panel` never implies `--rubric`, and `--rubric` never implies a lens. Combine them explicitly.
+
 ## Custom lenses
 
 No preset fits? Write three lenses that triangulate the subject: one on first-principles soundness, one on execution and feasibility, one on second-order consequences and stakeholder risk. Keep them distinct enough that two seats won't return the same review.

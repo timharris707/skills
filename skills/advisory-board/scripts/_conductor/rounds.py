@@ -203,7 +203,8 @@ def run_round(config: RunConfig, blobs: list, approval: EgressApproval, *,
               round_no: int = 1, timeout: Optional[int] = None,
               parallel: bool = True, classify=classify_round1,
               on_seat=None, criterion_ids: Optional[tuple] = None,
-              rubric_criteria: Optional[list] = None) -> list:
+              rubric_criteria: Optional[list] = None,
+              rubric_pre_consent: bool = False) -> list:
     """Fan a round out across its seats. Returns SeatRoundResult in blob order.
 
     `on_seat` (v1.14 #10 live progress) is an optional best-effort callback fired
@@ -263,7 +264,15 @@ def run_round(config: RunConfig, blobs: list, approval: EgressApproval, *,
     # all lack clean ids would inject a scoring block yet yield empty criterion_ids, and
     # vice versa). Deriving both from `config.rubric` closes that seam (Concern: predicate
     # split).
-    scored_round1 = round_no == 1 and getattr(config, "rubric", False)
+    # A scored round 1 whose rubric was PRE-CONSENT (a --revise --rubric run carrying
+    # the prior rubric forward, D20) is NOT the two-link case: the criteria were injected
+    # into the round-1 packet BEFORE consent, so the WHOLE scored packet IS what consent
+    # bound and it takes the normal whole-packet assertion (approval.content_hash already
+    # carries the scoring block; approval.round1_hash is None because no proposal pass
+    # ran). Only a POST-CONSENT merged rubric (the fresh proposal + chair path) needs the
+    # stripped-base chain, because its delta didn't exist at consent time.
+    scored_round1 = (round_no == 1 and getattr(config, "rubric", False)
+                     and not rubric_pre_consent)
     if round_no == 1 and not scored_round1:
         # Non-rubric round 1: the exact outbound packet must equal what consent bound.
         expected_round1 = approval.round1_hash or approval.content_hash

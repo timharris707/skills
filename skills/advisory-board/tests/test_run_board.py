@@ -2385,6 +2385,44 @@ class TestScoredRound1BaseReassert(EnvMixin):
                          criterion_ids=crit_ids, rubric_criteria=self._CRIT, parallel=False)
         self.assertEqual(cm.exception.code, rb.EXIT_EGRESS_BLOCKED)
 
+    # -- CARRIED path (--revise --rubric carrying the prior rubric forward, D20) --- #
+
+    def _carried_setup(self):
+        # A --revise --rubric run whose prior rubric is CARRIED forward: the criteria are
+        # injected into the round-1 packet BEFORE consent, so the WHOLE scored packet IS
+        # what consent bound (approval.content_hash == the scored packet hash;
+        # approval.round1_hash is None — no proposal pass ran). run_round takes the NORMAL
+        # whole-packet assertion here (rubric_pre_consent=True), NOT the two-link chain.
+        config = self._revise_scored_config()
+        scored = rb.build_packet(config, rubric_criteria=self._CRIT)
+        approval = rb.EgressApproval(True, "hash-bound", rb.packet_hash(scored),
+                                     "2026-06-25T12:00:00", "test")
+        # round1_hash stays None: a carried run has no proposal-pass sub-hash. The whole
+        # scored packet is the consent anchor (content_hash).
+        crit_ids = tuple(c["id"] for c in self._CRIT)
+        return config, scored, approval, crit_ids
+
+    def test_carried_happy_path_whole_packet_matches_consent(self):
+        # The untampered carried packet hashes to exactly what consent bound — the normal
+        # whole-packet assert passes (the priority-1 invariant on the carried path).
+        config, scored, approval, _ids = self._carried_setup()
+        self.assertEqual(rb.packet_hash(scored), approval.content_hash)
+        self.assertIsNone(approval.round1_hash)
+
+    def test_carried_tampered_packet_dies_egress_blocked(self):
+        # PRIORITY-1 INVARIANT (was unlocked by any test): a carried --revise --rubric
+        # round 1 drives the WHOLE-packet hard assert. Mutate an outbound blob after
+        # approval → the packet no longer hashes to the consent anchor → the carried path
+        # dies EXIT_EGRESS_BLOCKED exactly like the non-rubric hard path (NOT the two-link
+        # chain — rubric_pre_consent=True routes it through the whole-packet branch).
+        config, scored, approval, crit_ids = self._carried_setup()
+        scored[0].text = scored[0].text + "\nINJECTED AFTER APPROVAL\n"
+        with self.assertRaises(SystemExit) as cm:
+            rb.run_round(config, scored, approval, round_no=1,
+                         criterion_ids=crit_ids, rubric_criteria=self._CRIT,
+                         rubric_pre_consent=True, parallel=False)
+        self.assertEqual(cm.exception.code, rb.EXIT_EGRESS_BLOCKED)
+
 
 class TestRound1RunLevel(EnvMixin):
     def test_under_two_usable_warns_but_writes_artifacts(self):
@@ -16865,6 +16903,1021 @@ class TestRubricScoringRoundsE2E(EnvMixin):
         # … and the prose now explains score changes, not verdict+citations only.
         self.assertIn("SCORE", record)
         self.assertIn("score changed", record)
+
+
+# --------------------------------------------------------------------------- #
+# v1.15 #P4 (D17/D18/D20) — scorecard.json, verdict pointers, renders.
+# --------------------------------------------------------------------------- #
+
+import board_scorecard as bsc  # noqa: E402  (v1.15 P4: scorecard@1 validator)
+from _conductor import scorecard as sc_mod  # noqa: E402
+from _conductor import rounds as rnd  # noqa: E402  (SeatRoundResult for build_scorecard)
+
+
+def _scorecard_doc(**extra):
+    """A minimal valid scorecard@1 document (two criteria 60/40, one contradiction)."""
+    data = {
+        "schema": "advisory-board/scorecard@1",
+        "title": "Payments review",
+        "chair_seat": "claude",
+        "rubric_artifact": "rubric.json",
+        "criteria": [
+            {"id": "c1", "title": "Correctness", "weight": 60},
+            {"id": "c2", "title": "Risk", "weight": 40},
+        ],
+        "scores": [
+            {"seat": "claude", "round": 1, "criterion": "c1", "score": 4},
+            {"seat": "claude", "round": 1, "criterion": "c2", "score": 2},
+            {"seat": "codex", "round": 1, "criterion": "c1", "score": 1},
+        ],
+        "rubric_notes": [
+            {"seat": "codex", "round": 1, "note": "c2 is underweighted"},
+        ],
+        "totals": [
+            {"seat": "claude", "weighted_total": 3.2, "band": "mixed",
+             "partial": False, "criteria_scored": 2,
+             "final_verdict": "caution", "final_verdict_round": 1},
+            {"seat": "codex", "weighted_total": 1.0, "band": "weak",
+             "partial": True, "criteria_scored": 1,
+             "final_verdict": "ship", "final_verdict_round": 1},
+        ],
+        "contradictions": [
+            {"seat": "codex", "verdict": "ship", "band": "weak",
+             "token_round": 1, "score_round": 1},
+        ],
+    }
+    data.update(extra)
+    return data
+
+
+class TestBoardScorecardValidator(unittest.TestCase):
+    """board_scorecard.py — strict, mirroring board_rubric/board_changes discipline."""
+
+    def _dies(self, doc, needle=None):
+        buf = io.StringIO()
+        with contextlib.redirect_stderr(buf):
+            with self.assertRaises(SystemExit) as cm:
+                bsc.validate(doc)
+        self.assertEqual(cm.exception.code, bsc.EXIT_SCHEMA)
+        if needle is not None:
+            self.assertIn(needle, buf.getvalue())
+
+    def test_valid_doc_passes(self):
+        bsc.validate(_scorecard_doc())   # no raise
+
+    def test_unknown_top_level_key_refused(self):
+        self._dies(_scorecard_doc(surprise=1), "unknown top-level key")
+
+    def test_missing_required_key_refused(self):
+        d = _scorecard_doc()
+        del d["totals"]
+        self._dies(d, "missing required field")
+
+    def test_wrong_schema_refused(self):
+        self._dies(_scorecard_doc(schema="advisory-board/scorecard@2"), "schema must be")
+
+    def test_weight_sum_must_be_100(self):
+        d = _scorecard_doc()
+        d["criteria"][1]["weight"] = 41   # 60 + 41 = 101
+        self._dies(d, "sum to 101, not 100")
+
+    def test_criterion_ids_must_be_dense(self):
+        d = _scorecard_doc()
+        d["criteria"] = [{"id": "c2", "title": "X", "weight": 100}]
+        self._dies(d, "dense c1…cN")
+
+    def test_score_out_of_range_refused(self):
+        d = _scorecard_doc()
+        d["scores"][0]["score"] = 6
+        self._dies(d, "must be an integer in [1, 5]")
+
+    def test_score_zero_refused(self):
+        d = _scorecard_doc()
+        d["scores"][0]["score"] = 0
+        self._dies(d, "must be an integer in [1, 5]")
+
+    def test_score_names_phantom_criterion_refused(self):
+        d = _scorecard_doc()
+        d["scores"][0]["criterion"] = "c9"
+        self._dies(d, "must name a criterion id")
+
+    def test_bad_band_refused(self):
+        d = _scorecard_doc()
+        d["totals"][0]["band"] = "excellent"
+        self._dies(d, "must be one of weak, mixed, strong")
+
+    def test_band_without_total_refused(self):
+        d = _scorecard_doc()
+        d["totals"][0]["weighted_total"] = None   # band stays 'mixed' -> mismatch
+        self._dies(d, "must both be null or both be set")
+
+    def test_null_total_and_band_ok(self):
+        # A seat that scored nothing in its final round: total+band null, criteria_scored
+        # 0, partial True — the coherent null-total case (D17 fix pass: null total ⇔ null
+        # band ⇔ criteria_scored == 0).
+        d = _scorecard_doc()
+        d["totals"][0]["weighted_total"] = None
+        d["totals"][0]["band"] = None
+        d["totals"][0]["criteria_scored"] = 0
+        d["totals"][0]["partial"] = True
+        bsc.validate(d)   # no raise
+
+    def test_null_total_with_nonzero_criteria_scored_refused(self):
+        # The null-total coherence invariant (D17 fix pass): a null weighted_total with a
+        # non-zero criteria_scored is incoherent (a seat that scored nothing cannot have
+        # scored criteria) and is refused.
+        d = _scorecard_doc()
+        d["totals"][0]["weighted_total"] = None
+        d["totals"][0]["band"] = None
+        # criteria_scored stays 2 -> incoherent with a null total.
+        self._dies(d, "null weighted_total ⇔ criteria_scored == 0")
+
+    def test_total_out_of_scale_refused(self):
+        d = _scorecard_doc()
+        d["totals"][0]["weighted_total"] = 7.0
+        self._dies(d, "must be in [1, 5]")
+
+    def test_total_inf_refused(self):
+        # A +inf weighted_total (a corrupted/fuzzed artifact) trips the finite guard
+        # BEFORE the in-range check — never slips past as "a big number".
+        d = _scorecard_doc()
+        d["totals"][0]["weighted_total"] = float("inf")
+        self._dies(d, "must be a finite number")
+
+    def test_total_neg_inf_refused(self):
+        d = _scorecard_doc()
+        d["totals"][0]["weighted_total"] = float("-inf")
+        self._dies(d, "must be a finite number")
+
+    def test_total_nan_refused(self):
+        # NaN is neither < 1 nor > 5, so the range check alone would MISS it — the
+        # explicit `wt != wt` NaN guard catches it as non-finite.
+        d = _scorecard_doc()
+        d["totals"][0]["weighted_total"] = float("nan")
+        self._dies(d, "must be a finite number")
+
+    def test_total_negative_refused(self):
+        # A finite but out-of-scale negative (below SCORE_MIN) is refused by the range
+        # check (a weighted mean on 1–5 can never be negative — a conductor bug/tamper).
+        d = _scorecard_doc()
+        d["totals"][0]["weighted_total"] = -2.5
+        self._dies(d, "must be in [1, 5]")
+
+    def test_duplicate_seat_total_refused(self):
+        d = _scorecard_doc()
+        d["totals"].append(dict(d["totals"][0]))
+        self._dies(d, "exactly one row per seat")
+
+    def test_contradiction_bad_verdict_refused(self):
+        d = _scorecard_doc()
+        d["contradictions"][0]["verdict"] = "maybe"
+        self._dies(d, "must be one of ship, caution, block")
+
+    def test_rubric_artifact_escape_refused(self):
+        self._dies(_scorecard_doc(rubric_artifact="../evil.json"), "bare filename")
+
+    def test_unhashable_criterion_does_not_crash(self):
+        # isinstance guard before the membership check: an unhashable score criterion
+        # dies cleanly (schema exit), never a raw TypeError (the board_verdict idiom).
+        d = _scorecard_doc()
+        d["scores"][0]["criterion"] = ["c1"]   # a list where a scalar belongs
+        self._dies(d)
+
+    def test_partial_must_be_bool(self):
+        d = _scorecard_doc()
+        d["totals"][0]["partial"] = "yes"
+        self._dies(d, "must be a boolean")
+
+    # --- D17 fix pass: derivable-invariant checks (the claude seat's scope) --------- #
+
+    def test_band_total_inconsistent_refused(self):
+        # (board negative test b) A band that does not match band_for(weighted_total) is
+        # refused: weighted_total 4.5 lands in `strong`, so a "weak" band is a
+        # tampered/skewed artifact. The band is fully derivable — it must match.
+        d = _scorecard_doc()
+        d["totals"][0]["weighted_total"] = 4.5   # -> band_for == "strong"
+        d["totals"][0]["band"] = "weak"
+        self._dies(d, "is not band_for")
+
+    def test_partial_inconsistent_with_criteria_scored_refused(self):
+        # partial ⇔ (criteria_scored < len(criteria)). A row that scored every criterion
+        # (2 of 2) but claims partial=True is refused.
+        d = _scorecard_doc()
+        d["totals"][0]["criteria_scored"] = 2   # all criteria scored
+        d["totals"][0]["partial"] = True        # but claims partial
+        self._dies(d, "partial ⇔ criteria_scored")
+
+    def test_criteria_scored_exceeds_criteria_refused(self):
+        # criteria_scored can never exceed the number of criteria (2 here).
+        d = _scorecard_doc()
+        d["totals"][0]["criteria_scored"] = 3
+        self._dies(d, "exceeds the 2 criteria")
+
+    def test_final_verdict_bad_token_refused(self):
+        d = _scorecard_doc()
+        d["totals"][0]["final_verdict"] = "maybe"
+        self._dies(d, "final_verdict must be one of ship, caution, block")
+
+    def test_final_verdict_null_pair_ok(self):
+        # A seat that never declared a verdict: both final_verdict and its round null.
+        # claude's row is non-contradicting (band mixed) so dropping its token is legal.
+        d = _scorecard_doc()
+        d["totals"][0]["final_verdict"] = None
+        d["totals"][0]["final_verdict_round"] = None
+        bsc.validate(d)   # no raise
+
+    def test_final_verdict_round_required(self):
+        # final_verdict_round is now REQUIRED on every scorecard@1 totals row (not an
+        # additive-optional pair) — dropping it fails the missing-keys check.
+        d = _scorecard_doc()
+        del d["totals"][0]["final_verdict_round"]
+        self._dies(d, "missing field(s): final_verdict_round")
+
+    def test_final_verdict_required(self):
+        # final_verdict is likewise required — dropping it (a strip-to-evade attempt on
+        # the contradictions⇔totals cross-check) fails the missing-keys check, not silently
+        # skipping the cross-check as an "older scorecard" would once have.
+        d = _scorecard_doc()
+        del d["totals"][0]["final_verdict"]
+        self._dies(d, "missing field(s): final_verdict")
+
+    def test_final_verdict_token_without_round_value_refused(self):
+        d = _scorecard_doc()
+        d["totals"][0]["final_verdict"] = "ship"
+        d["totals"][0]["final_verdict_round"] = None   # token set, round null
+        self._dies(d, "both be null or both set")
+
+    def test_missing_contradiction_row_refused(self):
+        # (board negative test d) codex's final_verdict `ship` over a `weak` band trips
+        # the rule, so contradictions[] MUST carry a codex row. Dropping it is refused.
+        d = _scorecard_doc()
+        d["contradictions"] = []
+        self._dies(d, "missing a row for seat(s)")
+
+    def test_extra_contradiction_row_refused(self):
+        # (board negative test d) A contradictions[] row for a seat whose totals
+        # final_verdict↔band does NOT trip the rule (claude: caution/mixed) is refused.
+        d = _scorecard_doc()
+        d["contradictions"].append(
+            {"seat": "claude", "verdict": "block", "band": "strong",
+             "token_round": 1, "score_round": 1})
+        self._dies(d, "does NOT trip the rule")
+
+    def test_contradiction_row_band_mismatch_refused(self):
+        # A recorded contradiction whose band disagrees with the seat's totals band is a
+        # tampered artifact — refused even though the seat IS a real contradictor.
+        d = _scorecard_doc()
+        d["contradictions"][0]["band"] = "strong"   # codex's totals band is "weak"
+        self._dies(d, "does not match its totals row")
+
+    def test_strip_final_verdict_to_evade_cross_check_refused(self):
+        # Strip-to-evade closed: final_verdict is REQUIRED on scorecard@1 totals rows, so a
+        # tampered artifact that strips the pair from every totals row AND sets
+        # contradictions:[] — hoping to dodge the contradictions⇔totals cross-check the way
+        # an "older scorecard" once did — is refused at the missing-keys gate, before the
+        # cross-check is even reached. The codex row is a real (ship, weak) contradictor, so
+        # under the old skip-branch this exact edit would have validated clean.
+        d = _scorecard_doc()
+        for t in d["totals"]:
+            t.pop("final_verdict", None)
+            t.pop("final_verdict_round", None)
+        d["contradictions"] = []
+        self._dies(d, "missing field(s)")
+
+    def test_strip_final_verdict_from_contradictor_only_refused(self):
+        # Even stripping the pair from ONLY the contradicting seat (leaving the other rows
+        # intact) is refused — no partial strip evades the now-mandatory field.
+        d = _scorecard_doc()
+        codex = next(t for t in d["totals"] if t["seat"] == "codex")
+        codex.pop("final_verdict", None)
+        codex.pop("final_verdict_round", None)
+        d["contradictions"] = []
+        self._dies(d, "missing field(s)")
+
+
+class TestScorecardBandComputation(unittest.TestCase):
+    """sc_mod.band_for — fixed thirds of the 1–5 scale (D17), reader-defensible."""
+
+    def test_band_boundaries(self):
+        self.assertEqual(sc_mod.band_for(1.0), "weak")
+        self.assertEqual(sc_mod.band_for(2.0), "weak")
+        # The lower boundary of `mixed` (≈2.333): just under is weak, at/over is mixed.
+        self.assertEqual(sc_mod.band_for(2.3), "weak")
+        self.assertEqual(sc_mod.band_for(2.4), "mixed")
+        self.assertEqual(sc_mod.band_for(3.0), "mixed")
+        # The lower boundary of `strong` (≈3.667): just under mixed, at/over strong.
+        self.assertEqual(sc_mod.band_for(3.6), "mixed")
+        self.assertEqual(sc_mod.band_for(3.7), "strong")
+        self.assertEqual(sc_mod.band_for(5.0), "strong")
+
+    def test_none_total_no_band(self):
+        self.assertIsNone(sc_mod.band_for(None))
+
+    def test_weighted_total_is_weighted_mean(self):
+        # c1 weight 60 score 5, c2 weight 40 score 1 -> (5*60 + 1*40)/100 = 3.4.
+        total, n = sc_mod._weighted_total({"c1": 5, "c2": 1}, {"c1": 60, "c2": 40})
+        self.assertAlmostEqual(total, 3.4)
+        self.assertEqual(n, 2)
+
+    def test_partial_total_normalizes_over_scored_only(self):
+        # Only c1 scored (weight 60): the mean is over the scored weight, NOT dragged to
+        # 0 by the missing cell -> 5.0, not 3.0. A partial total stays on the 1–5 scale.
+        total, n = sc_mod._weighted_total({"c1": 5}, {"c1": 60, "c2": 40})
+        self.assertAlmostEqual(total, 5.0)
+        self.assertEqual(n, 1)
+
+    def test_no_scores_no_total(self):
+        total, n = sc_mod._weighted_total({}, {"c1": 60, "c2": 40})
+        self.assertIsNone(total)
+        self.assertEqual(n, 0)
+
+    def test_contradiction_rule(self):
+        # Only the SEVERE self-contradictions: block/strong and ship/weak.
+        self.assertTrue(sc_mod._is_contradiction("block", "strong"))
+        self.assertTrue(sc_mod._is_contradiction("ship", "weak"))
+        self.assertFalse(sc_mod._is_contradiction("caution", "mixed"))
+        self.assertFalse(sc_mod._is_contradiction("ship", "strong"))
+        self.assertFalse(sc_mod._is_contradiction("block", "weak"))
+        self.assertFalse(sc_mod._is_contradiction("caution", "strong"))
+
+
+class TestScorecardBuild(unittest.TestCase):
+    """sc_mod.build_scorecard over synthetic round results."""
+
+    def _rubric(self):
+        return {
+            "criteria": [
+                {"id": "c1", "title": "Correctness", "description": "x", "weight": 60,
+                 "subsumes": ["p1"]},
+                {"id": "c2", "title": "Risk", "description": "y", "weight": 40,
+                 "subsumes": ["p2"]},
+            ],
+            "chair_seat": "claude",
+        }
+
+    def _result(self, seat, round_no, cids, verdict="ship", note=None):
+        # A SeatRoundResult whose stdout carries the SCORE + VERDICT lines the properties
+        # parse, restricted to the given criterion ids.
+        lines = [f"SCORE {cid}: {score}" for cid, score in cids.items()]
+        if note:
+            lines.append(f"RUBRIC-NOTE: {note}")
+        lines.append(f"VERDICT: {verdict}")
+        stdout = "\n".join(lines) + "\n"
+        return rnd.SeatRoundResult(
+            seat=seat, provider=seat, round_no=round_no, model_requested="m",
+            model_answered="m", status="ran", failure_class=None, attempts=1,
+            elapsed_s=0.1, exit_code=0, timed_out=False, stdout=stdout, stderr="",
+            prompt_hash="h", source_hash="s", round_packet_hash="p", argv_preview="a",
+            criterion_ids=tuple(c["id"] for c in self._rubric()["criteria"]))
+
+    def _cfg(self):
+        class C:
+            title = "Demo"
+        return C()
+
+    def test_build_produces_valid_scorecard(self):
+        r1 = [self._result("claude", 1, {"c1": 5, "c2": 1}),
+              self._result("codex", 1, {"c1": 4, "c2": 4})]
+        r2 = [self._result("claude", 2, {"c1": 5, "c2": 2}),
+              self._result("codex", 2, {"c1": 4, "c2": 4})]
+        doc = sc_mod.build_scorecard(self._cfg(), self._rubric(), [r1, r2],
+                                     chair_seat="claude")
+        bsc.validate(doc)   # the built artifact validates
+        # Trajectory: every cleanly-scored cell across ALL rounds is a row.
+        self.assertEqual(len(doc["scores"]), 8)   # 2 seats × 2 criteria × 2 rounds
+        # claude final total: (5*60 + 2*40)/100 = 3.8 -> strong.
+        cl = next(t for t in doc["totals"] if t["seat"] == "claude")
+        self.assertAlmostEqual(cl["weighted_total"], 3.8)
+        self.assertEqual(cl["band"], "strong")
+
+    def test_partial_cell_marks_total_partial(self):
+        # codex omits c2 -> its total is over c1 only and marked partial.
+        r1 = [self._result("claude", 1, {"c1": 3, "c2": 3}),
+              self._result("codex", 1, {"c1": 1})]
+        doc = sc_mod.build_scorecard(self._cfg(), self._rubric(), [r1],
+                                     chair_seat="claude")
+        cx = next(t for t in doc["totals"] if t["seat"] == "codex")
+        self.assertTrue(cx["partial"])
+        self.assertEqual(cx["criteria_scored"], 1)
+
+    def test_contradiction_recorded(self):
+        # gemini: block verdict over strong (all-5) scores -> a recorded contradiction.
+        r1 = [self._result("claude", 1, {"c1": 3, "c2": 3}),
+              self._result("gemini", 1, {"c1": 5, "c2": 5}, verdict="block")]
+        doc = sc_mod.build_scorecard(self._cfg(), self._rubric(), [r1],
+                                     chair_seat="claude")
+        self.assertEqual(doc["contradictions"],
+                         [{"seat": "gemini", "verdict": "block", "band": "strong",
+                           "token_round": 1, "score_round": 1}])
+
+    def test_rubric_note_recorded(self):
+        r1 = [self._result("claude", 1, {"c1": 3, "c2": 3}, note="c2 too low"),
+              self._result("codex", 1, {"c1": 3, "c2": 3})]
+        doc = sc_mod.build_scorecard(self._cfg(), self._rubric(), [r1],
+                                     chair_seat="claude")
+        self.assertEqual(doc["rubric_notes"],
+                         [{"seat": "claude", "round": 1, "note": "c2 too low"}])
+
+
+class TestVerdictScorecardPointers(unittest.TestCase):
+    """board_verdict.py — the tool-authored rubric/scorecard {artifact, sha256} pointers,
+    mirroring the shipped `changes` pointer (strict-when-present, invisible when absent)."""
+
+    def _dies(self, data, needle=None):
+        buf = io.StringIO()
+        with contextlib.redirect_stderr(buf):
+            with self.assertRaises(SystemExit) as cm:
+                bv.validate(data)
+        self.assertEqual(cm.exception.code, bv.EXIT_SCHEMA)
+        if needle is not None:
+            self.assertIn(needle, buf.getvalue())
+
+    def _v(self, **extra):
+        return _verdict("ship", "ship", "ship", **extra)
+
+    def test_absent_pointers_validate(self):
+        bv.validate(self._v())   # a non-rubric verdict is untouched (invisible when absent)
+
+    def test_valid_pointers_validate(self):
+        bv.validate(self._v(rubric={"artifact": "rubric.json", "sha256": "a" * 64},
+                            scorecard={"artifact": "scorecard.json", "sha256": "b" * 64}))
+
+    def test_rubric_unknown_key_refused(self):
+        self._dies(self._v(rubric={"artifact": "rubric.json", "sha256": "a" * 64, "x": 1}),
+                   "unknown key")
+
+    def test_scorecard_missing_sha_refused(self):
+        self._dies(self._v(scorecard={"artifact": "scorecard.json"}), "missing 'sha256'")
+
+    def test_scorecard_bad_sha_refused(self):
+        self._dies(self._v(scorecard={"artifact": "scorecard.json", "sha256": "nothex"}),
+                   "64 lowercase hex")
+
+    def test_rubric_artifact_escape_refused(self):
+        self._dies(self._v(rubric={"artifact": "../x.json", "sha256": "a" * 64}),
+                   "bare filename")
+
+    def test_pointer_not_object_refused(self):
+        self._dies(self._v(rubric=["a"]), "must be an object")
+
+    def test_gate_never_reads_the_pointers(self):
+        # The pointers are lifecycle fields — the gate never reads them (D8: a gameable
+        # number/pointer must not move a gate). A ship verdict with a scorecard pointer
+        # gates exactly as one without.
+        base = bv.gate_outcome(self._v(), "block")
+        with_ptr = bv.gate_outcome(
+            self._v(scorecard={"artifact": "scorecard.json", "sha256": "b" * 64}), "block")
+        self.assertEqual(base, with_ptr)
+
+    def test_synthesizer_strips_model_supplied_pointers(self):
+        # A model reply that tries to author rubric/scorecard pointers has them STRIPPED
+        # on merge — the conductor pins them after the merge, never the model.
+        from _conductor import synthesizer as syn
+        self.assertIn("rubric", syn.LIFECYCLE_KEYS)
+        self.assertIn("scorecard", syn.LIFECYCLE_KEYS)
+        skeleton = {"schema": "advisory-board/verdict@2", "verdict": "ship"}
+        content = {"verdict": "ship", "rubric": {"artifact": "evil", "sha256": "x"},
+                   "scorecard": {"artifact": "evil", "sha256": "x"}}
+        merged = syn.merge_synthesizer_content(skeleton, content)
+        self.assertNotIn("rubric", merged)
+        self.assertNotIn("scorecard", merged)
+
+
+class TestScorecardRenderByteIdentity(EnvMixin):
+    """The scorecard render whole-drops to ZERO body bytes on a non-rubric run
+    (D5/R5 byte-identity invariant, render_handoff.py:45-50)."""
+
+    def _handoff_body(self, data, run_dir=None):
+        import render_handoff
+        hd = rv.build_handoff_data(data, run_dir=run_dir)
+        template = open(render_handoff.default_template(), encoding="utf-8").read()
+        html = render_handoff.render(hd, template)
+        return html.split("</head>", 1)[1]   # BODY only (head CSS is exempt)
+
+    def test_non_rubric_md_has_no_scorecard(self):
+        md = rv.render_markdown(_verdict("ship", "ship", "ship"), run_dir=None)
+        self.assertNotIn("Rubric scorecard", md)
+        self.assertNotIn("contradict", md.lower())
+
+    def test_non_rubric_html_body_drops_scorecard_section(self):
+        body = self._handoff_body(_verdict("ship", "ship", "ship", title="T",
+                                           blockers=[{"title": "b", "body": "x"}]))
+        self.assertNotIn("scorecard-sec", body)
+        self.assertNotIn("Rubric scorecard", body)
+        self.assertNotIn("sc-intro", body)
+
+    def test_no_run_dir_html_body_drops_scorecard(self):
+        # Even with a scorecard pointer, no --run dir means no scorecard.json to read →
+        # the section drops (the render is best-effort, never dies on a missing artifact).
+        v = _verdict("ship", "ship", "ship", title="T",
+                     scorecard={"artifact": "scorecard.json", "sha256": "b" * 64})
+        body = self._handoff_body(v, run_dir=None)
+        self.assertNotIn("scorecard-sec", body)
+
+    def test_non_rubric_body_byte_identical_to_pre_p4(self):
+        # The DEFINITIVE byte-identity check: the rendered body on a non-rubric run must
+        # equal the body the PRE-P4 template produced. We reconstruct the pre-P4 template
+        # BODY by deleting the scorecard section (its authoring comment + <section>) from
+        # the template's body only (the head CSS is exempt), render both, compare bodies.
+        import render_handoff
+        data = _verdict("ship", "ship", "ship", title="T",
+                        blockers=[{"title": "b", "body": "x"}],
+                        dissent=[{"who": "S", "body": "d"}], caveats=["c"],
+                        open_questions=["q?"], next_actions=["a"])
+        hd = rv.build_handoff_data(data)
+        cur_tpl = open(render_handoff.default_template(), encoding="utf-8").read()
+        head, body_tpl = cur_tpl.split("</head>", 1)
+        # Remove the scorecard section's authoring comment + <section> from the BODY only.
+        pre_body_tpl = re.sub(
+            r'\n\s*<!-- =+ RUBRIC SCORECARD.*?-->\s*\n\s*<section class="scorecard-sec">.*?</section>',
+            "", body_tpl, flags=re.DOTALL)
+        self.assertNotIn("scorecard-sec", pre_body_tpl)   # the body surgery worked
+        pre_tpl = head + "</head>" + pre_body_tpl
+        cur_body = render_handoff.render(hd, cur_tpl).split("</head>", 1)[1]
+        pre_body = render_handoff.render(hd, pre_tpl).split("</head>", 1)[1]
+        self.assertEqual(cur_body, pre_body,
+                         "the scorecard section's drop changed the non-rubric body")
+
+
+class TestScorecardRenderRobustness(EnvMixin):
+    """The scorecard renders (md + HTML) survive a null-total seat and a hostile
+    criterion title without crashing or corrupting the markdown table (P4 fix pass)."""
+
+    def _run_dir_with(self, scorecard: dict):
+        d = tempfile.mkdtemp(prefix="board-sc-render-")
+        self.addCleanup(shutil.rmtree, d, ignore_errors=True)
+        with open(os.path.join(d, "scorecard.json"), "w", encoding="utf-8") as fh:
+            json.dump(scorecard, fh)
+        return d
+
+    def _sc_pointer(self, run_dir, artifact="scorecard.json"):
+        # The real {artifact, sha256} pointer for the scorecard.json ON DISK, so the render
+        # honors the pin — mirrors what _pin_rubric_scorecard_pointers writes over the exact
+        # on-disk bytes (binary). A test that wants the section to render must pin the TRUE
+        # sha; the tamper tests deliberately pin a stale/foreign one.
+        with open(os.path.join(run_dir, artifact), "rb") as fh:
+            return {"artifact": artifact,
+                    "sha256": hashlib.sha256(fh.read()).hexdigest()}
+
+    def _base_scorecard(self):
+        # A valid scorecard@1 (validated) we then mutate per test.
+        return _scorecard_doc()
+
+    def _handoff_body(self, data, run_dir):
+        import render_handoff
+        hd = rv.build_handoff_data(data, run_dir=run_dir)
+        template = open(render_handoff.default_template(), encoding="utf-8").read()
+        return render_handoff.render(hd, template).split("</head>", 1)[1]
+
+    def test_null_total_null_band_seat_renders_dash_md_and_html(self):
+        # A seat that scored nothing in its final round: weighted_total=None, band=None,
+        # empty history. Both render paths must draw "—" / an empty history cell without
+        # crashing (render_verdict.py per-seat rows).
+        sc = self._base_scorecard()
+        sc["totals"][0]["weighted_total"] = None
+        sc["totals"][0]["band"] = None
+        sc["totals"][0]["partial"] = True
+        sc["totals"][0]["criteria_scored"] = 0
+        # Drop that seat's score rows so its history is empty too (no scored round).
+        seat = sc["totals"][0]["seat"]
+        sc["scores"] = [r for r in sc["scores"] if r["seat"] != seat]
+        bsc.validate(sc)   # the mutated doc is still a valid scorecard@1
+        run_dir = self._run_dir_with(sc)
+        v = _verdict("ship", "ship", "ship", title="T",
+                     scorecard=self._sc_pointer(run_dir))
+        # Markdown: renders, contains the seat, and a "—" cell for its total/history.
+        md = rv.render_markdown(v, run_dir=run_dir)
+        self.assertIn("Rubric scorecard", md)
+        self.assertIn(seat, md)
+        self.assertIn("—", md)   # the null total/band/history rendered as a dash
+        # HTML: renders the section without raising and without literal "None".
+        body = self._handoff_body(v, run_dir)
+        self.assertIn("scorecard-sec", body)
+        self.assertNotIn(">None<", body)
+
+    def _md_table_rows(self, md_lines, header_needle):
+        # Collect the pipe-table rows (lines starting with "|") in the block that STARTS
+        # at the header line containing header_needle (header included), up to the next
+        # blank line.
+        rows = []
+        collecting = False
+        for line in md_lines:
+            if not collecting and header_needle in line:
+                collecting = True
+            if collecting:
+                if line.strip().startswith("|"):
+                    rows.append(line)
+                elif line.strip() == "":
+                    break
+        return rows
+
+    def test_hostile_criterion_title_does_not_corrupt_md_table(self):
+        # A criterion title carrying a pipe AND a leading '#' must not inject columns or
+        # a heading into the Criteria table (CONCERN 1). Assert the table parses with a
+        # STABLE column count on every row (the pipe is escaped, not a cell boundary).
+        sc = self._base_scorecard()
+        sc["criteria"][0]["title"] = "# Cost | Risk tradeoff"
+        sc["criteria"][1]["title"] = "Plain"
+        bsc.validate(sc)
+        run_dir = self._run_dir_with(sc)
+        v = _verdict("ship", "ship", "ship", title="T",
+                     scorecard=self._sc_pointer(run_dir))
+        md = rv.render_markdown(v, run_dir=run_dir)
+        # The literal pipe survived, escaped, so it did not split the cell.
+        self.assertIn("\\|", md)
+        rows = self._md_table_rows(md.splitlines(), "| # | Criterion | Weight |")
+        # header + separator + 2 criteria rows.
+        self.assertEqual(len(rows), 4)
+        # Every row has the SAME number of cells (3 columns → 4 delimiters via strip).
+        counts = {r.count("|") - r.count("\\|") for r in rows}
+        self.assertEqual(counts, {4},
+                         f"criterion title corrupted the table column count: {rows}")
+        # The escaped title round-trips as a single cell: the leading '#' guarded and the
+        # pipe escaped, so it can neither become a heading nor split the cell.
+        self.assertIn("\\# Cost \\| Risk tradeoff", md)
+
+    @staticmethod
+    def _unescaped_pipe_cells(row: str) -> int:
+        # PARSER-LEVEL cell count: split the row on pipes that are NOT preceded by a
+        # backslash (a real Markdown parser's cell boundary), so a `\|` inside a cell is
+        # NOT a boundary and a `\\` before a `|` IS (the backslash escapes itself, leaving
+        # the pipe live). This is what raw `count("|") - count("\\|")` string-counting
+        # MISSES — exactly the backslash-then-pipe class this regression guards.
+        return len(re.split(r"(?<!\\)\|", row))
+
+    def test_backslash_pipe_title_keeps_stable_column_count(self):
+        # CONCERN 2: a criterion title containing a backslash IMMEDIATELY followed by a pipe
+        # (`\|`) must not inject a column. Under-escaping (replacing `|`→`\|` without first
+        # doubling `\`→`\\`) would render `\\|` as escaped-backslash + a LIVE pipe, adding a
+        # cell. Assert every row of the Criteria table splits into the SAME number of cells
+        # at the parser level (unescaped-pipe split), which raw string-counting can miss.
+        sc = self._base_scorecard()
+        sc["criteria"][0]["title"] = r"Cost \| Risk"   # a literal backslash then a pipe
+        sc["criteria"][1]["title"] = "Plain"
+        bsc.validate(sc)
+        run_dir = self._run_dir_with(sc)
+        v = _verdict("ship", "ship", "ship", title="T",
+                     scorecard=self._sc_pointer(run_dir))
+        md = rv.render_markdown(v, run_dir=run_dir)
+        rows = self._md_table_rows(md.splitlines(), "| # | Criterion | Weight |")
+        self.assertEqual(len(rows), 4)   # header + separator + 2 criteria rows
+        counts = {self._unescaped_pipe_cells(r) for r in rows}
+        # A single, uniform cell count across every row (the escaped `\|` is inert — it does
+        # NOT split a cell). Concretely a 3-column table splits into 5 segments (leading +
+        # 3 cells + trailing, from the enclosing pipes). Under-escaping would make the
+        # criterion row split into 6 and the set would be {5, 6}.
+        self.assertEqual(counts, {5},
+                         f"backslash-pipe title changed the parser-level column count: {rows}")
+
+    def test_token_placeholder_in_title_stays_inert(self):
+        # (board negative test a, extended) A criterion title carrying a {{TOKEN}}-style
+        # placeholder must NOT be treated as a render slot — it round-trips as literal
+        # text in both the md table and the HTML handoff (no substitution, no crash).
+        sc = self._base_scorecard()
+        sc["criteria"][0]["title"] = "Coverage {{scorecard_intro}} check"
+        sc["criteria"][1]["title"] = "Plain"
+        bsc.validate(sc)
+        run_dir = self._run_dir_with(sc)
+        v = _verdict("ship", "ship", "ship", title="T",
+                     scorecard=self._sc_pointer(run_dir))
+        md = rv.render_markdown(v, run_dir=run_dir)
+        self.assertIn("{{scorecard_intro}}", md)   # literal, not substituted away
+        # In the HTML handoff the `{{` sequence is DEFANGED (a zero-width space breaks it)
+        # so it can never be interpreted as a template slot — but the title text still
+        # surfaces intact and no substitution happened (the slot name is not expanded).
+        body = self._handoff_body(v, run_dir)
+        self.assertIn("scorecard_intro}}", body)   # the token text is present…
+        self.assertIn("Coverage", body)            # …as part of the intact title
+        self.assertNotIn("{{scorecard_intro}}", body)  # the raw {{ slot was defanged
+
+    def test_malformed_string_weight_degrades_md_and_html(self):
+        # (board negative test c) codex crashed _scorecard_seat_history with {"weight":
+        # "60"} (int score * str weight -> TypeError). validate-or-drop is the fix: a
+        # scorecard whose weight is a string FAILS validation, so _read_scorecard returns
+        # None and the section DROPS — both md and HTML render without raising.
+        sc = self._base_scorecard()
+        sc["criteria"][0]["weight"] = "60"   # a string where an int belongs
+        # (do NOT bsc.validate — this is the invalid payload the render must survive)
+        run_dir = self._run_dir_with(sc)
+        # Pin the TRUE sha so the section reaches validate-or-drop (the sha matches the
+        # on-disk bytes) — the drop here is proven to be VALIDATION, not a sha mismatch.
+        v = _verdict("ship", "ship", "ship", title="T",
+                     scorecard=self._sc_pointer(run_dir))
+        md = rv.render_markdown(v, run_dir=run_dir)   # must not raise
+        self.assertNotIn("Rubric scorecard", md)      # section dropped
+        body = self._handoff_body(v, run_dir)          # must not raise
+        self.assertNotIn("scorecard-sec", body)
+
+    def test_band_total_inconsistent_scorecard_drops_section(self):
+        # (board negative test b, render side) A band⇔total-inconsistent scorecard
+        # (weighted_total 4.5 / band "weak") fails validation, so the render drops the
+        # section rather than surfacing a self-inconsistent table.
+        sc = self._base_scorecard()
+        sc["totals"][0]["weighted_total"] = 4.5
+        sc["totals"][0]["band"] = "weak"
+        run_dir = self._run_dir_with(sc)
+        v = _verdict("ship", "ship", "ship", title="T",
+                     scorecard=self._sc_pointer(run_dir))
+        md = rv.render_markdown(v, run_dir=run_dir)
+        self.assertNotIn("Rubric scorecard", md)
+
+    def test_no_pointer_renders_via_fixed_name_fallback(self):
+        # CONCERN 1, fallback arm: an artifact stands alone WITHOUT --synthesize, so a
+        # verdict with NO scorecard pointer still renders the section by the fixed name.
+        sc = self._base_scorecard()
+        run_dir = self._run_dir_with(sc)
+        v = _verdict("ship", "ship", "ship", title="T")   # NO scorecard pointer
+        md = rv.render_markdown(v, run_dir=run_dir)
+        self.assertIn("Rubric scorecard", md)
+        body = self._handoff_body(v, run_dir)
+        self.assertIn("scorecard-sec", body)
+
+    def test_swapped_scorecard_drops_section_md_and_html(self):
+        # CONCERN 1, the load-bearing tamper test: the verdict pins the sha of the ORIGINAL
+        # scorecard.json, but a DIFFERENT-yet-valid scorecard@1 (claude's band flipped
+        # mixed→strong) is swapped onto disk after the pin. The on-disk bytes no longer hash
+        # to the pinned sha, so the render drops the section in BOTH md and HTML rather than
+        # surfacing the forged (swapped) values — enforcing the pointer the way the sibling
+        # revision chain (_load_revised_chain) already does.
+        original = self._base_scorecard()
+        run_dir = self._run_dir_with(original)
+        pointer = self._sc_pointer(run_dir)   # pinned over the ORIGINAL bytes
+
+        swapped = self._base_scorecard()
+        swapped["totals"][0]["weighted_total"] = 4.0     # was 3.2 / mixed
+        swapped["totals"][0]["band"] = "strong"          # a DIFFERENT valid band
+        bsc.validate(swapped)                            # the swap is itself valid scorecard@1
+        with open(os.path.join(run_dir, "scorecard.json"), "w", encoding="utf-8") as fh:
+            json.dump(swapped, fh)
+        # Sanity: the swap really did change the bytes (so the sha no longer matches).
+        self.assertNotEqual(self._sc_pointer(run_dir)["sha256"], pointer["sha256"])
+
+        v = _verdict("ship", "ship", "ship", title="T", scorecard=pointer)
+        md = rv.render_markdown(v, run_dir=run_dir)
+        self.assertNotIn("Rubric scorecard", md)         # section dropped in md
+        self.assertNotIn("strong", md)                   # the forged band never surfaced
+        body = self._handoff_body(v, run_dir)
+        self.assertNotIn("scorecard-sec", body)          # and dropped in HTML
+
+    def test_swapped_rubric_drops_dropped_criteria_provenance(self):
+        # CONCERN 1, rubric-pointer arm: the chair's dropped-criteria provenance is read
+        # from rubric.json; a rubric pointer pinned over the original bytes must drop that
+        # provenance when rubric.json is swapped on disk. (The scorecard itself renders via
+        # its own matching pointer; only the rubric-sourced dropped[] block disappears.)
+        sc = self._base_scorecard()
+        run_dir = self._run_dir_with(sc)
+        original_rubric = {"dropped": [{"title": "Latency budget", "seat": "codex",
+                                        "reason": "subsumed by Correctness"}]}
+        rub_path = os.path.join(run_dir, "rubric.json")
+        with open(rub_path, "w", encoding="utf-8") as fh:
+            json.dump(original_rubric, fh)
+        rubric_ptr = self._sc_pointer(run_dir, artifact="rubric.json")   # over ORIGINAL bytes
+
+        # Baseline: with a MATCHING rubric pointer the provenance renders.
+        v_ok = _verdict("ship", "ship", "ship", title="T",
+                        scorecard=self._sc_pointer(run_dir), rubric=rubric_ptr)
+        self.assertIn("Latency budget", rv.render_markdown(v_ok, run_dir=run_dir))
+
+        # Swap rubric.json for different valid bytes → the rubric pointer no longer verifies
+        # → the dropped-criteria provenance is refused (the scorecard section still renders).
+        with open(rub_path, "w", encoding="utf-8") as fh:
+            json.dump({"dropped": [{"title": "Forged criterion", "seat": "codex",
+                                    "reason": "injected"}]}, fh)
+        v = _verdict("ship", "ship", "ship", title="T",
+                     scorecard=self._sc_pointer(run_dir), rubric=rubric_ptr)
+        md = rv.render_markdown(v, run_dir=run_dir)
+        self.assertIn("Rubric scorecard", md)            # scorecard renders (its sha matches)
+        self.assertNotIn("Forged criterion", md)         # the swapped rubric bytes are refused
+        self.assertNotIn("Proposed criteria the chair dropped", md)
+
+
+class TestScorecardE2E(EnvMixin):
+    """The full --rubric --synthesize flow writes scorecard.json + pins the pointers."""
+
+    def _out(self):
+        d = tempfile.mkdtemp(prefix="board-sc-e2e-")
+        self.addCleanup(shutil.rmtree, d, ignore_errors=True)
+        return d
+
+    def _run(self, out, *extra, score_mode=None):
+        if score_mode:
+            os.environ["MOCK_GEMINI_SCORE_MODE"] = score_mode
+            self.addCleanup(lambda: os.environ.pop("MOCK_GEMINI_SCORE_MODE", None))
+        os.environ["MOCK_CLAUDE_CHAIR_MODE"] = "two_criteria"
+        self.addCleanup(lambda: os.environ.pop("MOCK_CLAUDE_CHAIR_MODE", None))
+        argv = ["run", "--source", SAMPLE, "--out", out, "--yes", "--rubric",
+                "--synthesize", "--rounds", "2", "--no-live-status", *extra]
+        return run_cli(argv)
+
+    def test_scorecard_written_and_validates(self):
+        out = self._out()
+        code, text, _ = self._run(out)
+        self.assertEqual(code, rb.EXIT_OK)
+        path = os.path.join(out, "scorecard.json")
+        self.assertTrue(os.path.exists(path))
+        with open(path) as fh:
+            doc = json.load(fh)
+        bsc.validate(doc)   # the written artifact validates against @1
+        # Per-round trajectory: rows across BOTH rounds.
+        rounds = {r["round"] for r in doc["scores"]}
+        self.assertEqual(rounds, {1, 2})
+
+    def test_verdict_pins_both_pointers_sha_coherent(self):
+        out = self._out()
+        code, _, _ = self._run(out)
+        self.assertEqual(code, rb.EXIT_OK)
+        with open(os.path.join(out, "verdict.json")) as fh:
+            v = json.load(fh)
+        for key, art in (("rubric", "rubric.json"), ("scorecard", "scorecard.json")):
+            self.assertIn(key, v)
+            disk = hashlib.sha256(open(os.path.join(out, art), "rb").read()).hexdigest()
+            self.assertEqual(v[key]["sha256"], disk)
+            self.assertEqual(v[key]["artifact"], art)
+        bv.validate(v)   # verdict re-validates WITH the pointers
+
+    def test_scorecard_stands_alone_without_synthesize(self):
+        # No --synthesize: no verdict.json, but scorecard.json is still written (it
+        # stands alone; the verdict pointer just doesn't appear).
+        out = self._out()
+        os.environ["MOCK_CLAUDE_CHAIR_MODE"] = "two_criteria"
+        self.addCleanup(lambda: os.environ.pop("MOCK_CLAUDE_CHAIR_MODE", None))
+        code, _, _ = run_cli(["run", "--source", SAMPLE, "--out", out, "--yes",
+                              "--rubric", "--rounds", "1", "--no-live-status"])
+        self.assertEqual(code, rb.EXIT_OK)
+        self.assertTrue(os.path.exists(os.path.join(out, "scorecard.json")))
+        self.assertFalse(os.path.exists(os.path.join(out, "verdict.json")))
+
+    def test_contradiction_surfaced_in_consensus(self):
+        out = self._out()
+        code, _, _ = self._run(out, score_mode="high")   # gemini high + block token
+        self.assertEqual(code, rb.EXIT_OK)
+        fc = os.path.join(out, "final-consensus.md")
+        code, _, _ = run_cli(["consensus", os.path.join(out, "verdict.json"),
+                              "--run", out, "-o", fc])
+        self.assertEqual(code, rb.EXIT_OK)
+        with open(fc) as fh:
+            text = fh.read()
+        self.assertIn("Rubric scorecard", text)
+        self.assertIn("contradict", text.lower())
+        self.assertIn("strong", text)
+
+    def test_history_shows_rubric_column(self):
+        out = self._out()
+        # Persist into the env runs root (no --out) so `history` lists it.
+        os.environ["MOCK_CLAUDE_CHAIR_MODE"] = "two_criteria"
+        self.addCleanup(lambda: os.environ.pop("MOCK_CLAUDE_CHAIR_MODE", None))
+        code, _, _ = run_cli(["run", "--source", SAMPLE, "--yes", "--rubric",
+                              "--synthesize", "--rounds", "1", "--no-live-status"])
+        self.assertEqual(code, rb.EXIT_OK)
+        code, text, _ = run_cli(["history"])
+        self.assertEqual(code, rb.EXIT_OK)
+        self.assertIn("Rubric", text)   # the column header
+        self.assertIn("yes", text)      # the synthesized rubric run is flagged
+
+
+class TestCarriedRubricReviseE2E(EnvMixin):
+    """--revise --rubric carries the prior rubric forward MECHANICALLY (D20) — no
+    proposal/chair pass, criteria inside the consent-hashed round-1 packet."""
+
+    def _out(self):
+        d = tempfile.mkdtemp(prefix="board-carry-")
+        self.addCleanup(shutil.rmtree, d, ignore_errors=True)
+        return d
+
+    def _prior(self):
+        prior = self._out()
+        os.environ["MOCK_CLAUDE_CHAIR_MODE"] = "two_criteria"
+        self.addCleanup(lambda: os.environ.pop("MOCK_CLAUDE_CHAIR_MODE", None))
+        code, _, _ = run_cli(["run", "--source", SAMPLE, "--out", prior, "--yes",
+                              "--rubric", "--synthesize", "--rounds", "1",
+                              "--no-live-status"])
+        self.assertEqual(code, rb.EXIT_OK)
+        return prior
+
+    def test_carried_run_writes_no_proposal_pass(self):
+        prior = self._prior()
+        revised = self._out()
+        code, text, _ = run_cli(["run", "--source", SAMPLE, "--out", revised, "--yes",
+                                 "--rubric", "--revise", prior, "--rounds", "1",
+                                 "--no-live-status"])
+        self.assertEqual(code, rb.EXIT_OK)
+        # No proposal/chair spawn ran — no rubric/ dir, no chair banner.
+        self.assertNotIn("rubric proposals", text)
+        self.assertNotIn("rubric chair", text)
+        self.assertIn("carried forward", text.lower())
+        self.assertFalse(os.path.isdir(os.path.join(revised, "rubric")))
+        # But rubric.json IS written into the new run dir (self-contained).
+        self.assertTrue(os.path.exists(os.path.join(revised, "rubric.json")))
+
+    def test_carried_criteria_match_prior(self):
+        prior = self._prior()
+        revised = self._out()
+        code, _, _ = run_cli(["run", "--source", SAMPLE, "--out", revised, "--yes",
+                              "--rubric", "--revise", prior, "--rounds", "1",
+                              "--no-live-status"])
+        self.assertEqual(code, rb.EXIT_OK)
+        with open(os.path.join(prior, "rubric.json")) as fh:
+            pr = json.load(fh)
+        with open(os.path.join(revised, "rubric.json")) as fh:
+            rv_ = json.load(fh)
+        # Criteria (ids, titles, weights) carried forward unchanged — scores comparable.
+        self.assertEqual([(c["id"], c["title"], c["weight"]) for c in pr["criteria"]],
+                         [(c["id"], c["title"], c["weight"]) for c in rv_["criteria"]])
+
+    def test_carried_run_scores_and_writes_scorecard(self):
+        prior = self._prior()
+        revised = self._out()
+        code, _, _ = run_cli(["run", "--source", SAMPLE, "--out", revised, "--yes",
+                              "--rubric", "--revise", prior, "--rounds", "1",
+                              "--no-live-status"])
+        self.assertEqual(code, rb.EXIT_OK)
+        path = os.path.join(revised, "scorecard.json")
+        self.assertTrue(os.path.exists(path))
+        with open(path) as fh:
+            bsc.validate(json.load(fh))
+
+    def test_from_recipe_replay_reproduces_carried_round1_prompt_bytes(self):
+        # LOCK the carry re-derivation: a --from-recipe replay of a carried
+        # --revise --rubric run must reproduce the round-1 prompt BYTE-IDENTICALLY. The
+        # recipe records `revise_of` (the prior run dir), so the replay re-prepares the
+        # revision AND re-reads + re-injects the SAME carried rubric — if the carry
+        # re-derivation ever drifted (a different rubric, a different injection), the
+        # replayed round-1 prompt bytes would diverge and this test would catch it.
+        prior = self._prior()
+        direct = self._out()
+        code, _, _ = run_cli(["run", "--source", SAMPLE, "--out", direct, "--yes",
+                              "--rubric", "--revise", prior, "--rounds", "1",
+                              "--no-live-status"])
+        self.assertEqual(code, rb.EXIT_OK)
+        recipe = os.path.join(direct, "run-recipe.yaml")
+        self.assertTrue(os.path.exists(recipe))
+        with open(recipe) as fh:
+            self.assertIn("revise_of:", fh.read())   # the carry lineage is persisted
+        replay = self._out()
+        code, _, _ = run_cli(["run", "--from-recipe", recipe, "--out", replay, "--yes",
+                              "--no-live-status"])
+        self.assertEqual(code, rb.EXIT_OK)
+        direct_prompt = os.path.join(direct, "prompts", "claude-round-1.prompt")
+        replay_prompt = os.path.join(replay, "prompts", "claude-round-1.prompt")
+        with open(direct_prompt, "rb") as fh:
+            direct_bytes = fh.read()
+        with open(replay_prompt, "rb") as fh:
+            replay_bytes = fh.read()
+        # The carried rubric was injected identically → byte-for-byte identical prompt.
+        self.assertEqual(direct_bytes, replay_bytes,
+                         "the --from-recipe carry re-derivation drifted the round-1 prompt")
+        # Sanity: it really is a carried scored prompt (the rubric block is present).
+        self.assertIn(b"weighted RUBRIC", direct_bytes)
+
+    def test_carried_disclosure_names_carry_not_proposal(self):
+        prior = self._prior()
+        cfg = _config(rubric=True)
+        # Simulate a carried-rubric config: attach a revision context carrying a rubric.
+        with open(os.path.join(prior, "rubric.json")) as fh:
+            carried = json.load(fh)
+
+        class _Rev:
+            run_dir = prior
+            carried_rubric = carried
+        cfg.revision = _Rev()
+        line = rb.disclosure_line(cfg)
+        self.assertIn("carried forward", line.lower())
+        self.assertNotIn("proposal spawn", line.lower())
+
+
+class TestStakeholderPanelLens(unittest.TestCase):
+    """D20: the stakeholder-panel LENS_PRESETS entry (three archetypes, seat-order)."""
+
+    def test_preset_exists_with_three_archetypes(self):
+        from _conductor.constants import LENS_PRESETS
+        self.assertIn("stakeholder-panel", LENS_PRESETS)
+        self.assertEqual(len(LENS_PRESETS["stakeholder-panel"]), 3)
+
+    def test_seat_order_binding(self):
+        # seat 1 = decision owner, seat 2 = end user, seat 3 = compliance/risk reviewer.
+        from _conductor.constants import LENS_PRESETS
+        lenses = LENS_PRESETS["stakeholder-panel"]
+        self.assertIn("decision owner", lenses[0].lower())
+        self.assertIn("end user", lenses[1].lower())
+        self.assertIn("compliance", lenses[2].lower())
+
+    def test_lens_gets_plain_language_not_software(self):
+        # A stakeholder-panel run renders plain-language verdicts (not the software
+        # SHIP/DO-NOT-SHIP labels), riding the existing lens machinery.
+        from _verdict_labels import human_label, lens_disclaimer
+        label, note = human_label("caution", "stakeholder-panel")
+        self.assertNotEqual(label, "SHIP WITH CHANGES")   # not the software label
+        self.assertIsNotNone(lens_disclaimer("stakeholder-panel"))   # a caveat is shown
+
+    def test_resolve_board_binds_by_position(self):
+        # A 3-seat board gets the three archetypes in order; a 4th repeats the last.
+        cfg = _config(lens="stakeholder-panel",
+                      board="claude,codex,gemini,claude")
+        lenses = [s.lens for s in cfg.board]
+        from _conductor.constants import LENS_PRESETS
+        expected = LENS_PRESETS["stakeholder-panel"]
+        self.assertEqual(lenses[:3], expected)
+        self.assertEqual(lenses[3], expected[-1])   # 4th seat repeats the reviewer voice
 
 
 if __name__ == "__main__":

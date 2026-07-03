@@ -80,8 +80,13 @@ emit_scores() {
   [ -z "$ids" ] && return 0
   local first="${ids%%$'\n'*}"
   local last; last="$(printf '%s\n' "$ids" | tail -n1)"
+  local base=2
+  # `low`/`high` (v1.15 P4): a flat weak/strong band. gemini's standing token is
+  # `block`, so `high` here yields a token↔band contradiction (block over strong).
+  [ "$score_mode" = "low" ] && base=1
+  [ "$score_mode" = "high" ] && base=5
   for cid in $ids; do
-    local val=2
+    local val=$base
     if [ "$score_mode" = "moving" ] && [ "$cid" = "$first" ] && [ "$round" -ge 2 ]; then val=4; fi
     if [ "$score_mode" = "partial" ] && [ "$cid" = "$last" ]; then continue; fi
     if [ "$score_mode" = "invalid" ] && [ "$cid" = "$first" ]; then echo "SCORE $cid: 4 or 5"; continue; fi

@@ -234,6 +234,27 @@ def _flat(text) -> str:
     return " ".join(str(text).split())
 
 
+def _md_cell(text) -> str:
+    r"""`_flat` PLUS the Markdown-table-cell escapes, for a model-authored value that
+    lands in a `| … |` cell (a criterion title today). `_flat` alone collapses newlines
+    but leaves a `|` intact — a title like `Cost | Risk tradeoff` would inject an extra
+    column and corrupt the table (board_rubric imposes no char constraint, and the
+    fence-scrub preserves pipes). We backslash-escape every `|`, and — cheaply — a
+    LEADING `#`/`-`/`+`/`>` that a lone cell value could otherwise read as a heading or
+    list marker if a renderer splits the cell. The HTML path is html.escaped separately
+    (`_plain`), so it does not use this.
+
+    Order matters: DOUBLE every existing `\` to `\\` FIRST, then escape `|` → `\|`. A title
+    containing a backslash-then-pipe (`\|`) would otherwise leave the pipe's escaping
+    backslash consumed by the literal backslash (`\|` reads as escaped-backslash + BARE
+    pipe), injecting a column and defeating the very defense this function exists to give."""
+    flat = _flat(text)
+    flat = flat.replace("\\", "\\\\").replace("|", "\\|")
+    if flat[:1] in ("#", "-", "+", ">"):
+        flat = "\\" + flat
+    return flat
+
+
 def _confidence_clause(data: dict) -> str:
     """The `(… confidence[ — amended …])` parenthetical for a verdict heading, or "".
 
@@ -388,7 +409,287 @@ def render_delta_markdown(data: dict) -> list:
     return out
 
 
-def render_markdown(data: dict, filt: str = DEFAULT_FILTER) -> str:
+def _pointer_sha_ok(data: dict, key: str, run_dir, fixed_name: str) -> "bool | None":
+    """Enforce a tool-authored `verdict.json.<key> = {artifact, sha256}` pointer (v1.15 P4,
+    written by _pin_rubric_scorecard_pointers) against the bytes on disk, mirroring
+    _load_revised_chain's changes-pointer discipline so the pointer's whole purpose — binding
+    the verdict to the exact artifact bytes — is enforced by the render, not just on write.
+
+    Returns:
+      * True  — a well-shaped pointer is present AND the artifact it names hashes to the
+                pinned sha256 (the pinned artifact IS the one on disk); render it.
+      * None  — NO pointer on this verdict (the artifact stands alone without --synthesize,
+                so a no-pointer run is legitimate): the caller falls back to the fixed name.
+      * False — a pointer is present but does NOT verify (malformed, escaping/symlinked
+                target, unreadable, or a sha MISMATCH — a DIFFERENT valid artifact swapped
+                in). The caller drops the section: the pinned bytes are gone.
+
+    The sha is over the artifact's EXACT on-disk bytes (board_verdict._file_sha256 wrote it
+    over the binary file), so we hash the raw bytes here, not decoded text."""
+    ptr = data.get(key) if isinstance(data, dict) else None
+    if ptr is None:
+        return None   # no pointer — legitimate stand-alone artifact, use the fixed name
+    if not isinstance(ptr, dict):
+        return False
+    artifact = ptr.get("artifact")
+    want_sha = ptr.get("sha256")
+    if (not isinstance(artifact, str) or not artifact
+            or not isinstance(want_sha, str) or not want_sha):
+        return False   # a present-but-malformed pointer is a tamper signal, not a fallback
+    if not run_dir:
+        return False   # a pointer with no run dir to resolve it against can't be trusted
+    path = _confined_path(run_dir, artifact)
+    if path is None or os.path.islink(os.path.join(run_dir, artifact)):
+        return False   # escapes the run dir or is a symlink — refused, exactly like the chain
+    try:
+        with open(path, "rb") as handle:
+            raw = handle.read()
+    except OSError:
+        return False
+    return _sha256_bytes(raw) == want_sha
+
+
+def _read_scorecard(run_dir, data=None) -> "dict | None":
+    """Best-effort read of the run's `scorecard.json` (v1.15 P4), or None. Written by
+    the conductor ONLY on a --rubric run; absent otherwise. No run dir, no file, a
+    symlinked/escaping path, unreadable/malformed JSON, a non-object payload, OR a
+    payload that FAILS board_scorecard.validate → None, so a non-rubric consensus stays
+    byte-identical AND a malformed/tampered scorecard degrades to a dropped section
+    rather than crashing a render (codex crashed _scorecard_seat_history with a string
+    weight — validate-or-drop is the fix: the render never trusts an unvalidated
+    payload). Realpath-confined + symlink-refused exactly like _read_echo_score.
+
+    When `data` carries a `verdict.json.scorecard = {artifact, sha256}` pointer (the
+    tool-authored pin a --synthesize run writes), the on-disk bytes MUST hash to that
+    sha BEFORE we validate/render — a swapped-in but schema-valid scorecard@1 (flipped
+    band, dropped contradiction) drops the section rather than rendering forged values.
+    This closes the gap the sibling revision chain already guards (_load_revised_chain).
+    The fixed-name path is the no-pointer FALLBACK only (an artifact stands alone without
+    --synthesize, so a pointerless run is legitimate)."""
+    if not run_dir:
+        return None
+    sha_ok = _pointer_sha_ok(data or {}, "scorecard", run_dir, "scorecard.json")
+    if sha_ok is False:
+        return None   # pointer present but the pinned bytes are gone/swapped — drop
+    path = _confined_path(run_dir, "scorecard.json")
+    if path is None:
+        return None
+    if os.path.islink(os.path.join(run_dir, "scorecard.json")):
+        return None
+    try:
+        with open(path, encoding="utf-8") as handle:
+            payload = json.load(handle)
+    except (OSError, ValueError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+    # Validate-or-drop: run the SAME strict schema check the conductor ran before writing
+    # (board_scorecard.validate, exposed as a callable). A payload that fails — a string
+    # weight, a band⇔total mismatch, an inconsistent contradictions[] — is dropped (None)
+    # so the section renders as ABSENT, never crashing the render on downstream arithmetic
+    # (_scorecard_seat_history's score*weight). validate() calls die() → SystemExit on
+    # failure; capture it and treat as a drop. A missing/broken validator import also
+    # drops (a render must never be blocked by a scoring-artifact validator).
+    try:
+        import board_scorecard
+    except ImportError:
+        return None
+    import contextlib
+    import io as _io
+    try:
+        with contextlib.redirect_stderr(_io.StringIO()):
+            board_scorecard.validate(payload)
+    except SystemExit:
+        return None
+    except Exception:
+        # Defensive: a validator bug must degrade the section, never crash the render.
+        return None
+    return payload
+
+
+# Lens-aware label for a scorecard band. The machine band stays weak/mixed/strong
+# everywhere; only the human word flips. Software keeps the terse band; every other
+# (or unknown) lens gets a plainer phrase for a non-developer reader.
+_BAND_LABELS_SOFTWARE = {"weak": "weak", "mixed": "mixed", "strong": "strong"}
+_BAND_LABELS_PLAIN = {"weak": "weak", "mixed": "mixed", "strong": "strong"}
+
+
+def _band_label(band, lens_preset) -> str:
+    """A lens-aware display word for a coarse band (mirrors _verdict_labels' software-
+    vs-plain split). Kept identical across lenses today (the three words already read
+    plainly), but routed through the lens so a future wording change stays lens-aware,
+    matching the verdict-label discipline. None/unknown → '—'."""
+    if band not in ("weak", "mixed", "strong"):
+        return "—"
+    table = _BAND_LABELS_SOFTWARE if lens_preset == "software-architecture" else _BAND_LABELS_PLAIN
+    return table[band]
+
+
+def _scorecard_seat_history(scorecard: dict, weight_of: dict, criterion_ids: list) -> dict:
+    """{seat: [(round, weighted_total_or_None), ...]} — each seat's per-round weighted
+    total (the same weighted mean the totals[] row uses, recomputed per round from the
+    scores[] trajectory). The trajectory IS the convergence story (D18) — this feeds the
+    'History' column. Rounds a seat did not score are omitted from its list."""
+    # {(seat, round): {cid: score}}
+    by_seat_round: dict = {}
+    for row in scorecard.get("scores") or []:
+        if not isinstance(row, dict):
+            continue
+        key = (row.get("seat"), row.get("round"))
+        by_seat_round.setdefault(key, {})[row.get("criterion")] = row.get("score")
+    hist: dict = {}
+    for (seat, rnd), cells in sorted(by_seat_round.items(),
+                                     key=lambda kv: (str(kv[0][0]), kv[0][1] or 0)):
+        num = 0.0
+        den = 0
+        for cid, score in cells.items():
+            w = weight_of.get(cid)
+            if w is None or not isinstance(score, (int, float)):
+                continue
+            num += score * w
+            den += w
+        total = (num / den) if den else None
+        hist.setdefault(seat, []).append((rnd, total))
+    return hist
+
+
+def _contradiction_round_clause(c: dict) -> str:
+    """The ` (verdict from round N, scores from round M)` provenance clause for a
+    contradiction row — SHOWN ONLY when the two rounds differ (NIT 2), so the common
+    same-round case stays terse. "" when either round is absent or they match."""
+    tr = c.get("token_round")
+    sr = c.get("score_round")
+    if not isinstance(tr, int) or not isinstance(sr, int) or tr == sr:
+        return ""
+    return f" (verdict from round {tr}, scores from round {sr})"
+
+
+def render_scorecard_markdown(data: dict, run_dir=None) -> list:
+    """The '## Rubric scorecard' section — the per-seat weighted totals + coarse bands
+    over the merged rubric, the per-round history, the criteria weights, the seats'
+    RUBRIC-NOTE objections, and — LOUDLY — any token↔band self-contradiction (D17).
+    Returns [] when there's no scorecard.json (a non-rubric consensus stays
+    byte-identical). Scores are INFORMATIONAL — this section never gates."""
+    scorecard = _read_scorecard(run_dir, data)
+    if not scorecard:
+        return []
+    criteria = [c for c in (scorecard.get("criteria") or []) if isinstance(c, dict)]
+    totals = [t for t in (scorecard.get("totals") or []) if isinstance(t, dict)]
+    if not criteria or not totals:
+        return []   # a shape with nothing to show drops rather than render an empty table
+    lens = data.get("lens_preset")
+    weight_of = {c.get("id"): c.get("weight") for c in criteria}
+    criterion_ids = [c.get("id") for c in criteria]
+    history = _scorecard_seat_history(scorecard, weight_of, criterion_ids)
+
+    out = ["## Rubric scorecard",
+           "_The board agreed these weighted criteria before opining, then scored the "
+           "material 1–5 each round. Scores are **informational** — they never move the "
+           "verdict or the gate (the trajectory is the convergence story)._"]
+
+    # The contradiction call-out, FIRST and LOUD (the primary verdict summary surfaces
+    # it too, below — this repeats it in the section for a reader who jumps here).
+    contradictions = [c for c in (scorecard.get("contradictions") or []) if isinstance(c, dict)]
+    for c in contradictions:
+        out.append(f"⚠ **{c.get('seat')} contradicts itself** — its VERDICT says "
+                   f"`{c.get('verdict')}` but its weighted scores land in the "
+                   f"**{_band_label(c.get('band'), lens)}** band"
+                   f"{_contradiction_round_clause(c)}. A human should look "
+                   "(this is recorded, never auto-resolved).")
+
+    # Criteria weights table.
+    out.append("")
+    out.append("### Criteria")
+    out.append("| # | Criterion | Weight |")
+    out.append("| - | --------- | ------ |")
+    for c in criteria:
+        out.append(f"| {c.get('id')} | {_md_cell(c.get('title', ''))} | {c.get('weight')}% |")
+
+    # Per-seat weighted totals + bands + history.
+    out.append("")
+    out.append("### Per-seat scores")
+    out.append("| Seat | Weighted total | Band | Coverage | History |")
+    out.append("| ---- | -------------- | ---- | -------- | ------- |")
+    for t in totals:
+        seat = t.get("seat")
+        wt = t.get("weighted_total")
+        wt_s = f"{wt:.2f} / 5" if isinstance(wt, (int, float)) and not isinstance(wt, bool) else "—"
+        band_s = _band_label(t.get("band"), lens)
+        cov = f"{t.get('criteria_scored', 0)}/{len(criterion_ids)}" \
+            + (" (partial)" if t.get("partial") else "")
+        traj = history.get(seat) or []
+        traj_s = " → ".join(f"{v:.2f}" if isinstance(v, (int, float)) else "—"
+                            for _, v in traj) or "—"
+        out.append(f"| {seat} | {wt_s} | {band_s} | {cov} | {traj_s} |")
+
+    # The seats' RUBRIC-NOTE objections (recorded, never debated).
+    notes = [n for n in (scorecard.get("rubric_notes") or []) if isinstance(n, dict)]
+    if notes:
+        out.append("")
+        out.append("### Rubric notes (recorded objections)")
+        for n in notes:
+            out.append(f"- {n.get('seat')} (round {n.get('round')}): "
+                       f"{_flat(str(n.get('note', '')))}")
+
+    # Dropped criteria provenance from the rubric.json sibling (best-effort — the
+    # scorecard mirrors only the merged criteria; the drops live in rubric.json).
+    dropped = _read_rubric_dropped(run_dir, data)
+    if dropped:
+        out.append("")
+        out.append("### Proposed criteria the chair dropped")
+        for d in dropped:
+            out.append(f"- {_flat(str(d.get('title', '')))} "
+                       f"(from {d.get('seat', '?')}): {_flat(str(d.get('reason', '')))}")
+
+    out.append("")
+    return out
+
+
+def _read_rubric_dropped(run_dir, data=None) -> list:
+    """Best-effort read of rubric.json's `dropped[]` (the chair's drop-with-reason
+    partition) for the scorecard render, or []. Realpath-confined + symlink-refused.
+
+    When `data` carries a `verdict.json.rubric = {artifact, sha256}` pointer, the on-disk
+    rubric.json bytes MUST hash to that sha before we read it — a swapped rubric.json drops
+    the provenance rather than rendering forged drop-reasons (mirrors _read_scorecard's
+    pointer enforcement). The fixed-name path is the no-pointer fallback only."""
+    if not run_dir:
+        return []
+    if _pointer_sha_ok(data or {}, "rubric", run_dir, "rubric.json") is False:
+        return []   # pointer present but the pinned bytes are gone/swapped — drop
+    path = _confined_path(run_dir, "rubric.json")
+    if path is None or os.path.islink(os.path.join(run_dir, "rubric.json")):
+        return []
+    try:
+        with open(path, encoding="utf-8") as handle:
+            payload = json.load(handle)
+    except (OSError, ValueError):
+        return []
+    if not isinstance(payload, dict):
+        return []
+    dropped = payload.get("dropped")
+    return [d for d in dropped if isinstance(d, dict)] if isinstance(dropped, list) else []
+
+
+def _scorecard_contradiction_summary(data: dict, run_dir=None) -> list:
+    """The token↔band contradiction call-out for the PRIMARY verdict summary (D17: it
+    is 'surfaced loudly in the primary verdict summary'). Returns [] when there's no
+    scorecard or no contradiction. Informational — never gates."""
+    scorecard = _read_scorecard(run_dir, data)
+    if not scorecard:
+        return []
+    contradictions = [c for c in (scorecard.get("contradictions") or []) if isinstance(c, dict)]
+    if not contradictions:
+        return []
+    lens = data.get("lens_preset")
+    who = ", ".join(str(c.get("seat")) for c in contradictions)
+    return [f"⚠ **Scores contradict the verdict** for: {who}. "
+            "One or more seats declared a verdict token at odds with their own weighted "
+            "scores — see the Rubric scorecard below. This is recorded, never "
+            "auto-resolved, and does **not** change the verdict or the gate (D17)."]
+
+
+def render_markdown(data: dict, filt: str = DEFAULT_FILTER, run_dir=None) -> str:
     out = ["# Advisory Board — Final Consensus"]
     if data.get("title"):
         out.append(data["title"])
@@ -415,11 +716,19 @@ def render_markdown(data: dict, filt: str = DEFAULT_FILTER) -> str:
     note = data.get("verdict_note") or note
     if note:
         out.append(note)
+    # Token↔band contradiction (v1.15 P4 / D17), surfaced LOUDLY in the primary verdict
+    # summary. Empty on a non-rubric run or a run with no contradiction, so the default
+    # output stays byte-identical.
+    out += _scorecard_contradiction_summary(data, run_dir)
     out.append("")
 
     # --revise runs only (previous_run present): the cross-run delta, right under
     # the verdict so the trajectory reads first. Absent on every other verdict.
     out += render_delta_markdown(data)
+
+    # Rubric scorecard (v1.15 P4) — the per-seat weighted totals + trajectory. Empty on
+    # a non-rubric run (no scorecard.json), so a plain consensus stays byte-identical.
+    out += render_scorecard_markdown(data, run_dir)
 
     blockers = data.get("blockers", [])
     if blockers:
@@ -1387,6 +1696,10 @@ def build_handoff_data(data: dict, run_dir=None, shape: str = "full-handoff",
     # shapes render no redline/patch, so they do NO revised-chain I/O and emit no
     # spurious redline warning.
     hd.update(_revision_handoff_fields(data, run_dir, shape))
+    # The rubric scorecard slots (v1.15 P4). Empty (the whole section drops) on any
+    # non-rubric run, so a plain run stays byte-identical. Gated on the full-handoff
+    # shape: the slim shapes have no sc-* markup, so they do NO scorecard.json I/O.
+    hd.update(_scorecard_handoff_fields(data, run_dir, shape))
     return hd
 
 
@@ -1419,6 +1732,72 @@ def _delta_handoff_fields(data: dict) -> dict:
                 {"delta_item": _plain(f"{_delta_item_title(entry)} "
                                       f"({singular[container]})")}
                 for entry in buckets[key]]
+    return fields
+
+
+def _scorecard_handoff_fields(data: dict, run_dir, shape: str = "full-handoff") -> dict:
+    """The rubric-scorecard slots for the HTML handoff (v1.15 P4). All empty (the whole
+    scorecard-sec drops) on a non-rubric run — so a plain run stays byte-identical.
+    Only the full-handoff shape has the sc-* markup, so the slim shapes get the empty
+    fields and do NO scorecard.json I/O. Scores are informational — never gated."""
+    empty = {"scorecard_intro": "", "scorecard_contradiction": "",
+             "sc_criteria": [], "sc_seats": [], "sc_notes": []}
+    if shape != "full-handoff":
+        return empty
+    scorecard = _read_scorecard(run_dir, data)
+    if not scorecard:
+        return empty
+    criteria = [c for c in (scorecard.get("criteria") or []) if isinstance(c, dict)]
+    totals = [t for t in (scorecard.get("totals") or []) if isinstance(t, dict)]
+    if not criteria or not totals:
+        return empty
+    lens = data.get("lens_preset")
+    weight_of = {c.get("id"): c.get("weight") for c in criteria}
+    criterion_ids = [c.get("id") for c in criteria]
+    history = _scorecard_seat_history(scorecard, weight_of, criterion_ids)
+
+    fields = dict(empty)
+    fields["scorecard_intro"] = _plain(
+        "The board agreed these weighted criteria before opining, then scored the "
+        "material 1–5 each round. Scores are informational — they never move the "
+        "verdict or the gate.")
+    contradictions = [c for c in (scorecard.get("contradictions") or []) if isinstance(c, dict)]
+    if contradictions:
+        who = ", ".join(str(c.get("seat")) for c in contradictions)
+        fields["scorecard_contradiction"] = _plain(
+            f"⚠ Scores contradict the verdict for: {who}. One or more seats "
+            "declared a verdict token at odds with their own weighted scores. This is "
+            "recorded, never auto-resolved, and does not change the verdict or the gate.")
+    fields["sc_criteria"] = [
+        {"sc_crit_id": _plain(str(c.get("id", ""))),
+         "sc_crit_title": _plain(_flat(str(c.get("title", "")))),
+         "sc_crit_weight": _plain(f"{c.get('weight')}%")}
+        for c in criteria]
+    seat_rows = []
+    for t in totals:
+        seat = t.get("seat")
+        wt = t.get("weighted_total")
+        wt_s = f"{wt:.2f} / 5" if isinstance(wt, (int, float)) and not isinstance(wt, bool) else "—"
+        band = t.get("band")
+        cov = f"{t.get('criteria_scored', 0)}/{len(criterion_ids)}" \
+            + (" (partial)" if t.get("partial") else "")
+        traj = history.get(seat) or []
+        traj_s = " → ".join(f"{v:.2f}" if isinstance(v, (int, float)) else "—"
+                                 for _, v in traj) or "—"
+        seat_rows.append({
+            "sc_seat": _plain(str(seat)),
+            "sc_seat_total": _plain(wt_s),
+            "sc_seat_band": _plain(_band_label(band, lens)),
+            "sc_seat_band_class": _plain(band if band in ("weak", "mixed", "strong") else ""),
+            "sc_seat_coverage": _plain(cov),
+            "sc_seat_history": _plain(traj_s),
+        })
+    fields["sc_seats"] = seat_rows
+    notes = [n for n in (scorecard.get("rubric_notes") or []) if isinstance(n, dict)]
+    fields["sc_notes"] = [
+        {"sc_note": _plain(f"{n.get('seat')} (round {n.get('round')}): "
+                           f"{_flat(str(n.get('note', '')))}")}
+        for n in notes]
     return fields
 
 
@@ -1470,7 +1849,7 @@ def main(argv=None) -> int:
     data = load(args.path)
     sequence_shape = args.shape == "implementation-sequence"
     markdown = (render_sequence_markdown(data, args.filter) if sequence_shape
-                else render_markdown(data, args.filter))
+                else render_markdown(data, args.filter, run_dir=args.run_dir))
 
     # The Markdown is the implicit default deliverable: write it when --out is given, or
     # when no other output (--html / --handoff-data) was requested. Asking only for the

@@ -88,8 +88,12 @@ emit_scores() {
   [ -z "$ids" ] && return 0
   local first="${ids%%$'\n'*}"
   local last; last="$(printf '%s\n' "$ids" | tail -n1)"
+  local base=4
+  # `low`/`high` (v1.15 P4): a flat weak/strong band for the scorecard band tests.
+  [ "$score_mode" = "low" ] && base=1
+  [ "$score_mode" = "high" ] && base=5
   for cid in $ids; do
-    local val=4
+    local val=$base
     if [ "$score_mode" = "moving" ] && [ "$cid" = "$first" ] && [ "$round" -ge 2 ]; then val=2; fi
     if [ "$score_mode" = "partial" ] && [ "$cid" = "$last" ]; then continue; fi
     if [ "$score_mode" = "invalid" ] && [ "$cid" = "$first" ]; then echo "SCORE $cid: 0"; continue; fi
