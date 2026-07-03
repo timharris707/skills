@@ -424,20 +424,20 @@ footer.colophon code { background: var(--surface-2); }
           
           <span class="chip"><b>Baseline</b> advisory-board/v1.10.0 · `main` @ `be4c9b2` · 676 tests green</span>
           
-          <span class="chip"><b>Status</b> M1 SHIPPED (`advisory-board/v1.11.0`, 2026-07-01) · M2 SHIPPED (`advisory-board/v1.12.0`, 2026-07-02) · M3 SHIPPED (`advisory-board/v1.13.0`, 2026-07-02) · M4 SHIPPED (`advisory-board/v1.14.0`, 2026-07-02 — P1 PR #71 · P2 PR #73 · P3 PR #75) · M5 (v1.15) IN FLIGHT — P1 design pass done (D15–D20; docs PR #78, roundtable 2026-07-02), P2 next</span>
+          <span class="chip"><b>Status</b> M1 SHIPPED (`advisory-board/v1.11.0`, 2026-07-01) · M2 SHIPPED (`advisory-board/v1.12.0`, 2026-07-02) · M3 SHIPPED (`advisory-board/v1.13.0`, 2026-07-02) · M4 SHIPPED (`advisory-board/v1.14.0`, 2026-07-02 — P1 PR #71 · P2 PR #73 · P3 PR #75) · M5 (v1.15) IN FLIGHT — P1 design pass done (D15–D20; docs PR #78, roundtable 2026-07-02), P2 rubric round + chair merge shipped (PR #80, merge `9b38a8e`, 2026-07-02), P3 next</span>
           
         </div>
       </div>
       <div class="gauge">
-        <svg class="ring" viewBox="0 0 120 120" width="118" height="118" role="img" aria-label="Overall progress 77%">
+        <svg class="ring" viewBox="0 0 120 120" width="118" height="118" role="img" aria-label="Overall progress 84%">
           <circle class="ring-track" cx="60" cy="60" r="52" fill="none" stroke-width="11"/>
           <circle class="ring-arc" cx="60" cy="60" r="52" fill="none" stroke-width="11"
                   stroke-linecap="round" transform="rotate(-90 60 60)"
-                  stroke-dasharray="326.7" stroke-dashoffset="75.1"/>
-          <text class="ring-pct" x="60" y="57" text-anchor="middle" dominant-baseline="middle">77%</text>
+                  stroke-dasharray="326.7" stroke-dashoffset="52.3"/>
+          <text class="ring-pct" x="60" y="57" text-anchor="middle" dominant-baseline="middle">84%</text>
           <text class="ring-sub" x="60" y="76" text-anchor="middle" dominant-baseline="middle">complete</text>
         </svg>
-        <div class="gauge-count"><b>34</b> / 44 tasks done</div>
+        <div class="gauge-count"><b>37</b> / 44 tasks done</div>
       </div>
     </div>
 
@@ -1058,8 +1058,8 @@ footer.colophon code { background: var(--surface-2); }
           <div class="ms-meta">
             <span class="badge wip"><span class="dot"></span>In progress</span>
             <span class="ms-progress">
-              <span class="ms-bar"><span style="width:9%"></span></span>
-              1/11
+              <span class="ms-bar"><span style="width:36%"></span></span>
+              4/11
             </span>
           </div>
         </div>
@@ -1090,19 +1090,19 @@ footer.colophon code { background: var(--surface-2); }
         
       </div>
       
-      <div class="phase todo">
+      <div class="phase done">
         <div class="phase-head">
           <span class="phase-dot"></span>
           <h4 class="phase-title">Phase 2 — Rubric round + chair merge (D15, D16, D18)</h4>
-          <span class="phase-state">To do</span>
+          <span class="phase-state">Done</span>
         </div>
         <ul class="checklist">
           
-          <li class="todo"><span class="tick"></span><span class="task-text"><code>_conductor/rubric.py</code> proposal pass: parallel fan-out over the board (full source packet, same packet-hash/egress discipline as any round; disclosure gains a purpose mention, no new consent category); each seat proposes 3–7 weighted criteria in a fenced structured block; conductor mints proposal ids at parse time; ≥2 usable proposals floor else the run refuses loudly <strong>before any opinion round spends tokens</strong>; template version + sha in the recipe; mock-marker convention (<code>You are proposing RUBRIC criteria…</code>) added to every test mock</span></li>
+          <li class="done"><span class="tick">✓</span><span class="task-text"><code>_conductor/rubric.py</code> proposal pass: parallel fan-out over the board (full source packet, same packet-hash/egress discipline as any round; disclosure gains a purpose mention, no new consent category); each seat proposes 3–7 weighted criteria in a fenced structured block; conductor mints proposal ids at parse time; ≥2 usable proposals floor else the run refuses loudly <strong>before any opinion round spends tokens</strong>; template version + sha in the recipe; mock-marker convention (<code>You are proposing RUBRIC criteria…</code>) added to every test mock <em>(PR #80)</em></span></li>
           
-          <li class="todo"><span class="tick"></span><span class="task-text">Chair merge spawn (the seven-part pattern): <code>--chair-seat</code> resolved on the unique-seat-id axis — <code>resolve_chair_seat_id</code> + id-first <code>choose_chair_seat</code> refusing an ambiguous provider name (mirror the revision path, NOT the synthesizer&#x27;s by-name lookup); chair emits the explicit partition (each merged criterion → subsumed proposal-id(s); each dropped proposal-id → reason); conductor reconciles the partition mechanically — every proposal-id exactly once across subsumed ∪ dropped, no phantom ids, no empty subsumptions (INV-1 style); two-attempt retry; final failure REFUSES the run (<code>rubric-rejected.json</code> + raw record; exit code decided in this PR — preflight-NO-GO-like vs a new code)</span></li>
+          <li class="done"><span class="tick">✓</span><span class="task-text">Chair merge spawn (the seven-part pattern): <code>--chair-seat</code> resolved on the unique-seat-id axis — <code>resolve_chair_seat_id</code> + id-first <code>choose_chair_seat</code> refusing an ambiguous provider name (mirror the revision path, NOT the synthesizer&#x27;s by-name lookup); chair emits the explicit partition (each merged criterion → subsumed proposal-id(s); each dropped proposal-id → reason); conductor reconciles the partition mechanically — every proposal-id exactly once across subsumed ∪ dropped, no phantom ids, no empty subsumptions (INV-1 style); two-attempt retry; final failure REFUSES the run (<code>rubric-rejected.json</code> + raw record; exit reuses <code>EXIT_PREFLIGHT_NOGO</code>) <em>Hardened per the dogfood board (BLOCK): consent hash now binds the rubric proposal prompt bytes (<code>build_rubric_proposal_blobs</code>, prebuilt into the egress manifest before approval, per-seat rebuild-drift re-assertion), chair retry-then-refuse contract fixed to match the docs. <code>--revise</code> re-review surfaced one new blocker — rubric proposals composing from strictly less context than round 1 under <code>--repo</code>/<code>--revise</code>/<code>--output revised-draft</code> — fixed per the board&#x27;s own first-listed prescription: guard-and-refuse those composed-mode combinations (<code>EXIT_USAGE</code>) until the shared composed-context builder ships in P3.</em> <em>(PR #80)</em></span></li>
           
-          <li class="todo"><span class="tick"></span><span class="task-text"><code>rubric.json</code> artifact of record, schema <code>advisory-board/rubric@1</code>, written at chair-merge time (post-consent per RH-1, pre-rounds, survives a later scoring failure): strict validator mirroring <code>board_changes.py</code> discipline (unknown top-level keys refused; model-authored fields enumerated and minimal; ids/arithmetic conductor-computed); <strong>weight-sum-to-100 invariant</strong> (conductor-validated integer percentages, reject-on-violation, test-guarded — the codebase&#x27;s first numeric-sum invariant); <code>--rubric</code> flag + recipe keys + <code>rubric</code> STAGES token + run-card/artifact-tree blocks</span></li>
+          <li class="done"><span class="tick">✓</span><span class="task-text"><code>rubric.json</code> artifact of record, schema <code>advisory-board/rubric@1</code>, written at chair-merge time (post-consent per RH-1, pre-rounds, survives a later scoring failure): strict validator mirroring <code>board_changes.py</code> discipline (unknown top-level keys refused; model-authored fields enumerated and minimal; ids/arithmetic conductor-computed); <strong>weight-sum-to-100 invariant</strong> (conductor-validated integer percentages, reject-on-violation, test-guarded — the codebase&#x27;s first numeric-sum invariant); <code>--rubric</code> flag + recipe keys + <code>rubric</code> STAGES token + run-card/artifact-tree blocks <em>(PR #80)</em></span></li>
           
         </ul>
         
@@ -1395,7 +1395,7 @@ footer.colophon code { background: var(--surface-2); }
 
   <!-- ===================== COLOPHON ===================== -->
   <footer class="colophon">
-    Rendered from <code>run-board-roadmap-v1.11-v1.15.md</code> &middot; 5 milestones &middot; 34/44 tasks complete. The markdown plan is the source of truth &mdash; regenerate with <code>render_plan.py</code>; never hand-edit this file.
+    Rendered from <code>run-board-roadmap-v1.11-v1.15.md</code> &middot; 5 milestones &middot; 37/44 tasks complete. The markdown plan is the source of truth &mdash; regenerate with <code>render_plan.py</code>; never hand-edit this file.
   </footer>
 
 </div>
