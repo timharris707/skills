@@ -424,20 +424,20 @@ footer.colophon code { background: var(--surface-2); }
           
           <span class="chip"><b>Baseline</b> advisory-board/v1.10.0 · `main` @ `be4c9b2` · 676 tests green</span>
           
-          <span class="chip"><b>Status</b> M1 SHIPPED (`advisory-board/v1.11.0`, 2026-07-01) · M2 SHIPPED (`advisory-board/v1.12.0`, 2026-07-02) · M3 SHIPPED (`advisory-board/v1.13.0`, 2026-07-02) · M4 SHIPPED (`advisory-board/v1.14.0`, 2026-07-02 — P1 PR #71 · P2 PR #73 · P3 PR #75) · M5 (v1.15) next — full design pass first</span>
+          <span class="chip"><b>Status</b> M1 SHIPPED (`advisory-board/v1.11.0`, 2026-07-01) · M2 SHIPPED (`advisory-board/v1.12.0`, 2026-07-02) · M3 SHIPPED (`advisory-board/v1.13.0`, 2026-07-02) · M4 SHIPPED (`advisory-board/v1.14.0`, 2026-07-02 — P1 PR #71 · P2 PR #73 · P3 PR #75) · M5 (v1.15) IN FLIGHT — P1 design pass done (D15–D20; docs PR #78, roundtable 2026-07-02), P2 next</span>
           
         </div>
       </div>
       <div class="gauge">
-        <svg class="ring" viewBox="0 0 120 120" width="118" height="118" role="img" aria-label="Overall progress 87%">
+        <svg class="ring" viewBox="0 0 120 120" width="118" height="118" role="img" aria-label="Overall progress 77%">
           <circle class="ring-track" cx="60" cy="60" r="52" fill="none" stroke-width="11"/>
           <circle class="ring-arc" cx="60" cy="60" r="52" fill="none" stroke-width="11"
                   stroke-linecap="round" transform="rotate(-90 60 60)"
-                  stroke-dasharray="326.7" stroke-dashoffset="42.5"/>
-          <text class="ring-pct" x="60" y="57" text-anchor="middle" dominant-baseline="middle">87%</text>
+                  stroke-dasharray="326.7" stroke-dashoffset="75.1"/>
+          <text class="ring-pct" x="60" y="57" text-anchor="middle" dominant-baseline="middle">77%</text>
           <text class="ring-sub" x="60" y="76" text-anchor="middle" dominant-baseline="middle">complete</text>
         </svg>
-        <div class="gauge-count"><b>33</b> / 38 tasks done</div>
+        <div class="gauge-count"><b>34</b> / 44 tasks done</div>
       </div>
     </div>
 
@@ -451,7 +451,7 @@ footer.colophon code { background: var(--surface-2); }
       
       <span class="rail-item done"><i class="dot"></i>M4</span>
       
-      <span class="rail-item todo"><i class="dot"></i>M5</span>
+      <span class="rail-item wip"><i class="dot"></i>M5</span>
       
     </div>
     <div class="legend">
@@ -1050,16 +1050,16 @@ footer.colophon code { background: var(--surface-2); }
 
     </article>
     
-    <article class="milestone todo">
+    <article class="milestone wip">
       <div class="ms-head">
         <div class="ms-num">5</div>
         <div class="ms-head-main">
           <h3 class="ms-title">v1.15 — Rubric-first deliberation</h3>
           <div class="ms-meta">
-            <span class="badge todo"><span class="dot"></span>To do</span>
+            <span class="badge wip"><span class="dot"></span>In progress</span>
             <span class="ms-progress">
-              <span class="ms-bar"><span style="width:0%"></span></span>
-              0/5
+              <span class="ms-bar"><span style="width:9%"></span></span>
+              1/11
             </span>
           </div>
         </div>
@@ -1070,22 +1070,22 @@ footer.colophon code { background: var(--surface-2); }
       
 
       
-      <div class="phase todo">
+      <div class="phase done">
         <div class="phase-head">
           <span class="phase-dot"></span>
           <h4 class="phase-title">Phase 1 — Full design pass</h4>
-          <span class="phase-state">To do</span>
+          <span class="phase-state">Done</span>
         </div>
         <ul class="checklist">
           
-          <li class="todo"><span class="tick"></span><span class="task-text">Grilling + dogfood roundtable on the rubric design: who proposes criteria, who merges (a chair seat — merging is reasoning, §11), how scores map to ship/caution/block, what <code>--rubric</code> opts into, schema scorecard shape; rewrite M5 phases from the outcome</span></li>
+          <li class="done"><span class="tick">✓</span><span class="task-text">Grilling + dogfood roundtable on the rubric design: who proposes criteria, who merges (a chair seat — merging is reasoning, §11), how scores map to ship/caution/block, what <code>--rubric</code> opts into, schema scorecard shape; rewrite M5 phases from the outcome <em>Recorded as D15–D20. Roundtable 2026-07-02: 3 seats (claude-opus-4-8 · gpt-5.5 · gemini-3.5-flash), 2 rounds + claude synthesizer — unanimous SHIP WITH CHANGES @ high confidence, 4 blockers (chair partition over conductor-minted proposal ids; id-axis chair selection; rubric.json/scorecard.json two-artifact split; rubric-aware score-retry semantics), all folded into the decisions; 3 Gemini dissents preserved. Brief at <code>design/v1.15-rubric-first-design-brief.md</code>, fact sheet at <code>design/v1.15-rubric-design-inputs.md</code> (docs PR #78).</em></span></li>
           
         </ul>
         
         
         <div class="gate">
           <span class="g-label">Validation gate</span>
-          <code>this milestone&#x27;s phases re-authored and reviewed before implementation.</code>
+          <code>this milestone&#x27;s phases re-authored and reviewed before implementation. ✓</code>
         </div>
         
       </div>
@@ -1093,45 +1093,87 @@ footer.colophon code { background: var(--surface-2); }
       <div class="phase todo">
         <div class="phase-head">
           <span class="phase-dot"></span>
-          <h4 class="phase-title">Phase 2 — Rubric round + chair merge</h4>
+          <h4 class="phase-title">Phase 2 — Rubric round + chair merge (D15, D16, D18)</h4>
           <span class="phase-state">To do</span>
         </div>
         <ul class="checklist">
           
-          <li class="todo"><span class="tick"></span><span class="task-text">Placeholder (defined by Phase 1)</span></li>
+          <li class="todo"><span class="tick"></span><span class="task-text"><code>_conductor/rubric.py</code> proposal pass: parallel fan-out over the board (full source packet, same packet-hash/egress discipline as any round; disclosure gains a purpose mention, no new consent category); each seat proposes 3–7 weighted criteria in a fenced structured block; conductor mints proposal ids at parse time; ≥2 usable proposals floor else the run refuses loudly <strong>before any opinion round spends tokens</strong>; template version + sha in the recipe; mock-marker convention (<code>You are proposing RUBRIC criteria…</code>) added to every test mock</span></li>
+          
+          <li class="todo"><span class="tick"></span><span class="task-text">Chair merge spawn (the seven-part pattern): <code>--chair-seat</code> resolved on the unique-seat-id axis — <code>resolve_chair_seat_id</code> + id-first <code>choose_chair_seat</code> refusing an ambiguous provider name (mirror the revision path, NOT the synthesizer&#x27;s by-name lookup); chair emits the explicit partition (each merged criterion → subsumed proposal-id(s); each dropped proposal-id → reason); conductor reconciles the partition mechanically — every proposal-id exactly once across subsumed ∪ dropped, no phantom ids, no empty subsumptions (INV-1 style); two-attempt retry; final failure REFUSES the run (<code>rubric-rejected.json</code> + raw record; exit code decided in this PR — preflight-NO-GO-like vs a new code)</span></li>
+          
+          <li class="todo"><span class="tick"></span><span class="task-text"><code>rubric.json</code> artifact of record, schema <code>advisory-board/rubric@1</code>, written at chair-merge time (post-consent per RH-1, pre-rounds, survives a later scoring failure): strict validator mirroring <code>board_changes.py</code> discipline (unknown top-level keys refused; model-authored fields enumerated and minimal; ids/arithmetic conductor-computed); <strong>weight-sum-to-100 invariant</strong> (conductor-validated integer percentages, reject-on-violation, test-guarded — the codebase&#x27;s first numeric-sum invariant); <code>--rubric</code> flag + recipe keys + <code>rubric</code> STAGES token + run-card/artifact-tree blocks</span></li>
           
         </ul>
         
+        <div class="testing">
+          <p class="t-label">Testing strategy</p>
+          <div class="t-body"><p>partition-reconciliation property tests (coverage AND no-phantom); duplicate-provider chair selection; refusal-before-rounds; recipe replay under <code>--from-recipe</code>.</p></div>
+        </div>
+        
+        
+        <div class="gate">
+          <span class="g-label">Validation gate</span>
+          <code>cd skills/advisory-board &amp;&amp; python3 -m unittest discover -s tests -t tests</code>
+        </div>
         
       </div>
       
       <div class="phase todo">
         <div class="phase-head">
           <span class="phase-dot"></span>
-          <h4 class="phase-title">Phase 3 — Scoring rounds + score-based convergence</h4>
+          <h4 class="phase-title">Phase 3 — Scoring rounds + score-based convergence (D17, D19)</h4>
           <span class="phase-state">To do</span>
         </div>
         <ul class="checklist">
           
-          <li class="todo"><span class="tick"></span><span class="task-text">Placeholder (defined by Phase 1)</span></li>
+          <li class="todo"><span class="tick"></span><span class="task-text">Rubric injection into round prompts (conditional placeholder, the <code>{revision_context}</code> precedent) with conductor-assigned criterion ids <code>c1</code>…<code>cN</code>; <code>SCORE cN: &lt;1–5&gt;</code> per-criterion parser with <code>parse_verdict</code>-style hardening (last qualifying line per id wins, quoted/hedged rejected) + optional <code>RUBRIC-NOTE:</code> objection line</span></li>
+          
+          <li class="todo"><span class="tick"></span><span class="task-text">Rubric-aware round runner: seat usability stays defined by the VERDICT token (unchanged); a missing/invalid SCORE triggers the standard two-attempt retry then degrades to a partial scorecard cell (rendered &quot;—&quot;, never imputed; partial totals marked) — never an unusable seat</span></li>
+          
+          <li class="todo"><span class="tick"></span><span class="task-text">Convergence widened, one boolean: moved = verdict_shift OR new_cites OR any criterion score changed; a criterion absent in both rounds is non-movement; <code>--max-rounds</code> stays the ceiling; round-done detail names the still-moving criteria</span></li>
           
         </ul>
         
+        <div class="testing">
+          <p class="t-label">Testing strategy</p>
+          <div class="t-body"><p>score-parse hardening fixtures; partial-cell degradation; <code>--rounds auto</code> stop behavior with score movement; <code>--tier quick</code> composition (rubric pass always runs, never silently skipped).</p></div>
+        </div>
+        
+        
+        <div class="gate">
+          <span class="g-label">Validation gate</span>
+          <code>cd skills/advisory-board &amp;&amp; python3 -m unittest discover -s tests -t tests</code>
+        </div>
         
       </div>
       
       <div class="phase todo">
         <div class="phase-head">
           <span class="phase-dot"></span>
-          <h4 class="phase-title">Phase 4 — Schema, gate, scorecard render</h4>
+          <h4 class="phase-title">Phase 4 — Scorecard, schema pointers, render (D17, D18, D20)</h4>
           <span class="phase-state">To do</span>
         </div>
         <ul class="checklist">
           
-          <li class="todo"><span class="tick"></span><span class="task-text">Placeholder (defined by Phase 1)</span></li>
+          <li class="todo"><span class="tick"></span><span class="task-text"><code>scorecard.json</code> post-rounds artifact, schema <code>advisory-board/scorecard@1</code> + strict validator: per-round <code>scores[]</code> rows (the trajectory is the convergence story), <code>rubric_notes[]</code>, conductor-computed per-seat weighted totals + coarse bands (echo-score philosophy: reader-defensible, never false precision); scores are informational-only — <strong>the gate never reads them</strong> (Gemini&#x27;s ABSTAIN-on-contradiction dissent recorded in D17, deferred until real scored runs calibrate the bands)</span></li>
+          
+          <li class="todo"><span class="tick"></span><span class="task-text"><code>verdict.json</code> gains tool-authored <code>rubric</code> + <code>scorecard</code> <code>{artifact, sha256}</code> pointers (the shipped <code>changes</code>-pointer precedent: strictly validated when present, invisible when absent; synthesizer merge strips model-supplied ones); <code>--synthesize</code> not required — the artifacts stand alone, pointers appear only when synthesis runs</span></li>
+          
+          <li class="todo"><span class="tick"></span><span class="task-text">Renders: scorecard table in <code>final-consensus.md</code> + HTML handoff (whole-drop to zero body bytes on a non-rubric run, per the byte-identity invariant); token↔band contradiction surfaced loudly in the primary verdict summary; lens-aware labels; <code>history</code> scorecard column; <code>stakeholder-panel</code> <code>LENS_PRESETS</code> entry with the seat-order binding documented (<code>--rubric --lens stakeholder-panel</code> combo in docs); <code>--revise</code> carries the prior rubric forward mechanically inside the consent-hashed packet (re-agreement not offered)</span></li>
           
         </ul>
         
+        <div class="testing">
+          <p class="t-label">Testing strategy</p>
+          <div class="t-body"><p>validator strictness (unknown keys, weight sums, band computation); body-byte-identity on non-rubric renders; pointer round-trips; carried-rubric revise runs.</p></div>
+        </div>
+        
+        
+        <div class="gate">
+          <span class="g-label">Validation gate</span>
+          <code>cd skills/advisory-board &amp;&amp; python3 -m unittest discover -s tests -t tests</code>
+        </div>
         
       </div>
       
@@ -1143,7 +1185,7 @@ footer.colophon code { background: var(--surface-2); }
         </div>
         <ul class="checklist">
           
-          <li class="todo"><span class="tick"></span><span class="task-text">Docs + CHANGELOG on <code>main</code>; tag <code>advisory-board/v1.15.0</code> on Tim&#x27;s explicit go → release green</span></li>
+          <li class="todo"><span class="tick"></span><span class="task-text">Docs + CHANGELOG on <code>main</code>; tag <code>advisory-board/v1.15.0</code> under Tim&#x27;s standing release go (2026-07-02, covers v1.15.0) → release green</span></li>
           
         </ul>
         
@@ -1236,6 +1278,36 @@ footer.colophon code { background: var(--surface-2); }
         <div class="entry-body">the revision seat applies the non-conflicting edits and surfaces each conflict as an <code>unresolved</code> entry naming the findings involved and its one-paragraph reason; the run card, consensus render, and HTML handoff all state the unresolved count. Content never moves exit codes (they stay about pipeline integrity; <code>--strict-exit</code> unchanged). Refusing to revise on any conflict and silently picking a side were both rejected — the first is useless on rich verdicts, the second launders an editorial choice as board consensus. <em>(v1.13 P1 roundtable, 2026-07-02)</em></div>
       </li>
       
+      <li>
+        <div class="entry-head"><span class="entry-tag">D15</span><span class="entry-title">Rubric-first is one proposal fan-out plus one mechanically-reconciled chair merge, before round 1</span></div>
+        <div class="entry-body">every board seat proposes 3–7 weighted criteria in parallel (full source packet, same packet-hash/egress discipline; ≥2 usable proposals or the run refuses before any opinion round spends tokens), the conductor mints proposal ids at the proposal pass, and the chair (a spawned reasoning seat, §11) must emit an explicit partition — each merged criterion → the proposal-id(s) it subsumes, each dropped proposal-id → a reason — that the conductor verifies mechanically (every proposal-id exactly once across subsumed ∪ dropped, no phantom ids, no empty subsumptions; the INV-1 <code>reconcile_edits</code> pattern). The board unanimously struck the brief&#x27;s &quot;conductor cross-asserts completeness&quot; wording as not mechanizable without the minted ids and the chair-emitted mapping — without them the conductor validates JSON shape while trusting the chair to merge honestly, the exact thing §11 forbids. A semantically bad merge remains reasoning the check cannot catch; prompt unreliability degrades to reject+retry, never a shipped bad rubric. Chair-alone drafting (no proposal pass) was rejected — one seat&#x27;s framing wearing the board&#x27;s name, the same R4 objection that made endorsement default-on. Gemini&#x27;s latency dissent is recorded: a <code>--rubric-file</code> static-criteria escape hatch to skip the pre-round LLM passes; Claude/Codex judged the latency acceptable because <code>--rubric</code> is opt-in and must never be silently skipped. <em>(v1.15 P1 roundtable, 2026-07-02)</em></div>
+      </li>
+      
+      <li>
+        <div class="entry-head"><span class="entry-tag">D16</span><span class="entry-title">The chair is chosen on the unique-seat-id axis, mirroring the revision path and NOT the synthesizer&#x27;s</span></div>
+        <div class="entry-body"><code>--chair-seat</code> resolves via <code>resolve_chair_seat_id</code> + an id-first <code>choose_chair_seat</code> that refuses an ambiguous provider name, because <code>choose_synthesizer_seat</code> keys on provider name and silently collapses a legitimate duplicate-provider board (claude + claude#2) to the last same-named seat (Codex raised it; Claude and Gemini moved to it). The chair must be a board seat (the egress rule) and defaults independently of the synthesizer choice. Scoring is acceptance: a seat that scores under the merged rubric has adopted it — no endorse-style confirmation round; the <code>RUBRIC-NOTE:</code> line records objections without another fan-out. <em>(v1.15 P1 roundtable, 2026-07-02)</em></div>
+      </li>
+      
+      <li>
+        <div class="entry-head"><span class="entry-tag">D17</span><span class="entry-title">Scores coexist with the VERDICT token and never gate in v1.15</span></div>
+        <div class="entry-body">each seat scores every criterion (<code>SCORE cN: &lt;1–5&gt;</code> lines against conductor-assigned criterion ids, <code>parse_verdict</code>-style per-line hardening, last qualifying line per id wins) AND still declares its own VERDICT line, so the token chain (gate, convergence, synthesizer, schema) is untouched. Weighted totals and coarse bands are conductor-computed and informational-only: no calibration data exists for the 1–5 scale or the bands, and the <code>confidence</code> precedent holds — a gameable number must not move a gate. A token↔band contradiction is surfaced loudly in the primary verdict summary but never gates. Gemini&#x27;s dissent is preserved: a severe self-contradiction (top-third weighted score with a <code>block</code> token, or bottom-third with <code>ship</code>) should trip the gate&#x27;s ABSTAIN path in a strict mode; deferred until real scored runs calibrate the bands. Deriving the token from scores by formula was rejected outright (§11 — the conductor generating a verdict — and false precision). <em>(v1.15 P1 roundtable, 2026-07-02)</em></div>
+      </li>
+      
+      <li>
+        <div class="entry-head"><span class="entry-tag">D18</span><span class="entry-title">Two artifacts of record, split by time</span></div>
+        <div class="entry-body"><code>rubric.json</code> (schema <code>advisory-board/rubric@1</code>) is written at chair-merge time, after consent (RH-1) and before the opinion rounds that inject it, so it survives a later scoring failure; <code>scorecard.json</code> (schema <code>advisory-board/scorecard@1</code>) is written after the rounds with per-round score rows (the trajectory is the convergence story), missing cells absent (rendered &quot;—&quot;, never imputed) and partial totals marked. All three seats converged on the split (a single write-once sha-pinned file cannot hold both merge-time criteria and post-round scores under the protect-produced-value posture). Each artifact gets its own strict validator mirroring <code>board_changes.py</code> discipline — unknown top-level keys refused, model-authored fields enumerated and minimal, everything structural (ids, weights arithmetic, totals, bands, shas) conductor-computed — and both are pinned from <code>verdict.json</code> via the existing tool-authored <code>{artifact, sha256}</code> pointer, strictly validated when present, invisible when absent. Weights are conductor-validated integer percentages summing to exactly 100: the codebase&#x27;s first numeric-sum invariant, stated loudly, reject-on-violation, test-guarded. <em>(v1.15 P1 roundtable, 2026-07-02)</em></div>
+      </li>
+      
+      <li>
+        <div class="entry-head"><span class="entry-tag">D19</span><span class="entry-title">One movement boolean, widened; scoring failures degrade to partial cells, never dropped seats</span></div>
+        <div class="entry-body">under <code>--rounds auto</code>, moved = verdict_shift OR new_cites OR any criterion score changed (integer 1–5 makes an epsilon moot; a criterion absent in both rounds is non-movement; <code>--max-rounds</code> stays the hard ceiling against oscillation), and the round-done detail names the still-moving criteria. The rounds machinery gains rubric awareness rather than a fork: seat usability stays defined by the VERDICT token exactly as today; a missing/invalid SCORE line triggers the standard two-attempt retry and then degrades to a partial scorecard cell — the board struck the brief&#x27;s wording here because &quot;standard retry&quot; plus &quot;seat stays usable&quot; cannot both hold on the current classifier, which drops InvalidOutput after the second attempt. Replacing token convergence with a score-spread stop rule was rejected: a board can agree on every number while still flipping tokens. <em>(v1.15 P1 roundtable, 2026-07-02)</em></div>
+      </li>
+      
+      <li>
+        <div class="entry-head"><span class="entry-tag">D20</span><span class="entry-title"><code>--rubric</code> is an orthogonal, recipe-recorded boolean; the stakeholder panel is a lens preset, not a new axis</span></div>
+        <div class="entry-body">any tier can run rubric-first (the pass always costs what it costs; a tier never silently skips it), rubric/chair template versions + shas land in the recipe (<code>synthesize</code> precedent — it changes record-artifact shape), the live view gains a <code>rubric</code> stage token respecting RH-1, and <code>--from-recipe</code> replays exactly. <code>--synthesize</code> is not required: the artifacts stand alone; the verdict pointers appear only when synthesis runs. <code>stakeholder-panel</code> ships as a <code>LENS_PRESETS</code> entry riding the whole existing lens machinery including plain-language verdict rendering, with the seat-order binding documented (a 4th seat repeats the last voice; a 2-seat board drops the third archetype); structured personas and board-composition presets are explicitly out of scope, and presets never silently imply other flags — the combination is documented, not bundled. <code>--revise</code> on a rubric run mechanically carries the prior agreed rubric forward inside the consent-hashed packet (the §11 no-re-reasoning precedent; scores stay comparable across revisions); re-agreement is not offered in v1.15. Failure posture: chair-merge final failure REFUSES the run (<code>rubric-rejected.json</code> + raw record written for the post-mortem) — the one place the never-fail-the-run posture does not apply, because the refusal lands before any opinion round has produced value to protect; the exact exit code is decided in P2 (Codex: must be decided before implementation). Content never moves exit codes otherwise (D14). <em>(v1.15 P1 roundtable, 2026-07-02)</em></div>
+      </li>
+      
     </ol>
   </section>
   
@@ -1323,7 +1395,7 @@ footer.colophon code { background: var(--surface-2); }
 
   <!-- ===================== COLOPHON ===================== -->
   <footer class="colophon">
-    Rendered from <code>run-board-roadmap-v1.11-v1.15.md</code> &middot; 5 milestones &middot; 33/38 tasks complete. The markdown plan is the source of truth &mdash; regenerate with <code>render_plan.py</code>; never hand-edit this file.
+    Rendered from <code>run-board-roadmap-v1.11-v1.15.md</code> &middot; 5 milestones &middot; 34/44 tasks complete. The markdown plan is the source of truth &mdash; regenerate with <code>render_plan.py</code>; never hand-edit this file.
   </footer>
 
 </div>
