@@ -44,6 +44,34 @@ BASIS: <independent | evidence | deference>
 
 `independent` = its own evidence, or it held its prior view · `evidence` = it changed toward another seat because of a specific argument/file/fact *they* surfaced · `deference` = it changed only because the others agreed (which `epistemics.md` says is not a reason — the seat is told to hold its prior view and say `independent` instead). This token is **self-reported and advisory**: it feeds the echo-score metric only, it never gates, and it never overrides the one `VERDICT:` token. It is parsed with the same failure-tolerance as `VERDICT:` — a line naming zero or more than one token is ignored, and a seat that omits the line yields *unknown*, never a guess. The line is added **unconditionally** (round 2+, every run), so it bumps the round-2 template: base `round2@2` → `round2@3`, grounded `round2@3` → `round2@4`. Round 1 carries no `BASIS:` line (there is nothing to have changed from) and stays `round1@2`/`@3`.
 
+## Rubric-first scoring — proposal, chair merge, and the `{rubric_scoring}` block (v1.15)
+
+Behind `--rubric`, two extra passes run **before** round 1, and round prompts gain a conditional scoring block.
+
+**Proposal prompt** (own template `advisory-board/rubric-proposal@1`, or `@2` when the run is composed with `--repo`/`--revise` — see `{composed_context}` below): every seat is asked to propose **3–7 weighted criteria** for judging the source, each `{title, description, weight}`, in a fenced structured block. The prompt embeds the same source packet round 1 sees (a **subset** of what round 1 already egresses — no new consent category) plus, on a composed run, the same `--repo` grounding clause or `--revise` prior-verdict digest + diff round 1 gets (via the shared `prompts.build_composed_review_context` — round 1 and the proposal prompt read the identical composed surface, never a source-only rubric against a richer round 1). The conductor — never the model — mints the proposal ids (`p1`…`pN`, seat order then within-seat order).
+
+**Chair prompt** (own template `advisory-board/rubric-chair@1`): one seat, the chair, receives **every usable proposal** (not the source again) and is asked to merge them into one weighted rubric, returning an explicit **partition** — each merged criterion names the proposal-id(s) it subsumes; each dropped proposal-id gets a reason. The chair-authored criterion prose is fence-scrubbed (`scrub_composed_splice`, the union fence alphabet) before it is spliced anywhere downstream, so a poisoned criterion title can't forge an early fence END.
+
+**`{rubric_scoring}` — spliced into both round templates on a `--rubric` run.** Once the rubric is agreed, `RUBRIC_SCORING_BLOCK` is appended (empty string on a non-rubric run, so the bytes and `prompt_template_sha256` of a plain run are byte-identical — the same discipline as `{repo_grounding}`/`{revision_context}`). It carries the merged criteria (conductor-assigned `c1`…`cN`, titles, descriptions, weights — DATA describing what to judge, never instructions) and this reply contract:
+
+```text
+For EACH criterion, on its own line, emit a single machine-readable score token —
+exactly this shape, nothing else on the line:
+SCORE <criterion-id>: <1-5>
+(1 = the material fails this criterion badly · 3 = mixed · 5 = fully satisfies it. Use a
+single WHOLE number 1–5, not a range or a decimal. Emit one SCORE line per criterion
+above, using its exact id. The conductor reads only these tokens, never your prose.)
+
+Optionally, if you object to the rubric ITSELF (a criterion is wrong, mis-weighted, or
+missing), add ONE line: `RUBRIC-NOTE: <your objection>`. It is recorded, not debated;
+it does not change your scores or your verdict. Scoring under this rubric IS accepting
+it — there is no separate confirmation.
+```
+
+The block sits **above** `BASIS:`/`VERDICT:` so the verdict stays genuinely last. `SCORE cN:` is parsed with `parse_verdict`-style hardening (last qualifying line per id wins; a quoted/indented/hedged/out-of-range/Unicode-digit/signed value is rejected — only a lone ASCII `[1-5]` integer counts); a criterion with no clean line is **absent**, never imputed (`scorecard.json` renders it `—`). A missing/invalid `SCORE` line does **not** make the seat unusable — seat usability is still defined entirely by the `VERDICT:` token. `RUBRIC-NOTE:` is a sibling parse, recorded verbatim in `scorecard.json.rubric_notes[]`.
+
+This composes with `{repo_grounding}`/`{revision_context}`/`BASIS:` as a version suffix (`+rubric@1`) on the round-1 and round-2 template ids — a run without `--rubric` records the bare base, byte-identically. On a `--revise --rubric` run whose prior run carried a valid rubric, the prior rubric is **carried forward mechanically** (no fresh proposal/chair pass) and its scoring block is built into the round-1 packet **before** consent, unlike a fresh chair merge which is necessarily post-consent derived content (see `SKILL.md` § Round Protocol for the consent-chain distinction).
+
 ## Round 1 Seat Prompt
 
 ```text
