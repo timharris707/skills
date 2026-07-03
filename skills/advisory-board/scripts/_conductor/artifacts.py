@@ -183,8 +183,11 @@ def render_run_card(config: RunConfig) -> str:
             "one weighted rubric (→ rubric.json).",
             "                  Weights sum to 100; <2 usable proposals or an unreconcilable merge "
             "REFUSES the run before any",
-            "                  opinion round spends a token. No new egress (proposals see the same "
-            "source round 1 sends).",
+            "                  opinion round spends a token. The merged rubric is then injected into "
+            "every opinion-round",
+            "                  prompt for per-criterion scoring. No new egress (proposals see the same "
+            "source round 1 sends;",
+            "                  the injected rubric is conductor-derived, post-approval content).",
         ]
     if config.grounding is not None:
         g = config.grounding
@@ -402,10 +405,13 @@ def render_convergence_section(convergence: dict) -> list:
         )
     lines += [
         "",
-        "Movement is a pure function over each seat's parsed `VERDICT:` token and its "
-        "concrete citation set (inline-code spans + slash paths) — never its prose "
-        "(principle #1 / §11). A seat moved if its verdict token shifted or it added a "
-        "new citation; `auto` stops when board-wide movement falls below the threshold.",
+        "Movement is a pure function over each seat's parsed `VERDICT:` token, its "
+        "concrete citation set (inline-code spans + slash paths), and — on a `--rubric` "
+        "run — its per-criterion `SCORE:` values — never its prose (principle #1 / §11). "
+        "A seat moved if its verdict token shifted, it added a new citation, or (with a "
+        "rubric) any criterion score changed; a score-only mover renders as `cN↕` naming "
+        "the still-moving criteria. `auto` stops when board-wide movement falls below the "
+        "threshold.",
     ]
     lines += render_echo_lines(convergence.get("echo"))
     return lines

@@ -76,6 +76,29 @@ verdict_token() {
   fi
 }
 
+# `rubric` scoring (v1.15 P3): emit `SCORE cN: <1-5>` per injected criterion id when
+# the round prompt carries the scoring block. MOCK_CODEX_SCORE_MODE: default | moving |
+# partial | invalid | note (see the claude mock for the full contract). codex scores a
+# base of 4 (a different profile than claude's 3 / gemini's 2 -> varied per-seat totals).
+score_mode="${MOCK_CODEX_SCORE_MODE:-default}"
+_rubric_ids() { printf '%s\n' "$prompt" | sed -n 's/^- \(c[0-9][0-9]*\).*/\1/p'; }
+emit_scores() {
+  case "$prompt" in *"This run agreed a weighted RUBRIC"*) ;; *) return 0 ;; esac
+  local ids; ids="$(_rubric_ids)"
+  [ -z "$ids" ] && return 0
+  local first="${ids%%$'\n'*}"
+  local last; last="$(printf '%s\n' "$ids" | tail -n1)"
+  for cid in $ids; do
+    local val=4
+    if [ "$score_mode" = "moving" ] && [ "$cid" = "$first" ] && [ "$round" -ge 2 ]; then val=2; fi
+    if [ "$score_mode" = "partial" ] && [ "$cid" = "$last" ]; then continue; fi
+    if [ "$score_mode" = "invalid" ] && [ "$cid" = "$first" ]; then echo "SCORE $cid: 0"; continue; fi
+    echo "SCORE $cid: $val"
+  done
+  [ "$score_mode" = "note" ] && echo "RUBRIC-NOTE: c2 overlaps c1."
+  return 0
+}
+
 emit_review() {
   echo "model: ${model:-unknown}" >&2
   cat <<'REVIEW'
@@ -103,6 +126,7 @@ The plan's "Migration" step lacks a CONCURRENTLY note (would lock writes).
 Challenge whether the rollback path is actually exercised in staging.
 REVIEW
   echo ""
+  emit_scores
   echo "VERDICT: $(verdict_token)"
 }
 

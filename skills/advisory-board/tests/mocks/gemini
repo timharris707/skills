@@ -68,6 +68,29 @@ verdict_token() {
   fi
 }
 
+# `rubric` scoring (v1.15 P3): emit `SCORE cN: <1-5>` per injected criterion id when
+# the round prompt carries the scoring block. MOCK_GEMINI_SCORE_MODE: default | moving |
+# partial | invalid | note (see the claude mock for the full contract). gemini scores a
+# base of 2 (a stricter profile than claude's 3 / codex's 4).
+score_mode="${MOCK_GEMINI_SCORE_MODE:-default}"
+_rubric_ids() { printf '%s\n' "$prompt" | sed -n 's/^- \(c[0-9][0-9]*\).*/\1/p'; }
+emit_scores() {
+  case "$prompt" in *"This run agreed a weighted RUBRIC"*) ;; *) return 0 ;; esac
+  local ids; ids="$(_rubric_ids)"
+  [ -z "$ids" ] && return 0
+  local first="${ids%%$'\n'*}"
+  local last; last="$(printf '%s\n' "$ids" | tail -n1)"
+  for cid in $ids; do
+    local val=2
+    if [ "$score_mode" = "moving" ] && [ "$cid" = "$first" ] && [ "$round" -ge 2 ]; then val=4; fi
+    if [ "$score_mode" = "partial" ] && [ "$cid" = "$last" ]; then continue; fi
+    if [ "$score_mode" = "invalid" ] && [ "$cid" = "$first" ]; then echo "SCORE $cid: 4 or 5"; continue; fi
+    echo "SCORE $cid: $val"
+  done
+  [ "$score_mode" = "note" ] && echo "RUBRIC-NOTE: a security criterion is missing."
+  return 0
+}
+
 emit_review() {
   echo "model: ${model:-unknown}" >&2
   cat <<'REVIEW'
@@ -95,6 +118,7 @@ Plan's "Rollout" section names no SLO for the new code path.
 Challenge the assumption that the client never reuses a key across requests.
 REVIEW
   echo ""
+  emit_scores
   echo "VERDICT: $(verdict_token)"
 }
 

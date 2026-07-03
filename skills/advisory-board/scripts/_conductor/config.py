@@ -539,8 +539,10 @@ def _warn_on_template_drift(recipe: dict) -> None:
 
     A recipe missing `prompt_template_sha256` predates template provenance — warn on that
     too, one clear line. The check compares like-for-like: the CURRENT combined sha for
-    the SAME grounded/revise posture the recipe encodes (grounding via `repo`, revise via
-    `revise_of`), so a mismatch means the template CODE changed, not the run shape."""
+    the SAME grounded/revise/rubric posture the recipe encodes (grounding via `repo`,
+    revise via `revise_of`, rubric via `rubric` — v1.15 #P3's scoring block is a
+    conditional template axis exactly like the other two), so a mismatch means the
+    template CODE changed, not the run shape."""
     # Deferred import: prompts is heavy and only needed on the recipe path.
     from _conductor.prompts import prompt_template_sha
     recorded = recipe.get("prompt_template_sha256")
@@ -553,7 +555,8 @@ def _warn_on_template_drift(recipe: dict) -> None:
         return
     grounded = bool(recipe.get("repo"))
     revised = bool(recipe.get("revise_of"))
-    current = prompt_template_sha(grounded, revised)
+    rubric = bool(recipe.get("rubric"))
+    current = prompt_template_sha(grounded, revised, rubric)
     if recorded != current:
         print("warning: prompt-template drift on --from-recipe replay. "
               f"recipe recorded prompt_template_sha256={recorded}; current template "
