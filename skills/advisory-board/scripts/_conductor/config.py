@@ -834,39 +834,17 @@ def resolve_config(args) -> RunConfig:
             die(f"--revise must name a prior run directory or its verdict.json; "
                 f"got {revise_of!r}")
 
-    # Guard-and-refuse composed rubric context (v1.15 P2 — mirrors the --chair-seat
-    # guard above). In P2 rubric PROPOSAL prompts are composed from the SOURCE TEXT
-    # ONLY (build_rubric_proposal_blobs → config.source.text), while round-1 prompts
-    # under --repo carry the repo-grounding clause and run from the frozen snapshot
-    # cwd, and under --revise/revised-draft embed the prior-verdict digest + source
-    # diff. The board would then propose criteria against strictly LESS than it
-    # reviews, degrading silently. The shared composed-context builder that feeds
-    # both round 1 and the rubric pass is P3 work — until it lands, refuse the
-    # unsound combinations up front (loud, pre-spawn) rather than ship a thinner
-    # rubric than the review. Naming the offending flag so the user knows which to
-    # drop (or wait for P3).
-    if rubric:
-        if repo is not None:
-            die("--rubric cannot be combined with --repo yet: the rubric proposal "
-                "pass composes from the source text only, so it would propose "
-                "criteria without the repo-grounding context the rounds review "
-                "against. The composed rubric context (shared with round 1) ships in "
-                "a later phase (P3); until then run --rubric without --repo, or --repo "
-                "without --rubric")
-        if revise_of is not None:
-            die("--rubric cannot be combined with --revise yet: the rubric proposal "
-                "pass composes from the source text only, so it would propose "
-                "criteria without the prior-verdict digest + source diff the rounds "
-                "review against. The composed rubric context (shared with round 1) "
-                "ships in a later phase (P3); until then run --rubric without "
-                "--revise, or --revise without --rubric")
-        if output == "revised-draft":
-            die("--rubric cannot be combined with --output revised-draft yet: the "
-                "rubric proposal pass composes from the source text only, so it would "
-                "propose criteria without the revision/endorsement context. The "
-                "composed rubric context (shared with round 1) ships in a later phase "
-                "(P3); until then run --rubric without --output revised-draft, or "
-                "--output revised-draft without --rubric")
+    # Composed rubric context (v1.15 P3): --rubric now COMPOSES from the same surface
+    # round 1 sees — under --repo the repo-grounding clause (proposal seats spawn from
+    # the frozen snapshot cwd, grounded), and under --revise the prior-verdict digest +
+    # source diff (config.revision, prepared pre-round only from config.revise_of) —
+    # via the shared composed-context builder (prompts.composed_review_context_for),
+    # which both the round-1 packet and build_rubric_proposal_blobs read. So the P2
+    # guard-and-refuse (--rubric × --repo/--revise/--output revised-draft) is LIFTED:
+    # the board no longer proposes criteria against strictly less than it reviews, and
+    # no refusal is needed. (A revised-draft run without --revise still un-guards, but
+    # its revision runs AFTER synthesis and adds no pre-round context, so its rubric
+    # pass composes source-only unless it is also a --revise run.)
 
     return RunConfig(
         title=title,

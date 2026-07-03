@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import hashlib
 import re
-from typing import Optional
+from dataclasses import dataclass
+from typing import Callable, Optional
 
 from _conductor.config import SeatConfig
 from _conductor.digest import build_structured_digest
@@ -18,6 +19,10 @@ __all__ = [
     "VERDICT_LINE_INSTRUCTION",
     "BASIS_LINE_INSTRUCTION",
     "REVISION_CONTEXT_BLOCK",
+    "ComposedReviewContext",
+    "build_composed_review_context",
+    "composed_review_context_for",
+    "scrub_composed_splice",
     "PROMPT_TEMPLATE_VERSION",
     "PROMPT_TEMPLATE_VERSION_GROUNDED",
     "ROUND2_TEMPLATE_VERSION_GROUNDED",
@@ -323,6 +328,108 @@ def round2_template_sha(grounded: bool = False) -> str:
     return hashlib.sha256(blob).hexdigest()
 
 
+# --------------------------------------------------------------------------- #
+# The shared composed review-context builder (v1.15 P3). Round 1 and the rubric
+# proposal pass must see the SAME context surface beyond the bare source: under
+# --repo the repo-grounding clause (and the frozen-snapshot cwd), and under
+# --revise the prior-verdict digest + source diff (config.revision, prepared pre-round
+# only from config.revise_of — a revised-draft run without --revise revises AFTER
+# synthesis and prepares no pre-round revision context). Factoring the
+# composition here — rather than duplicating it in rubric.py — is what makes the
+# rubric pass propose criteria against exactly what the rounds review, and keeps
+# the two from drifting (a parity test embeds this same builder output in both).
+#
+# The pieces are pure strings the caller SPLICES into its own template AFTER the
+# source fence: `grounding_clause` (empty when ungrounded) and `revision_block`
+# (empty when not revising). The revision material is neutralized against the UNION
+# of the round-family fence alphabet AND the caller's own (scrub_composed_splice):
+# the REVISION_CONTEXT_BLOCK fence ("PRIOR VERDICT + SOURCE DIFF") is a round-family
+# marker WHATEVER template splices the block, so it must ALWAYS be scrubbed with
+# neutralize_round_markers — the caller's own neutralizer (neutralize_rubric_markers
+# on the rubric pass) does NOT cover it (B1). Round 1's caller IS
+# neutralize_round_markers, so the union collapses to one application and its bytes
+# stay byte-identical to @2. This is the byte defense; each template's framing is
+# the prose defense.
+# --------------------------------------------------------------------------- #
+
+
+@dataclass(frozen=True)
+class ComposedReviewContext:
+    """The composed context beyond the bare source that both round 1 and the rubric
+    proposal pass carry. `grounding_clause` / `revision_block` are ready-to-splice
+    strings (each empty when its mode is off); `grounded` records whether the
+    caller's spawn must run from the frozen snapshot cwd (so a rubric seat reads the
+    same tree a round-1 seat does)."""
+    grounded: bool
+    grounding_clause: str
+    revision_block: str
+
+
+def scrub_composed_splice(text: str,
+                          neutralizer: Callable[[str], str] = neutralize_round_markers) -> str:
+    """Scrub `text` against the UNION of the round-family fence alphabet AND the
+    caller's own fence alphabet before it is spliced into a composed prompt (B1).
+
+    The REVISION_CONTEXT_BLOCK fence ("PRIOR VERDICT + SOURCE DIFF") is a ROUND-family
+    marker regardless of which template splices the block, so the revision material —
+    and the source that shares the same composed template — must ALWAYS be scrubbed
+    against neutralize_round_markers, not only the caller's neutralizer. On the rubric
+    path the caller's neutralizer (neutralize_rubric_markers) does NOT cover that fence,
+    so a poisoned `<<<<<<<< END PRIOR VERDICT + SOURCE DIFF >>>>>>>>` would otherwise
+    pass through verbatim and let attacker text escape the fence.
+
+    Round-1 byte-identity: on the round-1 path the caller's neutralizer IS
+    neutralize_round_markers, so applying the union == applying it once — we skip the
+    duplicate application (identity `is` check) so the emitted bytes are unchanged. When
+    the caller's neutralizer is a DIFFERENT alphabet (rubric), we apply the round scrub
+    first, then the caller's, so both fence families are neutralized. Both neutralizers
+    are idempotent, so ordering is safe even where the alphabets overlap."""
+    scrubbed = neutralize_round_markers(text)
+    if neutralizer is not neutralize_round_markers:
+        scrubbed = neutralizer(scrubbed)
+    return scrubbed
+
+
+def build_composed_review_context(
+        *, grounded: bool = False,
+        revision_material: Optional[str] = None,
+        neutralizer: Callable[[str], str] = neutralize_round_markers,
+) -> ComposedReviewContext:
+    """Compose the shared review-context pieces from the resolved run posture. Pure.
+    `grounding_clause` is REPO_GROUNDING_CLAUSE on a grounded run (else ""), and
+    `revision_block` is the filled REVISION_CONTEXT_BLOCK on a revise run (else "") —
+    the revision material scrubbed via `scrub_composed_splice` (the UNION of the
+    round-family fence alphabet and the caller's own) before the splice. The block's
+    own fence ("PRIOR VERDICT + SOURCE DIFF") is round-family whatever the caller, so
+    ALWAYS applying the round scrub closes the rubric-path fence-poison (B1); Round 1
+    keeps its bytes byte-identical to @2 because both pieces are empty on an
+    ungrounded, non-revise run (and the union collapses to a single application when
+    the caller IS neutralize_round_markers)."""
+    grounding_clause = REPO_GROUNDING_CLAUSE if grounded else ""
+    revision_block = (
+        REVISION_CONTEXT_BLOCK.replace(
+            "{revision_material}", scrub_composed_splice(revision_material, neutralizer))
+        if revision_material else "")
+    return ComposedReviewContext(
+        grounded=grounded, grounding_clause=grounding_clause, revision_block=revision_block)
+
+
+def composed_review_context_for(config, *,
+                                neutralizer: Callable[[str], str] = neutralize_round_markers
+                                ) -> ComposedReviewContext:
+    """`build_composed_review_context` from a RunConfig — the single place both
+    callers read the run's grounded/revise posture, so round 1 and the rubric pass
+    can never disagree on what context to compose. `config.grounded` reflects --repo;
+    `config.revision.material` (the mechanical prior-verdict digest + source diff) is
+    populated at pre-spawn only for --revise (from config.revise_of), before either
+    packet is built. A revised-draft run without --revise revises after synthesis and
+    leaves config.revision None here, so its rubric/round-1 context is source-only."""
+    revision_material = config.revision.material if getattr(config, "revision", None) else None
+    return build_composed_review_context(
+        grounded=config.grounded, revision_material=revision_material,
+        neutralizer=neutralizer)
+
+
 def build_round1_prompt(seat: SeatConfig, source_material: str,
                         *, grounded: bool = False,
                         revision_material: Optional[str] = None) -> str:
@@ -333,21 +440,23 @@ def build_round1_prompt(seat: SeatConfig, source_material: str,
     # bytes are byte-identical to @2 (D6). The revision material is substituted
     # as a VALUE (str.replace, then .format sees no braces from it) — diffs and
     # prior verdicts may legitimately contain `{`/`}`.
+    #
+    # The grounding clause + revision block come from the SHARED composed-context
+    # builder (v1.15 P3) so the rubric proposal pass composes from the SAME surface;
+    # the byte-level fence defense (a poisoned digest/diff can't forge an early END)
+    # lives in the builder's neutralizer, which round 1 keys on neutralize_round_markers.
     override = CLAUDE_OUTPUT_OVERRIDE if seat.name == "claude" else ""
-    # Byte-level fence defense (not just framing): the material embeds prior-run
-    # MODEL output (digest titles) and untrusted source (diff) — neutralize any
-    # literal fence-marker echo so it cannot fake an early END and escape.
-    revision_context = (REVISION_CONTEXT_BLOCK.replace(
-                            "{revision_material}",
-                            neutralize_round_markers(revision_material))
-                        if revision_material else "")
+    ctx = build_composed_review_context(
+        grounded=grounded, revision_material=revision_material,
+        neutralizer=neutralize_round_markers)
     return ROUND1_TEMPLATE.format(
         seat_name=seat.name.capitalize(),
         role_emphasis=seat.lens,
         source_material=source_material,
         output_override=override,
-        revision_context=revision_context,
-        **_grounding_fills(grounded),
+        revision_context=ctx.revision_block,
+        repo_grounding=ctx.grounding_clause,
+        repo_evidence_ask=(REPO_EVIDENCE_ASK if grounded else ""),
     )
 
 

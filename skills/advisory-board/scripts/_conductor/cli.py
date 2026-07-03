@@ -120,7 +120,6 @@ from _conductor.endorsement import (
 )
 from _conductor.rubric import (
     RUBRIC_CHAIR_TEMPLATE_VERSION,
-    RUBRIC_PROPOSAL_TEMPLATE_VERSION,
     RUBRIC_REFUSAL_EXIT,
     MIN_USABLE_PROPOSALS,
     build_rubric_proposal_blobs,
@@ -132,6 +131,7 @@ from _conductor.rubric import (
     render_rubric_proposal_raw,
     rubric_chair_template_sha,
     rubric_proposal_template_sha,
+    rubric_proposal_template_version,
     run_rubric_chair,
     run_rubric_proposals,
 )
@@ -286,21 +286,24 @@ def _execute_run(config, args) -> int:
             EXIT_USAGE)
 
     blobs = build_packet(config)
-    # B1: under --rubric, the PROPOSAL-pass prompts are deterministic pre-run (they
-    # embed the SOURCE TEXT ONLY — a subset of what a plain round-1 packet egresses,
-    # so no new consent category), so they are prebuilt HERE and folded into the
-    # egress manifest + consent CONTENT HASH — consent binds the exact outbound
-    # proposal bytes, not just the round-1 prompts. NB: the proposal is source-only in
-    # this phase; it is NOT the full composed round-1 context — --repo grounding and
-    # --revise/revised-draft context are not carried into the rubric pass, and
-    # resolve_config refuses --rubric with --repo/--revise/--output revised-draft
-    # until the shared composed-context builder lands (P3). The rubric step spawns
-    # from these exact blobs (re-asserting the hash first). `blobs` stays the round-1
-    # packet the round fan-out consumes; `egress_blobs` is what the gate, manifest,
-    # and content hash cover (round-1 ∪ rubric-proposal). The CHAIR prompt
-    # is a board-generated derivative (it embeds seat proposals that don't exist yet)
-    # and follows the round-2 precedent — its packet hash is logged at spawn, not in
-    # this initial consent hash. (See rubric.py's CONSENT-HASH BINDING docstring.)
+    # B1: under --rubric, the PROPOSAL-pass prompts are deterministic pre-run — each
+    # embeds the source PLUS the SHARED composed review-context (P3): the same surface
+    # round 1 carries beyond the bare source (the --repo grounding clause and/or the
+    # --revise prior-verdict digest + source diff, from the ONE builder both read — set
+    # pre-round only from config.revise_of; a revised-draft run without --revise revises
+    # AFTER synthesis and adds no pre-round revision context). config.grounded is
+    # resolved and config.revision.material is built
+    # (cmd_run, above) before this point, so the composed context is deterministic and
+    # these EXACT bytes are prebuilt HERE and folded into the egress manifest + consent
+    # CONTENT HASH — consent binds the true outbound proposal bytes, composed context
+    # included, not just the round-1 prompts. A source-only rubric renders the composed
+    # splice empty (byte-identical to before), so plain --rubric is unchanged. The
+    # rubric step spawns from these exact blobs (re-asserting the hash first). `blobs`
+    # stays the round-1 packet the round fan-out consumes; `egress_blobs` is what the
+    # gate, manifest, and content hash cover (round-1 ∪ rubric-proposal). The CHAIR
+    # prompt is a board-generated derivative (it embeds seat proposals that don't exist
+    # yet) and follows the round-2 precedent — its packet hash is logged at spawn, not
+    # in this initial consent hash. (See rubric.py's CONSENT-HASH BINDING docstring.)
     rubric_blobs = build_rubric_proposal_blobs(config) if config.rubric else []
     egress_blobs = blobs + rubric_blobs
     content_hash = packet_hash(egress_blobs)
@@ -731,22 +734,44 @@ def _run_rubric_step(config, blobs, approval, *, tracker=None, _write=None,
                 "hash — refusing to spawn the rubric pass", EXIT_EGRESS_BLOCKED)
 
     # -- 1. Proposal fan-out ------------------------------------------------- #
-    print(f"\n=== rubric proposals ({RUBRIC_PROPOSAL_TEMPLATE_VERSION}; "
-          f"sha256:{rubric_proposal_template_sha()[:12]}…) ===")
+    print(f"\n=== rubric proposals ({rubric_proposal_template_version(config)}; "
+          f"sha256:{rubric_proposal_template_sha(config)[:12]}…) ===")
     print(f"  {len(config.board)} seat(s) each propose 3–7 weighted criteria (parallel "
           "fan-out; each is sent the full source under the run's existing disclosure — "
           "the same source round 1 sends, no new consent category).")
 
-    workdir = tempfile.mkdtemp(prefix="advisory-board-rubric-") if config.fs_scoped else None
+    # Workdir parity with run_round (v1.15 P3): under --repo every proposal seat is
+    # pointed at the FROZEN snapshot cwd (config.grounding.snapshot_dir) — the exact
+    # read-only tree consent bound to and round 1 reads — so a rubric seat grounds
+    # its criteria in the same bytes; otherwise a scoped ephemeral tempdir (gate) or
+    # None (advisory). We do NOT own the snapshot (cmd_run made + cleans it), so the
+    # finally below only rmtree's an ephemeral tempdir WE created here.
+    # C1: the effective grounded flag MUST follow the SAME predicate that selects the
+    # snapshot workdir — a grounded claim to the adapter (build_argv grounded=…) is only
+    # honest when the seat is actually pointed at the snapshot cwd. Keying both off one
+    # predicate means config.grounded=True with no snapshot_dir (a snapshot that never
+    # materialized) does NOT spawn a rubric seat claiming grounding without the tree.
+    grounded_snapshot = (
+        config.grounded and config.grounding is not None and config.grounding.snapshot_dir)
+    own_workdir = None
+    if grounded_snapshot:
+        workdir = config.grounding.snapshot_dir
+    elif config.fs_scoped:
+        own_workdir = tempfile.mkdtemp(prefix="advisory-board-rubric-")
+        workdir = own_workdir
+    else:
+        workdir = None
     try:
         # B1: spawn from the exact prebuilt proposal blobs bound into the approved
         # consent hash (re-asserted per seat), not a fresh rebuild at spawn time.
+        # grounded=bool(grounded_snapshot): same predicate as the workdir (C1).
         prop_results = run_rubric_proposals(config, config.board, workdir=workdir,
+                                            grounded=bool(grounded_snapshot),
                                             blobs=rubric_blobs,
                                             approved_hash=approval.content_hash)
     finally:
-        if workdir:
-            shutil.rmtree(workdir, ignore_errors=True)
+        if own_workdir:
+            shutil.rmtree(own_workdir, ignore_errors=True)
 
     # Persist each proposal's black-box + prompt + human record (mirrors revision/).
     rub_dir = os.path.join(config.out_dir, "rubric")
@@ -755,7 +780,7 @@ def _run_rubric_step(config, blobs, approval, *, tracker=None, _write=None,
         write(os.path.join(config.out_dir, "prompts", f"rubric-{rr.seat}.prompt"),
               rr.prompt_text)
         write(os.path.join(rub_dir, f"{rr.seat}.md"), render_rubric_proposal_md(rr))
-        write(os.path.join(rub_dir, f"{rr.seat}.raw"), render_rubric_proposal_raw(rr))
+        write(os.path.join(rub_dir, f"{rr.seat}.raw"), render_rubric_proposal_raw(rr, config))
         write(os.path.join(config.out_dir, "logs", f"rubric-{rr.seat}.stderr"), rr.stderr or "")
 
     usable = [rr for rr in prop_results if rr.usable]
