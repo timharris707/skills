@@ -320,6 +320,10 @@ def render_artifact_tree(config: RunConfig) -> str:
             "  prompts/rubric-chair.prompt   rubric/chair.md   rubric/chair.raw   "
             "(only if ≥2 usable proposals; skipped on a proposal-floor refusal)",
             "  rubric.json   (on success)   ·   rubric-rejected.json   (on a refusal)",
+            # scorecard.json (v1.15 P4): the post-rounds scoring artifact — written after
+            # the opinion rounds on any --rubric success (the rubric.json above is
+            # pre-rounds; the D18 two-artifact split). Stands alone (no --synthesize).
+            "  scorecard.json   (after the rounds; per-seat scores + coarse bands)",
         ]
     parts += [
         *rounds,

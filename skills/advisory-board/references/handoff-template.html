@@ -305,6 +305,28 @@
   .echo-pill.echo-moderate { border-color: var(--caution-edge); background: var(--caution-bg); color: var(--caution-ink); }
   .echo-pill.echo-high     { border-color: var(--block-edge);   background: var(--block-bg);   color: var(--block-ink); }
 
+  /* ---- rubric scorecard (v1.15 P4; --rubric runs only) — informational, never gates ---- */
+  .scorecard-sec { margin: 26px 0; }
+  .sc-intro { margin: 0 0 12px; font-size: 14px; color: var(--ink-soft); }
+  .sc-contra {
+    margin: 0 0 14px; padding: 10px 14px; border-radius: 10px;
+    border: 1px solid var(--block-edge); background: var(--block-bg); color: var(--block-ink);
+    font-size: 14px; font-weight: 600;
+  }
+  table.sc-crit-table, table.sc-seat-table {
+    width: 100%; border-collapse: collapse; margin: 0 0 16px; font-size: 14px;
+  }
+  .sc-crit-table th, .sc-crit-table td, .sc-seat-table th, .sc-seat-table td {
+    text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line); vertical-align: top;
+  }
+  .sc-crit-table th, .sc-seat-table th { color: var(--ink-soft); font-weight: 600; font-size: 12.5px; }
+  .sc-band { font-weight: 600; }
+  .sc-band-weak   { color: var(--block-ink); }
+  .sc-band-mixed  { color: var(--caution-ink); }
+  .sc-band-strong { color: var(--ship-ink); }
+  .sc-notes { margin: 0; }
+  .sc-note { margin: 6px 0; font-size: 13.5px; color: var(--ink-soft); }
+
   /* ---- simple lists ---- */
   ul.plain { margin: 0; padding-left: 22px; }
   ul.plain li { margin: 7px 0; font-size: 15.5px; }
@@ -460,6 +482,34 @@
        explanation naming the sub-signals; it FLAGS possible echo, it does not prove
        independence (see epistemics.md). The band class colors it. -->
   <p class="echo-pill {{ECHO_CLASS}}">{{ECHO_PILL}}</p>
+
+  <!-- ============== RUBRIC SCORECARD (--rubric runs only; v1.15 P4) =============
+       The renderer drops this WHOLE section when the run carries no scorecard.json
+       (the sc-intro line renders empty) — a non-rubric run is byte-identical. The
+       scores are INFORMATIONAL: they never move the verdict or the gate (D17). A
+       token↔band self-contradiction is surfaced loudly (the sc-contra block, which
+       drops when there is no contradiction). This comment is eaten with the section
+       when it drops, so no blank-line residue is left. -->
+  <section class="scorecard-sec">
+    <h2>Rubric scorecard</h2>
+    <p class="sc-intro">{{SCORECARD_INTRO}}</p>
+    <p class="sc-contra">{{SCORECARD_CONTRADICTION}}</p>
+    <table class="sc-crit-table">
+      <thead><tr><th>#</th><th>Criterion</th><th>Weight</th></tr></thead>
+      <tbody><!-- BEGIN SC CRITERION (duplicate per criterion) -->
+        <tr><td>{{SC_CRIT_ID}}</td><td>{{SC_CRIT_TITLE}}</td><td>{{SC_CRIT_WEIGHT}}</td></tr>
+      <!-- END SC CRITERION --></tbody>
+    </table>
+    <table class="sc-seat-table">
+      <thead><tr><th>Seat</th><th>Weighted total</th><th>Band</th><th>Coverage</th><th>History</th></tr></thead>
+      <tbody><!-- BEGIN SC SEAT (duplicate per seat) -->
+        <tr><td>{{SC_SEAT}}</td><td>{{SC_SEAT_TOTAL}}</td><td class="sc-band sc-band-{{SC_SEAT_BAND_CLASS}}">{{SC_SEAT_BAND}}</td><td>{{SC_SEAT_COVERAGE}}</td><td>{{SC_SEAT_HISTORY}}</td></tr>
+      <!-- END SC SEAT --></tbody>
+    </table>
+    <div class="sc-notes"><!-- BEGIN SC NOTE (duplicate per rubric note) -->
+      <p class="sc-note">{{SC_NOTE}}</p>
+    <!-- END SC NOTE --></div>
+  </section>
 
   <!-- ============== DELTA VS THE PREVIOUS RUN (revise runs only) ==============
        The renderer drops this whole section when the verdict carries no

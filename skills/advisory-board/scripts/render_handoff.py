@@ -106,6 +106,12 @@ BLOCK_KEYS = {
     # redline line (context/del/ins/replace, pre-rendered as RAW HTML). Empty when
     # there is no sha-coherent revised chain — the whole section drops below.
     "REDLINE": "redline_rows",
+    # rubric scorecard (v1.15 P4; --rubric runs, full handoff only). Three repeatable
+    # lists (criteria, per-seat totals, rubric notes), all empty on a non-rubric run —
+    # the whole section drops below when sc-intro renders empty.
+    "SC CRITERION": "sc_criteria",
+    "SC SEAT": "sc_seats",
+    "SC NOTE": "sc_notes",
 }
 
 # Tokens whose values are authored HTML fragments and pass through unescaped.
@@ -143,6 +149,19 @@ def drop_empty_optionals(out: str) -> str:
         r'\s*<div class="delta-col">\s*<h4>[^<]*</h4>\s*'
         r'<ul class="delta-list">\s*</ul>\s*</div>',
         "", out)
+    # --- rubric scorecard (v1.15 P4; --rubric runs, full handoff only). sc-* classes
+    #     exist only in the full handoff template — NO-OPS elsewhere. Whole-section
+    #     drop FIRST: a non-rubric run renders an empty sc-intro line, taking the entire
+    #     section (heading + tables + notes) with it, and eating the preceding authoring
+    #     comment so no blank-line residue remains. Then the per-piece drops for a
+    #     rubric run: an empty sc-contra (no token↔band contradiction) and an empty
+    #     sc-notes block (no RUBRIC-NOTE objections). ---
+    out = re.sub(
+        r'\s*(?:<!--(?:(?!-->).)*?-->\s*)?<section class="scorecard-sec">\s*'
+        r'<h2>[^<]*</h2>\s*<p class="sc-intro">\s*</p>.*?</section>',
+        "", out, flags=re.DOTALL)
+    out = re.sub(r'\s*<p class="sc-contra">\s*</p>', "", out)
+    out = re.sub(r'\s*<div class="sc-notes">\s*</div>', "", out)
     out = re.sub(r'\s*<span class="seat-status\s*">\s*</span>', "", out)
     out = re.sub(r'\s*<div class="highlight">\s*</div>', "", out)
     out = re.sub(r'\s*<span class="conf">confidence:\s*</span>', "", out)
@@ -333,6 +352,13 @@ def render(data: dict, template: str) -> str:
     # below, keeping such a page byte-identical.
     data.setdefault("echo_pill", "")
     data.setdefault("echo_class", "")
+    # v1.15 P4: the rubric scorecard. Empty on a non-rubric run and on any pre-P4
+    # handoff-data.json — the sc-intro line then renders empty and the whole
+    # scorecard-sec drops below, keeping such a page byte-identical.
+    data.setdefault("scorecard_intro", "")
+    data.setdefault("scorecard_contradiction", "")
+    for key in ("sc_criteria", "sc_seats", "sc_notes"):
+        data.setdefault(key, [])
     if isinstance(data.get("blockers"), list):
         # Copy each blocker row before defaulting its nested list, so an old
         # handoff-data.json passed in by the caller is never mutated.

@@ -99,6 +99,21 @@ LENS_PRESETS = {
         "Clarity & style — concision, flow, precision, tone for the audience",
         "Audience & impact — does it land, what is missing, what a skeptic seizes on",
     ],
+    # stakeholder-panel (v1.15 P4 / D20): "the room this decision would face" — three
+    # DISTINCT stakeholder archetypes, one per seat, in this SEAT-ORDER binding:
+    #   seat 1 → the decision owner / executive who must answer for the outcome,
+    #   seat 2 → the end user / customer the decision lands on,
+    #   seat 3 → the compliance / risk / finance reviewer who has to sign off.
+    # The lens string IS the persona (structured personas are out of scope for v1.15 —
+    # D20). resolve_board's positional-slot default carries the binding: a 4th seat
+    # REPEATS the last archetype (the reviewer voice), a 2-seat board DROPS the third.
+    # Pairs naturally with --rubric ("--rubric --lens stakeholder-panel") but never
+    # IMPLIES it — the axes stay orthogonal; the combination is documented, not bundled.
+    "stakeholder-panel": [
+        "The decision owner — the executive who must answer for this: does it deliver, at what cost, what do we tell the board",
+        "The end user — the person this lands on: does it actually help them, what friction or harm does it create, would they choose it",
+        "The compliance & risk reviewer — the gatekeeper who signs off: what rule, obligation, or downside does this trip, and can we defend it",
+    ],
 }
 DEFAULT_LENS = "software-architecture"
 

@@ -290,7 +290,17 @@ def disclosure_line(config: RunConfig) -> str:
                 f"question, {material}a mechanical digest of the prior verdict, and the "
                 "addressed seat(s)' own prior review from that run. Proceed?")
     base = f"This review sends your source material to {pretty}."
-    if getattr(config, "rubric", False):
+    # A carried-rubric revise run (D20): the prior run's rubric is reused MECHANICALLY —
+    # NO proposal or chair spawn. Name that instead of the fresh-pass wording so the
+    # consent surface is honest about which spawns actually run.
+    carried = (getattr(config, "revision", None) is not None
+               and getattr(config.revision, "carried_rubric", None) is not None)
+    if getattr(config, "rubric", False) and carried:
+        base += (" The prior run's agreed rubric is carried forward mechanically (no "
+                 "proposal or chair spawn — re-agreement is not offered); its criteria are "
+                 "injected into every opinion-round prompt so each seat scores per criterion "
+                 "(conductor-derived content, no new source exposure).")
+    elif getattr(config, "rubric", False):
         # A --rubric run adds a pre-round rubric pass BEFORE round 1: every seat gets an
         # extra proposal spawn carrying the SAME source (same bytes, same providers), and
         # one seat gets a chair spawn merging the board's proposals. No new bytes or

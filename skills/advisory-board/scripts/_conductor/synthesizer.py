@@ -199,7 +199,10 @@ PROTECTED_SKELETON_KEYS = frozenset(("schema", "title", "date", "rounds", "board
 # an amendment trail or a prior-run link. A separate set (not folded into
 # PROTECTED_SKELETON_KEYS) so that set — and the prompt text enumerating it —
 # stays byte-stable.
-LIFECYCLE_KEYS = frozenset(("previous_run", "amendments", "changes"))
+# `rubric`/`scorecard` (v1.15 P4) are the same shape of tool-authored sidecar
+# pointer as `changes` — the conductor pins them AFTER the merge, so a synthesizer
+# reply must never author them (a model transcribing scores it didn't produce).
+LIFECYCLE_KEYS = frozenset(("previous_run", "amendments", "changes", "rubric", "scorecard"))
 
 
 def choose_synthesizer_seat(config: RunConfig, last_round_results: list,

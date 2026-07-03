@@ -70,6 +70,18 @@ def _seats_cell(entries) -> str:
     return ", ".join(names)
 
 
+def _rubric_cell(data: dict) -> str:
+    """"yes" when this verdict pins a scorecard (a --rubric run that synthesized and
+    scored), else "" (which `_cell` renders as "—", the shared empty-cell placeholder —
+    every history cell returns the raw value and lets `_cell` supply the dash). The
+    scorecard pointer is present only on a synthesized rubric run (the artifacts stand
+    alone otherwise), so this reads the visible signal a verdict.json carries — a rubric
+    run without --synthesize lists as "—" (its scorecard.json stands on its own but the
+    verdict has no pointer to read)."""
+    sc = data.get("scorecard")
+    return "yes" if isinstance(sc, dict) and sc.get("artifact") else ""
+
+
 def _row_from_verdict(run: str, data: dict) -> dict:
     verdict = _verdict_cell(data)
     return {
@@ -80,6 +92,7 @@ def _row_from_verdict(run: str, data: dict) -> dict:
         "confidence": data.get("confidence") if isinstance(data.get("confidence"), str) else "",
         "unanimous": {True: "yes", False: "no"}.get(data.get("unanimous"), ""),
         "seats": _seats_cell(data.get("board")),
+        "rubric": _rubric_cell(data),
         # A verdict.json that parsed but carries no verdict token is still an
         # incomplete run (a hand-started file, or a schema the gate would reject).
         "incomplete": verdict == "incomplete",
@@ -113,6 +126,7 @@ def _row_incomplete(run: str, run_dir: str) -> dict:
         "confidence": "",
         "unanimous": "",
         "seats": seats,
+        "rubric": "",
         "incomplete": True,
     }
 
@@ -169,7 +183,7 @@ def render_history_table(rows: list, root: str) -> str:
                 "--runs-root/$ADVISORY_BOARD_RUNS_ROOT relocate it)")
     columns = [("date", "Date"), ("title", "Title"), ("verdict", "Verdict"),
                ("confidence", "Confidence"), ("unanimous", "Unanimous"),
-               ("seats", "Seats"), ("run", "Run dir")]
+               ("seats", "Seats"), ("rubric", "Rubric"), ("run", "Run dir")]
     widths = {key: max(len(header), *(len(_cell(r, key)) for r in rows))
               for key, header in columns}
     header = "| " + " | ".join(h.ljust(widths[k]) for k, h in columns) + " |"
