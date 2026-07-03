@@ -1,0 +1,67 @@
+```json
+{
+  "verdict": "ship",
+  "confidence": "high",
+  "concerns": [
+    {
+      "title": "`retry`/`skipped` states are documented but never emitted",
+      "body": "Both seats flag doc/API drift: the conductor maps terminal seat outcomes only to `done`/`dropped` (plus in-flight `running`), so the `retry` and `skipped` states live solely in status.py's static glyph/class/label tables and the `run_round` docstring. The CHANGELOG's `state` vocabulary line reads as if all six states fire. The revision made this an explicit deferral via a comment, which both seats accept; Codex moved toward Claude here, counting it as real doc/API drift but not a merge blocker. Both agree it should be trimmed or footnoted as reserved-not-emitted.",
+      "evidence": [
+        { "kind": "code", "path": "scripts/_conductor/status.py", "line": 83 },
+        { "kind": "code", "path": "scripts/_conductor/rounds.py", "line": 261 },
+        { "kind": "code", "path": "scripts/_conductor/rounds.py", "line": 179 }
+      ]
+    },
+    {
+      "title": "Atomic-write docs overstate `.tmp` cleanup on failure",
+      "body": "Both seats confirm the docs are a hair ahead of behavior. status.py's `_atomic_write_text` docstring says the temp is removed 'on any failure' and the CHANGELOG says no `.tmp` is ever left behind, but that only holds for Python-level exceptions caught by the handler; a process kill between temp creation and `os.replace` leaves a `.status.json.tmp`. Claude notes the fixed tmp name makes this self-healing on the next write, so behavior is fine — only the wording should soften to 'any Python-level failure.' Non-blocking; Codex frames it as a disagreement with the PR prose, not with a seat.",
+      "evidence": [
+        { "kind": "code", "path": "scripts/_conductor/status.py", "line": 92 },
+        { "kind": "source", "url": "scripts/_conductor/status.py", "quote": "on any failure" },
+        { "kind": "code", "path": "CHANGELOG.md", "line": 25 }
+      ]
+    },
+    {
+      "title": "Abort guard degrades a forgotten `finish()` into a silent mislabel",
+      "body": "Claude's strongest remaining objection (a structural point Codex raised in round 1): `_execute_run()` now relies on every post-activate return path stamping a terminal status before returning. Claude traced all seven return sites and confirmed they all stamp today, so it is not a current defect — but a future return added to `_run_after_activate`/synthesis/revision that forgets `finish()` would come back stamped `interrupted` on a successful run: a silent wrong badge rather than a crash. The existing TestStatusAbortGuardE2E only pins the two abnormal paths, and test_run_writes_status_json_and_html asserts `finished is not None` but never asserts the outcome. Both seats recommend a positive E2E; Claude calls it the single highest-value follow-up. Non-blocking.",
+      "evidence": [
+        { "kind": "code", "path": "scripts/_conductor/cli.py", "line": 408 },
+        { "kind": "code", "path": "scripts/_conductor/status.py", "line": 232 },
+        { "kind": "judgment", "detail": "TestStatusAbortGuardE2E pins only the two abnormal paths (mid-fan-out die() and KeyboardInterrupt); test_run_writes_status_json_and_html asserts finished is not None but never asserts outcome, so no regression lock guards a clean success path from being stamped interrupted." }
+      ]
+    },
+    {
+      "title": "Cross-seat event order is scheduler-dependent — guardrail to preserve",
+      "body": "Both seats note the `running`/`done` interleave across seats in `events[]` depends on thread scheduling under the real parallel executor. Both agree it is correctly handled today — the golden test is serial/single-threaded and the E2E uses membership rather than full-order assertions. The guardrail: the golden must never assert full cross-seat ordering, and consumers should rely only on the monotonic `seq`. No code change needed.",
+      "evidence": [
+        { "kind": "judgment", "detail": "running/done interleave across seats depends on ThreadPoolExecutor scheduling; the golden is single-threaded/serial and the E2E uses membership (assertIn) not full order, so ordering is handled — the guardrail is to never assert full cross-seat ordering and to consume only the monotonic seq." }
+      ]
+    },
+    {
+      "title": "Best-effort terminal write can leave stale on-disk live status",
+      "body": "Codex flags, and Claude's 'best-effort isolation holds' confirms as intentional, that terminal-status persistence is best-effort: a final `status.*` write failure can leave stale on-disk live status without failing the run. This is by design — a live-view failure must not take the run down — and is not a defect, but the board records it as a known limitation.",
+      "evidence": [
+        { "kind": "code", "path": "scripts/_conductor/status.py", "line": 283 },
+        { "kind": "judgment", "detail": "Codex: a final write failure can leave stale on-disk live status without failing the run; Claude confirms best-effort isolation holds by design (_write_files swallows and warns-once)." }
+      ]
+    }
+  ],
+  "caveats": [
+    "Neither seat executed the test suite — both reviewed read-only (Codex's sandbox could not even complete `git status` due to temp-cache permission errors). The claimed 1426 passing count rests on the author's and an independent finder's attestation, corroborated by Claude's arithmetic (1404 baseline + 22 new = 1426; 1419 + 7 revision-tests = 1426), not on an executed run.",
+    "Claude accepts that no CLI surface reads `status.json` but did not exhaustively grep the whole tree for a reader; the reader-hardening (TestStatusReaderHardening) makes this moot even if one were added later."
+  ],
+  "open_questions": [
+    "Trim `retry`/`skipped` from the emitted-state vocabulary now, or footnote them as reserved-not-emitted in the CHANGELOG? Claude does not block either way but wants the CHANGELOG's 'vocabulary' line to stop implying all six states fire."
+  ],
+  "next_actions": [
+    "Before merge (required per Claude): run `-k Status` plus a full-suite pass; confirm 1426 green and one live-vs-`--no-live-status` artifact diff showing record artifacts byte-identical with only `status.*` differing.",
+    "Run clean normal-path smokes for `--synthesize` and `--output revised-draft` and confirm the outcome is not `interrupted` (Codex).",
+    "Run the focused status tests: TestStatusModuleUnit, TestStatusHtmlRender, TestStatusLiveViewE2E, TestStatusAbortGuardE2E, TestStatusReaderHardening (Codex).",
+    "Merge — both seats consider it mergeable as-is.",
+    "Optional follow-up (this PR or fast-follow): add a positive abort-outcome E2E asserting a clean `--synthesize` and `--output revised-draft` run ends with a success outcome (`ok`/`rounds-complete`), not `interrupted` — Claude's highest-value follow-up.",
+    "Optional: soften the `_atomic_write_text` docstring / CHANGELOG 'on any failure' wording to 'any Python-level failure.'",
+    "Optional: trim `retry`/`skipped` from the emitted vocabulary or footnote them as reserved-not-emitted in the CHANGELOG.",
+    "Release v1.14.0 one phase later, per the release train."
+  ]
+}
+```

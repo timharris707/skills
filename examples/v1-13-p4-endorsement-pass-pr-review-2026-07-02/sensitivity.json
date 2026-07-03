@@ -1,0 +1,24 @@
+{
+  "schema": "advisory-board/sensitivity@1",
+  "sensitivity": "redacted",
+  "egress_allowed": true,
+  "providers": [
+    "Anthropic",
+    "OpenAI"
+  ],
+  "consent": {
+    "required": true,
+    "mode": "hash-bound"
+  },
+  "network_isolation": {
+    "claude": "on",
+    "codex": "on"
+  },
+  "network_unenforced": [],
+  "approval": {
+    "approved": true,
+    "mode": "hash-bound",
+    "content_hash": "88ed82ebf1087e9848b403e54e0b53804a2edfb7265a4e20fbc9b18d27acea6b",
+    "timestamp": "2026-07-02T11:26:47"
+  }
+}

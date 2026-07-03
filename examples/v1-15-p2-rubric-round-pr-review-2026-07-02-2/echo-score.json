@@ -1,0 +1,13 @@
+{
+  "band": "low",
+  "explanation": "Low echo risk: 0/2 seats changed verdict in the final round, 4% mean citation overlap. Flags possible echo — it does not prove independence.",
+  "considered": 2,
+  "flippers": 0,
+  "flippers_toward_majority": 0,
+  "majority": null,
+  "overlap": 0.04225352112676056,
+  "deference": 0,
+  "evidence": 0,
+  "independent": 2,
+  "unknown": 0
+}

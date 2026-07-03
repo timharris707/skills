@@ -1,0 +1,1226 @@
+# v1.14 P3 PR review — live progress view (`status.json` + terminal lines + self-refreshing tracker)
+
+You are reviewing a PR to the Advisory Board conductor — a provider-agnostic CLI convening multiple frontier-model seats over 1–3 concurrent review rounds (a 10–20 minute premium run is currently a black box while it runs). This PR is v1.14 P3 (roadmap #10): live progress. SHIP = mergeable as-is; CAUTION/BLOCK must name the defect with file:line from the diff.
+
+## What this PR builds (roadmap contract)
+Status events (seat × round state transitions) written to a `status.json` in the run dir AS THEY HAPPEN; terminal per-seat progress lines derived from the same events; an optional self-refreshing HTML tracker page reading the same data. ON by default, `--no-live-status` opts out.
+
+## Implementation shape (verify against the diff)
+- New `scripts/_conductor/status.py` (~490 lines): `advisory-board/status@1` schema — run-level fields + a per-seat state map + an ordered `events[]` with a monotonic `seq`; states `started/running/done/dropped/retry/skipped`; stages `preflight/egress/round/synthesis/revision/endorsement/run`.
+- `StatusTracker`: lock-serialized, best-effort — every disk write is atomic (`_atomic_write_text`: temp file + `os.replace`), a write failure warns ONCE and never kills or slows the run; `NullTracker` is the no-op twin for `--no-live-status`.
+- **RH-1 (the consent gate):** the tracker is constructed early but `activate()` defers the FIRST disk write until AFTER egress approval — nothing may touch the run dir before the hash-bound consent, matching the conductor's existing write discipline.
+- `rounds.py`: an optional `on_seat` callback threaded through the fan-out (`None` default = behavior-identical); the callback fires inside worker threads → the tracker's lock is the serialization point.
+- `render_status_html`: PURE function (state inlined into the HTML — file:// pages can't fetch a sibling json), meta-refresh every 2s while live, static once finished.
+- Terminal: additive flushed per-seat lines (e.g. `round 1 · codex ✓ 186s`); one additive artifact-tree preview line. No EXISTING stdout line is touched (pinned-line tests exist across the suite).
+- Docs: CHANGELOG under [Unreleased], SKILL.md, scripts/README.md.
+
+## Standing invariants (violations are defects)
+- **Zero byte-drift on existing artifacts:** a live-status run and a `--no-live-status` run must produce byte-identical EXISTING artifacts (only status.json/tracker html differ); the no-flags default now includes status.json — the implementer diffed live vs opt-out runs to prove no existing artifact changed. The D5 baseline invariant (no-flags run byte-identical for everything that existed before) must hold.
+- No writes to the run dir before egress approval (RH-1) — the run dir itself is created at a known point; status must not precede the consent gate's first sanctioned write.
+- Best-effort means BEST-EFFORT: a full disk, a permission error, a vanished run dir mid-run — the run completes and the verdict is unaffected; one warning, no spam, no crash, no deadlock.
+- Stdlib-only; no unseeded clocks beyond the existing timestamp discipline (status timestamps must obey `ADVISORY_BOARD_NOW`-style determinism where the suite pins bytes; wall-clock elapsed is fine where nothing pins it).
+- Hand-authored/corrupted status.json must never crash anything that reads it (the HTML renderer, any CLI surface) — clean skip/exit 2.
+
+## What to scrutinize hardest (the standing pipeline has caught a new defect in EVERY fix pass — 6/6; find this one now)
+1. **StatusTracker thread-safety under the REAL executor:** the on_seat callback fires from N worker threads while the main thread stamps stage transitions — is every mutation (state map, events append, seq increment, warned-once flag) under the lock? Any compound read-modify-write outside it? Is the SNAPSHOT the writer serializes taken under the lock (a torn snapshot = torn json)? Can two writes interleave temp files (unique tempfile per write)?
+2. **RH-1:** trace every tracker call site — can ANY path (preflight failure, egress refusal, --dry-run, doctor, init) produce a status.json before hash-bound approval? What about the run dir creation itself?
+3. **Torn reads:** a reader (human, tracker HTML refresh) mid-`os.replace` — guaranteed to see old-or-new, never partial? On macOS AND the CI linux runner?
+4. **The zero-drift claim:** run-metadata, recipe, artifact tree, egress manifest, run card — does ANY existing artifact/output line change when live status is on (the default!)? The artifact-tree "preview line" is additive — does any pinned test or committed example re-render differently?
+5. **The meta-refresh HTML:** escaping of seat ids/titles into it; the "static once finished" transition (what writes the final non-refreshing page — is it guaranteed on every exit path incl. die()?); the known-cosmetic gap (mid-fan-out die() leaves seats "queued" — the prior reviewers called it honest; confirm or contest).
+6. **Determinism:** does status.json (seq, timestamps) leak into anything byte-pinned? Do the new terminal lines interleave with existing prints under concurrency (garbled lines)?
+
+## State
+Suite: **1419 OK** (+15 over the 1404 post-P2 baseline), verified by an independent full run. Implementer's self-checks: live-vs-opt-out artifact diff clean, no pinned stdout line touched. Known cosmetic: mid-fan-out `die()` leaves status.json's seats "queued" with no terminal stamp.
+
+## Full diff (staged, vs `main` @ 9f6861d)
+`````diff
+diff --git a/skills/advisory-board/CHANGELOG.md b/skills/advisory-board/CHANGELOG.md
+index c83ec5d..37072e8 100644
+--- a/skills/advisory-board/CHANGELOG.md
++++ b/skills/advisory-board/CHANGELOG.md
+@@ -21,6 +21,11 @@ reserved for an explicit production-ready call. The verdict-JSON schema is versi
+   - **A pure metric (new stdlib-only module `scripts/_conductor/echo_score.py`)** over the **final** round transition's already-parsed signals — verdict flips *toward the emerging majority*, mean pairwise citation-set overlap (the same convergence citations), and the `BASIS:` deference count. It rolls up to a **coarse band — low / moderate / high echo risk**, never a false-precision 0–100 number, with a **one-line explanation that names the sub-signals that drove it** (e.g. "2/2 seats flipped toward the majority with 78% citation overlap and 1 deference declaration"). On a **same-provider board** (`--board claude,claude`) high citation overlap is *expected* and is **not** counted as echo on its own — the band and the explanation say so. It **flags possible echo; it does not prove independence**, and a `high` band is not a verdict on the board.
+   - **Surfaced in `run-metadata.md`** as an "Independence / echo" subsection inside Convergence (it scores the same cross-round signals), and as an **optional pill in the full-handoff HTML** (band-tinted). Both follow the D5 optional-slot discipline. **`not computed`** is reserved for a run with no final transition to score: a **single-round run** and a run with **fewer than two seats usable in both final rounds**. An **old run dir** re-rendered has no `echo-score.json`, so the pill/section are simply **absent** (nothing computed or claimed — not `not computed`), and re-rendering such a run stays **byte-identical** (verified). A **pre-P2 recipe replayed** runs with the current `BASIS:`-bearing round-2 template, so it **scores normally** — a run whose seats state no basis scores with an all-`unknown` BASIS tally (the deference sub-signal contributes nothing; the explanation names how many seats did not state a basis). The conductor writes a small machine-readable `echo-score.json` sidecar on any ≥2-round run, which the HTML renderer reads best-effort (realpath-confined, symlink-refused).
+   - **DECISION recorded in-phase** in `references/epistemics.md`: the metric definition, the `BASIS:` token grammar, the band, and — explicitly — the limits and failure modes (honest convergence on strong evidence, expected overlap on a small source, the self-reported deference token, final-transition-only + parsed-only scope). Docs: `references/prompt-templates.md` (the `BASIS:` line + version bumps), SKILL.md, `scripts/README.md`. Suite 1355 → 1404.
++- **Live progress view (v1.14 #10 / P3) — something to watch during a 15-minute run.** Board runs block-buffer stdout, so a user watching a background run sees nothing until a round completes; the run dir was the only live window. This makes that window real: a `status.json` in the run dir, rewritten atomically on every seat/round/stage transition, drives flushed terminal progress lines and a self-refreshing HTML tracker from ONE event stream. **On by default** — it's pure value; `--no-live-status` opts out for a byte-exact run dir.
++  - **`status.json` is the single source of truth (new stdlib-only module `scripts/_conductor/status.py`)** — one JSON document, schema `advisory-board/status@1`: run-level fields (title, `started`/`finished` stamps, current `stage`, `rounds_planned`/`rounds_done`, coarse `outcome`) + an ordered `events[]` (monotonic `seq`, `stage`/`seat`/`round`, `state`, `detail`, `at`) + a per-seat current-state map for cheap rendering. It is **rewritten atomically on every event** (write-temp + `os.replace`), so a concurrent reader never sees a torn file and no `.tmp` is ever left behind. Seat transitions fire from the round's worker threads, so writes are **serialized with a lock**; a status-write failure is **best-effort** — caught, warned **once** to stderr, and the run continues (a live view must never take the run down). The `state` vocabulary is `started`/`running`/`done`/`dropped`/`retry`/`skipped`; the `stage` vocabulary is `preflight`/`egress`/`round`/`synthesis`/`revision`/`endorsement`/`run`.
++  - **Flushed terminal per-seat progress lines** drawn from the same events — `round 1 · codex … running`, `round 1 · codex ✓ 186s`, `round 1 · gemini ✗ dropped (Timeout)` — each `print(…, flush=True)` so a background run streams instead of going dark until a round returns. These lines are **purely additive**: no existing pinned stdout line is touched (the `=== round N ===` banners and round tables the conductor already prints are byte-identical), so they need no golden.
++  - **A self-refreshing `status.html` tracker**, regenerated on each event by a **pure function** of the status dict (`render_status_html`, deterministic and golden-tested from a fixture). `file://` JS can't fetch a sibling json in modern browsers, so the state is **inlined** and the page carries `<meta http-equiv="refresh" content="2">` while the run is live (a completed run's page is static — no refresh). Dark/compact, fully **self-contained** (inline CSS only; no external fonts/CDNs/JS/`<script src>`/`<link>` — renders offline), HTML-escaping every injected string. Its footer says, in as many words, that it is a **live view, not an artifact of record** — the verdict chain + `run-metadata.md` remain the authoritative outputs.
++  - **RH-1 preserved:** the live view **defers its first disk write until the run has committed to spawning** (post-egress-approval, when `write_pre_spawn_artifacts` materializes the run dir), then flushes the full accumulated pre-spawn history (preflight + egress events) at once. A **preflight-NO-GO or egress-refused run leaves no out dir — and no `status.*`** — exactly as before; the terminal lines for those phases still print (they don't touch disk). **Zero impact when opted out or on old runs:** `--no-live-status` writes no status files and every artifact of record is byte-identical; a completed run's `status.json`/`status.html` persist and read as done (a `finished` stamp + a terminal `outcome`). Wired into `cli.py` at the preflight/egress/round/synthesis/revision/endorsement transitions and into `rounds.run_round` via an optional, best-effort `on_seat` callback (back-compatible — every existing call site is behavior-identical). Docs: SKILL.md (`## How A Run Executes`), `scripts/README.md` (run-dir contents + the package-layout row). Suite 1404 → 1419.
+ 
+ ### Fixed
+ - **`format_output.py` crashed on owner-carrying `next_actions[]` entries.** The schema says a
+diff --git a/skills/advisory-board/SKILL.md b/skills/advisory-board/SKILL.md
+index 28699ad..5b5321a 100644
+--- a/skills/advisory-board/SKILL.md
++++ b/skills/advisory-board/SKILL.md
+@@ -142,7 +142,7 @@ Never store secrets. Redact keys, tokens, cookies, and private environment value
+ 
+ ## How A Run Executes
+ 
+-**The conductor — `scripts/run_board.py` — is the canonical way to drive a board.** It owns the load-bearing mechanics in code: a seat-adapter **registry** (the one place that knows each CLI's flags, isolation, and model-id self-heal), an executable **preflight** (GO/NO-GO), a hash-bound **egress/quarantine gate** before any byte leaves, the **round-1 + round-2 fan-out** with the failure protocol, the **verdict chain** (`verify` evidence → `consensus` md/html → `validate`/gate), and the **run history** (`history` — a table of past runs read from each run's `verdict.json` under the persistent runs root; a partial or legacy run lists as `incomplete`). Run `scripts/run_board.py run …` (see `scripts/README.md`); a real run is in the repo-root `examples/payments-idempotency-review/`. Useful run controls: `--timeout SECONDS` caps every seat and `--timeout SEAT=SECONDS` caps one (ids as in `--model`/`--lens`; a slow local seat shouldn't set the whole board's clock), and `--digest-format json` also emits each round's structured digest as typed JSON. **Re-review a revised draft with `--revise <prior run dir>`** (v1.12): `--source` is the revised draft, and the round-1 prompts additionally carry a mechanical digest of the prior verdict plus the diff from the previously reviewed draft (recovered from the prior run dir, sha-verified; omitted loudly when unrecoverable) — every injected byte inside the consent packet hash. The new verdict records `previous_run` lineage, and the consensus render leads with the cleared / still-open / new delta and the verdict trajectory. **Ask a follow-up after the verdict with `ask "<question>" --run <dir> [--seat <id>]`** (v1.12): post-verdict cross-examination — the board answers a follow-up in one round, from a context packet built ONLY from that run's own artifacts (the reviewed material, a mechanical verdict digest, and each addressed seat's own prior review), bounded to the run and re-consented like any egress (public discloses; non-public needs `--yes`/approval; the sensitivity floor is the strictest of the recipe, the run's `sensitivity.json`, and a tighten-only `--sensitivity` flag — never looser, and a run missing its `sensitivity.json` never floats down to public); it writes `addendum-N.md` and refreshes the handoff. **Tune a completed verdict by hand with `board_verdict.py amend --run <dir> --author … --reason … <effect>`** (v1.12): append-only human tuning that never rewrites the board's own words — one effect per call (`--confidence`, `--caveat`, or `--severity-note [--on "<finding>"]`), recorded with provenance; renderers then show the effective value marked as amended, and a no-amendments verdict is unchanged. **Get a board-endorsed fixed copy with `run --output revised-draft`** (v1.13): after synthesis, a revision seat produces a revised copy of the source (each edit mapped by the model to the finding it resolves, mechanically validated — coverage reconciliation + index/title cross-assert) plus `changes.json` — the edit→finding mapping of record. Then the **endorsement pass** (v1.13 P4, D13) runs by default: once the revision succeeds, every non-revision seat is fanned out concurrently (≈ one extra round) to vote `ENDORSE`/`OBJECT`/`ABSTAIN` on each edit and unresolved conflict, recorded as `changes.json.endorsements` rows — objections are recorded, never resolved by another model loop (a human reads them, D6). `--no-endorse` opts out (the token-cost axis; that run is findings-mapped, not board-endorsed); a failed endorsement spawn records that seat as `ABSTAIN`/`dropped` and never fails the run or moves the exit code. It **requires** a verdict (`--synthesize`), takes `--source-type prose|code` to pick the redline format (the extension heuristic decides otherwise; a stdin or unknown-extension source must pass the flag) and `--revision-seat`; the revised draft is **byte-clean** with no header, the source file is **never written** (applying it is your act), conflicts surface as `unresolved` entries (never fatal), and a revision failure leaves the verdict/rounds intact (`changes-rejected.json` + exit 0, `--strict-exit` → 4). A code source additionally gets a `revised-draft.patch`; a prose source instead gets a redline section in the full-handoff HTML — see Artifact Standard above (v1.13 P3). Synthesis stays your reasoning task — the conductor stops at clean per-round packets and hands them to you (or one neutral seat) to fill `verdict.json`, then you call the chain.
++**The conductor — `scripts/run_board.py` — is the canonical way to drive a board.** It owns the load-bearing mechanics in code: a seat-adapter **registry** (the one place that knows each CLI's flags, isolation, and model-id self-heal), an executable **preflight** (GO/NO-GO), a hash-bound **egress/quarantine gate** before any byte leaves, the **round-1 + round-2 fan-out** with the failure protocol, the **verdict chain** (`verify` evidence → `consensus` md/html → `validate`/gate), and the **run history** (`history` — a table of past runs read from each run's `verdict.json` under the persistent runs root; a partial or legacy run lists as `incomplete`). Run `scripts/run_board.py run …` (see `scripts/README.md`); a real run is in the repo-root `examples/payments-idempotency-review/`. Useful run controls: `--timeout SECONDS` caps every seat and `--timeout SEAT=SECONDS` caps one (ids as in `--model`/`--lens`; a slow local seat shouldn't set the whole board's clock), and `--digest-format json` also emits each round's structured digest as typed JSON. **Re-review a revised draft with `--revise <prior run dir>`** (v1.12): `--source` is the revised draft, and the round-1 prompts additionally carry a mechanical digest of the prior verdict plus the diff from the previously reviewed draft (recovered from the prior run dir, sha-verified; omitted loudly when unrecoverable) — every injected byte inside the consent packet hash. The new verdict records `previous_run` lineage, and the consensus render leads with the cleared / still-open / new delta and the verdict trajectory. **Ask a follow-up after the verdict with `ask "<question>" --run <dir> [--seat <id>]`** (v1.12): post-verdict cross-examination — the board answers a follow-up in one round, from a context packet built ONLY from that run's own artifacts (the reviewed material, a mechanical verdict digest, and each addressed seat's own prior review), bounded to the run and re-consented like any egress (public discloses; non-public needs `--yes`/approval; the sensitivity floor is the strictest of the recipe, the run's `sensitivity.json`, and a tighten-only `--sensitivity` flag — never looser, and a run missing its `sensitivity.json` never floats down to public); it writes `addendum-N.md` and refreshes the handoff. **Tune a completed verdict by hand with `board_verdict.py amend --run <dir> --author … --reason … <effect>`** (v1.12): append-only human tuning that never rewrites the board's own words — one effect per call (`--confidence`, `--caveat`, or `--severity-note [--on "<finding>"]`), recorded with provenance; renderers then show the effective value marked as amended, and a no-amendments verdict is unchanged. **Get a board-endorsed fixed copy with `run --output revised-draft`** (v1.13): after synthesis, a revision seat produces a revised copy of the source (each edit mapped by the model to the finding it resolves, mechanically validated — coverage reconciliation + index/title cross-assert) plus `changes.json` — the edit→finding mapping of record. Then the **endorsement pass** (v1.13 P4, D13) runs by default: once the revision succeeds, every non-revision seat is fanned out concurrently (≈ one extra round) to vote `ENDORSE`/`OBJECT`/`ABSTAIN` on each edit and unresolved conflict, recorded as `changes.json.endorsements` rows — objections are recorded, never resolved by another model loop (a human reads them, D6). `--no-endorse` opts out (the token-cost axis; that run is findings-mapped, not board-endorsed); a failed endorsement spawn records that seat as `ABSTAIN`/`dropped` and never fails the run or moves the exit code. It **requires** a verdict (`--synthesize`), takes `--source-type prose|code` to pick the redline format (the extension heuristic decides otherwise; a stdin or unknown-extension source must pass the flag) and `--revision-seat`; the revised draft is **byte-clean** with no header, the source file is **never written** (applying it is your act), conflicts surface as `unresolved` entries (never fatal), and a revision failure leaves the verdict/rounds intact (`changes-rejected.json` + exit 0, `--strict-exit` → 4). A code source additionally gets a `revised-draft.patch`; a prose source instead gets a redline section in the full-handoff HTML — see Artifact Standard above (v1.13 P3). Synthesis stays your reasoning task — the conductor stops at clean per-round packets and hands them to you (or one neutral seat) to fill `verdict.json`, then you call the chain. **Watch a long run live (v1.14):** a board run is 10–15 minutes and stdout block-buffers a backgrounded run, so on by default the conductor writes a `status.json` into the run dir — rewritten atomically on every seat/round/stage transition — and drives from it (a) flushed per-seat terminal lines (`round 1 · codex … running` → `round 1 · codex ✓ 186s`) that stream instead of going dark, and (b) a self-refreshing `status.html` tracker you can open in a browser (dark, compact, `<meta refresh>` every 2s while live; static once done). Both are a **live view, not an artifact of record** — the verdict chain and `run-metadata.md` stay authoritative — and the run dir is byte-identical to before apart from the two `status.*` files; `--no-live-status` drops even those. Writing the view is best-effort: a failure warns once and never touches the run, and a preflight-NO-GO / egress-refused run still leaves no dir (the view defers its first write until the run commits to spawning).
+ 
+ The rest of this section and the **CLI Execution Notes** below are the **portable, script-free fallback** — the same protocol an agent runs by hand where the conductor isn't available. The principles hold either way:
+ 
+diff --git a/skills/advisory-board/scripts/README.md b/skills/advisory-board/scripts/README.md
+index f324e67..46fe79a 100644
+--- a/skills/advisory-board/scripts/README.md
++++ b/skills/advisory-board/scripts/README.md
+@@ -38,7 +38,8 @@ dependency DAG — each imports only from those above it:
+ | `recipe.py` | The restricted-YAML codec for `run-recipe.yaml` plus recipe↔config conversion/validation. |
+ | `history.py` | The run-history listing (v1.11 #5): scan the persistent runs root and render the `history` table from each run's `verdict.json` (degrading to `run-recipe.yaml` / `incomplete` for partial or legacy runs — never crashing the listing). |
+ | `artifacts.py` | Renderers/writers for the pre-spawn artifacts: run-card, `sensitivity.json`, the artifact tree, and the run-metadata stamp (md + tsv). |
+-| `rounds.py` | The round fan-out (design §11/§12/§13): `run_round`/`_run_seat_round` (pluggable classifier) and the per-seat round artifacts/renderers. |
++| `rounds.py` | The round fan-out (design §11/§12/§13): `run_round`/`_run_seat_round` (pluggable classifier) and the per-seat round artifacts/renderers. `run_round` takes an optional best-effort `on_seat` callback (v1.14 #10) fired from the worker threads at each seat's start/finish, bridged to the live-progress tracker. |
++| `status.py` | The live progress view (v1.14 #10, P3): the `advisory-board/status@1` schema, a lock-serialized `StatusTracker` whose every transition rewrites `status.json` **atomically** (write-temp + `os.replace`) and regenerates `status.html`, the flushed per-seat terminal lines, and `render_status_html` — a **pure** function of the status dict (self-contained, self-refreshing while live, deterministic). Best-effort throughout (a write failure warns once, never kills the run); defers its first disk write until the run commits to spawning, so a NO-GO leaves no dir. `NullTracker` is the `--no-live-status` no-op. Stdlib-only. |
+ | `delta.py` | The pure cross-run verdict delta (v1.12 #1): matches blockers/concerns across two runs (exact title > shared citations > guarded similarity) into cleared / still-open / new + trajectory. |
+ | `revise.py` | `--revise` (v1.12 #1): load a prior run, recover its source (sha-verified), and build the injected prior-verdict digest + source diff (with the sensitivity-escalation gate). |
+ | `ask.py` | `ask` (v1.12 #4): post-verdict cross-examination — reconstruct the run's board from its recipe, build a run-context packet from that run's own artifacts, re-consent, one-round fan-out, and write `addendum-N.md` + the addenda index / handoff refresh. |
+@@ -76,6 +77,11 @@ python3 scripts/run_board.py preflight --source plan.md
+ # artifacts land under the persistent runs root by default: ~/.advisory-board/runs/<slug>-<date>/
+ # ($ADVISORY_BOARD_RUNS_ROOT or --runs-root DIR relocate the root; --out DIR names an exact
+ #  dir; --ephemeral opts back into a throwaway /tmp/advisory-board-<ts>)
++# LIVE VIEW (v1.14 #10, on by default): a status.json (rewritten atomically on every
++# seat/round transition) + a self-refreshing status.html tracker land in the run dir, and
++# flushed per-seat progress lines stream to the terminal — something to watch during the
++# ~15-min run. Both are a live view, NOT an artifact of record (the verdict chain +
++# run-metadata.md stay authoritative). --no-live-status opts out for a byte-exact run dir.
+ python3 scripts/run_board.py run --source plan.md --sensitivity public --rounds 2 --cross-reading summaries
+ 
+ # per-seat timeouts + a typed digest: a bare --timeout caps every seat, SEAT=SECONDS caps one
+diff --git a/skills/advisory-board/scripts/_conductor/artifacts.py b/skills/advisory-board/scripts/_conductor/artifacts.py
+index bb1a62b..22c4f5f 100644
+--- a/skills/advisory-board/scripts/_conductor/artifacts.py
++++ b/skills/advisory-board/scripts/_conductor/artifacts.py
+@@ -310,6 +310,9 @@ def render_artifact_tree(config: RunConfig) -> str:
+         "  logs/<seat>-round-N.stderr",
+         "  verdict.json   final-consensus.md   handoff-data.json   final-consensus.html",
+         "  run-metadata.md   run-metadata.tsv",
++        # The live progress view (v1.14 #10) — a self-refreshing tracker rewritten on
++        # every transition, NOT an artifact of record; --no-live-status omits both.
++        "  status.json   status.html   (live view — on by default; --no-live-status omits)",
+     ]
+     return "\n".join(parts)
+ 
+diff --git a/skills/advisory-board/scripts/_conductor/cli.py b/skills/advisory-board/scripts/_conductor/cli.py
+index 8b614e4..2151c85 100644
+--- a/skills/advisory-board/scripts/_conductor/cli.py
++++ b/skills/advisory-board/scripts/_conductor/cli.py
+@@ -90,6 +90,10 @@ from _conductor.rounds import (
+     run_round,
+     write_round_artifacts,
+ )
++from _conductor.status import (
++    NullTracker,
++    StatusTracker,
++)
+ from _conductor.synthesizer import (
+     SYNTHESIZER_TEMPLATE_VERSION,
+     choose_synthesizer_seat,
+@@ -315,11 +319,35 @@ def _execute_run(config, args) -> int:
+         where_note = "  (persistent default — --out DIR, --runs-root DIR, or --ephemeral to relocate)"
+     print(f"run artifacts → {config.out_dir}{where_note}\n")
+ 
++    # 0a. Live progress view (v1.14 #10): a status.json + self-refreshing status.html
++    #     in the run dir, rewritten atomically on every seat/round/stage transition,
++    #     plus flushed per-seat terminal lines — the run dir is the only live window
++    #     while stdout block-buffers a background run. Best-effort: a status-write
++    #     failure warns once and never touches the run. --no-live-status opts out for
++    #     a byte-exact run dir (a NullTracker keeps the hook sites branch-free).
++    if getattr(args, "no_live_status", False):
++        tracker = NullTracker()
++    else:
++        planned = config.max_rounds if config.rounds == "auto" else int(config.rounds)
++        tracker = StatusTracker(config.out_dir, title=config.title,
++                                rounds_planned=planned, seats=config.board)
++
++    def _seat_cb(event, seat_id, round_no, result):
++        # Bridge rounds.run_round's per-seat callback → the tracker. Runs from the
++        # fan-out's worker threads; the tracker serializes internally.
++        detail = None
++        if event == "done" and result is not None:
++            detail = f"{result.elapsed_s:.0f}s"
++        elif event == "dropped" and result is not None:
++            detail = result.failure_class or "no usable review"
++        tracker.seat(seat_id, event, round_no, detail)
++
+     # 0b. Toolchain currency (opt-in): update stale CLIs before probing, so a
+     #     freshly-renamed model id resolves instead of 404-ing the board.
+     _maybe_update_tools(config, args)
+ 
+     # 1. Preflight — GO/NO-GO before anything else.
++    tracker.stage("preflight", "started")
+     print("=== preflight ===")
+     preflight = run_preflight(config)
+     print(render_preflight_table(preflight))
+@@ -328,10 +356,13 @@ def _execute_run(config, args) -> int:
+         guidance = render_board_guidance(preflight, config)
+         if guidance:
+             print("\n" + guidance)
++        tracker.finish("no-board", f"preflight NO-GO ({go} of {len(preflight)} seats GO)")
+         die("fewer than two seats are GO — not running a one-voice board", EXIT_PREFLIGHT_NOGO)
++    tracker.stage("preflight", "done", f"{go} of {len(preflight)} seats GO")
+ 
+     # 2. Egress gate — the pre-spawn hard stop. Nothing has left the machine yet;
+     #    the smoke pings above carried only a fixed token, never the source.
++    tracker.stage("egress", "started")
+     print("\n=== egress gate ===")
+     print(disclosure_line(config))
+     approval = enforce_egress_gate(
+@@ -352,10 +383,17 @@ def _execute_run(config, args) -> int:
+                render_egress_manifest(config, blobs, content_hash))
+         _write(os.path.join(config.out_dir, "sensitivity.json"),
+                render_sensitivity_json(config, approval))
++        tracker.finish("egress-blocked", "egress refused at the gate")
+         die(f"egress blocked — see {config.out_dir}/egress-manifest.md", EXIT_EGRESS_BLOCKED)
++    tracker.stage("egress", "done", f"approved ({approval.mode})")
+ 
+     # 3. Approved: persist the exact approved packet + provenance BEFORE spawning.
+     write_pre_spawn_artifacts(config, blobs, approval, content_hash)
++    # The run has committed to spawning + materialized its dir — NOW the live view
++    # may write status.json/status.html (before this, a NO-GO preflight or a refused
++    # egress must leave no dir; RH-1). This flush carries the full pre-spawn history
++    # (preflight + egress events already recorded in memory).
++    tracker.activate()
+ 
+     # 4. Round-1 fan-out (M3) — the first real spawn. run_round re-asserts the
+     #    egress hash one last time, then feeds each seat its approved blob verbatim
+@@ -364,9 +402,11 @@ def _execute_run(config, args) -> int:
+     #    values (bare default + id=SECONDS overrides) are already resolved onto each
+     #    SeatConfig (config.resolve_board), so the fan-out reads them per seat.
+     print("\n=== round 1 (fan-out) ===")
+-    r1 = run_round(config, blobs, approval, round_no=1)
++    tracker.round_started(1)
++    r1 = run_round(config, blobs, approval, round_no=1, on_seat=_seat_cb)
+     write_round_artifacts(config, r1, 1)
+     rounds_done = [r1]
++    tracker.round_done(1, f"{sum(1 for r in r1 if r.usable)} of {len(r1)} usable")
+     print(render_round_table(r1, 1))
+ 
+     usable1 = [r for r in r1 if r.usable]
+@@ -375,6 +415,7 @@ def _execute_run(config, args) -> int:
+                render_run_metadata(config, preflight, approval, rounds=rounds_done))
+         _write(os.path.join(config.out_dir, "run-metadata.tsv"),
+                render_run_metadata_tsv(rounds_done))
++        tracker.finish("no-board", f"only {len(usable1)} usable round-1 review(s)")
+         print(f"\nwrote run dir: {config.out_dir}")
+         print(f"\nWARNING: only {len(usable1)} of {len(r1)} seats produced a usable "
+               "round-1 review — that is not a board. Inspect round-1/*.raw and logs/, fix "
+@@ -428,9 +469,11 @@ def _execute_run(config, args) -> int:
+             print(f"(round {round_no} sends each seat's round-{round_no - 1} review to the others at "
+                   "the same providers — no new source egresses; covered by the run-card's disclosed "
+                   "multi-round plan.)")
+-        rN = run_round(config, rN_blobs, approval, round_no=round_no)
++        tracker.round_started(round_no)
++        rN = run_round(config, rN_blobs, approval, round_no=round_no, on_seat=_seat_cb)
+         write_round_artifacts(config, rN, round_no)
+         rounds_done.append(rN)
++        tracker.round_done(round_no, f"{sum(1 for r in rN if r.usable)} of {len(rN)} usable")
+         print(render_round_table(rN, round_no))
+         mv = board_movement(prev, rN)
+         movements.append(mv)
+@@ -494,6 +537,7 @@ def _execute_run(config, args) -> int:
+     # over one (or zero) voices. (stop_reason is already 'insufficient-voices' for the
+     # auto path; an explicit --rounds N collapse is caught here too.)
+     if len(usable_last) < 2:
++        tracker.finish("no-board", f"board collapsed to {len(usable_last)} usable voice(s)")
+         print(f"\nWARNING: the board collapsed to {len(usable_last)} usable voice(s) by round "
+               f"{last[0].round_no} — that is not a board. Inspect round-{last[0].round_no}/*.raw and "
+               "logs/, fix the failed seats, and re-run. Synthesis is intentionally NOT attempted on "
+@@ -514,8 +558,11 @@ def _execute_run(config, args) -> int:
+     if config.synthesize:
+         return _run_synthesis_step(config, rounds_done, args, last_dir,
+                                    preflight=preflight, approval=approval,
+-                                   convergence=convergence)
++                                   convergence=convergence, tracker=tracker)
+ 
++    # No --synthesize: the rounds are the conductor's product; the verdict is the
++    # agent's hand-authored step. The run (as the conductor drives it) ends here.
++    tracker.finish("rounds-complete", f"{len(rounds_done)} round(s) captured — verdict is yours")
+     print("\nNext — synthesize, then run the deterministic M5 chain:")
+     print(f"  1. Read {last_dir}/*.md and write {config.out_dir}/verdict.json "
+           "(advisory-board/verdict@2; cite typed evidence on each blocker).")
+@@ -531,7 +578,7 @@ def _execute_run(config, args) -> int:
+ 
+ 
+ def _run_synthesis_step(config, rounds_done: list, args, last_dir: str, *,
+-                        preflight, approval, convergence) -> int:
++                        preflight, approval, convergence, tracker=None) -> int:
+     """The M2 synthesizer step. Spawns one no-lens seat to draft verdict.json from
+     the final-round reviews; merges into the conductor's authoritative skeleton;
+     rejects on schema-validation failure. The rounds already succeeded (the value
+@@ -542,6 +589,8 @@ def _run_synthesis_step(config, rounds_done: list, args, last_dir: str, *,
+     is how they detect that synthesis didn't deliver."""
+     import shutil
+     import tempfile
++    tk = tracker if tracker is not None else NullTracker()
++    tk.stage("synthesis", "started")
+     last = rounds_done[-1]
+     seat = choose_synthesizer_seat(config, last, preferred=config.synthesizer_seat)
+     # The synthesizer spawns on a board seat, so it honors that seat's resolved
+@@ -614,11 +663,14 @@ def _run_synthesis_step(config, rounds_done: list, args, last_dir: str, *,
+         # the revision step runs — analogous placement/shape to the synthesis step,
+         # gated on config.output. A revision failure never discards the verdict/rounds
+         # (rejected artifacts + exit 0; --strict-exit → 4, same as the synthesizer).
++        tk.stage("synthesis", "done", "verdict.json validated")
+         if config.output == "revised-draft":
+             return _run_revision_step(config, sr.verdict_data, rounds_done, args,
+                                       verdict_path=verdict_path,
+                                       verdict_sha256=hashlib.sha256(
+-                                          verdict_bytes.encode("utf-8")).hexdigest())
++                                          verdict_bytes.encode("utf-8")).hexdigest(),
++                                      tracker=tk)
++        tk.finish("ok", "verdict synthesized")
+         print("\nNext — the deterministic M5 chain (human still gates ship/abstain):")
+         print(f"  1. run_board.py verify {verdict_path} --source <src> --run {config.out_dir}")
+         print(f"  2. run_board.py consensus {verdict_path} --run {config.out_dir} "
+@@ -646,6 +698,7 @@ def _run_synthesis_step(config, rounds_done: list, args, last_dir: str, *,
+             pass
+ 
+     reason = sr.parse_error or sr.schema_error or sr.failure_class or "synthesizer dropped"
++    tk.finish("no-verdict", f"synthesizer did not deliver ({reason})")
+     print(f"\n⚠ synthesizer did NOT produce a usable verdict.json — reason: {reason}")
+     print(f"  see {synth_dir}/{seat.name}.md and {synth_dir}/{seat.name}.raw "
+           "for the full record")
+@@ -852,7 +905,7 @@ def _validate_changes_doc(data: dict):
+ 
+ 
+ def _run_revision_step(config, verdict_data: dict, rounds_done: list, args, *,
+-                       verdict_path: str, verdict_sha256: str) -> int:
++                       verdict_path: str, verdict_sha256: str, tracker=None) -> int:
+     """The v1.13 revision step. Runs ONLY after synthesis produced a validated
+     verdict.json (this function is reached from _run_synthesis_step's success
+     branch, gated on config.output == "revised-draft"). Spawns one board seat to
+@@ -863,6 +916,8 @@ def _run_revision_step(config, verdict_data: dict, rounds_done: list, args, *,
+     exit 0 (--strict-exit → 4, the same code the synthesizer uses)."""
+     import shutil
+     import tempfile
++    tk = tracker if tracker is not None else NullTracker()
++    tk.stage("revision", "started")
+     last = rounds_done[-1]
+     seat = choose_revision_seat(config, last, preferred=config.revision_seat)
+     timeout = seat.timeout_s
+@@ -944,7 +999,13 @@ def _run_revision_step(config, verdict_data: dict, rounds_done: list, args, *,
+         # P2-shape changes.json). The pass never fails the run: a dropped seat
+         # becomes ABSTAIN/dropped rows, all-dropped is a loud warning + rows. It
+         # writes its own artifacts + summary and merges rows into rr.changes IN PLACE.
++        tk.stage("revision", "done", "revised draft accepted")
++        if config.endorse:
++            tk.stage("endorsement", "started")
+         _run_endorsement_pass(config, rr, seat, args)
++        if config.endorse:
++            tk.stage("endorsement", "done",
++                     f"{len(rr.changes.get('endorsements') or [])} endorsement row(s)")
+         # 1. The byte-clean revised draft — the revised source bytes and NOTHING
+         #    else (no header). Its sha256 MUST equal changes.json.revised.sha256,
+         #    so newline="" disables platform newline translation: the on-disk
+@@ -999,6 +1060,7 @@ def _run_revision_step(config, verdict_data: dict, rounds_done: list, args, *,
+             print(f"  ⚠ {detail}")
+         print("\nThe revised draft is an ARTIFACT — applying it is your act (D6); the source "
+               "was never written.")
++        tk.finish("ok", "verdict + revised draft written")
+         return EXIT_OK
+ 
+     # Failure path: keep the verdict + rounds, be loud that the revision did NOT
+@@ -1029,6 +1091,7 @@ def _run_revision_step(config, verdict_data: dict, rounds_done: list, args, *,
+         handle.write("\n")
+ 
+     reason = rejected_record["reason"]
++    tk.finish("verdict-only", f"revision did not deliver ({reason})")
+     print(f"\n⚠ revision did NOT produce a usable revised draft — reason: {reason}")
+     print(f"  see {rev_dir}/{seat.id}.md and {rev_dir}/{seat.id}.raw for the full record")
+     print(f"  the rejection was recorded to {changes_rejected_path}"
+@@ -1169,6 +1232,13 @@ def add_run_options(parser: argparse.ArgumentParser) -> None:
+                         help="write artifacts to a throwaway /tmp/advisory-board-<ts> instead of "
+                              "the persistent runs root (the pre-v1.11 default). Contradicts "
+                              "--out/--runs-root (refused).")
++    parser.add_argument("--no-live-status", dest="no_live_status", action="store_true",
++                        help="skip the live progress view (v1.14 #10). By default a run writes a "
++                             "status.json + self-refreshing status.html into the run dir, rewritten "
++                             "atomically on every seat/round transition, and prints flushed per-seat "
++                             "progress lines — something to watch during a long background run. This "
++                             "opts out (no status.* files, no extra lines) for a byte-exact run dir; "
++                             "the artifacts of record are identical either way.")
+     parser.add_argument("--title", help="run title (default derived from the source; also names "
+                                         "the default run dir's <slug>)")
+     parser.add_argument("--from-recipe", dest="from_recipe",
+diff --git a/skills/advisory-board/scripts/_conductor/rounds.py b/skills/advisory-board/scripts/_conductor/rounds.py
+index cbf5e0e..f0c66fb 100644
+--- a/skills/advisory-board/scripts/_conductor/rounds.py
++++ b/skills/advisory-board/scripts/_conductor/rounds.py
+@@ -172,9 +172,20 @@ def _run_seat_round(seat: SeatConfig, blob: "PacketBlob", config: RunConfig, *,
+ 
+ def run_round(config: RunConfig, blobs: list, approval: EgressApproval, *,
+               round_no: int = 1, timeout: Optional[int] = None,
+-              parallel: bool = True, classify=classify_round1) -> list:
++              parallel: bool = True, classify=classify_round1,
++              on_seat=None) -> list:
+     """Fan a round out across its seats. Returns SeatRoundResult in blob order.
+ 
++    `on_seat` (v1.14 #10 live progress) is an optional best-effort callback fired
++    from the worker threads at each seat's start and finish:
++    `on_seat(event, seat_id, round_no, result)` where `event` is "running" (result
++    is None, the seat's spawn is about to begin) or the seat's terminal state
++    ("done" | "dropped" | "retry" ... derived from result.status; `result` is the
++    SeatRoundResult). It is called INSIDE the fan-out (parallel or serial) so a live
++    view updates as each seat transitions, not only when the whole round returns.
++    The tracker behind it serializes + swallows its own write errors — but we still
++    guard the call here so a bad callback can never break the fan-out.
++
+     Round 1 re-asserts the egress hash one last time before the first spawn: the
+     packet MUST still hash to exactly what consent was bound to, or nothing leaves
+     the machine (the pre-spawn hard stop, restated at the point of no return).
+@@ -230,10 +241,26 @@ def run_round(config: RunConfig, blobs: list, approval: EgressApproval, *,
+     else:
+         workdir = None
+     try:
++        def _notify(event, seat_id, result):
++            if on_seat is None:
++                return
++            try:
++                on_seat(event, seat_id, round_no, result)
++            except Exception:
++                pass   # a live-view callback must never break the fan-out
++
+         def _one(seat: SeatConfig) -> SeatRoundResult:
+-            return _run_seat_round(seat, by_seat[seat.id], config, round_no=round_no,
+-                                   round_packet_hash=round_packet_hash,
+-                                   workdir=workdir, timeout=timeout, classify=classify)
++            _notify("running", seat.id, None)
++            result = _run_seat_round(seat, by_seat[seat.id], config, round_no=round_no,
++                                     round_packet_hash=round_packet_hash,
++                                     workdir=workdir, timeout=timeout, classify=classify)
++            # Map the seat's outcome to a live-view state. A retried-but-usable seat
++            # still reports its terminal usable state; a "retry" event would need a
++            # hook inside the retry loop — deferred (the two-attempt window is short
++            # and the terminal state is what a watcher cares about).
++            event = "done" if result.usable else "dropped"
++            _notify(event, seat.id, result)
++            return result
+ 
+         results: dict = {}
+         if parallel and len(seats) > 1:
+diff --git a/skills/advisory-board/scripts/_conductor/status.py b/skills/advisory-board/scripts/_conductor/status.py
+new file mode 100644
+index 0000000..d0464d8
+--- /dev/null
++++ b/skills/advisory-board/scripts/_conductor/status.py
+@@ -0,0 +1,497 @@
++"""Live progress view (v1.14 #10): a `status.json` in the run dir rewritten
++atomically on every seat/round/stage transition, the terminal per-seat progress
++lines drawn from the same events, and a self-refreshing `status.html` tracker.
++
++Board runs block-buffer stdout, so a user watching a background run sees nothing
++until a round completes — the run dir is the only live window. This makes that
++window real: the moment a seat starts, finishes, drops, or retries, three things
++happen from ONE `emit`:
++
++  1. `status.json` is rewritten (write-temp + os.replace — a concurrent reader
++     never sees a torn file);
++  2. `status.html` is regenerated with the current state inlined (file:// JS
++     can't fetch a sibling json in modern browsers, so we inline + <meta refresh>);
++  3. a flushed one-liner is printed to stdout (block-buffering is the pain we fix).
++
++Design constraints honored here:
++  * status.json is the SINGLE source of truth — one JSON document, versioned
++    `advisory-board/status@1`, run-level fields + an ordered `events[]` + a
++    per-seat current-state map for cheap rendering;
++  * writes are SERIALIZED with a lock (seat transitions fire from worker threads)
++    and BEST-EFFORT — a status write failure warns once to stderr and never kills
++    the run;
++  * event timestamps use the repo's `now_stamp()` (deterministic under
++    ADVISORY_BOARD_NOW_TS) but are kept OUT of any golden byte surface — the
++    event-sequence golden asserts the ordered (stage, seat, round, state) tuples,
++    the HTML render is a pure function of the status dict that omits stamps from
++    its structural surface.
++
++The tracker is a LIVE VIEW, not an artifact of record (its footer says so): the
++verdict chain + run-metadata.md remain the authoritative outputs. status.json /
++status.html persist after a run completes, reading as such (a `finished` stamp +
++a terminal outcome).
++"""
++from __future__ import annotations
++
++import html
++import json
++import os
++import threading
++from typing import Optional
++
++from _conductor.constants import now_stamp
++
++__all__ = [
++    "STATUS_SCHEMA",
++    "STATUS_JSON_NAME",
++    "STATUS_HTML_NAME",
++    "STATES",
++    "STAGES",
++    "StatusTracker",
++    "NullTracker",
++    "render_status_html",
++    "event_tuples",
++]
++
++STATUS_SCHEMA = "advisory-board/status@1"
++STATUS_JSON_NAME = "status.json"
++STATUS_HTML_NAME = "status.html"
++
++# Terminal outcome tokens that the run reached its intended end for — the tracker's
++# HTML badge renders these green ("done"), everything else (a NO-GO, an egress
++# block, a synthesizer/revision that didn't deliver) renders muted-red ("drop").
++# `verdict-only` is green-adjacent (the verdict landed; only the optional revised
++# draft didn't) but we surface it as an incomplete outcome so it reads as "look".
++_SUCCESS_OUTCOMES = frozenset({"ok", "rounds-complete"})
++
++# The per-transition state vocabulary. Stage transitions use started/done;
++# seat transitions add running/dropped/retry.
++STATES = ("started", "running", "done", "dropped", "retry", "skipped")
++# The top-level stages a run moves through (each may fire started/done). `round`
++# is per-round (carries a round number); the rest are once-per-run phases.
++STAGES = ("preflight", "egress", "round", "synthesis", "revision", "endorsement", "run")
++
++
++def _atomic_write_text(path: str, text: str) -> None:
++    """Write `text` to `path` atomically: a sibling temp file + os.replace, so a
++    concurrent reader sees either the old complete file or the new complete file,
++    never a torn write. The temp is removed on any failure so no `.tmp` litters
++    the run dir. Fsync is deliberately skipped — this is a best-effort live view,
++    not a durability-critical artifact, and the run dir already tolerates a crash
++    mid-fan-out (the round artifacts are the record of what happened)."""
++    d = os.path.dirname(path) or "."
++    os.makedirs(d, exist_ok=True)
++    tmp = os.path.join(d, f".{os.path.basename(path)}.tmp")
++    try:
++        with open(tmp, "w", encoding="utf-8", newline="\n") as handle:
++            handle.write(text)
++        os.replace(tmp, path)   # atomic on POSIX and Windows
++    except Exception:
++        try:
++            os.unlink(tmp)
++        except OSError:
++            pass
++        raise
++
++
++class NullTracker:
++    """A no-op tracker: every method is a silent pass. Used where a run wants the
++    conductor's stage/seat hooks present but no live view written (tests that pin
++    a run dir's exact contents, or a caller that opts out). Keeping the same shape
++    as StatusTracker means the hook sites stay branch-free."""
++
++    enabled = False
++
++    def activate(self, *a, **k): pass
++    def stage(self, *a, **k): pass
++    def round_started(self, *a, **k): pass
++    def round_done(self, *a, **k): pass
++    def seat(self, *a, **k): pass
++    def finish(self, *a, **k): pass
++
++
++class StatusTracker:
++    """The live-progress recorder. One instance per run; its `emit` is the single
++    choke point that (1) appends an event, (2) updates the per-seat/run state,
++    (3) rewrites status.json atomically, (4) regenerates status.html, and (5)
++    prints a flushed terminal line. Serialized with a lock because seat
++    transitions fire from the round's worker threads.
++
++    BEST-EFFORT throughout: a write failure is caught, warned ONCE to stderr, and
++    the run continues (a live view must never take the run down). The in-memory
++    document keeps advancing even if disk writes are failing, so a later
++    recovering write still reflects the full history."""
++
++    enabled = True
++
++    def __init__(self, out_dir: str, *, title: str, rounds_planned, seats,
++                 write_html: bool = True, stream=None, active: bool = False):
++        import sys
++        self.out_dir = out_dir
++        self.write_html = write_html
++        self.stream = stream if stream is not None else sys.stdout
++        self._lock = threading.Lock()
++        self._seq = 0
++        self._warned = False
++        # DISK writes are gated on `_active`. The tracker records events + prints
++        # flushed terminal lines from the very first transition (preflight/egress),
++        # but does NOT create the run dir until the run has COMMITTED to spawning —
++        # i.e. `activate()` is called right after the egress gate approves and the
++        # pre-spawn artifacts are written. This preserves the RH-1 invariant: a
++        # preflight-NO-GO or egress-refused run leaves NO out dir (and no status.*).
++        # Once active, the FULL in-memory history (including the pre-activation
++        # preflight/egress events) is written on the first flush, so the persisted
++        # status.json is complete. Tests may construct with active=True to write
++        # from the first event.
++        self._active = active
++        seat_ids = [s.id for s in seats]
++        self._doc = {
++            "schema": STATUS_SCHEMA,
++            "title": title,
++            "started": now_stamp(),
++            "finished": None,
++            "outcome": None,
++            "stage": None,
++            "rounds_planned": rounds_planned,
++            "rounds_done": 0,
++            "seats": {sid: {"state": "waiting", "round": None, "detail": None}
++                      for sid in seat_ids},
++            "events": [],
++        }
++        # Record the run-started event (prints the line; writes to disk only if
++        # already active — the default defers until activate()).
++        self._flush("run", None, None, "started", "run started")
++
++    def activate(self) -> None:
++        """Commit the live view to disk. Called once the run has passed the egress
++        gate and materialized its run dir (write_pre_spawn_artifacts) — the first
++        moment writing status.* into the out dir is legitimate. Idempotent; flushes
++        the full accumulated history so the persisted status.json is complete."""
++        with self._lock:
++            if self._active:
++                return
++            self._active = True
++            self._write_files()
++
++    # -- public transition helpers ---------------------------------------- #
++
++    def stage(self, stage: str, state: str = "started", detail: Optional[str] = None) -> None:
++        """A top-level phase transition (preflight/egress/synthesis/…)."""
++        with self._lock:
++            self._doc["stage"] = stage if state == "started" else self._doc["stage"]
++            self._flush(stage, None, None, state, detail)
++
++    def round_started(self, round_no: int, detail: Optional[str] = None) -> None:
++        with self._lock:
++            self._doc["stage"] = "round"
++            for sid in self._doc["seats"]:
++                # Only seats still in play advance to "queued" for this round; a
++                # dropped seat stays dropped (round 2+ leaves it behind).
++                if self._doc["seats"][sid]["state"] != "dropped":
++                    self._set_seat(sid, "queued", round_no, None)
++            self._flush("round", None, round_no, "started",
++                        detail or f"round {round_no} fan-out")
++
++    def round_done(self, round_no: int, detail: Optional[str] = None) -> None:
++        with self._lock:
++            self._doc["rounds_done"] = max(self._doc["rounds_done"], round_no)
++            self._flush("round", None, round_no, "done",
++                        detail or f"round {round_no} complete")
++
++    def seat(self, seat_id: str, state: str, round_no: int,
++             detail: Optional[str] = None) -> None:
++        """A per-seat transition inside a round (fires from worker threads)."""
++        with self._lock:
++            self._set_seat(seat_id, state, round_no, detail)
++            self._flush("round", seat_id, round_no, state, detail)
++
++    def finish(self, outcome: str, detail: Optional[str] = None) -> None:
++        """Terminal marker — stamps `finished` + a coarse outcome token so a
++        completed run's status.json/status.html read as done."""
++        with self._lock:
++            self._doc["finished"] = now_stamp()
++            self._doc["outcome"] = outcome
++            self._doc["stage"] = "run"
++            self._flush("run", None, None, "done", detail or outcome)
++
++    # -- internals -------------------------------------------------------- #
++
++    def _set_seat(self, seat_id: str, state: str, round_no, detail) -> None:
++        s = self._doc["seats"].get(seat_id)
++        if s is None:
++            return
++        s["state"] = state
++        s["round"] = round_no
++        s["detail"] = detail
++
++    def _flush(self, stage, seat, round_no, state, detail) -> None:
++        """Append the event, then rewrite both artifacts + print the line. Caller
++        holds the lock. Every disk touch is best-effort."""
++        self._seq += 1
++        self._doc["events"].append({
++            "seq": self._seq,
++            "stage": stage,
++            "seat": seat,
++            "round": round_no,
++            "state": state,
++            "detail": detail,
++            "at": now_stamp(),
++        })
++        self._print_line(stage, seat, round_no, state, detail)
++        self._write_files()
++
++    def _write_files(self) -> None:
++        if not self._active:
++            return   # deferred: no run dir yet (pre-egress-approval — RH-1)
++        try:
++            _atomic_write_text(os.path.join(self.out_dir, STATUS_JSON_NAME),
++                               json.dumps(self._doc, indent=2, ensure_ascii=False) + "\n")
++            if self.write_html:
++                _atomic_write_text(os.path.join(self.out_dir, STATUS_HTML_NAME),
++                                   render_status_html(self._doc))
++        except Exception as exc:   # best-effort: never let a live-view write kill the run
++            if not self._warned:
++                self._warned = True
++                import sys
++                print(f"warning: live status view could not be written "
++                      f"({type(exc).__name__}: {exc}); the run continues, artifacts "
++                      "of record are unaffected", file=sys.stderr, flush=True)
++
++    def _print_line(self, stage, seat, round_no, state, detail) -> None:
++        line = terminal_line(stage, seat, round_no, state, detail)
++        if line is None:
++            return
++        try:
++            print(line, file=self.stream, flush=True)   # flush: the whole point
++        except Exception:
++            pass
++
++
++# The per-state glyph for the flushed terminal line. Kept ASCII-plus-check so it
++# renders in any terminal; the check/× are the two the pinned-elsewhere output
++# never uses, so these lines only ADD, never collide.
++_STATE_GLYPH = {
++    "started": "…",
++    "running": "…",
++    "queued": "·",
++    "done": "✓",
++    "dropped": "✗",
++    "retry": "↻",
++    "skipped": "–",
++}
++
++
++def terminal_line(stage, seat, round_no, state, detail) -> Optional[str]:
++    """The human one-liner for a transition, or None to print nothing.
++
++    Per-seat, in-round lines are the point (e.g. `round 1 · codex … running`,
++    `round 1 · codex ✓ 186s`). Stage started/done lines are terse phase markers.
++    These are ADDITIVE — no existing pinned stdout line is touched — so they never
++    need to match a golden; the round tables + `=== round N ===` banners the
++    conductor already prints are unchanged."""
++    glyph = _STATE_GLYPH.get(state, "·")
++    if stage == "round" and seat is not None:
++        head = f"round {round_no} · {seat}"
++        if state == "running":
++            return f"  {head} {glyph} running"
++        if state == "done":
++            return f"  {head} {glyph} {detail}" if detail else f"  {head} {glyph} done"
++        if state == "dropped":
++            return f"  {head} {glyph} dropped" + (f" ({detail})" if detail else "")
++        if state == "retry":
++            return f"  {head} {glyph} retry" + (f" ({detail})" if detail else "")
++        return None   # queued: no line (the banner already announced the round)
++    if stage == "round" and seat is None:
++        return None   # round started/done: the conductor's own banner/table covers it
++    if state == "started":
++        return f"  · {stage} …"
++    if state == "done" and stage not in ("run", "round"):
++        return f"  · {stage} {glyph}"
++    return None
++
++
++def event_tuples(doc: dict) -> list:
++    """The ordered (stage, seat, round, state) tuples of a status document — the
++    stable surface the event-sequence golden asserts (never the timestamps)."""
++    return [(e["stage"], e["seat"], e["round"], e["state"]) for e in doc.get("events", [])]
++
++
++# --------------------------------------------------------------------------- #
++# The self-refreshing HTML tracker — a PURE function of the status dict.
++# --------------------------------------------------------------------------- #
++
++_SEAT_STATE_CLASS = {
++    "waiting": "st-wait",
++    "queued": "st-queued",
++    "running": "st-run",
++    "done": "st-done",
++    "dropped": "st-drop",
++    "retry": "st-retry",
++    "skipped": "st-skip",
++}
++_SEAT_STATE_LABEL = {
++    "waiting": "waiting",
++    "queued": "queued",
++    "running": "running",
++    "done": "done",
++    "dropped": "dropped",
++    "retry": "retrying",
++    "skipped": "skipped",
++}
++
++
++def _esc(v) -> str:
++    return html.escape("" if v is None else str(v), quote=True)
++
++
++def render_status_html(doc: dict) -> str:
++    """Render the live tracker as a self-contained, deterministic HTML page from
++    the status dict. Pure function (no clock, no I/O) — the ONLY nondeterminism is
++    whatever stamps the doc already carries, and those are printed as opaque text,
++    never computed here. Reuses the repo's dark/compact visual convention loosely;
++    inline CSS only, no external fonts/CDNs/JS-src, renders offline.
++
++    Self-refreshing via <meta http-equiv="refresh" content="2"> — file:// JS can't
++    fetch a sibling json in modern browsers, so the state is inlined and the page
++    reloads itself every 2s; the conductor regenerates this file on each event, so
++    each reload shows the latest state. It is a LIVE VIEW, not an artifact of
++    record (the footer says so)."""
++    title = _esc(doc.get("title", "advisory board run"))
++    finished = doc.get("finished")
++    outcome = doc.get("outcome")
++    stage = doc.get("stage")
++    rounds_planned = doc.get("rounds_planned")
++    rounds_done = doc.get("rounds_done", 0)
++    seats = doc.get("seats", {})
++
++    running = finished is None
++    # Only self-refresh while the run is live; a completed run's page is static.
++    meta_refresh = '<meta http-equiv="refresh" content="2">' if running else ""
++    if running:
++        status_word = "running"
++        status_class = "run"
++        stage_txt = f"stage: {_esc(stage)}" if stage else "starting…"
++    else:
++        status_word = _esc(outcome or "done")
++        status_class = "done" if (outcome is None or outcome in _SUCCESS_OUTCOMES) else "drop"
++        stage_txt = f"finished {_esc(finished)}"
++
++    seat_rows = []
++    for sid, s in seats.items():
++        st = s.get("state", "waiting")
++        cls = _SEAT_STATE_CLASS.get(st, "st-wait")
++        label = _SEAT_STATE_LABEL.get(st, st)
++        rnd = s.get("round")
++        rnd_txt = f"round {_esc(rnd)}" if rnd is not None else "—"
++        detail = s.get("detail")
++        detail_txt = _esc(detail) if detail else ""
++        seat_rows.append(
++            f'      <tr class="{cls}"><td class="seat">{_esc(sid)}</td>'
++            f'<td class="state">{_esc(label)}</td>'
++            f'<td class="round">{rnd_txt}</td>'
++            f'<td class="detail">{detail_txt}</td></tr>'
++        )
++    seats_html = "\n".join(seat_rows) or (
++        '      <tr><td class="seat" colspan="4">no seats yet</td></tr>')
++
++    # The recent event log — newest last, capped so a long auto run stays compact.
++    events = doc.get("events", [])
++    tail = events[-14:]
++    ev_rows = []
++    for e in tail:
++        who = e.get("seat") or e.get("stage")
++        rnd = e.get("round")
++        where = f'r{_esc(rnd)}' if rnd is not None else "·"
++        ev_rows.append(
++            f'      <li><span class="ev-where">{where}</span>'
++            f'<span class="ev-who">{_esc(who)}</span>'
++            f'<span class="ev-state ev-{_esc(e.get("state"))}">{_esc(e.get("state"))}</span>'
++            f'<span class="ev-detail">{_esc(e.get("detail") or "")}</span></li>'
++        )
++    events_html = "\n".join(ev_rows) or '      <li>(no events yet)</li>'
++
++    rp = "?" if rounds_planned is None else _esc(rounds_planned)
++    started = _esc(doc.get("started"))
++
++    return f"""<!DOCTYPE html>
++<html lang="en">
++<head>
++<meta charset="utf-8">
++<meta name="viewport" content="width=device-width, initial-scale=1">
++{meta_refresh}
++<title>{title} — live status</title>
++<style>
++  :root {{ color-scheme: dark; }}
++  * {{ box-sizing: border-box; }}
++  body {{
++    margin: 0; padding: 1.4rem 1.2rem 2rem;
++    background: #0b0e17; color: #e6e9f2;
++    font: 14px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
++  }}
++  header {{ display: flex; align-items: baseline; gap: .8rem; flex-wrap: wrap;
++           border-bottom: 1px solid #1e2740; padding-bottom: .7rem; }}
++  h1 {{ font-size: 1.05rem; margin: 0; font-weight: 600; letter-spacing: .01em; }}
++  .badge {{ font-size: .72rem; text-transform: uppercase; letter-spacing: .08em;
++           padding: .18rem .5rem; border-radius: 999px; font-weight: 700; }}
++  .badge.run {{ background: #12305c; color: #7fb2ff; }}
++  .badge.done {{ background: #143a2a; color: #74e0a3; }}
++  .badge.drop {{ background: #3a1a1e; color: #ff9aa6; }}
++  .sub {{ color: #8b93a7; font-size: .82rem; }}
++  .meta {{ color: #8b93a7; font-size: .8rem; margin: .55rem 0 1.1rem; }}
++  h2 {{ font-size: .76rem; text-transform: uppercase; letter-spacing: .09em;
++        color: #7a8199; margin: 1.3rem 0 .5rem; }}
++  table {{ border-collapse: collapse; width: 100%; max-width: 720px; }}
++  td {{ padding: .34rem .6rem; border-bottom: 1px solid #161d31; }}
++  td.seat {{ font-weight: 600; color: #cdd4e6; width: 8rem; }}
++  td.round {{ color: #8b93a7; width: 6rem; }}
++  td.detail {{ color: #8b93a7; }}
++  tr.st-run td.state {{ color: #7fb2ff; }}
++  tr.st-done td.state {{ color: #74e0a3; }}
++  tr.st-drop td.state {{ color: #ff9aa6; }}
++  tr.st-retry td.state {{ color: #e2b658; }}
++  tr.st-queued td.state, tr.st-wait td.state {{ color: #8b93a7; }}
++  ul.events {{ list-style: none; margin: 0; padding: 0; max-width: 720px; }}
++  ul.events li {{ display: flex; gap: .7rem; padding: .2rem .1rem;
++                  border-bottom: 1px solid #12182a; align-items: baseline; }}
++  .ev-where {{ color: #6b768f; width: 2.4rem; }}
++  .ev-who {{ color: #cdd4e6; width: 8rem; font-weight: 600; }}
++  .ev-state {{ width: 5rem; }}
++  .ev-running, .ev-started {{ color: #7fb2ff; }}
++  .ev-done {{ color: #74e0a3; }}
++  .ev-dropped {{ color: #ff9aa6; }}
++  .ev-retry {{ color: #e2b658; }}
++  .ev-detail {{ color: #8b93a7; }}
++  footer {{ margin-top: 1.8rem; padding-top: .8rem; border-top: 1px solid #1e2740;
++            color: #6b768f; font-size: .74rem; max-width: 720px; }}
++</style>
++</head>
++<body>
++  <header>
++    <h1>{title}</h1>
++    <span class="badge {status_class}">{status_word}</span>
++    <span class="sub">{stage_txt}</span>
++  </header>
++  <div class="meta">started {started} · rounds {_esc(rounds_done)} / {rp}</div>
++
++  <h2>Seats</h2>
++  <table>
++    <tbody>
++{seats_html}
++    </tbody>
++  </table>
++
++  <h2>Recent events</h2>
++  <ul class="events">
++{events_html}
++  </ul>
++
++  <footer>
++    Live view — self-refreshing every 2s while the run is active. This is a
++    progress tracker, <strong>not an artifact of record</strong>: the verdict
++    chain (<code>verdict.json</code> → <code>final-consensus.md</code>) and
++    <code>run-metadata.md</code> are the authoritative outputs. Advisory Board,
++    powered by Panely.
++  </footer>
++</body>
++</html>
++"""
+diff --git a/skills/advisory-board/scripts/run_board.py b/skills/advisory-board/scripts/run_board.py
+index 82a212e..565043f 100644
+--- a/skills/advisory-board/scripts/run_board.py
++++ b/skills/advisory-board/scripts/run_board.py
+@@ -109,6 +109,7 @@ from _conductor.delta import *  # noqa: F401,F403  (v1.12: mechanical verdict de
+ from _conductor.revise import *  # noqa: F401,F403  (v1.12: --revise prior-run context)
+ from _conductor.history import *  # noqa: F401,F403  (v1.11: the `history` run listing)
+ from _conductor.artifacts import *  # noqa: F401,F403
++from _conductor.status import *  # noqa: F401,F403  (v1.14 #10: live progress view)
+ from _conductor.rounds import *  # noqa: F401,F403
+ from _conductor.ask import *  # noqa: F401,F403  (v1.12: `ask` post-verdict cross-examination)
+ from _conductor.cli import *  # noqa: F401,F403
+diff --git a/skills/advisory-board/tests/test_run_board.py b/skills/advisory-board/tests/test_run_board.py
+index d9c01c7..af8f49d 100644
+--- a/skills/advisory-board/tests/test_run_board.py
++++ b/skills/advisory-board/tests/test_run_board.py
+@@ -14341,5 +14341,302 @@ class TestEchoScoreE2E(EnvMixin):
+         self.assertNotIn("Independence / echo", meta)
+ 
+ 
++# --------------------------------------------------------------------------- #
++# v1.14 #10 (P3) — the live progress view: status.json event plumbing, the
++# atomic writer, the flushed terminal lines, and the self-refreshing HTML tracker.
++# --------------------------------------------------------------------------- #
++
++from _conductor import status as st  # noqa: E402
++
++
++class _FakeSeat:
++    def __init__(self, sid):
++        self.id = sid
++
++
++class TestStatusModuleUnit(unittest.TestCase):
++    """The tracker as a unit: schema, the atomic writer, terminal lines, event
++    tuples — no run harness, no threads."""
++
++    def setUp(self):
++        os.environ["ADVISORY_BOARD_NOW_TS"] = "2026-06-25T12:00:00"
++        self.addCleanup(lambda: os.environ.pop("ADVISORY_BOARD_NOW_TS", None))
++        self.d = tempfile.mkdtemp(prefix="status-unit-")
++        self.addCleanup(shutil.rmtree, self.d, ignore_errors=True)
++
++    def _tracker(self, **kw):
++        # active=True: write from the first event (the unit tests are not exercising
++        # the deferred-until-activate() run-dir gate — that is covered E2E).
++        return st.StatusTracker(self.d, title="Idempotency review", rounds_planned=2,
++                                seats=[_FakeSeat("claude"), _FakeSeat("codex")],
++                                active=True, stream=io.StringIO(), **kw)
++
++    def test_schema_and_shape(self):
++        t = self._tracker()
++        with open(os.path.join(self.d, st.STATUS_JSON_NAME), encoding="utf-8") as fh:
++            doc = json.load(fh)
++        self.assertEqual(doc["schema"], "advisory-board/status@1")
++        self.assertEqual(doc["title"], "Idempotency review")
++        self.assertEqual(doc["rounds_planned"], 2)
++        self.assertEqual(sorted(doc["seats"]), ["claude", "codex"])
++        self.assertIsNone(doc["finished"])
++        # `started` uses the deterministic clock helper.
++        self.assertEqual(doc["started"], "2026-06-25T12:00:00")
++
++    def test_event_sequence_golden_two_seat_two_round_with_drop(self):
++        # The stable surface the golden asserts: ordered (stage, seat, round, state)
++        # tuples — NEVER the timestamps. codex drops in round 1 (the dropped-seat path).
++        t = self._tracker()
++        t.stage("preflight", "started")
++        t.stage("preflight", "done")
++        t.stage("egress", "started")
++        t.stage("egress", "done")
++        t.round_started(1)
++        t.seat("claude", "running", 1)
++        t.seat("codex", "running", 1)
++        t.seat("claude", "done", 1, "12s")
++        t.seat("codex", "dropped", 1, "Timeout")
++        t.round_done(1)
++        t.round_started(2)
++        t.seat("claude", "running", 2)
++        t.seat("claude", "done", 2, "9s")
++        t.round_done(2)
++        t.finish("ok", "verdict written")
++        with open(os.path.join(self.d, st.STATUS_JSON_NAME), encoding="utf-8") as fh:
++            doc = json.load(fh)
++        self.assertEqual(st.event_tuples(doc), [
++            ("run", None, None, "started"),
++            ("preflight", None, None, "started"),
++            ("preflight", None, None, "done"),
++            ("egress", None, None, "started"),
++            ("egress", None, None, "done"),
++            ("round", None, 1, "started"),
++            ("round", "claude", 1, "running"),
++            ("round", "codex", 1, "running"),
++            ("round", "claude", 1, "done"),
++            ("round", "codex", 1, "dropped"),
++            ("round", None, 1, "done"),
++            ("round", None, 2, "started"),
++            ("round", "claude", 2, "running"),
++            ("round", "claude", 2, "done"),
++            ("round", None, 2, "done"),
++            ("run", None, None, "done"),
++        ])
++        # The per-seat current-state map reflects the terminal states, and a seat
++        # dropped in round 1 stays dropped (round 2 leaves it behind, never re-queued).
++        self.assertEqual(doc["seats"]["codex"]["state"], "dropped")
++        self.assertEqual(doc["seats"]["codex"]["round"], 1)
++        self.assertEqual(doc["seats"]["claude"]["state"], "done")
++        self.assertEqual(doc["rounds_done"], 2)
++        self.assertEqual(doc["outcome"], "ok")
++        self.assertIsNotNone(doc["finished"])
++
++    def test_terminal_line_format(self):
++        # The human one-liners as transitions happen (they must flush; format pinned).
++        self.assertEqual(st.terminal_line("round", "codex", 1, "running", None),
++                         "  round 1 · codex … running")
++        self.assertEqual(st.terminal_line("round", "codex", 1, "done", "186s"),
++                         "  round 1 · codex ✓ 186s")
++        self.assertEqual(st.terminal_line("round", "gemini", 1, "dropped", "Timeout"),
++                         "  round 1 · gemini ✗ dropped (Timeout)")
++        self.assertEqual(st.terminal_line("preflight", None, None, "started", None),
++                         "  · preflight …")
++        # A queued seat prints no line (the round banner already announced it), and
++        # the round started/done markers defer to the conductor's own banner/table.
++        self.assertIsNone(st.terminal_line("round", "codex", 1, "queued", None))
++        self.assertIsNone(st.terminal_line("round", None, 1, "started", "x"))
++
++    def test_terminal_lines_flush_immediately(self):
++        # The block-buffering pain is the point: every line goes out with flush=True.
++        stream = io.StringIO()
++        real_print = __import__("builtins").print
++        seen = {}
++
++        def spy_print(*a, **k):
++            seen["flush"] = k.get("flush")
++            return real_print(*a, **k)
++
++        with mock.patch("builtins.print", spy_print):
++            t = st.StatusTracker(self.d, title="x", rounds_planned=1,
++                                 seats=[_FakeSeat("claude")], active=True, stream=stream)
++            t.seat("claude", "running", 1)
++        self.assertTrue(seen.get("flush"), "terminal progress lines must flush immediately")
++
++    def test_atomic_write_leaves_no_tmp_and_always_parses(self):
++        # The writer is temp+os.replace: a reader at ANY point sees a complete,
++        # parseable file, and no .tmp is ever left behind. We interleave a parse +
++        # a dir scan after every transition to catch a torn or lingering write.
++        t = self._tracker()
++        transitions = [
++            lambda: t.stage("preflight", "started"),
++            lambda: t.round_started(1),
++            lambda: t.seat("claude", "running", 1),
++            lambda: t.seat("claude", "done", 1, "5s"),
++            lambda: t.round_done(1),
++            lambda: t.finish("ok"),
++        ]
++        for step in transitions:
++            step()
++            leftovers = [f for f in os.listdir(self.d) if f.endswith(".tmp")]
++            self.assertEqual(leftovers, [], f"a .tmp lingered: {leftovers}")
++            with open(os.path.join(self.d, st.STATUS_JSON_NAME), encoding="utf-8") as fh:
++                json.load(fh)   # must parse mid-run — never a torn document
++
++    def test_write_failure_never_kills_the_run(self):
++        # Best-effort: the writer raising must NOT propagate — it warns once and the
++        # tracker keeps advancing its in-memory document. We inject a failing writer.
++        t = self._tracker()
++        boom = mock.patch.object(st, "_atomic_write_text",
++                                 side_effect=OSError("disk full"))
++        with boom, mock.patch("sys.stderr", new_callable=io.StringIO) as err:
++            # Two transitions: the failure path must be reached and warn at most once.
++            t.stage("preflight", "started")
++            t.seat("claude", "running", 1)
++        warned = err.getvalue()
++        self.assertIn("live status view could not be written", warned)
++        self.assertEqual(warned.count("live status view could not be written"), 1,
++                         "the best-effort warning must fire at most once")
++        # The in-memory doc still advanced despite the disk failures.
++        self.assertEqual(t._doc["seats"]["claude"]["state"], "running")
++
++
++class TestStatusHtmlRender(unittest.TestCase):
++    """The tracker HTML is a PURE function of the status dict — golden on structure,
++    never on timestamps; self-contained + self-refreshing-while-live."""
++
++    def _doc(self, *, finished=None, outcome=None):
++        return {
++            "schema": st.STATUS_SCHEMA, "title": "Idempotency <review> & more",
++            "started": "2026-06-25T12:00:00", "finished": finished, "outcome": outcome,
++            "stage": "round", "rounds_planned": 2, "rounds_done": 1,
++            "seats": {
++                "claude": {"state": "done", "round": 2, "detail": "186s"},
++                "codex": {"state": "running", "round": 2, "detail": None},
++                "gemini": {"state": "dropped", "round": 1, "detail": "Timeout"},
++            },
++            "events": [
++                {"seq": 1, "stage": "run", "seat": None, "round": None,
++                 "state": "started", "detail": "run started", "at": "IGNORED"},
++                {"seq": 2, "stage": "round", "seat": "gemini", "round": 1,
++                 "state": "dropped", "detail": "Timeout", "at": "IGNORED"},
++                {"seq": 3, "stage": "round", "seat": "codex", "round": 2,
++                 "state": "running", "detail": None, "at": "IGNORED"},
++            ],
++        }
++
++    def test_pure_and_deterministic(self):
++        doc = self._doc()
++        self.assertEqual(st.render_status_html(doc), st.render_status_html(doc))
++
++    def test_structure_and_self_containment(self):
++        html = st.render_status_html(self._doc())
++        self.assertTrue(html.startswith("<!DOCTYPE html>"))
++        # No external requests of any kind — renders offline.
++        for banned in ("<script", "src=", "http://", "https://", "<link", "@import"):
++            self.assertNotIn(banned, html, f"self-contained page must not carry {banned!r}")
++        # Injected strings are HTML-escaped (the title carries < > &).
++        self.assertIn("Idempotency &lt;review&gt; &amp; more", html)
++        # Seat states + details surface.
++        self.assertIn("dropped", html)
++        self.assertIn("Timeout", html)
++        self.assertIn("186s", html)
++        # It says, in the footer, that it is not an artifact of record.
++        self.assertIn("not an artifact of record", html)
++
++    def test_self_refreshes_only_while_live(self):
++        live = st.render_status_html(self._doc())
++        self.assertIn('http-equiv="refresh"', live)
++        done = st.render_status_html(self._doc(finished="2026-06-25T12:05:00", outcome="ok"))
++        self.assertNotIn("http-equiv", done, "a completed run's page must be static")
++        self.assertIn("finished 2026-06-25T12:05:00", done)
++
++    def test_render_omits_no_timestamp_in_structural_golden(self):
++        # The golden surface is structure, not stamps: the opaque event `at` values
++        # are never rendered into the events list (only the parsed fields are).
++        html = st.render_status_html(self._doc())
++        self.assertNotIn("IGNORED", html)
++
++    def test_outcome_badge_color(self):
++        # A successful terminal outcome renders the green ("done") badge; a failure
++        # outcome (a NO-GO, a blocked egress) renders the muted-red ("drop") badge.
++        for good in ("ok", "rounds-complete"):
++            h = st.render_status_html(self._doc(finished="t", outcome=good))
++            self.assertIn('class="badge done"', h, good)
++        for bad in ("no-board", "egress-blocked", "no-verdict"):
++            h = st.render_status_html(self._doc(finished="t", outcome=bad))
++            self.assertIn('class="badge drop"', h, bad)
++
++
++class TestStatusLiveViewE2E(EnvMixin):
++    """The conductor writes status.json + status.html on a real (mocked) run,
++    respects the RH-1 no-leaked-dir invariant, and honors --no-live-status."""
++
++    def _out(self):
++        d = tempfile.mkdtemp(prefix="board-live-e2e-")
++        self.addCleanup(shutil.rmtree, d, ignore_errors=True)
++        return d
++
++    def test_run_writes_status_json_and_html(self):
++        out = self._out()
++        code, text, _ = run_cli(["run", "--source", SAMPLE, "--out", out, "--yes",
++                                 "--rounds", "2", "--board", "claude,codex"])
++        self.assertEqual(code, rb.EXIT_OK)
++        self.assertTrue(os.path.exists(os.path.join(out, "status.json")))
++        self.assertTrue(os.path.exists(os.path.join(out, "status.html")))
++        with open(os.path.join(out, "status.json"), encoding="utf-8") as fh:
++            doc = json.load(fh)
++        self.assertEqual(doc["schema"], "advisory-board/status@1")
++        # Both seats ran two rounds and finished; the completed run reads as done.
++        self.assertIsNotNone(doc["finished"])
++        self.assertEqual(doc["seats"]["claude"]["state"], "done")
++        self.assertEqual(doc["seats"]["codex"]["state"], "done")
++        self.assertEqual(doc["rounds_done"], 2)
++        # The event stream carries the preflight + egress + per-round-per-seat trail.
++        tuples = st.event_tuples(doc)
++        self.assertIn(("preflight", None, None, "done"), tuples)
++        self.assertIn(("egress", None, None, "done"), tuples)
++        self.assertIn(("round", "claude", 1, "done"), tuples)
++        self.assertIn(("round", "codex", 2, "done"), tuples)
++        # The flushed per-seat terminal lines reached stdout.
++        self.assertIn("round 1 · claude", text)
++        # A completed run's HTML is static (no self-refresh).
++        with open(os.path.join(out, "status.html"), encoding="utf-8") as fh:
++            self.assertNotIn("http-equiv", fh.read())
++
++    def test_dropped_seat_shows_in_status(self):
++        # gemini drops in round 1 (nogo_smoke). It must read as dropped in status.json
++        # while the surviving seats run on.
++        os.environ["MOCK_GEMINI_MODE"] = "nogo_smoke"
++        out = self._out()
++        code, _, _ = run_cli(["run", "--source", SAMPLE, "--out", out, "--yes",
++                              "--rounds", "2"])
++        self.assertEqual(code, rb.EXIT_OK)
++        with open(os.path.join(out, "status.json"), encoding="utf-8") as fh:
++            doc = json.load(fh)
++        self.assertEqual(doc["seats"]["gemini"]["state"], "dropped")
++        self.assertIn(("round", "gemini", 1, "dropped"), st.event_tuples(doc))
++
++    def test_no_go_preflight_leaves_no_status(self):
++        # RH-1: a NO-GO preflight must materialize no out dir at all — including no
++        # status.* — because the live view defers its first write until the run has
++        # committed to spawning (post-egress-approval, write_pre_spawn_artifacts).
++        os.environ["MOCK_CODEX_MODE"] = "nogo_smoke"
++        os.environ["MOCK_GEMINI_MODE"] = "nogo_version"
++        out = os.path.join(self._out(), "run")   # parent exists, this does not
++        code, _, _ = run_cli(["run", "--source", SAMPLE, "--out", out, "--yes"])
++        self.assertEqual(code, rb.EXIT_PREFLIGHT_NOGO)
++        self.assertFalse(os.path.exists(out), "a NO-GO board must leave no out dir")
++
++    def test_no_live_status_opts_out(self):
++        out = self._out()
++        code, _, _ = run_cli(["run", "--source", SAMPLE, "--out", out, "--yes",
++                              "--rounds", "1", "--no-live-status"])
++        self.assertEqual(code, rb.EXIT_OK)
++        self.assertFalse(os.path.exists(os.path.join(out, "status.json")))
++        self.assertFalse(os.path.exists(os.path.join(out, "status.html")))
++        # The artifacts of record are still written (opting out changes nothing else).
++        self.assertTrue(os.path.exists(os.path.join(out, "run-metadata.md")))
++
++
+ if __name__ == "__main__":
+     unittest.main()
+`````

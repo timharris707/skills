@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<title>v1.15 p2 rubric round pr review — live status</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 1.4rem 1.2rem 2rem;
+    background: #0b0e17; color: #e6e9f2;
+    font: 14px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  header { display: flex; align-items: baseline; gap: .8rem; flex-wrap: wrap;
+           border-bottom: 1px solid #1e2740; padding-bottom: .7rem; }
+  h1 { font-size: 1.05rem; margin: 0; font-weight: 600; letter-spacing: .01em; }
+  .badge { font-size: .72rem; text-transform: uppercase; letter-spacing: .08em;
+           padding: .18rem .5rem; border-radius: 999px; font-weight: 700; }
+  .badge.run { background: #12305c; color: #7fb2ff; }
+  .badge.done { background: #143a2a; color: #74e0a3; }
+  .badge.drop { background: #3a1a1e; color: #ff9aa6; }
+  .sub { color: #8b93a7; font-size: .82rem; }
+  .meta { color: #8b93a7; font-size: .8rem; margin: .55rem 0 1.1rem; }
+  h2 { font-size: .76rem; text-transform: uppercase; letter-spacing: .09em;
+        color: #7a8199; margin: 1.3rem 0 .5rem; }
+  table { border-collapse: collapse; width: 100%; max-width: 720px; }
+  td { padding: .34rem .6rem; border-bottom: 1px solid #161d31; }
+  td.seat { font-weight: 600; color: #cdd4e6; width: 8rem; }
+  td.round { color: #8b93a7; width: 6rem; }
+  td.detail { color: #8b93a7; }
+  tr.st-run td.state { color: #7fb2ff; }
+  tr.st-done td.state { color: #74e0a3; }
+  tr.st-drop td.state { color: #ff9aa6; }
+  tr.st-retry td.state { color: #e2b658; }
+  tr.st-queued td.state, tr.st-wait td.state { color: #8b93a7; }
+  ul.events { list-style: none; margin: 0; padding: 0; max-width: 720px; }
+  ul.events li { display: flex; gap: .7rem; padding: .2rem .1rem;
+                  border-bottom: 1px solid #12182a; align-items: baseline; }
+  .ev-where { color: #6b768f; width: 2.4rem; }
+  .ev-who { color: #cdd4e6; width: 8rem; font-weight: 600; }
+  .ev-state { width: 5rem; }
+  .ev-running, .ev-started { color: #7fb2ff; }
+  .ev-done { color: #74e0a3; }
+  .ev-dropped { color: #ff9aa6; }
+  .ev-retry { color: #e2b658; }
+  .ev-detail { color: #8b93a7; }
+  footer { margin-top: 1.8rem; padding-top: .8rem; border-top: 1px solid #1e2740;
+            color: #6b768f; font-size: .74rem; max-width: 720px; }
+</style>
+</head>
+<body>
+  <header>
+    <h1>v1.15 p2 rubric round pr review</h1>
+    <span class="badge done">ok</span>
+    <span class="sub">finished 2026-07-02T21:43:12</span>
+  </header>
+  <div class="meta">started 2026-07-02T21:18:54 · rounds 2 / 2</div>
+
+  <h2>Seats</h2>
+  <table>
+    <tbody>
+      <tr class="st-done"><td class="seat">claude</td><td class="state">done</td><td class="round">round 2</td><td class="detail">546s</td></tr>
+      <tr class="st-done"><td class="seat">codex</td><td class="state">done</td><td class="round">round 2</td><td class="detail">160s</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Recent events</h2>
+  <ul class="events">
+      <li><span class="ev-where">r1</span><span class="ev-who">claude</span><span class="ev-state ev-running">running</span><span class="ev-detail"></span></li>
+      <li><span class="ev-where">r1</span><span class="ev-who">codex</span><span class="ev-state ev-running">running</span><span class="ev-detail"></span></li>
+      <li><span class="ev-where">r1</span><span class="ev-who">codex</span><span class="ev-state ev-done">done</span><span class="ev-detail">222s</span></li>
+      <li><span class="ev-where">r1</span><span class="ev-who">claude</span><span class="ev-state ev-done">done</span><span class="ev-detail">656s</span></li>
+      <li><span class="ev-where">r1</span><span class="ev-who">round</span><span class="ev-state ev-done">done</span><span class="ev-detail">2 of 2 usable</span></li>
+      <li><span class="ev-where">r2</span><span class="ev-who">round</span><span class="ev-state ev-started">started</span><span class="ev-detail">round 2 fan-out</span></li>
+      <li><span class="ev-where">r2</span><span class="ev-who">claude</span><span class="ev-state ev-running">running</span><span class="ev-detail"></span></li>
+      <li><span class="ev-where">r2</span><span class="ev-who">codex</span><span class="ev-state ev-running">running</span><span class="ev-detail"></span></li>
+      <li><span class="ev-where">r2</span><span class="ev-who">codex</span><span class="ev-state ev-done">done</span><span class="ev-detail">160s</span></li>
+      <li><span class="ev-where">r2</span><span class="ev-who">claude</span><span class="ev-state ev-done">done</span><span class="ev-detail">546s</span></li>
+      <li><span class="ev-where">r2</span><span class="ev-who">round</span><span class="ev-state ev-done">done</span><span class="ev-detail">2 of 2 usable</span></li>
+      <li><span class="ev-where">·</span><span class="ev-who">synthesis</span><span class="ev-state ev-started">started</span><span class="ev-detail"></span></li>
+      <li><span class="ev-where">·</span><span class="ev-who">synthesis</span><span class="ev-state ev-done">done</span><span class="ev-detail">verdict.json validated</span></li>
+      <li><span class="ev-where">·</span><span class="ev-who">run</span><span class="ev-state ev-done">done</span><span class="ev-detail">verdict synthesized</span></li>
+  </ul>
+
+  <footer>
+    Live view — self-refreshing every 2s while the run is active. This is a
+    progress tracker, <strong>not an artifact of record</strong>: the verdict
+    chain (<code>verdict.json</code> → <code>final-consensus.md</code>) and
+    <code>run-metadata.md</code> are the authoritative outputs. Advisory Board,
+    powered by Panely.
+  </footer>
+</body>
+</html>

@@ -1,0 +1,32 @@
+{
+  "schema": "advisory-board/sensitivity@1",
+  "sensitivity": "redacted",
+  "egress_allowed": true,
+  "providers": [
+    "Anthropic",
+    "OpenAI"
+  ],
+  "consent": {
+    "required": true,
+    "mode": "hash-bound"
+  },
+  "network_isolation": {
+    "claude": "on",
+    "codex": "on"
+  },
+  "network_unenforced": [],
+  "revision": {
+    "revises_run_dir": "~/.advisory-board/runs/v1-14-p2-echo-score-pr-review-2026-07-02",
+    "prior_sensitivity": "redacted",
+    "prior_verdict_sha256": "2c09e9d69b43d366e085b89001e808e7238ac0e6bda593a86c63c97e624e33dc",
+    "source_recovered_from": "source-material.txt",
+    "source_verified": true,
+    "injected_bytes": 43511
+  },
+  "approval": {
+    "approved": true,
+    "mode": "hash-bound",
+    "content_hash": "02f980349bad97507b431dada739865c28d9f2c2adb3bf2a92af2a251266f54d",
+    "timestamp": "2026-07-02T16:33:41"
+  }
+}

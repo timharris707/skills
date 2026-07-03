@@ -1,0 +1,32 @@
+{
+  "schema": "advisory-board/sensitivity@1",
+  "sensitivity": "redacted",
+  "egress_allowed": true,
+  "providers": [
+    "Anthropic",
+    "OpenAI"
+  ],
+  "consent": {
+    "required": true,
+    "mode": "hash-bound"
+  },
+  "network_isolation": {
+    "claude": "on",
+    "codex": "on"
+  },
+  "network_unenforced": [],
+  "revision": {
+    "revises_run_dir": "~/.advisory-board/runs/v1-13-p4-endorsement-pass-pr-review-2026-07-02",
+    "prior_sensitivity": "redacted",
+    "prior_verdict_sha256": "c7c57a05e7a32afecb9eb37778200503c8197bb25dcceac080053f24cab0abc6",
+    "source_recovered_from": "source-material.txt",
+    "source_verified": true,
+    "injected_bytes": 35933
+  },
+  "approval": {
+    "approved": true,
+    "mode": "hash-bound",
+    "content_hash": "18a394615170c3d842dafa78e065ae51890feb091baad62ed6fb135e20069c9e",
+    "timestamp": "2026-07-02T12:16:09"
+  }
+}

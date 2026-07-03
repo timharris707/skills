@@ -1,0 +1,204 @@
+{
+  "schema": "advisory-board/status@1",
+  "title": "v1.15 p2 rubric round pr review",
+  "started": "2026-07-02T21:18:54",
+  "finished": "2026-07-02T21:43:12",
+  "outcome": "ok",
+  "stage": "run",
+  "rounds_planned": 2,
+  "rounds_done": 2,
+  "seats": {
+    "claude": {
+      "state": "done",
+      "round": 2,
+      "detail": "546s"
+    },
+    "codex": {
+      "state": "done",
+      "round": 2,
+      "detail": "160s"
+    }
+  },
+  "events": [
+    {
+      "seq": 1,
+      "stage": "run",
+      "seat": null,
+      "round": null,
+      "state": "started",
+      "detail": "run started",
+      "at": "2026-07-02T21:18:54"
+    },
+    {
+      "seq": 2,
+      "stage": "preflight",
+      "seat": null,
+      "round": null,
+      "state": "started",
+      "detail": null,
+      "at": "2026-07-02T21:18:54"
+    },
+    {
+      "seq": 3,
+      "stage": "preflight",
+      "seat": null,
+      "round": null,
+      "state": "done",
+      "detail": "2 of 2 seats GO",
+      "at": "2026-07-02T21:19:02"
+    },
+    {
+      "seq": 4,
+      "stage": "egress",
+      "seat": null,
+      "round": null,
+      "state": "started",
+      "detail": null,
+      "at": "2026-07-02T21:19:02"
+    },
+    {
+      "seq": 5,
+      "stage": "egress",
+      "seat": null,
+      "round": null,
+      "state": "done",
+      "detail": "approved (hash-bound)",
+      "at": "2026-07-02T21:19:02"
+    },
+    {
+      "seq": 6,
+      "stage": "round",
+      "seat": null,
+      "round": 1,
+      "state": "started",
+      "detail": "round 1 fan-out",
+      "at": "2026-07-02T21:19:02"
+    },
+    {
+      "seq": 7,
+      "stage": "round",
+      "seat": "claude",
+      "round": 1,
+      "state": "running",
+      "detail": null,
+      "at": "2026-07-02T21:19:02"
+    },
+    {
+      "seq": 8,
+      "stage": "round",
+      "seat": "codex",
+      "round": 1,
+      "state": "running",
+      "detail": null,
+      "at": "2026-07-02T21:19:02"
+    },
+    {
+      "seq": 9,
+      "stage": "round",
+      "seat": "codex",
+      "round": 1,
+      "state": "done",
+      "detail": "222s",
+      "at": "2026-07-02T21:22:44"
+    },
+    {
+      "seq": 10,
+      "stage": "round",
+      "seat": "claude",
+      "round": 1,
+      "state": "done",
+      "detail": "656s",
+      "at": "2026-07-02T21:29:58"
+    },
+    {
+      "seq": 11,
+      "stage": "round",
+      "seat": null,
+      "round": 1,
+      "state": "done",
+      "detail": "2 of 2 usable",
+      "at": "2026-07-02T21:29:58"
+    },
+    {
+      "seq": 12,
+      "stage": "round",
+      "seat": null,
+      "round": 2,
+      "state": "started",
+      "detail": "round 2 fan-out",
+      "at": "2026-07-02T21:29:58"
+    },
+    {
+      "seq": 13,
+      "stage": "round",
+      "seat": "claude",
+      "round": 2,
+      "state": "running",
+      "detail": null,
+      "at": "2026-07-02T21:29:58"
+    },
+    {
+      "seq": 14,
+      "stage": "round",
+      "seat": "codex",
+      "round": 2,
+      "state": "running",
+      "detail": null,
+      "at": "2026-07-02T21:29:58"
+    },
+    {
+      "seq": 15,
+      "stage": "round",
+      "seat": "codex",
+      "round": 2,
+      "state": "done",
+      "detail": "160s",
+      "at": "2026-07-02T21:32:38"
+    },
+    {
+      "seq": 16,
+      "stage": "round",
+      "seat": "claude",
+      "round": 2,
+      "state": "done",
+      "detail": "546s",
+      "at": "2026-07-02T21:39:04"
+    },
+    {
+      "seq": 17,
+      "stage": "round",
+      "seat": null,
+      "round": 2,
+      "state": "done",
+      "detail": "2 of 2 usable",
+      "at": "2026-07-02T21:39:04"
+    },
+    {
+      "seq": 18,
+      "stage": "synthesis",
+      "seat": null,
+      "round": null,
+      "state": "started",
+      "detail": null,
+      "at": "2026-07-02T21:39:04"
+    },
+    {
+      "seq": 19,
+      "stage": "synthesis",
+      "seat": null,
+      "round": null,
+      "state": "done",
+      "detail": "verdict.json validated",
+      "at": "2026-07-02T21:43:12"
+    },
+    {
+      "seq": 20,
+      "stage": "run",
+      "seat": null,
+      "round": null,
+      "state": "done",
+      "detail": "verdict synthesized",
+      "at": "2026-07-02T21:43:12"
+    }
+  ]
+}
