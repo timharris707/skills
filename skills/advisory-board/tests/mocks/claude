@@ -100,6 +100,61 @@ verdict_token() {
   fi
 }
 
+# `rubric` scoring (v1.15 P3): when the round prompt carries the injected scoring
+# block ("This run agreed a weighted RUBRIC"), emit one `SCORE cN: <1-5>` line per
+# criterion id found in the "- cN ..." lines. MOCK_CLAUDE_SCORE_MODE switches the
+# behavior for tests:
+#   default    — a fixed score per id (stable across rounds -> auto converges)
+#   moving     — the FIRST criterion's score changes in round 2+ (score-driven movement)
+#   oscillating— the FIRST criterion's score flips EVERY round (never converges -> the
+#                --max-rounds ceiling is what stops the auto loop, D19)
+#   partial    — OMIT the LAST criterion's SCORE line (a missing cell -> "—", never imputed)
+#   partial_after_first — score EVERY id in round 1, then OMIT the LAST id from round 2 on.
+#                The cell drops ONCE (round 1 -> 2 = one movement credited), then stays
+#                absent (round 2 -> 3 = non-movement). Guards that a PERMANENT partial row
+#                stabilizes the auto loop instead of spinning forever (G3).
+#   invalid    — emit an out-of-range/hedged value for the FIRST id (a parse failure)
+score_mode="${MOCK_CLAUDE_SCORE_MODE:-default}"
+_rubric_ids() {
+  # The criterion ids the injected scoring block enumerates ("- c1 (weight ...)").
+  printf '%s\n' "$prompt" | sed -n 's/^- \(c[0-9][0-9]*\).*/\1/p'
+}
+emit_scores() {
+  case "$prompt" in *"This run agreed a weighted RUBRIC"*) ;; *) return 0 ;; esac
+  local ids; ids="$(_rubric_ids)"
+  [ -z "$ids" ] && return 0
+  local first="${ids%%$'\n'*}"
+  local last; last="$(printf '%s\n' "$ids" | tail -n1)"
+  local base=3
+  for cid in $ids; do
+    local val=$base
+    if [ "$score_mode" = "moving" ] && [ "$cid" = "$first" ] && [ "$round" -ge 2 ]; then
+      val=5   # this criterion's score shifts in round 2+ -> a score-driven mover
+    fi
+    if [ "$score_mode" = "oscillating" ] && [ "$cid" = "$first" ]; then
+      # Flip by round parity so EVERY transition is a score change -> the auto loop
+      # never converges and only the --max-rounds ceiling stops it (D19).
+      if [ $((round % 2)) -eq 0 ]; then val=5; else val=3; fi
+    fi
+    if [ "$score_mode" = "partial" ] && [ "$cid" = "$last" ]; then
+      continue   # omit the last cell -> a partial scorecard row (rendered "—")
+    fi
+    if [ "$score_mode" = "partial_after_first" ] && [ "$cid" = "$last" ] \
+       && [ "$round" -ge 2 ]; then
+      continue   # full in round 1, last cell drops from round 2 on (drops ONCE, then
+                 # stays absent -> a permanent partial that must NOT spin the auto loop)
+    fi
+    if [ "$score_mode" = "invalid" ] && [ "$cid" = "$first" ]; then
+      echo "SCORE $cid: 9"   # out of the 1-5 band -> a parse failure for this cell
+      continue
+    fi
+    echo "SCORE $cid: $val"
+  done
+  # An optional objection to the rubric itself (recorded, never gates).
+  [ "$score_mode" = "note" ] && echo "RUBRIC-NOTE: c1 leans too heavily on correctness."
+  return 0
+}
+
 emit_review() {
   # A realistic answering-model banner goes to stderr (never mined from stdout).
   echo "model: ${model:-unknown}" >&2
@@ -128,6 +183,7 @@ Plan section "Key storage" omits the conflict-resolution policy.
 Challenge the TTL choice and the read-after-write guarantee.
 REVIEW
   echo ""
+  emit_scores
   echo "VERDICT: $(verdict_token)"
 }
 

@@ -23,9 +23,10 @@ from _conductor.spawn import (
 )
 from _conductor.egress import (
     EgressApproval,
+    build_packet,
     packet_hash,
 )
-from _conductor.convergence import parse_verdict, parse_basis
+from _conductor.convergence import parse_verdict, parse_basis, parse_scores, parse_rubric_note
 from _conductor.artifacts import _write
 
 __all__ = [
@@ -70,6 +71,11 @@ class SeatRoundResult:
     tokens_in: Optional[int] = None
     tokens_out: Optional[int] = None
     tokens_total: Optional[int] = None
+    # The merged rubric's criterion ids (c1…cN) this round scored against — set on a
+    # --rubric run so `scores`/`rubric_note` restrict parsing to real criteria (a seat
+    # cannot conjure an id the chair did not merge). None on a non-rubric run, so the
+    # score properties are empty/None and nothing about a plain run changes.
+    criterion_ids: Optional[tuple] = None
 
     @property
     def usable(self) -> bool:
@@ -90,11 +96,33 @@ class SeatRoundResult:
         reply carries no BASIS line, so this is None there by construction."""
         return parse_basis(self.stdout) if self.usable else None
 
+    @property
+    def scores(self) -> dict:
+        """The seat's per-criterion integer scores {criterion_id: 1–5} on a --rubric run
+        (v1.15 #P3 — D17), restricted to the merged rubric's `criterion_ids`. A criterion
+        with no clean SCORE line is ABSENT (never imputed → the scorecard renders "—", the
+        seat's total is marked partial). Empty on an unusable seat or a non-rubric round
+        (criterion_ids is None). Scores COEXIST with VERDICT and never gate — this is a
+        second parsed signal for the scorecard + convergence, not a verdict signal."""
+        if not self.usable or not self.criterion_ids:
+            return {}
+        return parse_scores(self.stdout, self.criterion_ids)
+
+    @property
+    def rubric_note(self):
+        """The seat's optional `RUBRIC-NOTE:` objection to the merged rubric (D17), or
+        None. Recorded for the scorecard, never debated (the scoring reply IS acceptance,
+        D16). None on an unusable seat or a non-rubric round."""
+        if not self.usable or not self.criterion_ids:
+            return None
+        return parse_rubric_note(self.stdout)
+
 
 def _run_seat_round(seat: SeatConfig, blob: "PacketBlob", config: RunConfig, *,
                     round_no: int, round_packet_hash: str,
                     workdir: Optional[str], timeout: Optional[int],
-                    classify=classify_round1) -> SeatRoundResult:
+                    classify=classify_round1,
+                    criterion_ids: Optional[tuple] = None) -> SeatRoundResult:
     """Spawn one seat on its packet blob, classify, retry once per §13.
 
     `classify` is the (result, adapter) -> (status, failure_class) shape gate; it
@@ -167,13 +195,15 @@ def _run_seat_round(seat: SeatConfig, blob: "PacketBlob", config: RunConfig, *,
         tokens_in=tokens_in,
         tokens_out=tokens_out,
         tokens_total=tokens_total,
+        criterion_ids=criterion_ids,
     )
 
 
 def run_round(config: RunConfig, blobs: list, approval: EgressApproval, *,
               round_no: int = 1, timeout: Optional[int] = None,
               parallel: bool = True, classify=classify_round1,
-              on_seat=None) -> list:
+              on_seat=None, criterion_ids: Optional[tuple] = None,
+              rubric_criteria: Optional[list] = None) -> list:
     """Fan a round out across its seats. Returns SeatRoundResult in blob order.
 
     `on_seat` (v1.14 #10 live progress) is an optional best-effort callback fired
@@ -193,16 +223,85 @@ def run_round(config: RunConfig, blobs: list, approval: EgressApproval, *,
     reviews) to the SAME providers, under the multi-round plan the run-card
     disclosed — so it records its own packet hash for provenance but reuses the
     run's approval rather than re-prompting.
+
+    A rubric-SCORED round 1 (`round_no == 1` AND `config.rubric`) does NOT skip the
+    re-assert — it NARROWS it into a TWO-LINK chain of custody. The merged rubric does
+    not exist at consent time (the chair merges AFTER approval), so the WHOLE scored
+    round-1 packet cannot equal the round-1 consent sub-hash; only the injected rubric
+    delta is legitimately new (a derivative of already-approved material — the proposal
+    fan-out whose prompts ARE in the consent hash, plus the chair merge covered by the
+    disclosed rubric plan). So we bind the ACTUAL outbound blobs to consent in two links:
+
+      Link A (blobs → config): the outbound packet hash MUST equal a fresh
+        `packet_hash(build_packet(config, rubric_criteria=rubric_criteria))` — the true
+        outbound blobs are exactly what THIS config (source + grounding + revision + the
+        merged rubric) deterministically re-produces, so nothing was injected between
+        build and spawn.
+      Link B (config → consent): the rubric-STRIPPED rebuild
+        `packet_hash(build_packet(config, rubric_criteria=None))` (byte-identical to the
+        pre-approval build) MUST equal `approval.round1_hash` — the exact anchor the B1
+        consent path recorded — so the config's base still matches what consent bound.
+
+    Chained, A ∘ B binds the outbound base BYTE-FOR-BYTE back to consent (blobs → config →
+    consent); only the rubric delta rides on the disclosed-plan derivation, and Link A
+    proves that delta is exactly the config's own rubric injection, not tampered bytes.
+    Either mismatch dies EXIT_EGRESS_BLOCKED like the hard path. The repo-scope guard
+    below still fires on EVERY grounded round, scored or not — the frozen tree the seats
+    read is still bound to the approved scope. See the RUBRIC_SCORING_BLOCK consent note
+    in prompts.py.
     """
     round_packet_hash = packet_hash(blobs)
     # The round-1 bytes must match what consent bound. Normally the approved
     # content_hash IS the round-1 packet hash; under --rubric (B1) the approved
     # content_hash ALSO folds in the prebuilt rubric proposal prompts, so the round-1
     # sub-hash is recorded separately on the approval — check against that when present.
-    expected_round1 = approval.round1_hash or approval.content_hash
-    if round_no == 1 and round_packet_hash != expected_round1:
-        die("egress hash drift: the packet no longer matches the approved content "
-            "hash — refusing to spawn the board", EXIT_EGRESS_BLOCKED)
+    #
+    # ONE predicate drives both the injection and this relaxation: a scored round 1 is
+    # exactly `round_no == 1 AND config.rubric` (the flag that triggers the post-consent
+    # rubric merge + injection). We deliberately do NOT key it on `criterion_ids` — that
+    # post-filter can disagree with the injection signal (a merged rubric whose elements
+    # all lack clean ids would inject a scoring block yet yield empty criterion_ids, and
+    # vice versa). Deriving both from `config.rubric` closes that seam (Concern: predicate
+    # split).
+    scored_round1 = round_no == 1 and getattr(config, "rubric", False)
+    if round_no == 1 and not scored_round1:
+        # Non-rubric round 1: the exact outbound packet must equal what consent bound.
+        expected_round1 = approval.round1_hash or approval.content_hash
+        if round_packet_hash != expected_round1:
+            die("egress hash drift: the packet no longer matches the approved content "
+                "hash — refusing to spawn the board", EXIT_EGRESS_BLOCKED)
+    elif scored_round1:
+        # Scored round 1: the WHOLE packet carries the post-consent merged rubric, so it
+        # can't equal the round-1 sub-hash. We bind the ACTUAL outbound blobs to consent
+        # in TWO links (see the docstring's chain-of-custody note), both dying like the
+        # hard path on mismatch:
+        #
+        # Link A (blobs → config): the true outbound packet MUST be exactly what THIS
+        # config re-produces WITH the rubric. build_packet is deterministic over
+        # config.board/source/grounding/revision AND rubric_criteria, so a fresh rebuild
+        # equals the outbound blobs iff nothing was injected between build and spawn. This
+        # is the link that makes the "byte-for-byte" claim TRUE for the real bytes — the
+        # stripped base alone never touched the outbound blobs.
+        rebuilt_scored_hash = packet_hash(build_packet(config, rubric_criteria=rubric_criteria))
+        if round_packet_hash != rebuilt_scored_hash:
+            die("egress hash drift: the scored round-1 packet no longer matches the "
+                "config it was built from — refusing to spawn the board",
+                EXIT_EGRESS_BLOCKED)
+        # Link B (config → consent): the rubric-STRIPPED rebuild (rubric_criteria=None,
+        # byte-identical to the pre-approval build) MUST equal approval.round1_hash, the
+        # exact anchor the B1 consent path recorded — so the config's base still matches
+        # what consent bound. Chained with Link A this binds source + grounding + revision
+        # bytes back to consent BYTE-FOR-BYTE; only the legitimately-derived rubric delta
+        # rides on the disclosed plan, and Link A proved it is the config's own injection.
+        # On a scored run rubric_blobs was present, so approval.round1_hash is always set;
+        # the `or content_hash` fallback is defensive (an unexpected None must not silently
+        # pass).
+        stripped_base_hash = packet_hash(build_packet(config, rubric_criteria=None))
+        expected_round1 = approval.round1_hash or approval.content_hash
+        if stripped_base_hash != expected_round1:
+            die("egress hash drift: the scored round-1 base (rubric stripped) no longer "
+                "matches the approved round-1 hash — refusing to spawn the board",
+                EXIT_EGRESS_BLOCKED)
     # The same hard stop for the repo scope (R7) — but on EVERY grounded round, not just
     # round 1. The snapshot is a single frozen tree shared as the seat cwd across all
     # rounds, so the round-1 rationale ('seats must read exactly the bytes consent was
@@ -258,7 +357,8 @@ def run_round(config: RunConfig, blobs: list, approval: EgressApproval, *,
             _notify("running", seat.id, None)
             result = _run_seat_round(seat, by_seat[seat.id], config, round_no=round_no,
                                      round_packet_hash=round_packet_hash,
-                                     workdir=workdir, timeout=timeout, classify=classify)
+                                     workdir=workdir, timeout=timeout, classify=classify,
+                                     criterion_ids=criterion_ids)
             # Map the seat's outcome to a live-view state. A retried-but-usable seat
             # still reports its terminal usable state; a "retry" event would need a
             # hook inside the retry loop — deferred (the two-attempt window is short
@@ -307,8 +407,14 @@ def render_raw_record(r: SeatRoundResult) -> str:
     prove same-material independence and bind it to the round's packet. Honestly
     'falsifiable-by-inspection', not tamper-proof — it catches empty/lazy/drifted
     runs, not a determined forger using the same orchestrator."""
-    if r.round_no == 1:
+    if r.round_no == 1 and not r.criterion_ids:
         packet_note = "(egress consent was bound to this)"
+    elif r.round_no == 1:
+        # A rubric-SCORED round 1 injects the post-consent merged rubric, so it is NOT
+        # the bytes consent bound to — it is a derivative of already-approved source (the
+        # proposal fan-out + chair merge), exactly like round 2+. Label it honestly.
+        packet_note = ("(rubric-scored round-1 packet; reuses the run's egress approval — "
+                       "the injected rubric is a derivative of already-approved source)")
     else:
         packet_note = (f"(round-{r.round_no} packet; reuses the run's egress approval — "
                        "derivatives of already-approved source to the same providers)")

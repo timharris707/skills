@@ -255,18 +255,21 @@ def config_to_recipe(config: RunConfig) -> dict:
         "lens": config.lens,
         "output": config.output,
         "out_dir": config.out_dir,
-        # Conditional on grounding (P4/D6) and revision (v1.12 #1): a plain run
-        # records @2 + the @2 sha byte-for-byte (the conditional clauses render
-        # empty there), so existing recipes/hashes never churn; a grounded run
-        # records @3, a revise run appends +revise@1, each with the matching sha.
-        "prompt_template": prompt_template_version(config.grounded, bool(config.revise_of)),
-        "prompt_template_sha256": prompt_template_sha(config.grounded, bool(config.revise_of)),
+        # Conditional on grounding (P4/D6), revision (v1.12 #1), and rubric (v1.15 #P3):
+        # a plain run records @2 + the @2 sha byte-for-byte (the conditional clauses
+        # render empty there), so existing recipes/hashes never churn; a grounded run
+        # records @3, a revise run appends +revise@1, a --rubric run appends +rubric@1
+        # (the scoring block is on every round), each with the matching sha.
+        "prompt_template": prompt_template_version(config.grounded, bool(config.revise_of),
+                                                   bool(config.rubric)),
+        "prompt_template_sha256": prompt_template_sha(config.grounded, bool(config.revise_of),
+                                                      bool(config.rubric)),
         # The round-2 template id + sha, recorded additively (v1.14 #9 fix): the surface
         # that changed under P2 is round 2, so name it directly rather than only via the
         # round-1 id. Old recipes without these keys still load — see recipe_to_config /
         # the load-time sha check, which only consults the combined `prompt_template_sha256`.
-        "round2_template": round2_template_version(config.grounded),
-        "round2_template_sha256": round2_template_sha(config.grounded),
+        "round2_template": round2_template_version(config.grounded, bool(config.rubric)),
+        "round2_template_sha256": round2_template_sha(config.grounded, bool(config.rubric)),
         "synthesize": config.synthesize,
         "synthesizer_seat": config.synthesizer_seat,
         "synthesizer_template": SYNTHESIZER_TEMPLATE_VERSION if config.synthesize else None,

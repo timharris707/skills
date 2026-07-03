@@ -35,12 +35,17 @@ __all__ = [
 ]
 
 
-def build_round2(config: RunConfig, prev_results: list, round_no: int = 2) -> tuple:
+def build_round2(config: RunConfig, prev_results: list, round_no: int = 2,
+                 *, rubric_criteria: Optional[list] = None) -> tuple:
     """Build round `round_no`'s egress blobs (one per seat USABLE in the previous
     round) + the shared board packet, from `prev_results` (round_no − 1's results).
     A seat that dropped in the previous round has no review to build on, so it does
     not continue (recorded as such). `round_no` defaults to 2 so existing callers
-    are unchanged; `--rounds auto` (M1) calls it for round 3, 4, … as well."""
+    are unchanged; `--rounds auto` (M1) calls it for round 3, 4, … as well.
+
+    `rubric_criteria` (v1.15 #P3), when given, re-injects the merged rubric's scoring
+    block into every round-N prompt so each round re-scores — None (non-rubric) leaves
+    the round-N bytes byte-identical to before (the {rubric_scoring} fill is empty)."""
     usable = [r for r in prev_results if r.usable]
     repo_lines = config.grounding.content_lines if config.grounding is not None else None
     board_packet = build_round2_packet(usable, config.cross_reading, round_no=round_no,
@@ -55,7 +60,8 @@ def build_round2(config: RunConfig, prev_results: list, round_no: int = 2) -> tu
                                      own_review=own[r.seat],
                                      cross_reading=config.cross_reading,
                                      round_no=round_no,
-                                     grounded=config.grounded)
+                                     grounded=config.grounded,
+                                     rubric_criteria=rubric_criteria)
         blobs.append(PacketBlob(
             seat=seat.id,
             provider=seat.provider,
@@ -92,16 +98,26 @@ class PacketBlob:
         return self.text.count("\n") + (1 if self.text and not self.text.endswith("\n") else 0)
 
 
-def build_packet(config: RunConfig) -> list:
+def build_packet(config: RunConfig, *, rubric_criteria: Optional[list] = None) -> list:
     """Materialize the exact per-seat round-1 prompts that would leave the machine.
     On a --revise run the prompts embed the revision material (prior-verdict
     digest + source diff), so the packet hash — and therefore consent — covers
-    every injected byte with no extra machinery."""
+    every injected byte with no extra machinery.
+
+    `rubric_criteria` (v1.15 #P3), when given, injects the merged rubric's scoring
+    block. It is None at the PRE-APPROVAL prebuild (the rubric does not exist yet —
+    the chair merges AFTER consent), so the consent-hashed round-1 packet is the
+    bare/revise packet exactly as before. The round-1 packet is REBUILT with the
+    criteria after _run_rubric_step, and that scored packet is a DERIVATIVE of
+    already-approved material (the round-2 precedent, not the --revise one) — its hash
+    is recorded at spawn, not re-asserted against the round-1 consent sub-hash. See the
+    RUBRIC_SCORING_BLOCK consent/provenance note in prompts.py."""
     blobs: list = []
     revision_material = config.revision.material if config.revision else None
     for seat in config.board:
         prompt = build_round1_prompt(seat, config.source.text, grounded=config.grounded,
-                                     revision_material=revision_material)
+                                     revision_material=revision_material,
+                                     rubric_criteria=rubric_criteria)
         blobs.append(PacketBlob(
             seat=seat.id,
             provider=seat.provider,
@@ -282,7 +298,10 @@ def disclosure_line(config: RunConfig) -> str:
         # the extra spawns (CHANGELOG's "purpose mention"), not a new exposure class.
         base += (f" A pre-round rubric pass first sends the same source to {pretty} as one "
                  "extra proposal spawn per seat, then a single chair spawn merges the "
-                 "board's proposals (same bytes, same providers — no new exposure).")
+                 "board's proposals into one weighted rubric; that merged rubric is then "
+                 "injected into every opinion-round prompt so each seat scores per "
+                 "criterion (same bytes, same providers — the injected rubric is "
+                 "conductor-derived content, no new source exposure).")
     if config.grounding is not None:
         base += (f" Seats may also read & quote any of {config.grounding.n_files} files under "
                  f"{config.grounding.repo_root}, which can be transmitted to {pretty} and fan "

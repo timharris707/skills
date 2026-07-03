@@ -10,11 +10,15 @@ citations reads as *no movement* (the rephrase-invariance property the
 `--rounds auto` stop-rule depends on).
 
 Movement between two rounds, per seat:
-  * verdict-token shift  — the `VERDICT:` token changed (e.g. block -> caution); and
-  * new-citation delta   — the seat brought ≥1 NEW concrete citation into round N.
-A seat *moved* if either holds. Board-wide movement is the count of seats (present
-and usable in BOTH rounds) that moved. `--rounds auto` keeps going while movement
-is at or above the threshold and stops the moment it drops below.
+  * verdict-token shift  — the `VERDICT:` token changed (e.g. block -> caution);
+  * new-citation delta   — the seat brought ≥1 NEW concrete citation into round N; and
+  * score change (v1.15) — on a --rubric run, any per-criterion `SCORE cN` the seat
+    reported changed between the two rounds (integer 1–5, so any change is ≥1 and the
+    epsilon question is moot). A criterion the seat scored in NEITHER round is
+    non-movement; a criterion scored in exactly one round IS a change (D19).
+A seat *moved* if any of these hold. Board-wide movement is the count of seats
+(present and usable in BOTH rounds) that moved. `--rounds auto` keeps going while
+movement is at or above the threshold and stops the moment it drops below.
 """
 from __future__ import annotations
 
@@ -24,9 +28,13 @@ from typing import Optional
 __all__ = [
     "VERDICT_TOKENS",
     "BASIS_TOKENS",
+    "SCORE_MIN",
+    "SCORE_MAX",
     "DEFAULT_CONVERGE_THRESHOLD",
     "parse_verdict",
     "parse_basis",
+    "parse_scores",
+    "parse_rubric_note",
     "citations",
     "seat_movement",
     "board_movement",
@@ -151,6 +159,113 @@ def parse_basis(text: Optional[str]) -> Optional[str]:
     return found
 
 
+# Per-criterion scores (v1.15 #P3 — D17). On a --rubric run each seat emits, above its
+# BASIS/VERDICT tokens, one `SCORE cN: <1–5>` line per merged criterion (ids c1…cN,
+# conductor-assigned at chair-merge time). Scores COEXIST with the VERDICT token and
+# never gate (D17): seat usability stays defined by VERDICT, so a missing/invalid SCORE
+# degrades to an ABSENT scorecard cell (rendered "—", never imputed), never an unusable
+# seat. The scale is 1–5 INTEGERS (coarse, defensible — not 0–10/0–100 false precision).
+SCORE_MIN = 1
+SCORE_MAX = 5
+
+# A seat's per-criterion score line, parsed with parse_verdict's discipline:
+#  * `search` + optional `[*_]*` tolerate a list marker / leading qualifier / markdown
+#    emphasis around the label ("- SCORE c3: 4", "**SCORE c3:** 4", "Final SCORE c3: 4");
+#  * the criterion id (c<digits>) is captured case-insensitively, then lowercased;
+#  * the VALUE must be a bare ASCII integer in [1,5], the ONLY number on the line — a
+#    hedged range ("SCORE c3: 4 or 5", "4-5", "4/5"), a prose value ("SCORE c3: high"), or
+#    a decimal ("3.5") is rejected, like a hedged VERDICT naming two tokens; a Unicode
+#    digit ("٣", "３") and a signed value ("-3") are rejected too (ASCII [0-9], no leading
+#    sign), and an out-of-range integer (0, 6, 12) is rejected. Markdown/emphasis/
+#    punctuation decoration around the single integer ("**4**", "`4`", "4.", "→4") is
+#    tolerated;
+#  * a markdown-QUOTED/indented/code-spanned line is skipped (a peer's echoed SCORE from
+#    the cross-reading packet cannot override the seat's own — _is_quoted_verdict_line);
+#  * the LAST qualifying line PER ID wins (the templates put the seat's own scores at the
+#    tail, above BASIS/VERDICT, so an earlier quoted peer score is superseded).
+_SCORE_LINE = re.compile(r"\bSCORE\b\s*[*_]*\s*(c[0-9]+)\s*[*_]*\s*:\s*(.+?)\s*$", re.IGNORECASE)
+# The value is ONE ASCII integer with only markdown/emphasis/punctuation decoration around
+# it. The digit class is ASCII [0-9] ONLY — NOT `\d`, which also matches Unicode decimal
+# digits (Arabic-Indic "٣", fullwidth "３"), so those are rejected rather than silently
+# parsed as 3. The leading decoration class carries markdown emphasis / list-marker /
+# blockquote / arrow (`→`) / bullet glyphs but deliberately EXCLUDES `-`: a leading `-`
+# is a sign, so "SCORE c1: -3" must NOT parse as 3 (it falls out of the 1–5 band anyway,
+# but the value must not swallow the minus). A leading `[*_`(\[>` and bullet/arrow, and a
+# trailing `.,;:!?)*_\`` ], are allowed; a SECOND ASCII digit anywhere in the value (a
+# range "4 or 5"/"4-5"/"4/5", a decimal "3.5") means the value is NOT a lone integer and
+# the line is rejected (the hedge arm, mirroring parse_verdict's two-token rejection).
+_SCORE_VALUE = re.compile(r"^[\s*_`(\[>→•·]*([0-9]+)[\s.,;:!?)*_`\]]*$")
+
+
+def parse_scores(text: Optional[str],
+                 criterion_ids: Optional["frozenset|set|list|tuple"] = None) -> dict:
+    """The seat's per-criterion integer scores, `{criterion_id: score}` for every
+    criterion it scored CLEANLY (an integer in [SCORE_MIN, SCORE_MAX] as the first token
+    of the value). A criterion with no clean line is simply ABSENT from the dict — never
+    imputed, never 0 (the scorecard renders it "—"). The last clean line per id wins.
+
+    `criterion_ids`, when given, RESTRICTS parsing to the merged rubric's ids: a score
+    for an id outside the rubric (a stray `SCORE c9` a seat invented) is ignored, so a
+    seat can never conjure a criterion the chair did not merge. When None (tests), every
+    `c<digits>` id the reply names is accepted. Pure; shares parse_verdict's line-level
+    hardening — quoted/indented/code-spanned lines skipped, last clean line per id wins,
+    §11 one-machine-token-per-line (never the prose). It DIFFERS in the value shape it
+    accepts: parse_verdict reads an alphabetic token from a fixed vocabulary, this reads a
+    LONE ASCII integer in [SCORE_MIN, SCORE_MAX]; a hedged range/decimal, a Unicode digit,
+    a signed value, or an out-of-band integer is rejected (the hedge/out-of-range arm)."""
+    allowed = None
+    if criterion_ids is not None:
+        # isinstance-guard before the membership check: a non-iterable would raise, and a
+        # stray str would iterate CHARACTERS. Only a real collection restricts; anything
+        # else falls back to "accept any c<digits> id" rather than crashing the round.
+        if isinstance(criterion_ids, (set, frozenset, list, tuple)):
+            allowed = {str(c).lower() for c in criterion_ids}
+    found: dict = {}
+    for line in (text or "").splitlines():
+        m = _SCORE_LINE.search(line)
+        if not m:
+            continue
+        if _is_quoted_verdict_line(line, m):
+            continue   # a blockquoted/indented/code-spanned SCORE is not the seat's own
+        cid = m.group(1).lower()
+        if allowed is not None and cid not in allowed:
+            continue   # not a merged-rubric criterion — a seat cannot invent one
+        vm = _SCORE_VALUE.match(m.group(2))
+        if not vm:
+            continue   # value is not a LONE integer (hedged range / prose / decimal)
+        value = int(vm.group(1))
+        if not (SCORE_MIN <= value <= SCORE_MAX):
+            continue   # out of the 1–5 band — rejected (a parse failure for this cell)
+        found[cid] = value
+    return found
+
+
+# A seat's optional objection to the RUBRIC ITSELF (D17). One free-text `RUBRIC-NOTE:`
+# line recording that the seat scored under the merged rubric but disagrees with it — a
+# non-blocking dissent captured WITHOUT another fan-out (the scoring reply IS acceptance,
+# D16). It carries no machine token and never gates; the scorecard records it verbatim.
+_RUBRIC_NOTE_LINE = re.compile(r"\bRUBRIC-NOTE\b\s*[*_]*\s*:\s*(.+?)\s*$", re.IGNORECASE)
+
+
+def parse_rubric_note(text: Optional[str]) -> Optional[str]:
+    """The seat's `RUBRIC-NOTE:` objection line (its verbatim text), or None if it
+    emitted none. The LAST such line wins (mirroring the one-token-per-line contract);
+    a markdown-quoted/indented/code-spanned line is skipped so an echoed peer note cannot
+    stand in for the seat's own. Pure; free text (not a machine token) — recorded, never
+    parsed for meaning (§11)."""
+    found = None
+    for line in (text or "").splitlines():
+        m = _RUBRIC_NOTE_LINE.search(line)
+        if not m:
+            continue
+        if _is_quoted_verdict_line(line, m):
+            continue
+        note = m.group(1).strip()
+        if note:
+            found = note
+    return found
+
+
 # Concrete, rephrase-stable citation forms: an identifier/path-shaped inline-code
 # span (`parse()`, `auth.py:42`, `some_symbol`) or a file-shaped slash path
 # (src/auth.py:42, config/x.yaml). We deliberately do NOT count free quoted prose —
@@ -194,58 +309,93 @@ def citations(text: Optional[str]) -> frozenset:
     return frozenset(out)
 
 
-def seat_movement(prev_text: Optional[str], curr_text: Optional[str]) -> dict:
-    """Per-seat movement between two consecutive rounds (pure over the parsed token
-    + citation set). `moved` is True iff the verdict token shifted OR the seat
-    introduced at least one new citation."""
+def _score_changes(prev_text: Optional[str], curr_text: Optional[str],
+                   criterion_ids) -> list:
+    """The sorted list of criterion ids whose parsed score CHANGED between two rounds
+    (D19). A criterion scored in NEITHER round is non-movement (absent from both dicts →
+    not a change); a criterion scored in EXACTLY ONE round IS a change (the seat gained
+    or dropped a cell); a criterion scored in both with a different integer IS a change.
+    Pure over parse_scores — never over the prose."""
+    prev_s = parse_scores(prev_text, criterion_ids)
+    curr_s = parse_scores(curr_text, criterion_ids)
+    changed = [cid for cid in (set(prev_s) | set(curr_s))
+               if prev_s.get(cid) != curr_s.get(cid)]
+    return sorted(changed)
+
+
+def seat_movement(prev_text: Optional[str], curr_text: Optional[str],
+                  *, criterion_ids=None) -> dict:
+    """Per-seat movement between two consecutive rounds (pure over the parsed token +
+    citation set + per-criterion scores). `moved` is True iff the verdict token shifted
+    OR the seat introduced ≥1 new citation OR (on a --rubric run) any criterion score
+    changed. `criterion_ids` (the merged rubric's c1…cN) enables the score arm — None on
+    a non-rubric run, where the score arm is inert and the boolean is exactly as before
+    (byte-for-byte the historical two-arm movement)."""
     prev_v, curr_v = parse_verdict(prev_text), parse_verdict(curr_text)
     verdict_shift = prev_v != curr_v
     new_cites = citations(curr_text) - citations(prev_text)
+    score_changed = (_score_changes(prev_text, curr_text, criterion_ids)
+                     if criterion_ids else [])
     return {
         "verdict_from": prev_v,
         "verdict_to": curr_v,
         "verdict_shift": verdict_shift,
         "new_citations": len(new_cites),
-        "moved": bool(verdict_shift or new_cites),
+        "score_changes": score_changed,           # sorted criterion ids that moved
+        "moved": bool(verdict_shift or new_cites or score_changed),
     }
 
 
-def board_movement(prev_results: list, curr_results: list) -> dict:
+def board_movement(prev_results: list, curr_results: list, *, criterion_ids=None) -> dict:
     """Board-wide movement across one round transition. Only seats USABLE in BOTH
     rounds count (a dropped seat cannot 'move'); `considered` is that overlap.
-    Returns the per-seat detail plus the mover count and the round numbers."""
+    Returns the per-seat detail plus the mover count and the round numbers.
+    `criterion_ids` (the merged rubric's c1…cN) widens each seat's movement with the
+    score arm (D19); None (non-rubric) leaves the two-arm behavior unchanged."""
     prev_by = {r.seat: r for r in prev_results if r.usable}
     seats: dict = {}
     moved = 0
     for r in curr_results:
         if not r.usable or r.seat not in prev_by:
             continue
-        detail = seat_movement(prev_by[r.seat].stdout, r.stdout)
+        detail = seat_movement(prev_by[r.seat].stdout, r.stdout, criterion_ids=criterion_ids)
         seats[r.seat] = detail
         if detail["moved"]:
             moved += 1
     from_round = prev_results[0].round_no if prev_results else None
     to_round = curr_results[0].round_no if curr_results else None
+    # The union of still-moving criterion ids across all considered seats (D19 — the
+    # round-done detail names which criteria are still moving). Sorted; empty on a
+    # non-rubric run (no seat carries score_changes there).
+    moving_criteria = sorted({cid for d in seats.values()
+                              for cid in d.get("score_changes", [])})
     return {
         "from_round": from_round,
         "to_round": to_round,
         "moved": moved,
         "considered": len(seats),
         "seats": seats,
+        "moving_criteria": moving_criteria,
     }
 
 
 def movement_detail_line(movement: dict) -> str:
     """A one-line human summary of a transition's per-seat movement, for provenance.
-    e.g. 'claude block→caution; codex +1 cite; gemini —'."""
+    e.g. 'claude block→caution; codex +1 cite; gemini c2,c4↕; delta —'. On a --rubric
+    run a seat whose scores moved names the still-moving criterion ids (D19); the
+    verdict/citation arms take precedence in the label when several arms fire (the
+    verdict shift is the loudest signal)."""
     parts = []
     for seat, d in movement["seats"].items():
+        score_moved = d.get("score_changes") or []
         if d["verdict_shift"]:
             frm = d["verdict_from"] or "none"
             to = d["verdict_to"] or "none"
             parts.append(f"{seat} {frm}→{to}")
         elif d["new_citations"]:
             parts.append(f"{seat} +{d['new_citations']} cite{'s' if d['new_citations'] != 1 else ''}")
+        elif score_moved:
+            parts.append(f"{seat} {','.join(score_moved)}↕")
         else:
             parts.append(f"{seat} —")
     return "; ".join(parts) if parts else "(no overlapping seats)"

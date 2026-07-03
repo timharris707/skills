@@ -24,6 +24,8 @@ from _conductor.constants import (
 from _conductor.registry import REGISTRY
 from _conductor.convergence import (
     DEFAULT_CONVERGE_THRESHOLD,
+    SCORE_MAX,
+    SCORE_MIN,
     board_movement,
     movement_detail_line,
 )
@@ -471,6 +473,41 @@ def _execute_run(config, args) -> int:
             pass   # best-effort: the stamp must not mask the original exception
 
 
+def _scoring_detail(results: list, criterion_ids) -> str:
+    """A compact `; scored N/M cells` suffix for the round-done status detail on a
+    --rubric run (D17 — scores land in seat review parsing; this is the status-event
+    surface P4's scorecard reads the trajectory from). Empty on a non-rubric round
+    (criterion_ids None), so a plain run's status detail is unchanged. Never raises."""
+    if not criterion_ids:
+        return ""
+    usable = [r for r in results if r.usable]
+    total = len(usable) * len(criterion_ids)
+    got = sum(len(r.scores) for r in usable)   # r.scores is a per-access parse; one read each
+    return f"; scored {got}/{total} cells"
+
+
+def _print_scoring_summary(results: list, criterion_ids) -> None:
+    """Print the per-seat per-criterion scores for a scored round (D17). One line per
+    usable seat: the seat's scores in c1…cN order, a missing cell as "—" (never imputed),
+    plus its `RUBRIC-NOTE:` objection if any. No-op on a non-rubric round. This is the
+    human-facing surface of the parsed scores; P4 consumes the same parsed scores off the
+    result objects (`r.scores`, `r.rubric_note`) to write scorecard.json."""
+    if not criterion_ids:
+        return
+    # "1–5" here is hand-coupled to convergence.SCORE_MIN=1 / SCORE_MAX=5 (see the COUPLING
+    # note on prompts.RUBRIC_SCORING_BLOCK). If the band changes, update both prose sites.
+    print(f"scores ({SCORE_MIN}–{SCORE_MAX}; — = no clean SCORE line, never imputed):")
+    for r in results:
+        if not r.usable:
+            continue
+        s = r.scores   # bind once — the property re-parses stdout on every access
+        cells = " ".join(f"{cid}={s[cid]}" if cid in s else f"{cid}=—"
+                         for cid in criterion_ids)
+        partial = "  (partial)" if len(s) < len(criterion_ids) else ""
+        note = f"  · RUBRIC-NOTE: {r.rubric_note}" if r.rubric_note else ""
+        print(f"  {r.seat:<8} {cells}{partial}{note}")
+
+
 def _run_after_activate(config, args, tracker, blobs, approval, content_hash,
                         preflight, digest_json, _seat_cb, _write,
                         *, rubric_blobs=None) -> int:
@@ -491,11 +528,28 @@ def _run_after_activate(config, args, tracker, blobs, approval, content_hash,
     #     to protect (D20's one non-never-fail-the-run posture). On success rubric.json
     #     is written and the run proceeds to round 1. (Injecting the rubric into the
     #     round prompts + scoring is P3's job; P2 stops at rubric.json.)
+    # v1.15 #P3: the merged rubric's criteria (c1…cN), injected into every round's
+    # scoring block. None on a non-rubric run — the {rubric_scoring} fill stays empty
+    # and the round bytes are byte-identical to a non-rubric run (D5/D6).
+    rubric_criteria = None
+    criterion_ids = None
     if config.rubric:
-        refusal = _run_rubric_step(config, blobs, approval, tracker=tracker,
+        outcome = _run_rubric_step(config, blobs, approval, tracker=tracker,
                                    _write=_write, rubric_blobs=rubric_blobs)
-        if refusal is not None:
-            return refusal
+        if isinstance(outcome, int):
+            return outcome   # a refusal exit code — nothing valuable ran yet (D20)
+        # Success: the merged rubric dict. Rebuild the round-1 packet WITH the scoring
+        # block. This scored packet is a DERIVATIVE of already-approved material (the
+        # proposal fan-out consent-hashed prompts + the chair merge, covered by the
+        # disclosed rubric plan) — the round-2 precedent, NOT the --revise one (the
+        # chair merge is not deterministic pre-approval). run_round records its hash for
+        # provenance and reuses the approval rather than re-asserting the round-1
+        # sub-hash (see the RUBRIC_SCORING_BLOCK consent note in prompts.py).
+        rubric_criteria = outcome.get("criteria") or []
+        criterion_ids = tuple(c["id"] for c in rubric_criteria if isinstance(c, dict) and c.get("id"))
+        blobs = build_packet(config, rubric_criteria=rubric_criteria)
+        for b in blobs:
+            _write(os.path.join(config.out_dir, b.relpath), b.text)
 
     # 4. Round-1 fan-out (M3) — the first real spawn. run_round re-asserts the
     #    egress hash one last time, then feeds each seat its approved blob verbatim
@@ -505,11 +559,14 @@ def _run_after_activate(config, args, tracker, blobs, approval, content_hash,
     #    SeatConfig (config.resolve_board), so the fan-out reads them per seat.
     print("\n=== round 1 (fan-out) ===")
     tracker.round_started(1)
-    r1 = run_round(config, blobs, approval, round_no=1, on_seat=_seat_cb)
+    r1 = run_round(config, blobs, approval, round_no=1, on_seat=_seat_cb,
+                   criterion_ids=criterion_ids, rubric_criteria=rubric_criteria)
     write_round_artifacts(config, r1, 1)
     rounds_done = [r1]
-    tracker.round_done(1, f"{sum(1 for r in r1 if r.usable)} of {len(r1)} usable")
+    tracker.round_done(1, f"{sum(1 for r in r1 if r.usable)} of {len(r1)} usable"
+                       + _scoring_detail(r1, criterion_ids))
     print(render_round_table(r1, 1))
+    _print_scoring_summary(r1, criterion_ids)
 
     usable1 = [r for r in r1 if r.usable]
     if len(usable1) < 2:
@@ -546,7 +603,8 @@ def _run_after_activate(config, args, tracker, blobs, approval, content_hash,
         if len([r for r in prev if r.usable]) < 2:
             stop_reason = "insufficient-voices"   # a one-voice round is not a board
             break
-        rN_blobs, board_packet = build_round2(config, prev, round_no=round_no)
+        rN_blobs, board_packet = build_round2(config, prev, round_no=round_no,
+                                              rubric_criteria=rubric_criteria)
         if board_packet is not None:
             _write(os.path.join(config.out_dir, f"board-packet-round-{round_no}.md"), board_packet)
             if digest_json:
@@ -572,15 +630,26 @@ def _run_after_activate(config, args, tracker, blobs, approval, content_hash,
                   "the same providers — no new source egresses; covered by the run-card's disclosed "
                   "multi-round plan.)")
         tracker.round_started(round_no)
-        rN = run_round(config, rN_blobs, approval, round_no=round_no, on_seat=_seat_cb)
+        rN = run_round(config, rN_blobs, approval, round_no=round_no, on_seat=_seat_cb,
+                       criterion_ids=criterion_ids)
         write_round_artifacts(config, rN, round_no)
         rounds_done.append(rN)
-        tracker.round_done(round_no, f"{sum(1 for r in rN if r.usable)} of {len(rN)} usable")
-        print(render_round_table(rN, round_no))
-        mv = board_movement(prev, rN)
+        # Movement is widened by the score arm on a --rubric run (D19): criterion_ids
+        # enables the per-criterion score-change check; None (non-rubric) is the
+        # unchanged two-arm movement. Compute it BEFORE round_done so the still-moving
+        # criteria can ride into the round-done status detail — status.json consumers
+        # (P4's scorecard reads the trajectory off round_done) recover which criteria
+        # were still moving from the event itself, not just the console.
+        mv = board_movement(prev, rN, criterion_ids=criterion_ids)
         movements.append(mv)
+        moving = mv.get("moving_criteria") or []
+        crit_note = (f"; criteria still moving: {', '.join(moving)}" if moving else "")
+        tracker.round_done(round_no, f"{sum(1 for r in rN if r.usable)} of {len(rN)} usable"
+                           + _scoring_detail(rN, criterion_ids) + crit_note)
+        print(render_round_table(rN, round_no))
+        _print_scoring_summary(rN, criterion_ids)
         print(f"movement {mv['from_round']} → {mv['to_round']}: {mv['moved']} of "
-              f"{mv['considered']} seat(s) moved — {movement_detail_line(mv)}")
+              f"{mv['considered']} seat(s) moved — {movement_detail_line(mv)}{crit_note}")
         prev = rN
         if is_auto:
             if mv["considered"] < 2:
@@ -691,8 +760,9 @@ def _run_rubric_step(config, blobs, approval, *, tracker=None, _write=None,
          proposals into rubric.json; the conductor reconciles the partition + the
          weight-sum-to-100 invariant mechanically. Chair final failure REFUSES.
 
-    Returns None on success (rubric.json written; the run proceeds to round 1) or the
-    refusal exit code (RUBRIC_REFUSAL_EXIT) on a refusal. A refusal writes
+    Returns the MERGED RUBRIC dict on success (rubric.json written; the caller rebuilds
+    the round prompts with its criteria — v1.15 #P3) or the refusal exit code
+    (RUBRIC_REFUSAL_EXIT, an int) on a refusal. A refusal writes
     rubric-rejected.json + the raw records for the post-mortem, stamps the tracker,
     and prints a loud message. This is D20's one place the never-fail-the-run posture
     does NOT apply — the refusal lands before any opinion round has produced value."""
@@ -853,10 +923,13 @@ def _run_rubric_step(config, blobs, approval, *, tracker=None, _write=None,
     print(f"\nwrote {rubric_path} (advisory-board/rubric@1 — validated; "
           f"{n_criteria} criteria from {len(proposals)} proposal(s), {n_dropped} dropped; "
           "weights sum to 100)")
-    print("  (the rubric is the pre-round artifact of record. Injecting it into the "
-          "round prompts + per-criterion scoring is the next milestone phase; this run "
-          "proceeds to the opinion rounds unchanged.)")
-    return None
+    print("  (the rubric is the pre-round artifact of record; it is now injected into "
+          "every opinion round's prompt and each seat scores every criterion 1–5 — "
+          "SCORE lines coexist with the VERDICT token and never gate, D17.)")
+    # v1.15 #P3: hand the merged rubric back so the caller rebuilds the round prompts
+    # with the scoring block. Success is the rubric dict (truthy); a refusal is the
+    # int exit code (see _refuse_rubric) — the caller branches on isinstance(_, int).
+    return cr.rubric
 
 
 def _refuse_rubric(config, tk, write, *, reason: str, chair_result) -> int:
