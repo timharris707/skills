@@ -1,0 +1,166 @@
+{
+  "schema": "advisory-board/verdict@2",
+  "title": "v1.14 p2 echo score pr review",
+  "date": "2026-07-02",
+  "lens_preset": "software-architecture",
+  "rounds": 2,
+  "board": [
+    {
+      "seat": "Claude",
+      "model": "claude-opus-4-8",
+      "lens": "Architecture & systems",
+      "round_verdicts": [
+        "caution",
+        "caution"
+      ],
+      "dropped": false
+    },
+    {
+      "seat": "Codex",
+      "model": "gpt-5.5",
+      "lens": "Implementation & testing",
+      "round_verdicts": [
+        "caution",
+        "caution"
+      ],
+      "dropped": false
+    }
+  ],
+  "previous_run": {
+    "run_dir": "~/.advisory-board/runs/v1-14-p2-echo-score-pr-review-2026-07-02",
+    "verdict_sha256": "2c09e9d69b43d366e085b89001e808e7238ac0e6bda593a86c63c97e624e33dc",
+    "title": "v1.14 p2 echo score pr review",
+    "date": "2026-07-02",
+    "verdict": "block"
+  },
+  "verdict": "caution",
+  "confidence": "high",
+  "blockers": [
+    {
+      "title": "_same_provider() collapses two None providers, contradicting its own \"None is distinct\" contract",
+      "body": "Both seats agree _same_provider() computes `len(set(providers)) < len(providers)`, and Python collapses `{None, None}` -> `{None}` (len 1 < 2), so two seats with a missing/None provider read as same-provider and fire the same-provider discount. This contradicts the rule stated in the same function and in the module/echo_score docstrings that a missing/None provider counts as a DISTINCT provider; the self-contradicting parenthetical documents the buggy behavior. The function is new in this fix pass, so it is the pass's new defect — Claude retracted its round-1 \"no new defect\" claim after verifying Codex's finding.",
+      "evidence": [
+        {
+          "kind": "code",
+          "path": "scripts/_conductor/echo_score.py",
+          "line": 219
+        },
+        {
+          "kind": "code",
+          "path": "scripts/_conductor/echo_score.py",
+          "line": 214
+        },
+        {
+          "kind": "code",
+          "path": "scripts/_conductor/echo_score.py",
+          "line": 215
+        },
+        {
+          "kind": "code",
+          "path": "scripts/_conductor/echo_score.py",
+          "line": 40
+        },
+        {
+          "kind": "code",
+          "path": "scripts/_conductor/echo_score.py",
+          "symbol": "_same_provider"
+        }
+      ]
+    },
+    {
+      "title": "Regression suite has no [None, None] case — the exact input that fires the bug",
+      "body": "The existing test only exercises one None seat (`{Anthropic, None}`), which stays distinct under set() and passes by accident; there is no `[None, None]` case, so the suite does not cover the defect. Both seats call adding this regression mandatory before ship — it is the test that would have caught the bug.",
+      "evidence": [
+        {
+          "kind": "code",
+          "path": "tests/test_run_board.py",
+          "line": 14084
+        },
+        {
+          "kind": "code",
+          "path": "tests/test_run_board.py",
+          "symbol": "test_none_provider_counts_as_distinct_no_discount"
+        }
+      ]
+    }
+  ],
+  "dissent": [
+    {
+      "who": "Claude",
+      "body": "Dissents from Codex on severity/reachability. Claude argues the None-collapse cannot downgrade a real board: SeatRoundResult.provider is a non-optional str populated from self.adapter.provider, always a registry-supplied string, so .provider is never None outside hand-built fixtures and the live blast radius is nil. Claude agrees the defect must be fixed (it contradicts its own documented contract, is a latent bug, and leaves a test hole) but holds it is not currently reachable on a real run."
+    },
+    {
+      "who": "Codex",
+      "body": "Maintains the None-provider defect is real and material against Claude's round-1 \"no substantive new defect\" read (which Claude retracted in round 2). Codex verified a two-seat provider=None, high-overlap, both-flip, no-deference case returns `moderate` with a same-provider note when the contract says it should stay mixed/unknown and return `high`, framing it as an edge-path/API-contract issue that the PR explicitly documents and tests."
+    }
+  ],
+  "concerns": [
+    {
+      "title": "Blocker-2 \"pre-P2 recipe\" doc reconciliation is incomplete",
+      "body": "Several spots still imply a \"pre-P2 recipe\" means no echo-score.json / no sidecar, but a replayed pre-P2 recipe now scores normally and renders a real pill. Runtime keys off sidecar presence + band (correct); the miss is doc-vs-code exactness, which was the review's own bar for this reconciliation.",
+      "evidence": [
+        {
+          "kind": "code",
+          "path": "scripts/render_verdict.py",
+          "line": 821
+        },
+        {
+          "kind": "code",
+          "path": "scripts/render_verdict.py",
+          "line": 1282
+        },
+        {
+          "kind": "code",
+          "path": "scripts/render_handoff.py",
+          "line": 158
+        },
+        {
+          "kind": "code",
+          "path": "references/handoff-template.html",
+          "line": 456
+        }
+      ]
+    },
+    {
+      "title": "CHANGELOG suite-count drift",
+      "body": "CHANGELOG.md still states the P2 suite as \"1355 -> 1395\", while the exact staged tree is reported at 1403 OK. The count should read 1355 -> 1403, or split the implementation vs fix-pass counts honestly.",
+      "evidence": [
+        {
+          "kind": "code",
+          "path": "CHANGELOG.md",
+          "line": 23
+        }
+      ]
+    },
+    {
+      "title": "SKILL.md omits the <2 overlap seats not-computed case",
+      "body": "SKILL.md documents the single-round `not computed` case but omits the `<2 overlap seats` case that also yields a not-computed score.",
+      "evidence": [
+        {
+          "kind": "code",
+          "path": "SKILL.md",
+          "line": 115
+        }
+      ]
+    }
+  ],
+  "caveats": [
+    "Neither seat re-ran the full suite (~1403 tests) on the exact staged tree; both reviewed staged files, not a live run.",
+    "Claude did not independently reproduce the full HTML byte-identity golden on the exact staged tree.",
+    "Codex ran the existing test_none_provider_counts_as_distinct_no_discount (it passes) but it does not cover the two-unknown-provider defect.",
+    "Codex's git commands emitted sandbox temp/cache warnings but still returned status/stat output."
+  ],
+  "open_questions": [
+    "Can any future adapter or partial-init path yield a None .provider at runtime? Claude flags that .provider is never None on a real run today, but if that assumption breaks the None-collapse defect becomes live rather than latent."
+  ],
+  "next_actions": [
+    "Fix _same_provider() so each missing/None provider is treated as distinct — e.g. drop Nones before the duplicate check, or map each missing value to a unique sentinel (unknown, seat_id or index); delete the self-contradicting parenthetical at echo_score.py:215 and keep the docstring's \"distinct\" headline.",
+    "Add a [None, None] regression (two None providers, strong flip, high overlap, no deference -> expect high band and no same-provider note) beside test_none_provider_counts_as_distinct_no_discount.",
+    "Reconcile the stale \"pre-P2 recipe\" docs/comments (render_verdict.py:821 and :1282, render_handoff.py:158-164, references/handoff-template.html:456-459) to \"old run dir / pre-P2 handoff-data with no sidecar,\" since a replayed pre-P2 recipe now scores normally.",
+    "Correct CHANGELOG.md:23 to 1355 -> 1403 (or split implementation vs fix-pass counts) and re-scan that block for other count/version drift.",
+    "Add the <2 overlap seats not-computed case to SKILL.md:115.",
+    "Keep the fix confined to _same_provider — preserve the byte-identity goldens for old dirs, the overlap-seats scoping of the discount, and the advisory-only (non-gating) nature of the score.",
+    "Re-run the targeted echo tests, the full suite, and the HTML byte-identity goldens on the exact staged tree; confirm green."
+  ],
+  "unanimous": true
+}

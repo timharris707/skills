@@ -1,0 +1,118 @@
+```json
+{
+  "verdict": "caution",
+  "confidence": "high",
+  "blockers": [
+    {
+      "title": "Q1 — the chair-merge completeness check is not mechanizable as worded",
+      "body": "All three seats (Gemini and Codex both moving to Claude's position): the brief's 'conductor cross-asserts completeness (every proposal accounted for)' has no chair-emitted mapping for the conductor to check, so the conductor would be trusting the chair to merge honestly — the exact thing §11 forbids. Fix: the conductor mints proposal ids at the proposal pass; the chair must emit an explicit partition — each merged criterion → the proposal-id(s) it subsumes, each dropped proposal-id → a reason — and the conductor verifies the partition mechanically (every proposal-id appears exactly once across subsumed ∪ dropped; every merged criterion cites only real ids; no empty subsumptions). INV-1's reconcile_edits already proves this pattern for revision. Without conductor-minted ids and a chair-emitted mapping the conductor can validate JSON shape but not completeness.",
+      "evidence": [
+        { "kind": "source", "url": "design brief §11", "quote": "everything structural (ids, weights arithmetic, completeness checks) is conductor-computed and never model-trusted" },
+        { "kind": "code", "path": "skills/advisory-board/scripts/_conductor/revision.py", "symbol": "reconcile_edits" },
+        { "kind": "judgment", "detail": "The brief's phrase 'conductor cross-asserts completeness' is under-specified: with no proposal ids and no chair-emitted subsumes/drops mapping, the conductor can check JSON shape but cannot verify that every proposal was accounted for." }
+      ]
+    },
+    {
+      "title": "Q2 — chair selection must use the unique-seat-id axis, not the synthesizer's provider-name lookup",
+      "body": "Codex raised it and Claude and Gemini both moved to it: the strawman's 'reuse the synthesizer-selection rules verbatim' imports a latent wrong-seat bug. choose_synthesizer_seat keys on provider name (by_name), so a legitimate duplicate-provider board (claude + claude#2) silently collapses to the last same-named seat and --chair-seat cannot disambiguate. choose_revision_seat keys on the unique-id axis (by_id) behind resolve_revision_seat_id, which refuses an ambiguous provider name. Mirror the revision path — add a resolve_chair_seat_id + an id-first choose_chair_seat — not the synthesizer's.",
+      "evidence": [
+        { "kind": "code", "path": "skills/advisory-board/scripts/_conductor/synthesizer.py", "line": 220 },
+        { "kind": "code", "path": "skills/advisory-board/scripts/_conductor/revision.py", "line": 280 },
+        { "kind": "code", "path": "skills/advisory-board/scripts/_conductor/config.py", "line": 432 }
+      ]
+    },
+    {
+      "title": "Q5 — rubric.json must be a standalone pre-round artifact of record, split from scorecard.json",
+      "body": "All three seats converged (Gemini and Codex moving to it). The rubric must be persisted at chair-merge time — after consent (RH-1), before the opinion rounds that inject it — and must survive a later scoring failure, so it cannot live in a single write-once scorecard.json that is written after the rounds (Claude's temporal-shape argument). Codex: rubric.json is the record later scoring depends on; make it first-class, not fields embedded in scorecard.json. Both artifacts should mirror board_changes.py discipline (unknown keys refused) and be pinned from verdict.json via the existing {artifact, sha256} pointer. State the weight-sum-to-100 rule loudly — it is the codebase's first numeric-sum invariant.",
+      "evidence": [
+        { "kind": "code", "path": "skills/advisory-board/scripts/board_verdict.py", "line": 180 },
+        { "kind": "code", "path": "skills/advisory-board/scripts/board_changes.py", "line": 294 },
+        { "kind": "judgment", "detail": "A single write-once, sha-pinned file cannot hold both merge-time criteria (written pre-rounds, injected into them) and post-round scores, and must survive a later scoring failure under the protect-produced-value logic — forcing a two-artifact split." }
+      ]
+    },
+    {
+      "title": "Q9/Q3 — score-parse retry and partial-score semantics are under-specified",
+      "body": "Codex (one of its four required D15+ changes; Claude engages the same tension): 'a missing score triggers the standard retry' plus 'the seat remains usable after retry' cannot both hold on the current machinery — malformed round output is classified as retryable InvalidOutput and dropped after the second attempt. The design needs a rubric-aware round runner where usability stays defined by the VERDICT token (unchanged), a missing/invalid SCORE triggers the standard two-attempt retry and then degrades to a partial scorecard cell (—, never imputed), never to an unusable seat. Score lines use parse_verdict-style per-criterion hardening; last qualifying line per id wins.",
+      "evidence": [
+        { "kind": "code", "path": "skills/advisory-board/scripts/_conductor/spawn.py", "line": 188 },
+        { "kind": "code", "path": "skills/advisory-board/scripts/_conductor/rounds.py", "line": 125 },
+        { "kind": "judgment", "detail": "Current retry machinery retries once then stops, dropping InvalidOutput — it does not implement 'partial scores but usable seat' by itself, so a purpose-built rubric round runner or classifier is required." }
+      ]
+    }
+  ],
+  "dissent": [
+    {
+      "who": "Gemini",
+      "body": "Dissents on Q4 from the strawman and from Claude/Codex (who keep scores non-gating): a severe seat self-contradiction — a top-third weighted score with a block token, or bottom-third with ship — should trip the gate's ABSTAIN (exit code 3) path in --strict mode, not merely render a silent warning. Leaving it purely informational degrades the gate's integrity."
+    },
+    {
+      "who": "Gemini",
+      "body": "Dissents from Claude on the execution sequence: Phase 1 must be the Schema & Validator Core (board_scorecard.py + advisory-board/scorecard@1) established up-front as a regression guard against contract drift, not deferred behind the proposal/merge parser work Claude sequences first."
+    },
+    {
+      "who": "Gemini",
+      "body": "Dissents from the strawman on pre-round latency: two sequential LLM calls (proposal + chair-merge) before round 1 add a ~10–20s bottleneck; provide a programmatic --rubric-file <path> escape hatch to supply static criteria and bypass the pre-round LLM passes. Claude and Codex judge the latency acceptable because --rubric is opt-in and must never be silently skipped."
+    }
+  ],
+  "concerns": [
+    {
+      "title": "Q4 — surface the score↔token contradiction in the primary verdict summary, but keep it non-gating for v1.15",
+      "body": "Claude and Codex: scores must stay informational at the gate (a gameable number must not move a gate, per the confidence precedent, and no calibration data exists), but the token↔band contradiction should appear in the primary verdict summary, not buried in the scorecard, or the 'auditable against stated standards' promise reads hollow exactly when scores and token disagree. Record the ABSTAIN-consistency check as the explicit next milestone once real scored runs calibrate the bands.",
+      "evidence": [
+        { "kind": "judgment", "detail": "A gameable number must not move a gate and no calibration data exists to tune bands; scores should bite through convergence, not through the gate, for v1.15." }
+      ]
+    },
+    {
+      "title": "Q8 — stakeholder-panel ships as a lens preset but not the fuller board-composition-preset vision",
+      "body": "Claude and Codex: shipping stakeholder-panel as a LENS_PRESETS entry works on existing machinery (each preset is already a 3-string list, lensed positionally per seat), but it satisfies the current machinery, not the fuller 'board composition preset' product vision — document that structured personas are a later milestone and out of scope. Don't let the preset silently imply --rubric; document the --rubric --lens stakeholder-panel combination.",
+      "evidence": [
+        { "kind": "code", "path": "constants.py", "line": 71 },
+        { "kind": "judgment", "detail": "Lens presets deliver prose archetypes on existing rails; a full board-composition/persona axis is a later milestone Codex flags as out of scope." }
+      ]
+    },
+    {
+      "title": "Scorecard rendering could become noisy",
+      "body": "Codex: per-round × per-seat × per-criterion rows could make the human render noisy. Keep the full data in the artifact; the human render should summarize with drill-down-style sections.",
+      "evidence": [
+        { "kind": "judgment", "detail": "Full per-round/per-seat/per-criterion data belongs in the artifact; the rendered view should summarize to stay readable." }
+      ]
+    },
+    {
+      "title": "The live-status stage enum has no rubric stage",
+      "body": "Codex: the current stage enum lists no 'rubric' stage, so the new pre-round proposal/merge structure needs a stage added to the live status.",
+      "evidence": [
+        { "kind": "code", "path": "skills/advisory-board/scripts/_conductor/status.py", "line": 88 }
+      ]
+    },
+    {
+      "title": "Scale neutrality bias",
+      "body": "Gemini: standardizing a 1–5 scale allows simple bounding, but seats may drift to a default '3' neutrality bias; define an explicit 5-point rubric anchor prompt for the seats.",
+      "evidence": [
+        { "kind": "judgment", "detail": "Without an explicit anchor prompt, seats may cluster at the midpoint of the 1–5 scale, blunting the signal." }
+      ]
+    }
+  ],
+  "caveats": [
+    "No calibration data exists for the 1–5 scale, the score bands, or the token/score-contradiction labels; they must stay descriptive and non-gating for v1.15.",
+    "The conductor's partition check catches structural invention (phantom ids, omissions) but cannot catch a semantically bad merge — the chair still reasons about which proposals to combine; whether it reliably emits a strict mapping with drop-reasons is unproven (which is why the conductor must reconcile mechanically, degrading prompt-unreliability to a reject+retry rather than a shipped bad rubric).",
+    "The stakeholder-panel archetypes bind to seat order and degrade on non-3-seat boards: a 4th seat repeats the last voice and a 2-seat board drops the third archetype."
+  ],
+  "open_questions": [
+    "What exit code should a chair-merge refusal use — a preflight NO-GO-like exit or a new rubric-integrity failure code? Undecided; Codex flags it must be decided before implementation.",
+    "Whether the chair reliably emits a strict mapping with drop-reasons is genuinely unproven (Claude)."
+  ],
+  "next_actions": [
+    "Record the D15+ decisions before any Phase 2 code: chair selection by canonical seat id; explicit proposal→rubric partition; standalone rubric.json + scorecard.json artifact chain; score-parse retry/partial-score semantics; scores non-gating for v1.15.",
+    "Mint proposal ids at the proposal pass; have the chair emit each merged criterion's subsumed proposal-ids and each dropped proposal-id's reason; verify the partition mechanically (coverage AND no-phantom), mirroring INV-1's reconcile_edits.",
+    "Add a resolve_chair_seat_id + an id-first choose_chair_seat that refuses an ambiguous provider name — mirror the revision seat-selection path, not the synthesizer's.",
+    "Write rubric.json at chair-merge time (post-consent, pre-rounds) and scorecard.json after the rounds; give each a strict validator mirroring board_changes.py; pin both from verdict.json via {artifact, sha256}.",
+    "Enforce weight-sum-to-100 as the first numeric-sum invariant: conductor-computed integer weights summing to exactly 100, reject-on-violation, test-guarded.",
+    "Build a rubric-aware round runner: usability stays defined by the VERDICT token; a missing/invalid SCORE retries twice then degrades to a partial scorecard cell (—, never imputed).",
+    "Widen the convergence movement boolean to verdict_shift OR new_cites OR score_changed; treat a criterion absent in both rounds as non-movement.",
+    "Ship scores informational-only at the gate; surface the token↔band contradiction in the primary verdict summary; defer gate/ABSTAIN integration until real scored runs calibrate the bands.",
+    "Ship stakeholder-panel as a LENS_PRESETS entry (document the seat-order binding and the --rubric --lens combination); defer structured personas / board-composition presets to a later milestone.",
+    "Add a rubric stage to the live-status enum; record rubric.json/scorecard.json shas in the recipe and replay them under --from-recipe; carry the prior rubric forward on --revise.",
+    "Correct the stale statements in the record: `changes` is already fully implemented and strictly validated in board_verdict.py; the strawman's 'as choose_revision_seat already did' is misleading (revision uses the id axis, not the synthesizer's rules); the per-seat lens ambiguity is settled as per-seat positional."
+  ]
+}
+```

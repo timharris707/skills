@@ -1,0 +1,32 @@
+{
+  "schema": "advisory-board/sensitivity@1",
+  "sensitivity": "redacted",
+  "egress_allowed": true,
+  "providers": [
+    "Anthropic",
+    "OpenAI"
+  ],
+  "consent": {
+    "required": true,
+    "mode": "hash-bound"
+  },
+  "network_isolation": {
+    "claude": "on",
+    "codex": "on"
+  },
+  "network_unenforced": [],
+  "revision": {
+    "revises_run_dir": "~/.advisory-board/runs/v1-14-p3-live-progress-pr-review-2026-07-02",
+    "prior_sensitivity": "redacted",
+    "prior_verdict_sha256": "34759075f98b17c9b3ef0c6f53c0b36f49a696dfcf60a65f2dfdea5d839affd9",
+    "source_recovered_from": "source-material.txt",
+    "source_verified": true,
+    "injected_bytes": 54065
+  },
+  "approval": {
+    "approved": true,
+    "mode": "hash-bound",
+    "content_hash": "bacd4438e65b520f96bebaaffae8bba658ded7e9a8420b5b612232a2f537f8ec",
+    "timestamp": "2026-07-02T18:18:13"
+  }
+}
