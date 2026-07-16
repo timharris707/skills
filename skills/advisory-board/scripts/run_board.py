@@ -11,7 +11,7 @@ posture, followed by a real Round-1 fan-out with a defined failure protocol.
 This file implements milestones M1, M2 and M3 of design/run-board-conductor.md:
 
   M1  skeleton + arg parsing + config/mode resolution + the SeatAdapter registry
-      (claude / codex / gemini) + run-recipe/run-card render + `--dry-run`.
+      (claude / codex / gemini / grok) + run-recipe/run-card render + `--dry-run`.
   M2  executable preflight (GO/NO-GO) + the egress manifest (consent bound to a
       content hash) + the pre-spawn hard stop + gate-mode isolation flags wired
       through the registry.

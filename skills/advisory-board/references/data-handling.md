@@ -1,12 +1,12 @@
 # Data Handling
 
-A board sends the **same source material to every seat's provider** — by default Anthropic, OpenAI, and Google. Treat that as an outbound disclosure and handle it before launching, not after.
+A board sends the **same source material to every seat's provider** — by default Anthropic, OpenAI, Google, and xAI. Treat that as an outbound disclosure and handle it before launching, not after.
 
 ## Disclose before the first call
 
 If the material is anything but already-public, tell the user plainly what will leave the machine and to whom, and get a go-ahead:
 
-> This review sends your source material to Anthropic (Claude), OpenAI (Codex), and Google (Gemini). Proceed?
+> This review sends your source material to Anthropic (Claude), OpenAI (Codex), Google (Gemini), and xAI (Grok). Proceed?
 
 Name only the providers actually in the lineup.
 

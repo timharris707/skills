@@ -65,7 +65,7 @@ printf 'codex\t1\t%s\n'  "$st_codex"  >> run-metadata.tsv
 printf 'gemini\t1\t%s\n' "$st_gemini" >> run-metadata.tsv
 ```
 
-Round 2 is identical with `round-2/` paths and the board-packet prompt. Run the three seats concurrently (background each `capture` and `wait`) when you want wall-clock parallelism; keep them serial when you're watching a flaky seat.
+Round 2 is identical with `round-2/` paths and the board-packet prompt. Run all seats concurrently (background each `capture` and `wait`) when you want wall-clock parallelism; keep them serial when you're watching a flaky seat.
 
 ## Gate before continuing
 

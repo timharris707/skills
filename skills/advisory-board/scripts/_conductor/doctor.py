@@ -152,20 +152,20 @@ def fix_steps(health: ProviderHealth) -> list:
     return steps
 
 
-_DEFAULT_TRIO = ("claude", "codex", "gemini")
+_DEFAULT_BOARD = ("claude", "codex", "gemini", "grok")
 
 
 def summarize_doctor(healths: list) -> dict:
     """Pure viable-board summary over a sweep: who is GO / not installed /
     installed-but-unusable, whether a board can convene today (>= 2 seats GO),
     and the --board value to suggest — None when no board is viable, or when the
-    default trio is fully GO (the default run needs no flag)."""
+    default board is fully GO (the default run needs no flag)."""
     go = [h.provider for h in healths if h.go]
     missing = [h.provider for h in healths if not h.installed]
     unusable = [h.provider for h in healths if h.installed and not h.go]
     viable = len(go) >= 2
-    default_trio_go = all(p in go for p in _DEFAULT_TRIO)
-    board = None if (not viable or default_trio_go) else ",".join(go[:3])
+    default_board_go = all(p in go for p in _DEFAULT_BOARD)
+    board = None if (not viable or default_board_go) else ",".join(go[:4])
     return {
         "go": go,
         "missing": missing,
@@ -229,7 +229,7 @@ def render_doctor_summary(summary: dict, *, sample_source: Optional[str] = None,
         lines.append(f"{len(go)} of {total} providers GO: {', '.join(go)} — a board can "
                      "convene with any two or more of them (>= 2 independent voices).")
         if summary["board"] is None:
-            lines.append("The default board (claude,codex,gemini) is fully GO — no --board flag needed.")
+            lines.append("The default board (claude,codex,gemini,grok) is fully GO — no --board flag needed.")
     else:
         lines.append(f"Only {len(go)} of {total} providers GO"
                      + (f" ({', '.join(go)})" if go else "")

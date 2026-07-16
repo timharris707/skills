@@ -62,42 +62,49 @@ PROVIDERS = {
     "claude": "Anthropic",
     "codex": "OpenAI",
     "gemini": "Google",
+    "grok": "xAI",
     "antigravity": "Google",
     "ollama": "local",
 }
 
-# Lens presets (mirrors references/lens-presets.md). Each preset is the ordered
-# trio of lenses; the default Claude/Codex/Gemini lineup maps to them in order.
+# Lens presets (mirrors references/lens-presets.md). Each preset is ordered by
+# the default Claude/Codex/Gemini/Grok lineup; smaller boards take the prefix.
 LENS_PRESETS = {
     "software-architecture": [
         "Architecture & systems — design soundness, invariants, failure modes, adversarial review",
         "Implementation & testing — repo-grounded execution, migration, test strategy, edge cases",
         "Product & operations — rollout, latency, observability, evaluation, user-workflow risk",
+        "Contrarian synthesis — challenge the other frames, surface hidden assumptions, and reconcile tradeoffs",
     ],
     "product-strategy": [
         "Market & user value — positioning, demand, differentiation, jobs-to-be-done",
         "Execution & GTM — feasibility, resourcing, sequencing, go-to-market mechanics",
         "Second-order & risk — competitive response, cannibalization, downside and stakeholder risk",
+        "Strategic red team — attack the thesis, test alternative explanations, and identify decisive evidence",
     ],
     "research-paper": [
         "Methodology & validity — design, statistics, threats to validity, confounds",
         "Novelty & positioning — contribution, related work, what is actually new",
         "Reproducibility & impact — can it be reproduced, stated limitations, who it helps",
+        "Adversarial synthesis — reconcile conflicting evidence, probe generalization, and test the strongest counterclaim",
     ],
     "legal-contract": [
         "Risk allocation — liability, indemnity, limitation of liability, termination, IP",
         "Enforceability & compliance — governing law, regulatory fit, ambiguity, gaps",
         "Commercial practicality — operational burden, counterparty reality, negotiation leverage",
+        "Adversarial interpretation — find exploitable ambiguity, conflicting duties, and hard negotiation tradeoffs",
     ],
     "business-decision": [
         "First principles & economics — does the core logic and the math hold up",
         "Execution & feasibility — can this org actually do it, with what and by when",
         "Second-order & downside — stakeholders, incentives, what breaks if it works",
+        "Contrarian synthesis — challenge consensus, compare alternatives, and name the decision-changing evidence",
     ],
     "writing-editing": [
         "Argument & structure — thesis, logic, evidence, what is load-bearing",
         "Clarity & style — concision, flow, precision, tone for the audience",
         "Audience & impact — does it land, what is missing, what a skeptic seizes on",
+        "Adversarial editor — test the argument against hostile readings and synthesize the strongest revision",
     ],
     # stakeholder-panel (v1.15 P4 / D20): "the room this decision would face" — three
     # DISTINCT stakeholder archetypes, one per seat, in this SEAT-ORDER binding:
@@ -106,13 +113,14 @@ LENS_PRESETS = {
     #   seat 3 → the compliance / risk / finance reviewer who has to sign off.
     # The lens string IS the persona (structured personas are out of scope for v1.15 —
     # D20). resolve_board's positional-slot default carries the binding: a 4th seat
-    # REPEATS the last archetype (the reviewer voice), a 2-seat board DROPS the third.
+    # becomes an independent challenger, while a 2-seat board takes the first two.
     # Pairs naturally with --rubric ("--rubric --lens stakeholder-panel") but never
     # IMPLIES it — the axes stay orthogonal; the combination is documented, not bundled.
     "stakeholder-panel": [
         "The decision owner — the executive who must answer for this: does it deliver, at what cost, what do we tell the board",
         "The end user — the person this lands on: does it actually help them, what friction or harm does it create, would they choose it",
         "The compliance & risk reviewer — the gatekeeper who signs off: what rule, obligation, or downside does this trip, and can we defend it",
+        "The independent challenger — the outsider who questions the room's shared assumptions and forces a defensible synthesis",
     ],
 }
 DEFAULT_LENS = "software-architecture"
@@ -125,9 +133,9 @@ DEFAULT_LENS = "software-architecture"
 # RESOLVED values, so --from-recipe replays exactly without knowing the tier
 # (the pair is refused as contradictory).
 #
-# Model ids are deliberately NOT a tier knob: swapping in unverified "budget"
-# ids risks model-404ing the board, so every tier runs the pinned REGISTRY
-# models and dials rounds / cross-reading / reasoning instead.
+# Model selectors are deliberately NOT a tier knob: every tier keeps the
+# registry's provider-maintained frontier selector and dials rounds,
+# cross-reading, and reasoning instead.
 #
 # `reasoning` is keyed by PROVIDER (the REGISTRY name — so every claude seat on
 # a duplicate/aliased board moves together) and lists only providers whose CLI
@@ -146,7 +154,7 @@ TIER_PRESETS = {
     "quick": {
         "rounds": "1",
         "cross_reading": "summaries",
-        "reasoning": {"claude": "high", "codex": "medium"},
+        "reasoning": {"claude": "high", "codex": "medium", "grok": "medium"},
     },
     # standard — exactly today's defaults; the flag is allowed and a no-op
     # (still noted in run-metadata provenance, since it was asked for).
@@ -208,6 +216,7 @@ MODEL_PRICING_USD_PER_MTOK = {
     "claude-fable-5": (10.00, 50.00),          # Anthropic
     "gpt-5.5": (5.00, 30.00),                  # OpenAI
     "gemini-3.5-flash": (1.50, 9.00),          # Google
+    "grok-4.5": (2.00, 6.00),                  # xAI
     "Gemini 3.5 Flash (High)": (1.50, 9.00),   # antigravity display name — same model family
     "llama3.3": (0.00, 0.00),                  # local seat — no per-token cost at all
 }

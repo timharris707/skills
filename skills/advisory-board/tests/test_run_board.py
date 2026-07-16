@@ -59,6 +59,14 @@ _ADDENDA_SENTINEL = "<!-- advisory-board:addenda -->"   # `ask` handoff-refresh 
 
 def run_cli(argv, *, stdin=None):
     """Invoke main(argv), capturing (exit_code, stdout, stderr)."""
+    # Most historical end-to-end fixtures assert the original three-seat shape.
+    # Keep those scenarios explicit so adding a provider to the product default
+    # does not rewrite unrelated protocol tests; default composition itself is
+    # covered directly by TestConfig/TestSeatComposition.
+    argv = list(argv)
+    if (argv and argv[0] in ("run", "init", "preflight")
+            and "--board" not in argv and "--from-recipe" not in argv):
+        argv += ["--board", "claude,codex,gemini"]
     out, err = io.StringIO(), io.StringIO()
     code = rb.EXIT_OK
     old_stdin = sys.stdin
@@ -81,7 +89,7 @@ class EnvMixin(unittest.TestCase):
         os.environ["PATH"] = MOCKS + os.pathsep + os.environ.get("PATH", "")
         os.environ["ADVISORY_BOARD_NOW"] = "2026-06-25"
         os.environ["ADVISORY_BOARD_NOW_TS"] = "2026-06-25T12:00:00"
-        for seat in ("CLAUDE", "CODEX", "GEMINI", "AGY", "OLLAMA"):
+        for seat in ("CLAUDE", "CODEX", "GEMINI", "GROK", "AGY", "OLLAMA"):
             os.environ[f"MOCK_{seat}_MODE"] = "go"
         os.environ.pop("MOCK_ARGV_LOG", None)
         # v1.11: the default runs root is PERSISTENT (~/.advisory-board/runs), so keep
@@ -103,15 +111,15 @@ class EnvMixin(unittest.TestCase):
 
 class TestRegistry(unittest.TestCase):
     def test_seats_registered(self):
-        self.assertEqual(set(rb.REGISTRY), {"claude", "codex", "gemini", "antigravity", "ollama"})
+        self.assertEqual(set(rb.REGISTRY),
+                         {"claude", "codex", "gemini", "grok", "antigravity", "ollama"})
 
     def test_claude_seat_model_lineup(self):
-        # Default = Fable 5 at max effort; the one sanctioned fallback/downgrade
-        # is Opus 4.8 at the same effort (grounded live 2026-07-02; Tim's call).
+        # `opus` is Anthropic's provider-maintained latest-Opus alias.
         a = rb.REGISTRY["claude"]
-        self.assertEqual(a.default_model, "claude-fable-5")
+        self.assertEqual(a.default_model, "opus")
         self.assertEqual(a.default_reasoning, "max")
-        self.assertEqual(a.fallback_models, ("claude-opus-4-8",))
+        self.assertEqual(a.fallback_models, ())
 
     def test_antigravity_flags(self):
         a = rb.REGISTRY["antigravity"]
@@ -133,19 +141,18 @@ class TestRegistry(unittest.TestCase):
         self.assertIn("--disallowed-tools", argv)
         self.assertIn("WebSearch", argv)
         self.assertIn("WebFetch", argv)
-        self.assertIn("claude-fable-5", argv)
+        self.assertIn("claude-fable-5", argv)  # an explicit override stays pinned
         self.assertEqual(argv[argv.index("--effort") + 1], "xhigh")  # reasoning forwarded
         self.assertNotIn("--bare", argv)  # --bare would break subscription auth
 
     def test_claude_default_model_and_max_effort(self):
-        # The Claude seat runs Fable 5 at max effort, forwarded via the claude CLI's
-        # --effort flag (the deepest level it exposes).
+        # The Claude seat runs the latest-Opus alias at max effort.
         a = rb.REGISTRY["claude"]
-        self.assertEqual(a.default_model, "claude-fable-5")
+        self.assertEqual(a.default_model, "opus")
         self.assertEqual(a.default_reasoning, "max")
         argv = a.build_argv(a.default_model, "PROMPT", reasoning=a.default_reasoning, network=False)
         self.assertEqual(argv[argv.index("--effort") + 1], "max")
-        self.assertIn("claude-fable-5", argv)
+        self.assertIn("opus", argv)
 
     def test_claude_advisory_allows_network(self):
         a = rb.REGISTRY["claude"]
@@ -187,7 +194,31 @@ class TestRegistry(unittest.TestCase):
 
     def test_gemini_default_model_is_ga_id(self):
         # The GA id (gemini-3.5-flash) needs CLI >= 0.46 to resolve; pinned inline.
-        self.assertEqual(rb.REGISTRY["gemini"].default_model, "gemini-3.5-flash")
+        self.assertEqual(rb.REGISTRY["gemini"].default_model, "pro")
+
+    def test_grok_default_frontier_and_high_effort(self):
+        a = rb.REGISTRY["grok"]
+        self.assertEqual(a.default_model, "grok-build")
+        self.assertEqual(a.default_reasoning, "high")
+        argv = a.build_argv("grok-build", "PROMPT", reasoning="high", network=False,
+                            workdir="/tmp/wd")
+        self.assertEqual(argv[:3], ["grok", "--no-auto-update", "-p"])
+        self.assertEqual(argv[argv.index("--model") + 1], "grok-build")
+        self.assertEqual(argv[argv.index("--effort") + 1], "high")
+        self.assertIn("--sandbox", argv)
+        self.assertIn("read-only", argv)
+        self.assertIn("--permission-mode", argv)
+        self.assertIn("plan", argv)
+        self.assertIn("--disable-web-search", argv)
+        self.assertIn("WebFetch", argv)
+        self.assertEqual(argv[argv.index("--cwd") + 1], "/tmp/wd")
+        self.assertTrue(a.isolates_network)
+
+    def test_explicit_models_still_pin_codex_and_grok(self):
+        codex = rb.REGISTRY["codex"].build_argv("gpt-pinned", "P", network=False)
+        grok = rb.REGISTRY["grok"].build_argv("grok-pinned", "P", network=False)
+        self.assertIn("model=gpt-pinned", codex)
+        self.assertEqual(grok[grok.index("--model") + 1], "grok-pinned")
 
     def test_stdin_modes(self):
         self.assertTrue(rb.REGISTRY["claude"].prompt_on_stdin)
@@ -196,6 +227,8 @@ class TestRegistry(unittest.TestCase):
         self.assertTrue(rb.REGISTRY["codex"].close_stdin)   # the </dev/null fix
         self.assertFalse(rb.REGISTRY["gemini"].prompt_on_stdin)
         self.assertFalse(rb.REGISTRY["gemini"].stderr_is_fatal)  # router noise is OK
+        self.assertFalse(rb.REGISTRY["grok"].prompt_on_stdin)
+        self.assertTrue(rb.REGISTRY["grok"].close_stdin)
 
 
 # --------------------------------------------------------------------------- #
@@ -255,7 +288,7 @@ class TestYamlCodec(unittest.TestCase):
 
 def _args(**kw):
     defaults = dict(source=SAMPLE, mode=None, rounds=None, cross_reading=None, lens=None,
-                    board=None, model=None, sensitivity=None, output=None, out=None,
+                    board="claude,codex,gemini", model=None, sensitivity=None, output=None, out=None,
                     title=None, from_recipe=None, dry_run=False, yes=False,
                     skip_sensitivity_gate=False)
     defaults.update(kw)
@@ -268,13 +301,13 @@ def _config(**kw):
 
 class TestConfig(EnvMixin):
     def test_defaults(self):
-        c = _config()
+        c = rb.resolve_config(_args(board=None))
         self.assertEqual(c.mode, "gate")
         self.assertEqual(c.sensitivity, "redacted")
         self.assertEqual(c.rounds, "2")
         self.assertEqual(c.cross_reading, "summaries")
         self.assertEqual(c.lens, "software-architecture")
-        self.assertEqual([s.name for s in c.board], ["claude", "codex", "gemini"])
+        self.assertEqual([s.name for s in c.board], ["claude", "codex", "gemini", "grok"])
         self.assertFalse(c.network_on)   # gate
         self.assertTrue(c.fs_scoped)
 
@@ -295,7 +328,7 @@ class TestConfig(EnvMixin):
         c = _config(model=["codex=gpt-5.6"])
         models = {s.name: s.model for s in c.board}
         self.assertEqual(models["codex"], "gpt-5.6")
-        self.assertEqual(models["claude"], "claude-fable-5")
+        self.assertEqual(models["claude"], "opus")
 
     def test_board_subset(self):
         c = _config(board="claude,gemini")
@@ -308,7 +341,7 @@ class TestConfig(EnvMixin):
 
     def test_unknown_seat_exits(self):
         with self.assertRaises(SystemExit):
-            _config(board="claude,grok")
+            _config(board="claude,not-a-provider")
 
     def test_unknown_lens_exits(self):
         with self.assertRaises(SystemExit):
@@ -358,7 +391,7 @@ class TestSeatComposition(unittest.TestCase):
         self.assertEqual(self._ids("claude,codex,gemini"), ["claude", "codex", "gemini"])
         # default board (None) likewise
         self.assertEqual([s.id for s in resolve_board(parse_board(None), "business-decision", {})],
-                         ["claude", "codex", "gemini"])
+                         ["claude", "codex", "gemini", "grok"])
 
     def test_single_bare_alongside_alias_keeps_bare_name(self):
         # one bare claude (unique among bare) stays "claude"; the aliased one is "econ".
@@ -826,7 +859,7 @@ class TestRunFlow(EnvMixin):
             raw = fh.read()
         self.assertIn("packet-hash", raw)
         self.assertIn("source-hash", raw)
-        self.assertIn("model-answered  : claude-fable-5", raw)
+        self.assertIn("model-answered  : opus", raw)
 
     def test_preflight_gates_before_egress(self):
         # Two seats down -> NO-GO -> must stop BEFORE writing any egress manifest,
@@ -1316,7 +1349,7 @@ class TestRecipeValidation(EnvMixin):
     def test_unknown_seat_rejected(self):
         self._expect_usage_error(
             f"schema: {rb.RECIPE_SCHEMA}\nsource_ref: {SAMPLE}\n"
-            "board:\n  - seat: grok\n    model: m\n")
+        "board:\n  - seat: not-a-provider\n    model: m\n")
 
 
 class TestSensitivityJsonContent(EnvMixin):
@@ -1520,7 +1553,7 @@ class TestToolchainCheck(EnvMixin):
         # mock npm/brew report "latest" 9.9.9, far ahead of the mock CLIs' versions.
         code, out, _ = run_cli(["toolchain"])
         self.assertEqual(code, rb.EXIT_OK)
-        for seat in ("claude", "codex", "gemini", "antigravity"):
+        for seat in ("claude", "codex", "gemini", "grok", "antigravity"):
             self.assertIn(seat, out)
         self.assertIn("STALE", out)
         self.assertIn("behind latest", out)
@@ -1528,6 +1561,7 @@ class TestToolchainCheck(EnvMixin):
     def test_current_when_versions_match(self):
         os.environ["MOCK_NPM_CLAUDE"] = "2.0.0"
         os.environ["MOCK_NPM_CODEX"] = "0.30.0"
+        os.environ["MOCK_NPM_GROK"] = "0.1.0"
         os.environ["MOCK_BREW_GEMINI"] = "0.46.0"
         os.environ["MOCK_BREW_CASK"] = "1.0.0"   # matches the mock agy --version
         os.environ["MOCK_BREW_OLLAMA"] = "0.5.0"  # matches the mock ollama --version
@@ -1613,18 +1647,33 @@ class TestToolchainUpdate(EnvMixin):
 
 class TestModelProposal(EnvMixin):
     def test_pinned_model_404_proposes_resolvable_fallback(self):
-        # gemini's pinned id (gemini-3.5-flash) 404s; a fallback resolves.
+        import dataclasses
+        real = rb.REGISTRY["gemini"]
+        rb.REGISTRY["gemini"] = dataclasses.replace(
+            real, default_model="gemini-3.5-flash",
+            fallback_models=("gemini-3-flash-preview",))
         os.environ["MOCK_GEMINI_MODE"] = "model_proposal"
-        code, out, _ = run_cli(["preflight", "--source", SAMPLE])
+        try:
+            code, out, _ = run_cli(["preflight", "--source", SAMPLE])
+        finally:
+            rb.REGISTRY["gemini"] = real
         # claude + codex still GO -> board can proceed (>= 2 voices)
         self.assertEqual(code, rb.EXIT_OK)
         self.assertIn("proposal (gemini)", out)
         self.assertIn("gemini-3-flash-preview", out)
 
     def test_propose_model_returns_first_resolvable(self):
+        import dataclasses
+        real = rb.REGISTRY["gemini"]
+        rb.REGISTRY["gemini"] = dataclasses.replace(
+            real, default_model="gemini-3.5-flash",
+            fallback_models=("gemini-3-flash-preview",))
         os.environ["MOCK_GEMINI_MODE"] = "model_proposal"
-        seat = next(s for s in _config().board if s.name == "gemini")
-        proposal = rb.propose_model(seat, network_on=False, workdir=None)
+        try:
+            seat = next(s for s in _config().board if s.name == "gemini")
+            proposal = rb.propose_model(seat, network_on=False, workdir=None)
+        finally:
+            rb.REGISTRY["gemini"] = real
         self.assertEqual(proposal, "gemini-3-flash-preview")
 
 
@@ -1833,11 +1882,12 @@ class TestDoctorSummary(unittest.TestCase):
 
     def test_all_go_is_viable_with_no_board_flag(self):
         s = rb.summarize_doctor([_health(p) for p in
-                                 ("claude", "codex", "gemini", "antigravity", "ollama")])
+                                 ("claude", "codex", "gemini", "grok", "antigravity", "ollama")])
         self.assertTrue(s["viable"])
-        self.assertEqual(s["go"], ["claude", "codex", "gemini", "antigravity", "ollama"])
-        self.assertIsNone(s["board"])           # default trio GO -> no --board suggestion
-        self.assertEqual(s["total"], 5)
+        self.assertEqual(s["go"],
+                         ["claude", "codex", "gemini", "grok", "antigravity", "ollama"])
+        self.assertIsNone(s["board"])           # default four GO -> no --board suggestion
+        self.assertEqual(s["total"], 6)
 
     def test_two_go_is_viable_with_explicit_board(self):
         s = rb.summarize_doctor([_health("claude"),
@@ -1850,11 +1900,11 @@ class TestDoctorSummary(unittest.TestCase):
         self.assertEqual(s["missing"], ["codex", "antigravity"])
         self.assertEqual(s["unusable"], ["gemini"])
 
-    def test_board_suggestion_caps_at_three_in_sweep_order(self):
+    def test_board_suggestion_caps_at_four_in_sweep_order(self):
         s = rb.summarize_doctor([_health("claude"), _health("codex", installed=False),
                                  _health("gemini"), _health("antigravity"),
                                  _health("ollama")])
-        self.assertEqual(s["board"], "claude,gemini,antigravity")
+        self.assertEqual(s["board"], "claude,gemini,antigravity,ollama")
 
     def test_one_go_is_not_viable(self):
         s = rb.summarize_doctor([_health("claude"),
@@ -1917,11 +1967,11 @@ class TestDoctorSweep(EnvMixin):
     def test_all_go_sweeps_every_registered_provider(self):
         code, out, _ = run_cli(["doctor"])
         self.assertEqual(code, rb.EXIT_OK)
-        for provider in ("claude", "codex", "gemini", "antigravity", "ollama"):
+        for provider in ("claude", "codex", "gemini", "grok", "antigravity", "ollama"):
             self.assertIn(f"## {provider} —", out)
-        self.assertEqual(out.count("verdict GO"), 5)      # one GO verdict per provider
+        self.assertEqual(out.count("verdict GO"), 6)      # one GO verdict per provider
         self.assertNotIn("verdict NO-GO", out)
-        self.assertIn("5 of 5 providers GO", out)
+        self.assertIn("6 of 6 providers GO", out)
         self.assertIn("no --board flag needed", out)
 
     def test_no_egress_statement_in_output(self):
@@ -1952,7 +2002,7 @@ class TestDoctorSweep(EnvMixin):
         self.assertIn("NO-GO", out)
         self.assertIn("installed but not usable yet: gemini", out)
         self.assertIn("auth/setup: run `gemini` once", out)   # the seat's auth hint
-        self.assertIn("--board claude,codex,antigravity", out)  # trio broken -> explicit board
+        self.assertIn("--board claude,codex,grok,antigravity", out)
 
     def test_not_installed_provider_gets_install_steps(self):
         import dataclasses
@@ -1970,14 +2020,22 @@ class TestDoctorSweep(EnvMixin):
         self.assertIn("not installed: codex", out)
 
     def test_model_not_found_block_shows_fallback_proposal(self):
+        import dataclasses
+        real = rb.REGISTRY["gemini"]
+        rb.REGISTRY["gemini"] = dataclasses.replace(
+            real, default_model="gemini-3.5-flash",
+            fallback_models=("gemini-3-flash-preview",))
         os.environ["MOCK_GEMINI_MODE"] = "model_proposal"
-        code, out, _ = run_cli(["doctor"])
+        try:
+            code, out, _ = run_cli(["doctor"])
+        finally:
+            rb.REGISTRY["gemini"] = real
         self.assertEqual(code, rb.EXIT_OK)
         self.assertIn("did NOT resolve", out)
         self.assertIn("--model gemini=gemini-3-flash-preview", out)
 
     def test_below_two_go_exits_nogo_with_fallback_guidance(self):
-        for seat in ("CODEX", "GEMINI", "AGY", "OLLAMA"):
+        for seat in ("CODEX", "GEMINI", "GROK", "AGY", "OLLAMA"):
             os.environ[f"MOCK_{seat}_MODE"] = "nogo_smoke"
         code, out, _ = run_cli(["doctor"])
         self.assertEqual(code, rb.EXIT_PREFLIGHT_NOGO)
@@ -1995,7 +2053,7 @@ class TestDoctorSweep(EnvMixin):
         self.assertFalse(h.installed)
         self.assertIsNone(h.probe)               # no smoke spawn for an absent CLI
         self.assertFalse(h.go)
-        self.assertEqual(h.model, "gpt-5.5")
+        self.assertEqual(h.model, "auto")
 
     def test_run_doctor_streams_results_in_registry_order(self):
         seen = []
@@ -2157,9 +2215,9 @@ class TestRound1FanOut(EnvMixin):
         self.assertTrue(all(r.usable for r in results))
         self.assertTrue(all(r.attempts == 1 for r in results))
         answered = {r.seat: r.model_answered for r in results}
-        self.assertEqual(answered["claude"], "claude-fable-5")
-        self.assertEqual(answered["codex"], "gpt-5.5")
-        self.assertEqual(answered["gemini"], "gemini-3.5-flash")
+        self.assertEqual(answered["claude"], "opus")
+        self.assertIsNone(answered["codex"])
+        self.assertEqual(answered["gemini"], "pro")
 
     def test_same_material_independence_and_hash_binding(self):
         config, blobs, approval = self._setup()
@@ -17886,12 +17944,12 @@ class TestCarriedRubricReviseE2E(EnvMixin):
 
 
 class TestStakeholderPanelLens(unittest.TestCase):
-    """D20: the stakeholder-panel LENS_PRESETS entry (three archetypes, seat-order)."""
+    """D20: stakeholder archetypes plus a fourth-seat challenger."""
 
-    def test_preset_exists_with_three_archetypes(self):
+    def test_preset_exists_with_four_archetypes(self):
         from _conductor.constants import LENS_PRESETS
         self.assertIn("stakeholder-panel", LENS_PRESETS)
-        self.assertEqual(len(LENS_PRESETS["stakeholder-panel"]), 3)
+        self.assertEqual(len(LENS_PRESETS["stakeholder-panel"]), 4)
 
     def test_seat_order_binding(self):
         # seat 1 = decision owner, seat 2 = end user, seat 3 = compliance/risk reviewer.
@@ -17910,14 +17968,13 @@ class TestStakeholderPanelLens(unittest.TestCase):
         self.assertIsNotNone(lens_disclaimer("stakeholder-panel"))   # a caveat is shown
 
     def test_resolve_board_binds_by_position(self):
-        # A 3-seat board gets the three archetypes in order; a 4th repeats the last.
+        # A 4-seat board gets all four archetypes in order.
         cfg = _config(lens="stakeholder-panel",
                       board="claude,codex,gemini,claude")
         lenses = [s.lens for s in cfg.board]
         from _conductor.constants import LENS_PRESETS
         expected = LENS_PRESETS["stakeholder-panel"]
-        self.assertEqual(lenses[:3], expected)
-        self.assertEqual(lenses[3], expected[-1])   # 4th seat repeats the reviewer voice
+        self.assertEqual(lenses, expected)
 
 
 if __name__ == "__main__":

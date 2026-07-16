@@ -1700,18 +1700,19 @@ def add_run_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--tier", choices=("quick", "standard", "deep"),
                         help="one-flag cost/depth posture, applied as a BASE that explicit "
                              "flags always override. quick: 1 round, summaries cross-reading, "
-                             "reduced per-seat reasoning (claude high, codex medium; seats "
-                             "without an effort knob untouched — model ids never change). "
+                             "reduced per-seat reasoning (claude high, codex/grok medium; seats "
+                             "without an effort knob untouched — selectors never change). "
                              "standard: today's defaults (a no-op). deep: 3 rounds, full "
                              "cross-reading, default max-tier reasoning (codex stays at "
                              "xhigh, its API ceiling). The recipe records the RESOLVED "
-                             "values, never the tier, so --from-recipe replays exactly — "
+                             "values, never the tier; floating provider selectors may resolve "
+                             "to newer frontier models on replay — "
                              "the pair is refused.")
     parser.add_argument("--lens", action="append", metavar="PRESET | SEAT=LENS",
                         help=f"lens preset for the board (default {DEFAULT_LENS}); repeat with "
                              "SEAT=LENS to give one seat its own focus (a free-form string, or a "
                              "preset name for its primary focus)")
-    parser.add_argument("--board", help="comma-separated seats (default claude,codex,gemini)")
+    parser.add_argument("--board", help="comma-separated seats (default claude,codex,gemini,grok)")
     parser.add_argument("--model", action="append", metavar="SEAT=ID",
                         help="override a seat's model (repeatable)")
     parser.add_argument("--sensitivity", choices=("public", "redacted", "local-only"),

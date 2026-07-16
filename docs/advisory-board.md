@@ -41,7 +41,7 @@ Here's a real board, debating a real decision — *"Should I go full-time on my 
 2. **The board reviews and debates.** Several top models review independently, then read each other's takes and push back — catching the blind spots a single opinion would miss.
 3. **You get one clear answer.** A short, plain-English write-up: the bottom line (go ahead / proceed with care / stop and rethink), where they agree, where they don't, the risks, and your next steps.
 
-The board is **leading models from Anthropic, OpenAI, and Google** — Claude, GPT-5.5, and Gemini — each in a different seat. Two rounds of back-and-forth by default: enough to genuinely stress-test your thinking without dragging on.
+The default board uses **frontier models from Anthropic, OpenAI, Google, and xAI** — Claude, Codex, Gemini, and Grok — each in a different seat. Provider-maintained selectors resolve the strongest current model at run time. Two rounds of back-and-forth are the default: enough to genuinely stress-test your thinking without dragging on.
 
 ## Your Data, Your Call
 
@@ -82,9 +82,10 @@ Under the warm summary is a workflow built for technical rigor — and a machine
 
 Point the board at a real codebase with `--repo` and advisors cite exact `path:line` evidence, working from a captured snapshot rather than guesswork. Ready-made lens sets for software, product, research, legal, business, and writing live in [`lens-presets.md`](../skills/advisory-board/references/lens-presets.md). For software and technical work the seats take distinct lenses:
 
-- **Claude** (`claude-opus-4-8`) — architecture, systems, and adversarial design review.
-- **Codex** (`gpt-5.5`) — repo-grounded implementation, migration, testing, and execution.
-- **Gemini** (`gemini-3-pro-preview`) — product, operations, rollout, latency, evaluation, and user-workflow risk.
+- **Claude** (`opus`, latest-Opus alias) — architecture, systems, and adversarial design review.
+- **Codex** (CLI-recommended model) — repo-grounded implementation, migration, testing, and execution.
+- **Gemini** (`pro`, highest-reasoning Pro alias) — product, operations, rollout, latency, evaluation, and user-workflow risk.
+- **Grok** (`grok-build`, Grok 4.5 at this release) — contrarian synthesis, hidden assumptions, alternatives, and decision-changing evidence.
 
 Every seat still reviews the whole brief; the lens reduces blind spots, it doesn't narrow responsibility.
 

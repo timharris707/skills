@@ -24,6 +24,8 @@ __all__ = [
     "codex_version",
     "gemini_argv",
     "gemini_version",
+    "grok_argv",
+    "grok_version",
     "antigravity_argv",
     "antigravity_version",
     "ollama_argv",
@@ -37,6 +39,9 @@ __all__ = [
     "gemini_latest_argv",
     "gemini_update_argv",
     "gemini_install_argv",
+    "grok_latest_argv",
+    "grok_update_argv",
+    "grok_install_argv",
     "antigravity_latest_argv",
     "antigravity_update_argv",
     "antigravity_install_argv",
@@ -61,15 +66,15 @@ __all__ = [
 # Each adapter's build_argv produces the exact argv for a seat. The gate-mode
 # isolation flags live HERE, in code, where they are testable:
 #   * stdin handling (codex must run with stdin closed or `codex exec` hangs);
-#   * read-only enforcement (claude plan mode / codex read-only sandbox /
+#   * read-only enforcement (claude plan mode / codex and grok read-only sandboxes /
 #     gemini approval-mode plan);
 #   * network removal for gate mode (claude --disallowed-tools WebSearch/WebFetch;
 #     codex read-only sandbox already has no network, plus --ephemeral so no
-#     session files are written; gemini plan mode executes no tools).
+#     session files are written; grok disables web search/fetch; Gemini cannot
+#     enforce network isolation and is disclosed as networked).
 #
-# CLI drift (a renamed flag, gpt-5.5 -> gpt-5.6) is a one-line edit here, never a
-# six-file hunt. Flags were grounded against the installed CLIs' --help on
-# 2026-06-25; re-verify before a large run, they move fast.
+# CLI flag drift stays localized here instead of becoming a multi-file hunt.
+# Re-verify the adapters before a large run; provider CLIs move fast.
 
 
 def _usage_unknown(stdout: str, stderr: str) -> tuple:
@@ -111,8 +116,8 @@ class SeatAdapter:
     auth_hint: str = ""                  # how to authenticate after install (no secrets)
     pkg_label: str = ""                  # human label for the manager, e.g. "brew gemini-cli"
     flags_verified_version: str = ""     # CLI version build_argv's flags were last grounded against
-    fallback_models: tuple = ()          # ordered ids to PROBE + PROPOSE if default_model 404s
-                                         # (never auto-applied — model ids stay pinned per policy)
+    fallback_models: tuple = ()          # ordered ids to PROBE + PROPOSE if a selector/pin 404s
+                                         # (never auto-applied to an explicit user pin)
 
 
 def _model_answered_none(stdout: str, stderr: str) -> Optional[str]:
@@ -157,6 +162,8 @@ def parse_model_answered(stdout: str, stderr: str) -> Optional[str]:
     if not m:
         return None
     cand = m.group(1).strip()
+    if cand.lower() in ("unknown", "auto", "default"):
+        return None
     return cand or None
 
 
@@ -244,8 +251,7 @@ def claude_argv(model, prompt, *, reasoning="max", workdir=None, network=False, 
     # same grounded or not.
     # --effort sets the session's reasoning depth (levels low|medium|high|xhigh|max,
     # verified on claude 2.1.191). The board forwards the seat's reasoning here so the
-    # Claude seat actually runs at its configured effort (default "max"). On Fable 5
-    # thinking is always-on and effort scales how hard it thinks.
+    # Claude seat actually runs at its configured effort (default "max").
     argv = ["claude", "-p", "--model", model, "--effort", reasoning,
             "--permission-mode", "plan"]
     if not network:
@@ -267,9 +273,13 @@ def codex_argv(model, prompt, *, reasoning="xhigh", workdir=None, network=False,
     # before. `grounded` is threaded for a uniform adapter signature and to make the
     # snapshot-as-cwd dependency explicit at the call site; codex reads the snapshot
     # via -C <workdir> (set to the snapshot when grounded), needing no extra flag.
-    argv = ["codex", "exec", "--sandbox", "read-only", "--skip-git-repo-check",
-            "--config", f"model={model}",
-            "--config", f"model_reasoning_effort={reasoning}"]
+    argv = ["codex", "exec", "--sandbox", "read-only", "--skip-git-repo-check"]
+    # `auto` delegates model choice to Codex's provider-maintained recommended
+    # model. This is the default-board policy; an explicit --model override still
+    # pins an exact id and is emitted here.
+    if model != "auto":
+        argv += ["--config", f"model={model}"]
+    argv += ["--config", f"model_reasoning_effort={reasoning}"]
     if not network:
         # read-only sandbox already has no network and no disk writes; --ephemeral
         # also keeps the run from persisting session files to disk.
@@ -301,6 +311,40 @@ def gemini_argv(model, prompt, *, reasoning="HIGH", workdir=None, network=False,
 
 def gemini_version():
     return ["gemini", "--version"]
+
+
+def grok_argv(model, prompt, *, reasoning="high", workdir=None, network=False, grounded=False):
+    """Build a non-interactive, read-only invocation of xAI's official Grok CLI.
+
+    Grok Build exposes the same core controls in headless mode that the board needs:
+    a single prompt, an optional exact model id, reasoning effort, a read-only sandbox, and
+    plan-mode permissions.  Keep sessions stateless and automation-friendly by
+    disabling memory, subagents, and the background updater.  In gate mode also
+    remove Grok's built-in web-search/fetch surface; model inference still reaches
+    xAI, exactly like every other hosted seat.
+    """
+    argv = [
+        "grok", "--no-auto-update", "-p", prompt,
+        "--effort", reasoning,
+        "--output-format", "plain",
+        "--permission-mode", "plan",
+        "--sandbox", "read-only",
+        "--no-subagents",
+        "--no-memory",
+    ]
+    # `grok-build` is xAI's maintained frontier alias. Explicit --model overrides
+    # remain exact pins; `auto` is accepted as an escape hatch for CLI defaults.
+    if model != "auto":
+        argv += ["--model", model]
+    if workdir:
+        argv += ["--cwd", workdir]
+    if not network:
+        argv += ["--disable-web-search", "--disallowed-tools", "WebFetch"]
+    return argv
+
+
+def grok_version():
+    return ["grok", "version"]
 
 
 def antigravity_argv(model, prompt, *, reasoning="High", workdir=None, network=False, grounded=False):
@@ -353,10 +397,10 @@ def ollama_version():
 # Toolchain currency (design §7a). Each seat CLI is installed by a different
 # package manager, so "what is the latest version" and "update it" live here,
 # per seat, next to that CLI's other quirks. The whole point is self-healing: a
-# stale CLI is the single most common reason a freshly-renamed frontier model id
-# (gemini-3-flash-preview -> gemini-3.5-flash) suddenly 404s. Grounded against
-# the installed managers on 2026-06-25: npm for claude/codex, Homebrew for gemini
-# (formula), antigravity (cask), and ollama (formula).
+# stale CLI is a common reason a provider-maintained frontier selector stops
+# resolving. Grounded against the installed managers on 2026-07-15: npm for
+# claude/codex/grok, Homebrew for gemini (formula), antigravity (cask), and
+# ollama (formula).
 
 def claude_latest_argv():  return ["npm", "view", "@anthropic-ai/claude-code", "version"]
 def claude_update_argv():  return ["claude", "update"]
@@ -369,6 +413,10 @@ def codex_install_argv():  return ["npm", "install", "-g", "@openai/codex"]
 def gemini_latest_argv():  return ["brew", "info", "--json=v2", "gemini-cli"]
 def gemini_update_argv():  return ["brew", "upgrade", "gemini-cli"]
 def gemini_install_argv(): return ["brew", "install", "gemini-cli"]
+
+def grok_latest_argv():  return ["npm", "view", "@xai-official/grok", "version"]
+def grok_update_argv():  return ["grok", "update"]
+def grok_install_argv(): return ["npm", "install", "-g", "@xai-official/grok"]
 
 def antigravity_latest_argv():  return ["brew", "info", "--json=v2", "--cask", "antigravity-cli"]
 def antigravity_update_argv():  return ["brew", "upgrade", "--cask", "antigravity-cli"]
@@ -482,10 +530,9 @@ def model_not_found(result: "SpawnResult", *, include_stdout: bool = False) -> b
 REGISTRY: dict = {
     "claude": SeatAdapter(
         name="claude",
-        # Fable 5 is Anthropic's most capable model; the board runs it at max effort
-        # (on Fable 5 thinking is always-on, so effort scales how hard it thinks).
-        # Pinned inline per the model-id policy; Anthropic ids are stable.
-        default_model="claude-fable-5",
+        # Anthropic documents `opus` as an alias for the latest Opus model. Use
+        # the maintained alias so a fresh run advances with the provider.
+        default_model="opus",
         provider="Anthropic",
         default_reasoning="max",   # forwarded via --effort; deepest level the CLI exposes
         build_argv=claude_argv,
@@ -504,16 +551,13 @@ REGISTRY: dict = {
         auth_hint="run `claude` once and sign in (Claude subscription, or set ANTHROPIC_API_KEY)",
         pkg_label="npm @anthropic-ai/claude-code",
         flags_verified_version="2.1.191",   # --model/--effort/--permission-mode plan verified here
-        # First (and only) sanctioned fallback: Opus 4.8 at the seat's same max
-        # effort (grounded live 2026-07-02: the CLI accepts --model claude-opus-4-8
-        # --effort max). Probe-and-propose only, never auto-applied — and it's also
-        # the sanctioned per-run downgrade when Claude usage matters more than
-        # Fable-tier depth (--model claude=claude-opus-4-8).
-        fallback_models=("claude-opus-4-8",),
+        fallback_models=(),
     ),
     "codex": SeatAdapter(
         name="codex",
-        default_model="gpt-5.5",
+        # Omitting an exact model makes Codex choose its current recommended
+        # model; xhigh then requests the deepest standard reasoning posture.
+        default_model="auto",
         provider="OpenAI",
         default_reasoning="xhigh",
         build_argv=codex_argv,
@@ -536,11 +580,9 @@ REGISTRY: dict = {
     ),
     "gemini": SeatAdapter(
         name="gemini",
-        # GA id confirmed against Google's docs (2026-06-24): Gemini 3 Flash Preview
-        # was renamed gemini-3-flash-preview -> gemini-3.5-flash on GA. The GA id
-        # needs gemini-cli >= 0.46 to resolve; older CLIs 404 it, which is exactly
-        # what the toolchain preflight detects and fixes (update CLI, or fall back).
-        default_model="gemini-3.5-flash",
+        # Google documents `pro` as the provider-maintained alias for its
+        # highest-reasoning Gemini model. It advances as the CLI's catalog does.
+        default_model="pro",
         provider="Google",
         default_reasoning="HIGH",
         build_argv=gemini_argv,
@@ -560,9 +602,37 @@ REGISTRY: dict = {
         auth_hint="run `gemini` once and authenticate (Google account; consumer tiers sunset 2026-06-18 — enterprise/API only)",
         pkg_label="brew gemini-cli",
         flags_verified_version="0.46.0",   # -m/-p/--approval-mode plan/--skip-trust verified on 0.46.0 (2026-06-25)
-        # Ordered fallbacks to PROBE + PROPOSE (not auto-apply) if gemini-3.5-flash
-        # 404s on a not-yet-updated CLI: the immediate predecessor first, then Pro.
-        fallback_models=("gemini-3-flash-preview", "gemini-3.1-pro", "gemini-3-pro-preview"),
+        fallback_models=(),
+    ),
+    "grok": SeatAdapter(
+        name="grok",
+        # xAI's frontier model for coding, agentic work, and knowledge work. The
+        # official CLI and API both expose low|medium|high effort; high is the
+        # deepest supported setting and is also the model default.
+        # The installed CLI reports `grok-build` as its maintained default alias;
+        # xAI docs map that alias to Grok 4.5 today. The alias can advance later.
+        default_model="grok-build",
+        provider="xAI",
+        default_reasoning="high",
+        build_argv=grok_argv,
+        version_argv=grok_version,
+        prompt_on_stdin=False,
+        close_stdin=True,
+        stderr_is_fatal=True,
+        supports_isolation=True,
+        # --sandbox read-only blocks child network on supported hosts, while
+        # --disable-web-search + disallowed WebFetch remove model web access.
+        isolates_network=True,
+        model_answered=parse_model_answered,
+        latest_argv=grok_latest_argv,
+        parse_latest=parse_npm_latest,
+        update_argv=grok_update_argv,
+        install_argv=grok_install_argv,
+        auth_hint="run `grok login` (or `grok login --device-code` headlessly); "
+                  "XAI_API_KEY is also supported",
+        pkg_label="npm @xai-official/grok",
+        flags_verified_version="0.2.101",
+        fallback_models=(),
     ),
     "antigravity": SeatAdapter(
         name="antigravity",
