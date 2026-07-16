@@ -15,6 +15,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   release:
     runs-on: ubuntu-latest
@@ -93,7 +97,39 @@ jobs:
           VERSION: ${{ steps.meta.outputs.version }}
         run: |
           set -euo pipefail
-          gh release create "$TAG" \
-            --title "$SKILL $VERSION" \
-            --notes-file notes.md \
-            --verify-tag
+          verify_existing_release() {
+            EXPECTED_NAME="$SKILL $VERSION" python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          release = json.loads(Path("existing-release.json").read_text())
+          expected_name = os.environ["EXPECTED_NAME"]
+          expected_body = Path("notes.md").read_text()
+          if release.get("name") != expected_name:
+              raise SystemExit(
+                  f"existing release title mismatch: {release.get('name')!r} != {expected_name!r}"
+              )
+          if release.get("body") != expected_body:
+              raise SystemExit("existing release body does not match the changelog section")
+          PY
+          }
+
+          if gh release view "$TAG" --json name,body > existing-release.json 2>/dev/null; then
+            verify_existing_release
+            echo "::notice::release $TAG already exists with the expected title and notes"
+            exit 0
+          fi
+
+          if gh release create "$TAG" \
+              --title "$SKILL $VERSION" \
+              --notes-file notes.md \
+              --verify-tag; then
+            exit 0
+          fi
+
+          # A duplicated tag event can race between the initial existence check
+          # and creation. Accept that race only when the winning release is exact.
+          gh release view "$TAG" --json name,body > existing-release.json
+          verify_existing_release
+          echo "::notice::a concurrent run created $TAG with the expected title and notes"
