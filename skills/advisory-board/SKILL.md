@@ -1,6 +1,6 @@
 ---
 name: advisory-board
-description: Convene a multi-model advisory board (a round table) where subscription-backed Claude, Codex, and Gemini CLIs each review the same material independently, debate across rounds by reading one another's findings, and converge on a single working handoff. Use when the user asks for an advisory board, round table, or panel; a multi-model or multi-provider review; a skilled debate among models; an adversarial review of a plan, design, architecture, document, decision, or strategy; an Opus/GPT/Gemini cross-check; or a consensus handoff from several frontier models.
+description: Convene a multi-model advisory board (a round table) where subscription-backed Claude, Codex, Gemini, and Grok CLIs each review the same material independently, debate across rounds by reading one another's findings, and converge on a single working handoff. Use when the user asks for an advisory board, round table, or panel; a multi-model or multi-provider review; a skilled debate among models; an adversarial review of a plan, design, architecture, document, decision, or strategy; an Anthropic/OpenAI/Google/xAI cross-check; or a consensus handoff from several frontier models.
 ---
 
 # Advisory Board
@@ -25,7 +25,7 @@ Hard rules, collected here so they are never missed (each is elaborated in conte
 - Rounds: 2. Cross-reading: summaries. Final artifact: full handoff (Markdown plus a self-contained HTML view).
 - Write run artifacts to the **persistent runs root** by default — `~/.advisory-board/runs/<slug>-<date>/` (slug from the run title, date from the run date; a same-day rerun gets a `-2` suffix, never an overwrite) — so runs stop evaporating and `run_board.py history` can list them. Override the root with `$ADVISORY_BOARD_RUNS_ROOT` or `--runs-root DIR`; name an exact dir with `--out DIR`; or opt back into a throwaway timestamped `/tmp/advisory-board-*` folder with `--ephemeral`. Every real run announces where its artifacts land on its first output line (a `--from-recipe` re-run reuses — and rewrites — the recipe's recorded dir unless you point it somewhere fresh). Persistence changes only the disk location — artifacts inherit the run's sensitivity handling (`references/data-handling.md`).
 - Writing artifacts into the reviewed project is itself a write, even on a read-only review: do that only when the user asks or agrees, prefer a dedicated `advisory-board/<timestamp>/` (or `docs/advisory-board/<timestamp>/`) folder, and never write into a tracked git tree without naming the location first.
-- One flag sets the whole cost/depth posture: **`--tier quick|standard|deep`**. `quick` — 1 round, `summaries` cross-reading, reduced per-seat reasoning (claude `high`, codex `medium`; model ids never change, and seats without an effort knob are untouched). `standard` — today's defaults, a deliberate no-op. `deep` — 3 rounds, `full` cross-reading at the registry's max-tier reasoning (codex stays at `xhigh`, its hard ceiling). The tier is a **base**: explicit flags (`--rounds`, `--cross-reading`) always override it, the run's `run-metadata.md` notes the tier when one was given, and `run-recipe.yaml` records the **resolved values**, never the tier name — so `--from-recipe` replays exactly (the pair is refused as contradictory). Three frontier models at high reasoning across several rounds can take minutes and meaningful tokens — flag a large run to the user before launching it, with numbers: `run_board.py run … --dry-run` prints a best-effort token/cost/time **estimate** for the exact run shape (an estimate, never a gate; subscription-backed CLIs may bill nothing per token). After the run, `run-metadata.md` records what each seat CLI actually reported, where known.
+- One flag sets the whole cost/depth posture: **`--tier quick|standard|deep`**. `quick` — 1 round, `summaries` cross-reading, reduced per-seat reasoning (claude `high`, codex/grok `medium`; model selectors never change, and seats without an effort knob are untouched). `standard` — today's defaults, a deliberate no-op. `deep` — 3 rounds, `full` cross-reading at the registry's max-tier reasoning (codex stays at `xhigh`; grok stays `high`). The tier is a **base**: explicit flags (`--rounds`, `--cross-reading`) always override it, and `run-recipe.yaml` records the resolved selectors and effort values. Provider-maintained aliases/defaults deliberately re-resolve on a later run; `--model seat=id` is the exact-pin escape hatch. Four frontier models at high reasoning across several rounds can take minutes and meaningful tokens — flag a large run before launching it; `run_board.py run … --dry-run` prints a best-effort estimate. After the run, `run-metadata.md` records what each seat CLI actually reported, where known.
 
 ## Upfront Choices
 
@@ -37,28 +37,30 @@ Optionally open with the intake interview (`references/intake-interview.md`) —
 4. Output: `quick verdict`, `full handoff`, or `implementation sequence` (default `full handoff`).
 5. Lens preset: the seat lineup's focus, from `references/lens-presets.md` (default: inferred from the material, falling back to `software-architecture`).
 6. Sensitivity: can the material go to external providers? (`references/data-handling.md` — may force a local-only board.)
-7. Board: seats and size, from `references/board-composition.md` (default: three seats — Claude, Codex, Gemini).
+7. Board: seats and size, from `references/board-composition.md` (default: four seats — Claude, Codex, Gemini, Grok).
 
 If the user says "use defaults", stop asking the *optional* setup questions and run with the defaults — with one exception. The data-handling check (choice 6) is mandatory: if the material isn't clearly public, still disclose which providers will receive it and get an explicit go-ahead before launching any external seat (`references/data-handling.md`). "Use defaults" settles the optional choices; it never waives that consent.
 
 ## Model Lineup
 
-Target the strongest reasoning model each provider offers:
+Target the strongest reasoning model each provider offers **at run time**. Defaults use provider-maintained selectors so new frontier releases do not require a skill edit; explicit `--model seat=id` overrides pin exact IDs.
 
-- Claude seat: `claude-fable-5` (Anthropic's most capable model) at max effort — `--effort max`. Fable 5 is a premium tier (priced above Opus) and max effort means longer, costlier runs; the sanctioned swap when Claude usage matters more than depth is `--model claude=claude-opus-4-8` (also the seat's registered fallback if Fable is unavailable — Opus 4.8 runs the same `--effort max`). To conserve Claude usage entirely, seat a board without the Claude seat (`--board codex,gemini`) — the other seats bill their own subscriptions.
-- Codex seat: `gpt-5.5` with `model_reasoning_effort="xhigh"` (or the highest Codex reasoning setting available).
-- Gemini seat: Google's latest frontier reasoning model via the Gemini CLI (currently Gemini 3.1 Pro) with `thinkingLevel: HIGH` (or the highest available).
+- Claude seat: Anthropic's maintained `opus` alias (latest Opus) at `--effort max`.
+- Codex seat: the Codex CLI's recommended model (no exact model pin) with `model_reasoning_effort="xhigh"`.
+- Gemini seat: Google's maintained `pro` alias (latest highest-reasoning Pro model) with the CLI's highest available thinking level.
+- Grok seat: xAI's maintained `grok-build` alias (Grok 4.5 as of 2026-07-15) through the official `grok` CLI at `--effort high`, the highest Grok 4.5 level.
 
-Model names and flags move fast — verify them against the installed CLIs or official docs before a large run. If a named model is unavailable, use the nearest same-provider frontier model and say so; never substitute silently.
+The selector (`opus`, `pro`, `grok-build`, or Codex `auto`) and the model that actually answered are separate provenance fields. If a CLI cannot report the resolved ID, record `unknown` rather than pretending. Use an exact `--model` override for an eval or replay that must not float.
 
 Preflight — run `references/preflight.md` before launching: for each seat, check the CLI is present, auth is active (subscription-backed where possible), the requested model resolves, and a one-token smoke ping returns. Proceed only with at least two seats GO; label any degraded or dropped seat in the handoff. In summary:
 
 - **First run? `run_board.py doctor`** — a guided setup check that sweeps **every** registered provider (installed → version currency → auth → default model resolves), prints per-provider fix-it steps (install command, auth command, model fallback), and summarizes which boards are viable today (≥ 2 seats GO) plus a suggested first command. Probes and smoke-pings only — it never reads or sends your material.
-- **Toolchain currency first** — `run_board.py toolchain` checks each CLI against its latest release and (`--update`, consent-gated) upgrades stale ones; `--install` installs absent ones (account/auth still required). A stale CLI is the usual reason a freshly-renamed frontier model id 404s; updating first keeps the board from half-failing. Model ids stay pinned — if one still won't resolve, preflight *proposes* a working fallback rather than swapping silently.
-- **Graceful degradation** — if fewer than two seats are usable (a downloaded skill on a machine with only one provider's CLI/account), preflight doesn't dead-end: it distinguishes *not installed* (prints the install command) from *installed-but-unauthed*, and points to the fallbacks — a same-provider multi-lens board or a local/human seat (`references/board-composition.md`). You never need all three providers to get value.
+- **Toolchain currency first** — `run_board.py toolchain` checks each CLI against its latest release and (`--update`, consent-gated) upgrades stale ones; `--install` installs absent ones (account/auth still required). Fresh CLIs keep provider-maintained frontier selectors current. Explicit `--model` pins remain exact; if one stops resolving, preflight proposes a fallback rather than silently rewriting it.
+- **Graceful degradation** — if fewer than two seats are usable (a downloaded skill on a machine with only one provider's CLI/account), preflight doesn't dead-end: it distinguishes *not installed* (prints the install command) from *installed-but-unauthed*, and points to the fallbacks — a same-provider multi-lens board or a local/human seat (`references/board-composition.md`). You never need all four providers to get value.
 - Confirm Claude subscription auth is active.
 - Confirm Codex is on ChatGPT/subscription auth, not API-key-only, when possible.
 - Confirm Gemini auth and model/config support.
+- Confirm Grok login (OAuth/device auth or `XAI_API_KEY`) and that its frontier default resolves.
 - Never print secrets, tokens, cookies, or private environment values.
 
 ## Seats
@@ -68,12 +70,13 @@ Give each seat a distinct lens so the board covers more ground than any single r
 - Claude: architecture, systems, and adversarial design review.
 - Codex: repo-grounded implementation, migration, testing, and execution.
 - Gemini: product, operations, rollout, latency, evaluation, and user-workflow risk.
+- Grok: contrarian synthesis, hidden assumptions, alternatives, and decision-changing evidence.
 
 For non-software subjects (strategy, research, writing, business, policy), assign comparable lenses — e.g. one seat on first-principles soundness, one on execution and feasibility, one on second-order consequences and stakeholder or user risk.
 
 Every seat still answers the full brief; the lens reduces blind spots, it doesn't narrow responsibility.
 
-The board defaults to three seats but isn't fixed at three — for sizing (2–5), the same provider in multiple seats (`--board claude,claude,codex` auto-numbers, or `--board econ=claude,risk=claude` aliases — each seat takes its own lens via a repeated `--lens id=…`), a human or local-model seat, an **Antigravity** seat (Google's `agy` CLI, the successor to the sunset gemini-cli), and minimal "works with what you have" lineups, see `references/board-composition.md`.
+The board defaults to four seats but isn't fixed at four — for sizing (2–5), the same provider in multiple seats (`--board claude,claude,codex` auto-numbers, or `--board econ=claude,risk=claude` aliases — each seat takes its own lens via a repeated `--lens id=…`), a human or local-model seat, an **Antigravity** seat, and minimal "works with what you have" lineups, see `references/board-composition.md`.
 
 ## Data Handling
 
@@ -174,16 +177,15 @@ Prefer read-only modes. Confirm every flag against the installed CLI (`<cli> --h
 Claude seat:
 
 ```
-claude -p "<seat prompt>" --model claude-fable-5 --effort max --permission-mode plan
+claude -p "<seat prompt>" --model opus --effort max --permission-mode plan
 ```
 
-`-p` runs non-interactively; `--permission-mode plan` keeps it read-only. `--effort max` runs the deepest reasoning the build exposes (the flag accepts `low|medium|high|xhigh|max`; on Fable 5 thinking is always-on and effort scales how hard it thinks). On long analytic prompts, `--permission-mode plan` can make the seat return a plan-style *summary* (and even claim it wrote a file) instead of the full review — so append the `{{CLAUDE_OUTPUT_OVERRIDE}}` block from `references/prompt-templates.md` verbatim to the Claude seat's prompt, and treat a short or plan-shaped artifact as a degraded seat to re-run.
+`-p` runs non-interactively; `--permission-mode plan` keeps it read-only. `--effort max` requests the deepest reasoning the installed build exposes. On long analytic prompts, plan mode can make the seat return a plan-style *summary* (and even claim it wrote a file) instead of the full review — so append the `{{CLAUDE_OUTPUT_OVERRIDE}}` block from `references/prompt-templates.md` verbatim to the Claude seat's prompt, and treat a short or plan-shaped artifact as a degraded seat to re-run.
 
 Codex seat:
 
 ```
 codex exec --sandbox read-only --skip-git-repo-check \
-  --config model="gpt-5.5" \
   --config model_reasoning_effort="xhigh" \
   "<seat prompt>" </dev/null
 ```
@@ -193,10 +195,21 @@ codex exec --sandbox read-only --skip-git-repo-check \
 Gemini seat:
 
 ```
-gemini -p "<seat prompt>" -m "<latest-frontier-gemini-model>"
+gemini -p "<seat prompt>" -m pro
 ```
 
 Run in a read-only / non-auto-approval mode so the seat can't make edits, and select the highest available thinking level. The Gemini CLI may print internal errors to stderr (e.g. model-router retries) yet still return a valid review — judge a seat by whether usable content came back, not by stderr noise or a non-zero exit; treat that as a degraded-but-ran seat, not a failure.
+
+Grok seat:
+
+```
+grok --no-auto-update -p "<seat prompt>" --model grok-build --effort high \
+  --output-format plain --permission-mode plan --sandbox read-only \
+  --no-subagents --no-memory --disable-web-search \
+  --disallowed-tools WebFetch
+```
+
+The conductor passes `--model grok-build`, xAI's maintained frontier alias (Grok 4.5 today). Override it only to pin an exact model ID. `--sandbox read-only` and plan mode block edits; the web flags remove search/fetch in gate mode.
 
 ### Gemini thinking level
 
@@ -208,7 +221,7 @@ Prefer a CLI flag or environment variable if the installed Gemini CLI exposes on
     "customAliases": {
       "<alias>": {
         "modelConfig": {
-          "model": "<latest-frontier-gemini-model>",
+          "model": "pro",
           "generateContentConfig": {
             "thinkingConfig": { "thinkingLevel": "HIGH" }
           }

@@ -8,7 +8,7 @@ Goal: a go/no-go table. Proceed only when at least two seats are **GO** (a board
 
 ## Step 0: toolchain currency (run this first)
 
-A stale seat CLI is the single most common reason a board half-fails: a frontier model gets renamed (e.g. `gemini-3-flash-preview` → `gemini-3.5-flash` on GA) and the pinned id suddenly 404s on a CLI too old to know the new route. So the conductor checks each CLI against its latest release *before* probing models, and offers to update the stale ones.
+A stale seat CLI is the single most common reason a board half-fails: its provider-maintained frontier alias/default may require a newer catalog or routing build. The conductor therefore checks each CLI against its latest release *before* probing models and offers to update stale ones.
 
 ```
 run_board.py toolchain            # read-only: installed vs latest, per seat
@@ -16,7 +16,7 @@ run_board.py toolchain --update   # update stale CLIs (confirms first; --yes to 
 run_board.py toolchain --install  # install absent CLIs (consent-gated; auth still required)
 ```
 
-- **Check** is read-only — it never mutates anything. It reads the installed version (`<cli> --version`) and the latest published version (npm for claude/codex, Homebrew for gemini/antigravity/ollama), and reports each seat as **current / STALE / missing / unknown**, plus a *flag-drift* advisory when the installed CLI is newer than the version its argv flags were last grounded against (re-verify `--help`).
+- **Check** is read-only — it never mutates anything. It reads the installed version (`<cli> --version`) and the latest published version (npm for Claude/Codex/Grok, Homebrew for Gemini/Antigravity/Ollama), and reports each seat as **current / STALE / missing / unknown**, plus a *flag-drift* advisory when the installed CLI is newer than the version its argv flags were last grounded against (re-verify `--help`).
 - **Update is consent-gated** (`detect → confirm → update`): it lists what's stale and updates only what you approve. `--yes` approves unattended; a non-interactive shell without `--yes` is a no-op, not an error.
 - **Missing CLIs**: an absent binary is reported as `missing` (distinct from `unknown`), and the exact install command is printed. `--install` runs it on consent. **Installing a CLI does not grant an account** — you still need provider auth, so it's only worth installing a CLI you can log into.
 - `run --update-tools` folds Step 0 into a run: check + (gated) update, then preflight, then the board.
@@ -31,7 +31,7 @@ A board needs at least two independent voices. Rather than dead-ending, prefligh
 
 So a user who only has one provider (say, only Anthropic) is never stuck: they can run a same-provider multi-lens board or add a local/human seat, and the skill says so instead of just refusing.
 
-**Model ids stay pinned, never auto-swapped.** If a pinned model id still doesn't resolve after the CLI is current, preflight probes that seat's known fallbacks and **proposes** a resolvable id (surfaced in the preflight table and `run-metadata.md`) — it does not silently switch models. Apply it yourself with `--model <seat>=<id>` or by updating the registry.
+**Default selectors float; explicit model IDs stay pinned.** The default board uses provider-maintained selectors (`opus`, `pro`, or the CLI's recommended/default model) so new frontier releases can be adopted without a skill update. An explicit `--model <seat>=<id>` remains an exact pin. If an exact pin no longer resolves, preflight may propose a same-provider fallback; it never silently rewrites the user's pin.
 
 ## What to check, per seat
 

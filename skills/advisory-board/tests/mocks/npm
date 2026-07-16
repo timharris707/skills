@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Mock `npm` for toolchain-currency tests. Handles `npm view <pkg> version`.
 # The "latest" returned is env-controlled so a test can force stale vs current:
-#   MOCK_NPM_CLAUDE / MOCK_NPM_CODEX (default 9.9.9 => stale vs the mock CLIs).
+#   MOCK_NPM_CLAUDE / MOCK_NPM_CODEX / MOCK_NPM_GROK
+#   (default 9.9.9 => stale vs the mock CLIs).
 set -u
 
 if [ "${1:-}" = "view" ]; then
@@ -9,6 +10,7 @@ if [ "${1:-}" = "view" ]; then
   case "$pkg" in
     *claude-code*) echo "${MOCK_NPM_CLAUDE:-9.9.9}" ;;
     *codex*)       echo "${MOCK_NPM_CODEX:-9.9.9}" ;;
+    *@xai-official/grok*) echo "${MOCK_NPM_GROK:-9.9.9}" ;;
     *)             echo "0.0.0" ;;
   esac
   exit 0

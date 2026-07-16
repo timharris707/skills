@@ -4,13 +4,21 @@ All notable changes to the `advisory-board` skill are documented here.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Releases are
 cut as **skill-scoped semver tags** `advisory-board/vX.Y.Z` (see [`RELEASING.md`](../../RELEASING.md)).
-Pre-1.0 the minor tracks the conductor milestone (M5 → `v0.5.0`, M6 → `v0.6.0`); `v1.0.0` is
-reserved for an explicit production-ready call. The verdict-JSON schema is versioned separately
-(`advisory-board/verdict@N`) and is not the same axis as the release version.
+The skill follows SemVer; its artifact schemas (for example `advisory-board/verdict@N`) are
+versioned separately and do not replace the skill release version.
 
 ## [Unreleased]
 
 _Nothing yet._
+
+## [v1.16.0] - 2026-07-15 — Four-provider frontier board
+
+### Added
+- Added xAI's official Grok CLI as the fourth default frontier seat, using the provider-maintained `grok-build` selector (Grok 4.5 at release time) with high reasoning effort, read-only sandboxing, web-search isolation in gate mode, doctor/toolchain support, and full mock coverage.
+
+### Changed
+- Default model selection now floats on each provider's maintained frontier selector: Claude `opus`, Codex's recommended model (`auto`), Gemini `pro`, and Grok `grok-build`. Explicit `--model seat=id` overrides remain pinned, and run provenance records both the requested selector and the model reported by the CLI.
+- Expanded the default board, disclosures, per-seat lens presets, dry-run estimates, and setup guidance from three providers to Claude, Codex, Gemini, and Grok.
 
 ## [v1.15.0] - 2026-07-03 — Rubric-first deliberation
 

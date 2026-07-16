@@ -71,7 +71,7 @@ class SourceSpec:
 class SeatConfig:
     id: str              # unique per-seat identity (alias, or provider[#N]) — the run's key:
                          # filesystem paths, dicts, cross-reading, render, dissent attribution
-    name: str            # provider/registry name (claude/codex/gemini) — adapter + egress provider
+    name: str            # provider/registry name (claude/codex/gemini/grok) — adapter + egress provider
     adapter: SeatAdapter
     model: str
     lens: str
@@ -312,7 +312,7 @@ def assign_seat_ids(seat_specs: list) -> list:
 
     An alias is the id verbatim. A bare provider keeps its name as the id unless that
     provider is bare-repeated, in which case the repeats are numbered provider#1, #2…
-    in board order. So a unique-provider board (claude,codex,gemini) keeps id==name —
+    in board order. So a unique-provider board (claude,codex,gemini,grok) keeps id==name —
     byte-identical to the pre-feature behavior. Returns [(id, provider), ...]."""
     bare_total: dict = {}
     for alias, provider in seat_specs:
@@ -900,10 +900,10 @@ _ALIAS_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 def parse_board(value: Optional[str]) -> list:
     """Parse --board into [(alias|None, provider), ...] in board order.
 
-    Each comma-separated entry is either a bare `provider` (claude/codex/gemini) or an
-    `alias=provider` (a user-named seat). The default board is the three providers, bare."""
+    Each comma-separated entry is either a bare provider or an `alias=provider`
+    (a user-named seat). The default board is four frontier providers, bare."""
     if not value:
-        return [(None, "claude"), (None, "codex"), (None, "gemini")]
+        return [(None, "claude"), (None, "codex"), (None, "gemini"), (None, "grok")]
     specs: list = []
     for raw in value.split(","):
         item = raw.strip()
@@ -989,7 +989,7 @@ def parse_lens_args(values) -> tuple:
     """Split the repeated --lens into (board_preset|None, {seat_id: focus}).
 
     A bare token is the board-level preset (the verdict's vocabulary/disclaimer +
-    the positional default focus trio); an `id=value` token overrides one seat's
+    the positional default focus set); an `id=value` token overrides one seat's
     focus. At most one bare preset is allowed."""
     if values is None:
         values = []

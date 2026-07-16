@@ -2,6 +2,7 @@
 .env
 .env.*
 *.log
+*.zip
 tmp/
 dist/
 .cache/

@@ -12,7 +12,7 @@ If the `grilling` or `grill-with-docs` skills are available, use one as the inte
 2. **Stakes** — quick gut-check or high-stakes decision? Drives rounds and seat count.
 3. **Sensitivity** — can this material go to external providers? (→ `references/data-handling.md`; may force local-only.)
 4. **Subject & lens preset** — which preset fits (`references/lens-presets.md`), or custom lenses?
-5. **Board** — default three seats, or resize / recompose (`references/board-composition.md`)? What's actually installed?
+5. **Board** — default four seats, or resize / recompose (`references/board-composition.md`)? What's actually installed?
 6. **Rounds & cross-reading** — `1` / `2` / `3` / `auto`; `none` / `summaries` / `full`.
 7. **Output** — quick verdict, full handoff, implementation sequence; plus any derived format (PR comment, Slack, gate `verdict.json`)?
 8. **Decision owner** — who reads the result, and what would make it actionable for them?

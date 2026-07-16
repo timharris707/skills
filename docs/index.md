@@ -12,7 +12,7 @@ This repository is provider-agnostic. Individual skills may include runtime-spec
 
 ### [Advisory Board](./advisory-board)
 
-**Get a room full of expert advisors for any big decision — before you commit.** Several leading AI models from Anthropic, OpenAI, and Google each examine the same thing — your plan, your draft, your decision — then debate it out loud and hand you one clear recommendation: what's solid, what's risky, and what to do next. Works for software, but also product, research, legal, business, and writing.
+**Get a room full of expert advisors for any big decision — before you commit.** Frontier models from Anthropic, OpenAI, Google, and xAI each examine the same thing — your plan, your draft, your decision — then debate it out loud and hand you one clear recommendation: what's solid, what's risky, and what to do next. Works for software, but also product, research, legal, business, and writing.
 
 [**See a real board in action →**](./sample-handoff.html) — a finished handoff on *"Should I go full-time on my side project?"* (verdict: proceed with care, unanimous), or [read the full page](./advisory-board).
 

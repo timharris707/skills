@@ -16,6 +16,11 @@ skills/<skill-name>/
 
 `SKILL.md` should contain the core behavior and should be understandable without a specific provider runtime. Put longer reusable prompts, examples, or reference material in `references/`. Optional executable helpers go in `scripts/` — keep them dependency-free (e.g. Python 3 standard library) and make sure the skill still works without them.
 
+The repository root and the tracked `skills/` catalog are intentionally separate. A checkout may
+be named anything (`agent-skills/` is less visually repetitive than `skills/`); do not flatten the
+catalog into the repository root because release automation and multi-skill paths depend on
+`skills/<skill-name>/`.
+
 ## Quality Bar
 
 - Keep instructions concise and operational.
@@ -27,6 +32,8 @@ skills/<skill-name>/
 ## Validation
 
 When a skill is Codex-compatible, validate it with the local skill validator before publishing changes.
+Pull requests must also pass `.github/workflows/ci.yml`, including Python compilation, shell-mock
+syntax checks, and the complete advisory-board test suite.
 
 ## Releases
 

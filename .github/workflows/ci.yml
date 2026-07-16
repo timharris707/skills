@@ -1,0 +1,45 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  advisory-board:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 2
+
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.12"
+
+      - name: Compile Python sources
+        run: python -m compileall -q skills/advisory-board/scripts
+
+      - name: Validate shell mocks
+        run: |
+          set -euo pipefail
+          for script in skills/advisory-board/tests/mocks/*; do
+            [ -f "$script" ] || continue
+            if head -n 1 "$script" | grep -qE '(ba|z|k)?sh'; then
+              bash -n "$script"
+            fi
+          done
+
+      - name: Run advisory-board tests
+        run: python -m unittest discover -s skills/advisory-board/tests -p 'test*.py'
+
+      - name: Check tracked whitespace
+        run: git diff --check HEAD^1 HEAD

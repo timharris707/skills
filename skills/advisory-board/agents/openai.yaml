@@ -1,4 +1,4 @@
 interface:
   display_name: "Advisory Board"
-  short_description: "Multi-model round-table review (Claude, Codex, Gemini)"
-  default_prompt: "Use $advisory-board to run a two-round Opus/GPT/Gemini advisory review of this material."
+  short_description: "Four-provider frontier round-table review"
+  default_prompt: "Use $advisory-board to run a two-round Claude/Codex/Gemini/Grok frontier advisory review of this material."

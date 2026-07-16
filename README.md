@@ -14,7 +14,7 @@ This repository is provider-agnostic: a skill may ship adapter metadata for a sp
 
 **Get a room full of expert advisors for any big decision — before you commit.** Bring the board whatever you're weighing — a plan, a draft, a contract, a design, a real-life choice — and several leading AI models each examine it independently, then read each other's notes, argue out the disagreements, and hand you back one clear answer: what's solid, what's risky, and what to do next. You read it like a memo, not a config file. It works for software, but also for product, research, legal, business, and writing decisions.
 
-The board is **leading models from Anthropic, OpenAI, and Google** — Claude, Codex/GPT-5.5, and Gemini — each sitting in a different seat. Each reviews the same source on its own, then reads a packet of the others' findings and answers the strongest objections, before a final synthesis turns the debate into one working handoff. You leave with the best conclusion the board can reach together — not three disconnected opinions.
+The default board uses frontier models from **Anthropic, OpenAI, Google, and xAI** — Claude, Codex, Gemini, and Grok — each sitting in a different seat. Provider-maintained aliases/defaults select the strongest current model at run time, while explicit model overrides remain pinned. Each seat reviews the same source on its own, then reads a packet of the others' findings and answers the strongest objections before a final synthesis turns the debate into one working handoff.
 
 Use it to:
 
@@ -81,6 +81,11 @@ docs/
   advisory-board.md
   sample-handoff.html
 ```
+
+The outer checkout directory can have any name; `skills/` above is the tracked
+catalog inside the repository. If a local path such as `skills/skills/` feels
+ambiguous, clone or rename the checkout to `agent-skills/` and keep the tracked
+catalog unchanged.
 
 ## Using A Skill
 
