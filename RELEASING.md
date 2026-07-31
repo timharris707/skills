@@ -13,6 +13,14 @@ which publishes the release automatically — you never run `gh release create` 
   capabilities and deliberate default expansions whose old behavior remains available through
   explicit flags; and **patch** for backward-compatible fixes. Model and artifact schema versions
   such as `advisory-board/verdict@N` are separate axes and do not replace the skill version.
+- **Packs:** skills that ship and version **together** release under one **pack-scoped tag**
+  instead of per-skill tags. The `team-workflow` pack (router, setup, decision-map, prototype,
+  research) releases as `team-workflow/vX.Y.Z` with one changelog at
+  [`skills/team-workflow/CHANGELOG.md`](skills/team-workflow/CHANGELOG.md) — exactly the path the
+  release workflow derives from the tag prefix, so pack releases run through the existing workflow
+  unchanged. Individual pack skills never get their own tags. The pack's plugin `version` in
+  [`.claude-plugin/marketplace.json`](.claude-plugin/marketplace.json) mirrors the latest pack tag;
+  bump it in the release commit. Standalone skills (e.g. advisory-board) keep per-skill tags.
 - **Cadence:** cut a release **when a milestone PR merges to `main`** — not on every PR. Infra-only,
   CI-only, and docs-only PRs do **not** get a tag or release (no tag → the workflow never fires).
 - **Notes source:** each skill keeps a [`CHANGELOG.md`](skills/advisory-board/CHANGELOG.md)

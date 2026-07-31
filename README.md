@@ -9,6 +9,7 @@ This repository is provider-agnostic: a skill may ship adapter metadata for a sp
 | Skill | Purpose |
 | --- | --- |
 | [Advisory Board](./skills/advisory-board/SKILL.md) | Convene a board of leading AI models to review the same decision, debate across rounds, and hand back one clear recommendation. |
+| [Team-Workflow pack](#team-workflow-pack) | Five skills that ship and version together — a portable discipline for tracked, multi-session, agent-assisted development: decision maps, throwaway prototypes, autonomous research, a once-per-repo setup interview, and a router entry point. |
 
 ## Advisory Board
 
@@ -52,6 +53,44 @@ Every run ends in a single, self-contained HTML handoff that opens offline in an
 
 The look comes from one template, [`handoff-template.html`](./skills/advisory-board/references/handoff-template.html), so any agent that installs the skill renders the same clean output.
 
+## Team-Workflow Pack
+
+**A workflow for teams building with agents — without the collisions.** The team-workflow pack is a portable discipline for tracked, multi-session, agent-assisted development: decide before you build, prototype what discussion can't settle, research what sources can answer, and keep parallel sessions from stepping on each other. Everything repo-specific lives in one binding doc the setup skill seeds; every skill defers judgment calls to **the decider** — the role your repo names, not a person the pack assumes.
+
+| Skill | Reach for it when |
+| --- | --- |
+| [router](./skills/router/SKILL.md) | Unsure which pack skill applies, or orienting a new session/repo. The pack's single entry point. |
+| [setup](./skills/setup/SKILL.md) | Installing the pack into a repo or refreshing its bindings — the once-per-repo interview that seeds the binding doc and templates. |
+| [decision-map](./skills/decision-map/SKILL.md) | The work is genuinely foggy: open questions gate each other and nobody can spec it in one sitting. |
+| [prototype](./skills/prototype/SKILL.md) | The question is "how should this look / behave / feel in action" — throwaway code whose verdict is the deliverable. |
+| [research](./skills/research/SKILL.md) | A question is answerable from primary sources and should run fire-and-report, ending in a cited findings file. |
+
+The pack versions **as one unit**: a single tag `team-workflow/vX.Y.Z`, a single
+[`CHANGELOG.md`](./skills/team-workflow/CHANGELOG.md), and a matching plugin version — consuming
+repos pin one pack version and upgrade deliberately. See [`RELEASING.md`](./RELEASING.md).
+
+### Install as a Claude Code plugin
+
+```text
+/plugin marketplace add timharris707/skills
+/plugin install team-workflow@skills
+```
+
+This repo is a Claude Code plugin marketplace ([`.claude-plugin/marketplace.json`](./.claude-plugin/marketplace.json)) hosting both `team-workflow` (the five pack skills as one plugin) and `advisory-board` (`/plugin install advisory-board@skills`).
+
+### Install without the plugin system
+
+Clone the repo and copy or symlink the skill directories into wherever your runtime discovers skills — for Claude Code, the personal skills folder:
+
+```bash
+git clone https://github.com/timharris707/skills.git
+for s in router setup decision-map prototype research; do
+  ln -s "$(pwd)/skills/skills/$s" ~/.claude/skills/$s
+done
+```
+
+(Adjust the first path segment to your checkout's name; symlinks track updates on `git pull`, copies pin what you have.) Other agent runtimes can read each `SKILL.md` directly — start with the [router](./skills/router/SKILL.md).
+
 ## Repository Layout
 
 ```text
@@ -76,6 +115,17 @@ skills/
       board_verdict.py
       format_output.py
       README.md
+  router/            # team-workflow pack: entry point
+  setup/             # team-workflow pack: binding interview + seeded templates
+  decision-map/      # team-workflow pack
+  prototype/         # team-workflow pack
+  research/          # team-workflow pack
+  team-workflow/
+    CHANGELOG.md     # the pack's single changelog (pack-scoped tags resolve here)
+.claude-plugin/
+  marketplace.json   # plugin marketplace: advisory-board + team-workflow
+scripts/
+  check_router_freshness.py   # CI: router roster and marketplace stay in sync with skills/
 docs/
   index.md
   advisory-board.md
@@ -99,10 +149,12 @@ GitHub Pages-ready documentation lives in [`docs/`](./docs/) — the Advisory Bo
 
 ## Releases
 
-Each skill is versioned independently and published as a GitHub release from a skill-scoped tag
-(`<skill>/vX.Y.Z`). Per-skill changes are tracked in that skill's `CHANGELOG.md` (e.g.
-[`skills/advisory-board/CHANGELOG.md`](./skills/advisory-board/CHANGELOG.md)); see
-[`RELEASING.md`](./RELEASING.md) for how releases are cut.
+Standalone skills version independently and publish as GitHub releases from skill-scoped tags
+(`<skill>/vX.Y.Z`), with changes tracked in that skill's `CHANGELOG.md` (e.g.
+[`skills/advisory-board/CHANGELOG.md`](./skills/advisory-board/CHANGELOG.md)). The team-workflow
+pack versions as one unit under a pack-scoped tag (`team-workflow/vX.Y.Z`) with one
+[pack changelog](./skills/team-workflow/CHANGELOG.md). See [`RELEASING.md`](./RELEASING.md) for
+how releases are cut.
 
 ## License
 
