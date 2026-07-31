@@ -13,6 +13,18 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  router-freshness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      # Structural check, standard library only: marketplace.json is valid and
+      # claims every skills/<dir>; the team-workflow router roster names every
+      # pack skill; every router link resolves. See the script's docstring.
+      - name: Check router and catalog freshness
+        run: python3 scripts/check_router_freshness.py
+
   advisory-board:
     runs-on: ubuntu-latest
     timeout-minutes: 10
