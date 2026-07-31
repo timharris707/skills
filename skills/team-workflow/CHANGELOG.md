@@ -12,10 +12,9 @@ with no workflow changes.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-<!-- At release time, rename the heading below to `## [v1.0.0] - YYYY-MM-DD — v1 pack` and add a
-     fresh empty `## [Unreleased]` above it, per RELEASING.md. -->
-
 ## [Unreleased]
+
+## [v1.0.0] - 2026-07-31 — v1 pack
 
 ### Added
 
