@@ -1,0 +1,38 @@
+{
+  "name": "skills",
+  "owner": {
+    "name": "Tim Harris",
+    "url": "https://github.com/timharris707"
+  },
+  "metadata": {
+    "description": "Marketplace for the skills in this repository: the advisory-board skill and the team-workflow pack."
+  },
+  "plugins": [
+    {
+      "name": "advisory-board",
+      "source": "./",
+      "strict": false,
+      "version": "1.16.0",
+      "description": "Convene a board of leading AI models to review the same decision, debate across rounds, and hand back one clear recommendation.",
+      "license": "MIT",
+      "skills": [
+        "./skills/advisory-board"
+      ]
+    },
+    {
+      "name": "team-workflow",
+      "source": "./",
+      "strict": false,
+      "version": "1.0.0",
+      "description": "A portable discipline for tracked, multi-session, agent-assisted development: a router entry point, a once-per-repo setup interview, decision maps, throwaway prototypes, and autonomous research lanes. Versioned as one pack (team-workflow/vX.Y.Z); this version mirrors the latest pack tag.",
+      "license": "MIT",
+      "skills": [
+        "./skills/router",
+        "./skills/setup",
+        "./skills/decision-map",
+        "./skills/prototype",
+        "./skills/research"
+      ]
+    }
+  ]
+}
