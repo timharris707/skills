@@ -42,6 +42,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   explicit invocation of a file-writing pack skill constitutes approval for its declared
   writes only. The setup skill's binding-doc-home prose now self-justifies tracked-and-
   un-synced placement in config-pipeline-owner terms.
+- **Empty-project support in the setup interview**: a brand-new repo is a first-class
+  consumer — the tracker binding gains a no-tracker-yet branch (bind one now, or record an
+  explicit `none yet` with the recipes dormant), verify commands allow a recorded `none yet`
+  that the idempotent re-run revisits, setup creates the pack's label vocabulary on a
+  freshly bound tracker so the frontier query isn't forever-empty, seeds the handoff-file
+  `.gitignore` entry alongside the hook, and creates the conventional agent-settings file
+  when none exists (non-sync-managed repos only); "Done when" counts a recorded absence as
+  a filled binding.
 - **Review-response boundary in the router**: institutional review memory noted as a sibling
   of the derive-your-classes-from-history meta-rule, and the pack's territory stated
   explicitly — planning, research, prototyping, handoff, and orchestration; the

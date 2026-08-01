@@ -9,16 +9,18 @@ _Pack version: <pack version installed> · Last confirmed: <date>_
 
 ## Tracker binding
 
-- **Tracker**: <e.g. GitHub Issues on `<owner>/<repo>`>
-- **Claim recipe**: <e.g. "the pack's tracker-discipline recipes as written" — or the repo's mapping of them onto its tracker>
+- **Tracker**: <e.g. GitHub Issues on `<owner>/<repo>` — or `none yet: <why>; revisit at next setup re-run`>
+- **Claim recipe**: <e.g. "the pack's tracker-discipline recipes as written" — or the repo's mapping of them onto its tracker; `dormant until a tracker is bound` when the tracker is `none yet`>
 - **Frontier query**: <the exact command/query that lists grabbable items>
 - **Blocking**: <native dependency edges + `blocked` label, or the repo's equivalent dual-read>
-- **Label mapping** (optional): <repo labels ↔ pack vocabulary: needs-triage / ready-for-agent / ready-for-human / blocked + type labels>
+- **Label vocabulary**: <`pack defaults, created at setup on <date>` | repo labels ↔ pack vocabulary: needs-triage / ready-for-agent / ready-for-human / blocked + type labels (slice / bug / gate-decision / process) | the creation instruction, for trackers setup cannot drive>
 
 ## Verify commands
 
 <!-- The exact commands that constitute "verified" here. Briefs and templates name these
-     instead of guessing. Tier them if the repo distinguishes blast radii. -->
+     instead of guessing. Tier them if the repo distinguishes blast radii.
+     A repo with no toolchain yet records the explicit none-yet form below instead of the
+     command block — never a guessed command. The setup re-run revisits it. -->
 
 ```bash
 <typecheck command>
@@ -26,6 +28,10 @@ _Pack version: <pack version installed> · Last confirmed: <date>_
 <test command>
 <build command>
 ```
+
+<!-- Or, on a brand-new repo:
+- **Verify commands**: none yet (no toolchain as of <date>) — revisit at next setup re-run.
+-->
 
 ## The decider
 
@@ -55,7 +61,8 @@ How the pack composes with this repo's resident rule systems. Resident rules win
 ## Handoff
 
 - **Handoff location**: <where the handoff skill writes, e.g. `.claude/handoff.md`, untracked>
-- **Session-start auto-load hook**: <seeded in `<settings file>` | pending as a snippet with the settings owner (sync-managed settings) | declined>
+- **Ignore entry**: <seeded in `.gitignore` | already present | declined — the entry that keeps the handoff file untracked>
+- **Session-start auto-load hook**: <seeded in `<settings file>` (created fresh if the repo had none) | pending as a snippet with the settings owner (sync-managed settings) | declined>
 
 ## Orchestration (optional — repos running an orchestrator)
 

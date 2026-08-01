@@ -72,3 +72,5 @@ Division of labor: **edges are authoritative wherever the blocker is a tracker i
 ## State and type labels (the vocabulary binding maps these)
 
 The pack's reference vocabulary — map your repo's existing labels onto it in the binding doc rather than renaming your labels: state = `needs-triage` (all inbound; verify/reproduce before promoting) → `ready-for-agent` / `ready-for-human`, plus `blocked`; type labels tag the kind of work (build slice, bug, decision, process) and can drive per-type verification tiers if the repo wants them.
+
+These labels must actually exist on the tracker before any recipe above can match them — a frontier query against labels nobody created returns empty forever, and nothing downstream creates them as a side effect. On a fresh tracker the setup interview creates the vocabulary (or records the creation instruction) as part of the tracker binding; if your frontier is inexplicably empty on a new repo, check the labels exist before debugging the query.
