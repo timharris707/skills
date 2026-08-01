@@ -51,7 +51,21 @@ How the pack composes with this repo's resident rule systems. Resident rules win
 
 - Issue/work-item spec: <adopted repo's own | seeded at `<path>` | declined>
 - Lane brief: <adopted | seeded at `<path>` | declined>
-- Handoff: <adopted | seeded at `<path>` | declined>
+
+## Handoff
+
+- **Handoff location**: <where the handoff skill writes, e.g. `.claude/handoff.md`, untracked>
+- **Session-start auto-load hook**: <seeded in `<settings file>` | pending as a snippet with the settings owner (sync-managed settings) | declined>
+
+## Orchestration (optional — repos running an orchestrator)
+
+<!-- The orchestrate skill's binding slots. Omit this section if no session orchestrates. -->
+
+- **Lane launch**: <how a working session starts; what gets stamped on the tracker item; how sessions are titled/surfaced>
+- **Workspace provisioning**: <how a fresh per-lane workspace is created; per-lane resources that must be pruned with it>
+- **Monitoring**: <how the orchestrator watches PRs / tracker activity / lane liveness between turns>
+- **Verification executor**: <who re-runs a lane's verification at close-out, and how>
+- **Merge flow**: <integration mechanics; who may push what where>
 
 ## Friction log (optional)
 
