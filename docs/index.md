@@ -23,7 +23,7 @@ The repository doubles as a Claude Code plugin marketplace, but nothing is locke
 
 **Get a room full of expert advisors for any big decision — before you commit.** Frontier models from Anthropic, OpenAI, Google, and xAI each examine the same thing — your plan, your draft, your decision — then debate it out loud and hand you one clear recommendation: what's solid, what's risky, and what to do next. Works for software, but also product, research, legal, business, and writing.
 
-[**Read the full guide →**](./advisory-board) — or jump straight to [a real finished handoff](./sample-handoff.html) on *"Should I go full-time on my side project?"* (verdict: proceed with care, unanimous).
+[**Read the full guide →**](./advisory-board) — or jump straight to [a real finished handoff](./sample-handoff.html) from another real run, *"Should I go full-time on my side project?"* (verdict: proceed with care, unanimous).
 
 ## Team-Workflow Pack
 
