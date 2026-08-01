@@ -14,8 +14,10 @@ This repo is a [Claude Code plugin marketplace](./.claude-plugin/marketplace.jso
 | [decision-map](./skills/decision-map/SKILL.md) | Chart genuinely foggy work — where open questions gate each other — as a decision map before anyone writes a build spec. | team-workflow pack |
 | [prototype](./skills/prototype/SKILL.md) | Throwaway prototype code that answers a design question you can't settle by discussion; the verdict is the deliverable, and the winner gets rebuilt properly. | team-workflow pack |
 | [research](./skills/research/SKILL.md) | Fire-and-report investigation against primary sources, ending in a cited findings file — and a questionnaire when the missing facts are human-held. | team-workflow pack |
+| [handoff](./skills/handoff/SKILL.md) | Write a structured session handoff — at wrap-up or when context fills — so a fresh session resumes losslessly. | team-workflow pack |
+| [orchestrate](./skills/orchestrate/SKILL.md) | Run one session as the orchestrator of parallel working lanes: route tracked items, audit results, own integration — never implement. | team-workflow pack |
 
-The five **team-workflow** skills ship and version together as one pack — install them as a set and they cover the full loop of tracked, multi-session, agent-assisted development. **advisory-board** stands alone and works anywhere a hard decision does.
+The seven **team-workflow** skills ship and version together as one pack — install them as a set and they cover the full loop of tracked, multi-session, agent-assisted development. **advisory-board** stands alone and works anywhere a hard decision does.
 
 ## Install (Claude Code)
 
@@ -24,7 +26,7 @@ Add the marketplace once, then install whichever plugins you want:
 ```text
 /plugin marketplace add timharris707/skills
 /plugin install advisory-board@skills    # the multi-model advisory board
-/plugin install team-workflow@skills     # all five pack skills as one plugin
+/plugin install team-workflow@skills     # all seven pack skills as one plugin
 ```
 
 ### Install without the plugin system
@@ -33,7 +35,7 @@ Clone the repo and copy or symlink skill directories into wherever your runtime 
 
 ```bash
 git clone https://github.com/timharris707/skills.git agent-skills
-for s in advisory-board router setup decision-map prototype research; do
+for s in advisory-board router setup decision-map prototype research handoff orchestrate; do
   ln -s "$(pwd)/agent-skills/skills/$s" ~/.claude/skills/$s
 done
 ```
@@ -50,7 +52,9 @@ Bring the board whatever you're weighing — a plan, a draft, a contract, a desi
 
 ### Team-Workflow Pack
 
-A portable discipline for teams building with agents — without the collisions. Decide before you build (`decision-map`), prototype what discussion can't settle (`prototype`), investigate what sources can answer (`research`), and keep parallel sessions from stepping on each other with the tracker recipes `setup` binds to your repo. Everything repo-specific lives in one binding doc; every skill defers judgment calls to **the decider** — the role your repo names, not a person the pack assumes.
+A portable discipline for teams building with agents — without the collisions. Decide before you build (`decision-map`), prototype what discussion can't settle (`prototype`), investigate what sources can answer (`research`), hand sessions off losslessly (`handoff`), coordinate parallel lanes from one seat (`orchestrate`), and keep sessions from stepping on each other with the tracker recipes `setup` binds to your repo. Everything repo-specific lives in one binding doc; every skill defers judgment calls to **the decider** — the role your repo names, not a person the pack assumes.
+
+The pack deliberately covers the stages **upstream and around** building: planning, research, prototyping, handoff, orchestration, tracker hygiene. It ships no review-response system — repos that already run one (a review skill with its own decision wiki) keep it, and the pack defers to it entirely.
 
 First run in a repo: install the pack, then run `setup`. When unsure which skill applies, the [router](./skills/router/SKILL.md) is the map.
 
@@ -66,6 +70,8 @@ skills/
   decision-map/      # team-workflow pack
   prototype/         # team-workflow pack
   research/          # team-workflow pack
+  handoff/           # team-workflow pack: session handoffs (+ reference template)
+  orchestrate/       # team-workflow pack: orchestration principles + binding slots
   team-workflow/     # the pack's single CHANGELOG.md (pack-scoped tags resolve here)
 .claude-plugin/
   marketplace.json   # plugin marketplace: advisory-board + team-workflow

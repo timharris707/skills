@@ -5,7 +5,7 @@
     "url": "https://github.com/timharris707"
   },
   "metadata": {
-    "description": "Portable skills for AI agents: a multi-model advisory board for hard decisions, and a five-skill team-workflow pack for tracked, multi-session, agent-assisted development."
+    "description": "Portable skills for AI agents: a multi-model advisory board for hard decisions, and a seven-skill team-workflow pack for tracked, multi-session, agent-assisted development."
   },
   "plugins": [
     {
@@ -23,15 +23,17 @@
       "name": "team-workflow",
       "source": "./",
       "strict": false,
-      "version": "1.0.0",
-      "description": "Five skills that ship as one pack — a portable discipline for tracked, multi-session, agent-assisted development: a router entry point, a once-per-repo setup interview, decision maps, throwaway prototypes, and autonomous research lanes. Versioned together (team-workflow/vX.Y.Z); this version mirrors the latest pack tag.",
+      "version": "1.1.0",
+      "description": "Seven skills that ship as one pack — a portable discipline for tracked, multi-session, agent-assisted development: a router entry point, a once-per-repo setup interview, decision maps, throwaway prototypes, autonomous research lanes, session handoffs, and an orchestration protocol for parallel lanes. Versioned together (team-workflow/vX.Y.Z); this version mirrors the latest pack tag.",
       "license": "MIT",
       "skills": [
         "./skills/router",
         "./skills/setup",
         "./skills/decision-map",
         "./skills/prototype",
-        "./skills/research"
+        "./skills/research",
+        "./skills/handoff",
+        "./skills/orchestrate"
       ]
     }
   ]

@@ -1,10 +1,11 @@
 # Session handoff template
 
-<!-- A seeded TEMPLATE, not a skill. Written at session wrap-up (conventionally to an
-     untracked, auto-loaded location like .claude/handoff.md, or wherever the repo's
-     binding doc names) so a fresh session resumes without re-explanation. Overwrite on
-     each wrap-up — it is "where we are right now", never a running log. The tracker and
-     the repo's tracked docs remain the durable record; the handoff is only the hot pointer. -->
+<!-- The handoff skill's reference template. Written at session wrap-up to the repo's
+     confirmed handoff location (conventionally an untracked, auto-loaded file like
+     .claude/handoff.md; the binding doc names it) so a fresh session resumes without
+     re-explanation. Overwrite on each wrap-up — it is "where we are right now", never
+     a running log. The tracker and the repo's tracked docs remain the durable record;
+     the handoff is only the hot pointer. -->
 
 # Handoff — <short task name>
 _Updated: <date> · Branch: <branch>_

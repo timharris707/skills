@@ -9,16 +9,18 @@ _Pack version: <pack version installed> · Last confirmed: <date>_
 
 ## Tracker binding
 
-- **Tracker**: <e.g. GitHub Issues on `<owner>/<repo>`>
-- **Claim recipe**: <e.g. "the pack's tracker-discipline recipes as written" — or the repo's mapping of them onto its tracker>
+- **Tracker**: <e.g. GitHub Issues on `<owner>/<repo>` — or `none yet: <why>; revisit at next setup re-run`>
+- **Claim recipe**: <e.g. "the pack's tracker-discipline recipes as written" — or the repo's mapping of them onto its tracker; `dormant until a tracker is bound` when the tracker is `none yet`>
 - **Frontier query**: <the exact command/query that lists grabbable items>
 - **Blocking**: <native dependency edges + `blocked` label, or the repo's equivalent dual-read>
-- **Label mapping** (optional): <repo labels ↔ pack vocabulary: needs-triage / ready-for-agent / ready-for-human / blocked + type labels>
+- **Label vocabulary**: <`pack defaults, created at setup on <date>` | repo labels ↔ pack vocabulary: needs-triage / ready-for-agent / ready-for-human / blocked + type labels (slice / bug / gate-decision / process) | the creation instruction, for trackers setup cannot drive>
 
 ## Verify commands
 
 <!-- The exact commands that constitute "verified" here. Briefs and templates name these
-     instead of guessing. Tier them if the repo distinguishes blast radii. -->
+     instead of guessing. Tier them if the repo distinguishes blast radii.
+     A repo with no toolchain yet records the explicit none-yet form below instead of the
+     command block — never a guessed command. The setup re-run revisits it. -->
 
 ```bash
 <typecheck command>
@@ -26,6 +28,10 @@ _Pack version: <pack version installed> · Last confirmed: <date>_
 <test command>
 <build command>
 ```
+
+<!-- Or, on a brand-new repo:
+- **Verify commands**: none yet (no toolchain as of <date>) — revisit at next setup re-run.
+-->
 
 ## The decider
 
@@ -51,7 +57,22 @@ How the pack composes with this repo's resident rule systems. Resident rules win
 
 - Issue/work-item spec: <adopted repo's own | seeded at `<path>` | declined>
 - Lane brief: <adopted | seeded at `<path>` | declined>
-- Handoff: <adopted | seeded at `<path>` | declined>
+
+## Handoff
+
+- **Handoff location**: <where the handoff skill writes, e.g. `.claude/handoff.md`, untracked>
+- **Ignore entry**: <seeded in `.gitignore` | already present | declined — the entry that keeps the handoff file untracked>
+- **Session-start auto-load hook**: <seeded in `<settings file>` (created fresh if the repo had none) | pending as a snippet with the settings owner (sync-managed settings) | declined>
+
+## Orchestration (optional — repos running an orchestrator)
+
+<!-- The orchestrate skill's binding slots. Omit this section if no session orchestrates. -->
+
+- **Lane launch**: <how a working session starts; what gets stamped on the tracker item; how sessions are titled/surfaced>
+- **Workspace provisioning**: <how a fresh per-lane workspace is created; per-lane resources that must be pruned with it>
+- **Monitoring**: <how the orchestrator watches PRs / tracker activity / lane liveness between turns>
+- **Verification executor**: <who re-runs a lane's verification at close-out, and how>
+- **Merge flow**: <integration mechanics; who may push what where>
 
 ## Friction log (optional)
 

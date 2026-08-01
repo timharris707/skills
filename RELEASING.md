@@ -15,7 +15,7 @@ which publishes the release automatically — you never run `gh release create` 
   such as `advisory-board/verdict@N` are separate axes and do not replace the skill version.
 - **Packs:** skills that ship and version **together** release under one **pack-scoped tag**
   instead of per-skill tags. The `team-workflow` pack (router, setup, decision-map, prototype,
-  research) releases as `team-workflow/vX.Y.Z` with one changelog at
+  research, handoff, orchestrate) releases as `team-workflow/vX.Y.Z` with one changelog at
   [`skills/team-workflow/CHANGELOG.md`](skills/team-workflow/CHANGELOG.md) — exactly the path the
   release workflow derives from the tag prefix, so pack releases run through the existing workflow
   unchanged. Individual pack skills never get their own tags. The pack's plugin `version` in
