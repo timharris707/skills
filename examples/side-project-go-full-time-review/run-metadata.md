@@ -15,7 +15,7 @@ Lens preset: business-decision
 ## Source
 
 Access method: single source packet
-Source: /Users/timharris/projects/skills/.claude/worktrees/marketing-refresh/examples/side-project-go-full-time-review/proposal.md (sha256:15ac5d99ef4cd3d42aafd524e6ee3e185ee6b44b980d82e3e65f97d1196d9d2c)
+Source: examples/side-project-go-full-time-review/proposal.md (sha256:15ac5d99ef4cd3d42aafd524e6ee3e185ee6b44b980d82e3e65f97d1196d9d2c)
 Sensitivity & handling: public
 
 ## Egress approval

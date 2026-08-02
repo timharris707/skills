@@ -10,7 +10,7 @@ max_rounds: 3
 cross_reading: summaries
 lens: business-decision
 output: full-handoff
-out_dir: /Users/timharris/projects/skills/.claude/worktrees/marketing-refresh/examples/side-project-go-full-time-review
+out_dir: examples/side-project-go-full-time-review
 
 # prompt template (bump/hash changes when the egressed prompt shape changes)
 prompt_template: advisory-board/round1@2
@@ -24,7 +24,7 @@ synthesizer_template_sha256: 96a8427ffa40c9068ff97853bd2e34144ac41abf04bd0642869
 
 # source
 source_kind: path
-source_ref: /Users/timharris/projects/skills/.claude/worktrees/marketing-refresh/examples/side-project-go-full-time-review/proposal.md
+source_ref: examples/side-project-go-full-time-review/proposal.md
 source_bytes: 1918
 source_lines: 27
 source_sha256: 15ac5d99ef4cd3d42aafd524e6ee3e185ee6b44b980d82e3e65f97d1196d9d2c

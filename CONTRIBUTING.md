@@ -31,9 +31,9 @@ catalog into the repository root because release automation and multi-skill path
 
 ## Validation
 
-When a skill is Codex-compatible, validate it with the local skill validator before publishing changes.
-Pull requests must also pass `.github/workflows/ci.yml`, including Python compilation, shell-mock
-syntax checks, and the complete advisory-board test suite.
+When a skill is Codex-compatible, check its `agents/openai.yaml` adapter against the SKILL.md before
+publishing changes. Pull requests must also pass `.github/workflows/ci.yml`, including Python
+compilation, shell-mock syntax checks, router freshness, and the complete advisory-board test suite.
 
 ## Releases
 
