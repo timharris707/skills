@@ -187,9 +187,13 @@ set_var() {
 }
 
 # check "description" <command...> — verify a manual step actually took effect.
-# On failure the human may retry (they just changed something) or skip, in
-# which case it lands in the closing summary. A step with an observable result
-# is a step the human cannot silently get wrong.
+# On failure the human may retry (they just changed something) or skip, in which
+# case it lands in the closing summary. A step with an observable result is a
+# step the human cannot silently get wrong.
+#
+# Always returns 0: a skipped check is a recorded outcome, not a script failure,
+# and returning non-zero under `set -e` would abort the run mid-procedure —
+# stranding the human halfway through with no summary.
 check() {
   local description="$1"; shift
   while true; do
@@ -203,7 +207,7 @@ check() {
       continue
     fi
     manual "verify: $description"
-    return 1
+    return 0
   done
 }
 
@@ -227,7 +231,7 @@ await() {
   printf '\n'
   bad "$description — still not visible after $(( tries * gap / 60 )) min"
   note "propagation can take longer; this is not necessarily an error"
-  check "$description" "$@" || true
+  check "$description" "$@"
 }
 
 # finish — closing summary. Everything recorded by manual() surfaces here.

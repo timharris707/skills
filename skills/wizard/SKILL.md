@@ -41,8 +41,9 @@ Hold the bar the template sets:
 - Open the URL **before** asking for the value it produces.
 - `ask_secret` for anything secret; `write_env` for every persisted value; `set_secret` only for what CI actually needs.
 - `confirm` before any irreversible action.
-- `check` wherever a manual step has an observable result — a DNS record that should resolve, an endpoint that should answer. A step the script can verify is a step the human cannot silently get wrong.
+- `check` wherever a manual step has an observable result — a DNS record that should resolve, an endpoint that should answer. A step the script can verify is a step the human cannot silently get wrong. Use `await` instead when the result propagates.
 - `manual` for anything the script cannot do, so it lands in the closing summary instead of being forgotten.
+- `require` returns non-zero on a missing tool, so under `set -e` it is always called as `if require gh; then …` or `require gh || true`. `check` and `await` never return non-zero — a half-finished procedure that aborts before its summary is worse than one that records what it could not confirm.
 - One focused task per stage. Each `stage` clears the screen, so anything the human still needs must not have scrolled away.
 - Never hand-edit the library above the marker.
 
