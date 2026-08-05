@@ -11,13 +11,17 @@ This repo is a [Claude Code plugin marketplace](./.claude-plugin/marketplace.jso
 | [advisory-board](./skills/advisory-board/) | Convene a board of frontier AI models — Claude, Codex, Gemini, and Grok — that each review the same decision independently, debate across rounds, and hand back one clear recommendation. | Standalone plugin |
 | [router](./skills/router/SKILL.md) | The team-workflow pack's entry point: names every pack skill and when to reach for it. Start here to orient a new session or repo. | team-workflow pack |
 | [setup](./skills/setup/SKILL.md) | Once-per-repo interview that binds the pack to your project — tracker, verify commands, who decides — and seeds the binding doc and templates. | team-workflow pack |
+| [grilling](./skills/grilling/SKILL.md) | Interview the decider relentlessly over a design tree, in rounds, until nothing load-bearing is still assumed. Facts are the agent's job; decisions are the decider's. | team-workflow pack |
 | [decision-map](./skills/decision-map/SKILL.md) | Chart genuinely foggy work — where open questions gate each other — as a decision map before anyone writes a build spec. | team-workflow pack |
 | [prototype](./skills/prototype/SKILL.md) | Throwaway prototype code that answers a design question you can't settle by discussion; the verdict is the deliverable, and the winner gets rebuilt properly. | team-workflow pack |
 | [research](./skills/research/SKILL.md) | Fire-and-report investigation against primary sources, ending in a cited findings file — and a questionnaire when the missing facts are human-held. | team-workflow pack |
+| [to-tickets](./skills/to-tickets/SKILL.md) | Turn a plan, a closed map, or a pressure-tested conversation into tracer-bullet work items with their blocking edges wired. Files and labels; never claims, never decides. | team-workflow pack |
+| [wizard](./skills/wizard/SKILL.md) | Generate an interactive bash wizard for the steps only a human can take — vendor dashboards, DNS panels, credentials that must not enter an agent's context. | team-workflow pack |
 | [handoff](./skills/handoff/SKILL.md) | Write a structured session handoff — at wrap-up or when context fills — so a fresh session resumes losslessly. | team-workflow pack |
 | [orchestrate](./skills/orchestrate/SKILL.md) | Run one session as the orchestrator of parallel working lanes: route tracked items, audit results, own integration — never implement. | team-workflow pack |
+| [writing-for-agents](./skills/writing-for-agents/SKILL.md) | Write and prune documents an agent consumes — context pointers, the two loads, the information hierarchy, leading words, and the no-op test. | Standalone plugin |
 
-The seven **team-workflow** skills ship and version together as one pack — install them as a set and they cover the full loop of tracked, multi-session, agent-assisted development. **advisory-board** stands alone and works anywhere a hard decision does.
+The ten **team-workflow** skills ship and version together as one pack — install them as a set and they cover the full loop of tracked, multi-session, agent-assisted development. **advisory-board** stands alone and works anywhere a hard decision does; **writing-for-agents** stands alone as the standard the rest of this catalog is written against.
 
 ## Install (Claude Code)
 
@@ -25,8 +29,9 @@ Add the marketplace once, then install whichever plugins you want:
 
 ```text
 /plugin marketplace add timharris707/skills
-/plugin install advisory-board@skills    # the multi-model advisory board
-/plugin install team-workflow@skills     # all seven pack skills as one plugin
+/plugin install advisory-board@skills      # the multi-model advisory board
+/plugin install team-workflow@skills       # all ten pack skills as one plugin
+/plugin install writing-for-agents@skills  # the skill-authoring reference
 ```
 
 ### Install without the plugin system
@@ -35,7 +40,7 @@ Clone the repo and copy or symlink skill directories into wherever your runtime 
 
 ```bash
 git clone https://github.com/timharris707/skills.git agent-skills
-for s in advisory-board router setup decision-map prototype research handoff orchestrate; do
+for s in advisory-board router setup grilling decision-map prototype research to-tickets wizard handoff orchestrate writing-for-agents; do
   ln -s "$(pwd)/agent-skills/skills/$s" ~/.claude/skills/$s
 done
 ```

@@ -1,0 +1,147 @@
+import fs from "node:fs";
+import path from "node:path";
+
+/**
+ * The site is generated from the repository's SKILL.md files, so the catalog
+ * cannot drift from what actually ships. Nothing here is hand-maintained: add a
+ * skill directory and it appears, with the same description installers see.
+ */
+
+const REPO_ROOT = path.join(process.cwd(), "..");
+const SKILLS_DIR = path.join(REPO_ROOT, "skills");
+const MARKETPLACE = path.join(REPO_ROOT, ".claude-plugin", "marketplace.json");
+
+export type Skill = {
+  slug: string;
+  name: string;
+  description: string;
+  /** The SKILL.md body with frontmatter stripped. */
+  body: string;
+  /** The plugin that ships it, from marketplace.json. */
+  plugin: string;
+  pluginVersion: string;
+  /** Files beside SKILL.md — references/, scripts/, agents/. */
+  extras: string[];
+  githubUrl: string;
+};
+
+type Plugin = {
+  name: string;
+  version: string;
+  description: string;
+  skills: string[];
+};
+
+/**
+ * Parse the leading `---` block. SKILL.md frontmatter is flat `key: value`
+ * pairs, so this stays dependency-free rather than pulling in a YAML engine.
+ */
+function parseFrontmatter(raw: string): { data: Record<string, string>; body: string } {
+  if (!raw.startsWith("---")) return { data: {}, body: raw };
+  const end = raw.indexOf("\n---", 3);
+  if (end === -1) return { data: {}, body: raw };
+
+  const block = raw.slice(3, end);
+  const body = raw.slice(end + 4).replace(/^\r?\n/, "");
+  const data: Record<string, string> = {};
+
+  for (const line of block.split("\n")) {
+    const match = line.match(/^([A-Za-z][\w-]*):\s*(.*)$/);
+    if (!match) continue;
+    let value = match[2].trim();
+    // Descriptions containing a colon are quoted in some skills.
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+    data[match[1]] = value;
+  }
+  return { data, body };
+}
+
+function readMarketplace(): Plugin[] {
+  const parsed = JSON.parse(fs.readFileSync(MARKETPLACE, "utf8"));
+  return (parsed.plugins ?? []).map((p: Plugin) => ({
+    name: p.name,
+    version: p.version,
+    description: p.description,
+    skills: (p.skills ?? []).map((s: string) => s.replace(/^\.\//, "").replace(/\/$/, "")),
+  }));
+}
+
+/** Files that ship beside SKILL.md, relative to the skill directory. */
+function listExtras(dir: string): string[] {
+  const out: string[] = [];
+  const walk = (current: string, prefix: string) => {
+    for (const entry of fs.readdirSync(current, { withFileTypes: true }).sort((a, b) =>
+      a.name.localeCompare(b.name),
+    )) {
+      if (entry.name === "SKILL.md" || entry.name.startsWith(".")) continue;
+      const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) {
+        walk(path.join(current, entry.name), rel);
+      } else {
+        out.push(rel);
+      }
+    }
+  };
+  walk(dir, "");
+  return out;
+}
+
+let cache: Skill[] | null = null;
+
+export function getSkills(): Skill[] {
+  if (cache) return cache;
+
+  const plugins = readMarketplace();
+  const owners = new Map<string, Plugin>();
+  for (const plugin of plugins) {
+    for (const rel of plugin.skills) owners.set(rel, plugin);
+  }
+
+  const skills: Skill[] = [];
+  for (const entry of fs.readdirSync(SKILLS_DIR, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    const dir = path.join(SKILLS_DIR, entry.name);
+    const skillFile = path.join(dir, "SKILL.md");
+    // skills/team-workflow/ is the pack's changelog home and carries no SKILL.md.
+    if (!fs.existsSync(skillFile)) continue;
+
+    const { data, body } = parseFrontmatter(fs.readFileSync(skillFile, "utf8"));
+    const owner = owners.get(`skills/${entry.name}`);
+
+    skills.push({
+      slug: entry.name,
+      name: data.name ?? entry.name,
+      description: data.description ?? "",
+      body,
+      plugin: owner?.name ?? "unpublished",
+      pluginVersion: owner?.version ?? "",
+      extras: listExtras(dir),
+      githubUrl: `https://github.com/timharris707/skills/blob/main/skills/${entry.name}/SKILL.md`,
+    });
+  }
+
+  cache = skills.sort((a, b) => a.slug.localeCompare(b.slug));
+  return cache;
+}
+
+export function getSkill(slug: string): Skill | undefined {
+  return getSkills().find((s) => s.slug === slug);
+}
+
+export function getPlugins(): Plugin[] {
+  return readMarketplace();
+}
+
+/**
+ * The first sentence of a description is what it does; the "Use when" clause is
+ * where the triggers live. Cards show the former, detail pages show both.
+ */
+export function summarize(description: string): string {
+  const cut = description.search(/\s(?:Use when|Use for)\b/);
+  return (cut === -1 ? description : description.slice(0, cut)).trim();
+}

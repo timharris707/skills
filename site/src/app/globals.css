@@ -1,0 +1,831 @@
+/*
+ * Survey-chart drafting system.
+ *
+ * The catalog's own vocabulary is navigational — frontier, fog, destination,
+ * lanes, bearings — so the page is lettered like a chart: pale cool paper,
+ * hairline linework, one reserved caution colour, and region names set in an
+ * italic serif the way charts letter water features.
+ */
+
+:root {
+  --paper: #edf1f1;      /* chart ground — cool, not cream */
+  --beacon: #f7f9f9;     /* raised surfaces */
+  --shoal: #dde5e5;      /* fills and rules */
+  --ink: #0e2a33;        /* sounding blue-black — text and linework */
+  --sounding: #5b7c87;   /* muted depth figures, secondary text */
+  --magenta: #b5007a;    /* chart magenta: cautions and actions, nothing else */
+
+  --hairline: 1px solid color-mix(in srgb, var(--ink) 16%, transparent);
+  --rule: 1px solid color-mix(in srgb, var(--ink) 10%, transparent);
+
+  --measure: 66ch;
+  --gutter: clamp(1.25rem, 4vw, 3.5rem);
+  --shell: 1180px;
+
+  color-scheme: light;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-body), system-ui, sans-serif;
+  font-size: 16px;
+  line-height: 1.6;
+  font-synthesis-weight: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* The chart grid: a faint 40px lattice, the way survey paper is ruled. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image:
+    linear-gradient(to right, color-mix(in srgb, var(--ink) 4%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in srgb, var(--ink) 4%, transparent) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+a {
+  color: inherit;
+  text-decoration-color: color-mix(in srgb, var(--ink) 30%, transparent);
+  text-underline-offset: 3px;
+}
+
+a:hover {
+  text-decoration-color: var(--magenta);
+}
+
+:focus-visible {
+  outline: 2px solid var(--magenta);
+  outline-offset: 3px;
+}
+
+code,
+kbd,
+pre {
+  font-family: var(--font-mono), ui-monospace, monospace;
+}
+
+/* ── Structure ───────────────────────────────────────────────────────────── */
+
+.shell {
+  width: 100%;
+  max-width: var(--shell);
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+
+.masthead {
+  border-bottom: var(--hairline);
+  background: color-mix(in srgb, var(--paper) 80%, transparent);
+  backdrop-filter: blur(8px);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.masthead__inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  min-height: 60px;
+}
+
+.wordmark {
+  font-family: var(--font-mono), monospace;
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.wordmark__fix {
+  width: 9px;
+  height: 9px;
+  border: 1.5px solid var(--magenta);
+  border-radius: 50%;
+  position: relative;
+}
+
+.wordmark__fix::after {
+  content: "";
+  position: absolute;
+  inset: 2px;
+  background: var(--magenta);
+  border-radius: 50%;
+}
+
+.masthead nav {
+  display: flex;
+  gap: 1.5rem;
+  font-size: 0.82rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+
+.masthead nav a {
+  text-decoration: none;
+  color: var(--sounding);
+  padding-block: 0.35rem;
+  border-bottom: 1px solid transparent;
+}
+
+.masthead nav a:hover {
+  color: var(--ink);
+  border-bottom-color: var(--magenta);
+}
+
+@media (max-width: 560px) {
+  .masthead nav {
+    gap: 0.95rem;
+    font-size: 0.7rem;
+  }
+
+  .wordmark {
+    font-size: 0.8rem;
+  }
+}
+
+/* ── Type ────────────────────────────────────────────────────────────────── */
+
+.eyebrow {
+  font-family: var(--font-mono), monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--magenta);
+  margin: 0 0 1.1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+
+.eyebrow::after {
+  content: "";
+  height: 1px;
+  flex: 1;
+  background: color-mix(in srgb, var(--magenta) 35%, transparent);
+}
+
+h1 {
+  font-size: clamp(2.1rem, 4.3vw, 3.15rem);
+  line-height: 1.05;
+  letter-spacing: -0.028em;
+  font-weight: 600;
+  margin: 0 0 1.2rem;
+  text-wrap: balance;
+}
+
+h2 {
+  font-size: clamp(1.4rem, 2.4vw, 1.8rem);
+  line-height: 1.15;
+  letter-spacing: -0.018em;
+  font-weight: 600;
+  margin: 0;
+}
+
+.lede {
+  font-size: 1.06rem;
+  color: var(--sounding);
+  max-width: 46ch;
+  margin: 0 0 1.9rem;
+}
+
+/* Region names are lettered like chart water features. */
+.region__name {
+  font-family: var(--font-display), Georgia, serif;
+  font-style: italic;
+  font-weight: 400;
+  font-size: clamp(1.8rem, 3.4vw, 2.5rem);
+  letter-spacing: -0.01em;
+  line-height: 1;
+  margin: 0;
+}
+
+/* ── Hero ────────────────────────────────────────────────────────────────── */
+
+.hero {
+  padding-block: clamp(3rem, 7vw, 5.5rem) clamp(2rem, 4vw, 3rem);
+  display: grid;
+  grid-template-columns: minmax(0, 0.88fr) minmax(0, 1.12fr);
+  gap: clamp(2rem, 5vw, 4rem);
+  align-items: center;
+}
+
+@media (max-width: 940px) {
+  .hero {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.hero__soundings {
+  display: flex;
+  gap: 1.9rem;
+  margin-top: 2.1rem;
+  padding-top: 1.3rem;
+  border-top: var(--hairline);
+}
+
+.sounding__figure {
+  font-family: var(--font-mono), monospace;
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1;
+  display: block;
+}
+
+.sounding__label {
+  font-size: 0.7rem;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--sounding);
+  display: block;
+  margin-top: 0.4rem;
+}
+
+/* ── The chart ───────────────────────────────────────────────────────────── */
+
+.chart {
+  border: var(--hairline);
+  background: var(--beacon);
+  padding: 1.1rem 1.1rem 0.6rem;
+  position: relative;
+}
+
+.chart__title {
+  font-family: var(--font-mono), monospace;
+  font-size: 0.68rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--sounding);
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.6rem;
+}
+
+.chart svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  overflow: visible;
+}
+
+.bearing {
+  stroke: color-mix(in srgb, var(--ink) 22%, transparent);
+  stroke-width: 1;
+  fill: none;
+  transition: stroke 160ms ease, stroke-width 160ms ease;
+}
+
+.bearing--lit {
+  stroke: var(--magenta);
+  stroke-width: 1.6;
+}
+
+.bearing--dimmed {
+  stroke: color-mix(in srgb, var(--ink) 8%, transparent);
+}
+
+.fix {
+  cursor: pointer;
+}
+
+.fix__ring {
+  fill: var(--beacon);
+  stroke: var(--ink);
+  stroke-width: 1.3;
+  transition: fill 160ms ease, stroke 160ms ease;
+}
+
+.fix__dot {
+  fill: var(--ink);
+  transition: fill 160ms ease;
+}
+
+.fix__label {
+  font-family: var(--font-mono), monospace;
+  font-size: 17px;
+  fill: var(--ink);
+  transition: fill 160ms ease;
+  dominant-baseline: middle;
+}
+
+.fix:hover .fix__ring,
+.fix:focus-visible .fix__ring,
+.fix--lit .fix__ring {
+  fill: var(--magenta);
+  stroke: var(--magenta);
+}
+
+.fix:hover .fix__dot,
+.fix:focus-visible .fix__dot,
+.fix--lit .fix__dot {
+  fill: var(--beacon);
+}
+
+.fix:hover .fix__label,
+.fix:focus-visible .fix__label,
+.fix--lit .fix__label {
+  fill: var(--magenta);
+}
+
+.fix--dimmed .fix__ring {
+  stroke: color-mix(in srgb, var(--ink) 25%, transparent);
+}
+
+.fix--dimmed .fix__dot {
+  fill: color-mix(in srgb, var(--ink) 25%, transparent);
+}
+
+.fix--dimmed .fix__label {
+  fill: color-mix(in srgb, var(--ink) 35%, transparent);
+}
+
+.chart__legend {
+  font-family: var(--font-mono), monospace;
+  font-size: 0.68rem;
+  color: var(--sounding);
+  border-top: var(--rule);
+  margin-top: 0.5rem;
+  padding-top: 0.6rem;
+  /* Held constant so lighting a fix never reflows the page around the chart. */
+  height: 4.6rem;
+  overflow: hidden;
+}
+
+.chart__hint {
+  margin: 0;
+}
+
+.chart__hint strong {
+  color: var(--magenta);
+  font-weight: 500;
+}
+
+.bearings {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 0.1rem 1.2rem;
+}
+
+.bearings li {
+  display: flex;
+  gap: 0.5rem;
+  align-items: baseline;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.bearings__run {
+  color: var(--magenta);
+}
+
+.bearings__note {
+  color: color-mix(in srgb, var(--sounding) 75%, transparent);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The chart is one view of the same information the regions below carry in
+   full, so small screens get the regions and skip the plot. */
+@media (max-width: 720px) {
+  .chart {
+    display: none;
+  }
+}
+
+/* ── Install ─────────────────────────────────────────────────────────────── */
+
+.terminal {
+  border: var(--hairline);
+  background: var(--ink);
+  color: var(--paper);
+  font-family: var(--font-mono), monospace;
+  font-size: 0.83rem;
+  line-height: 1.85;
+  padding: 1rem 1.15rem;
+  overflow-x: auto;
+}
+
+.terminal__line {
+  display: block;
+  white-space: pre;
+}
+
+.terminal__prompt {
+  color: var(--sounding);
+  user-select: none;
+}
+
+.terminal__comment {
+  color: color-mix(in srgb, var(--paper) 45%, transparent);
+}
+
+/* ── Regions and skill rows ──────────────────────────────────────────────── */
+
+.regions {
+  padding-block: clamp(2.5rem, 6vw, 4.5rem);
+  border-top: var(--hairline);
+}
+
+.region {
+  display: grid;
+  grid-template-columns: minmax(0, 0.34fr) minmax(0, 1fr);
+  gap: clamp(1.5rem, 4vw, 3rem);
+  padding-block: clamp(2rem, 4vw, 3rem);
+  border-bottom: var(--rule);
+}
+
+.region:last-child {
+  border-bottom: 0;
+}
+
+@media (max-width: 800px) {
+  .region {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.2rem;
+  }
+}
+
+.region__head {
+  position: sticky;
+  top: 88px;
+  align-self: start;
+}
+
+@media (max-width: 800px) {
+  .region__head {
+    position: static;
+  }
+}
+
+.region__blurb {
+  color: var(--sounding);
+  font-size: 0.92rem;
+  margin: 0.7rem 0 0;
+  max-width: 34ch;
+}
+
+.region__count {
+  font-family: var(--font-mono), monospace;
+  font-size: 0.7rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--sounding);
+  margin-top: 0.9rem;
+  display: block;
+}
+
+.entries {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: var(--rule);
+}
+
+.entry {
+  border-bottom: var(--rule);
+}
+
+.entry__link {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.6rem 1.5rem;
+  align-items: baseline;
+  padding: 1.1rem 0.6rem 1.15rem 0;
+  text-decoration: none;
+  transition: background 140ms ease, padding-left 140ms ease;
+}
+
+.entry__link:hover,
+.entry__link:focus-visible {
+  background: var(--shoal);
+  padding-left: 0.7rem;
+}
+
+.entry__name {
+  font-family: var(--font-mono), monospace;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.entry__link:hover .entry__name {
+  color: var(--magenta);
+}
+
+.entry__ships {
+  font-family: var(--font-mono), monospace;
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  color: var(--sounding);
+  white-space: nowrap;
+}
+
+.entry__what {
+  grid-column: 1 / -1;
+  color: var(--sounding);
+  font-size: 0.93rem;
+  margin: 0;
+  max-width: var(--measure);
+}
+
+/* ── Skill detail ────────────────────────────────────────────────────────── */
+
+.detail {
+  padding-block: clamp(2.2rem, 5vw, 3.5rem) clamp(3rem, 6vw, 5rem);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 288px;
+  gap: clamp(2rem, 5vw, 4rem);
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .detail {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.crumb {
+  font-family: var(--font-mono), monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--sounding);
+  margin-bottom: 1.5rem;
+  display: block;
+  text-decoration: none;
+}
+
+.crumb:hover {
+  color: var(--magenta);
+}
+
+.detail__title {
+  font-family: var(--font-mono), monospace;
+  font-size: clamp(1.9rem, 4.2vw, 2.9rem);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+.detail__trigger {
+  border-left: 2px solid var(--magenta);
+  padding: 0.15rem 0 0.15rem 1rem;
+  margin: 0 0 2.2rem;
+  color: var(--ink);
+  font-size: 1.02rem;
+  max-width: var(--measure);
+}
+
+.aside {
+  position: sticky;
+  top: 88px;
+  border: var(--hairline);
+  background: var(--beacon);
+  padding: 1.1rem 1.2rem 1.3rem;
+}
+
+@media (max-width: 900px) {
+  .aside {
+    position: static;
+  }
+}
+
+.aside .terminal {
+  font-size: 0.72rem;
+  padding: 0.75rem 0.85rem;
+  overflow-x: visible;
+  margin-bottom: 1.5rem;
+}
+
+.aside .terminal__line {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.aside h3 {
+  font-family: var(--font-mono), monospace;
+  font-size: 0.68rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--sounding);
+  margin: 0 0 0.7rem;
+  font-weight: 500;
+}
+
+.aside h3 + h3 {
+  margin-top: 1.5rem;
+}
+
+.aside dl {
+  margin: 0;
+  font-size: 0.86rem;
+}
+
+.aside dt {
+  color: var(--sounding);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-top: 0.75rem;
+}
+
+.aside dt:first-child {
+  margin-top: 0;
+}
+
+.aside dd {
+  margin: 0.15rem 0 0;
+  font-family: var(--font-mono), monospace;
+  word-break: break-word;
+}
+
+.aside ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.78rem;
+  color: var(--sounding);
+}
+
+.aside ul li {
+  padding: 0.22rem 0;
+  border-bottom: var(--rule);
+  word-break: break-word;
+}
+
+.aside ul li:last-child {
+  border-bottom: 0;
+}
+
+/* ── Rendered SKILL.md ───────────────────────────────────────────────────── */
+
+.prose {
+  max-width: var(--measure);
+}
+
+.prose > :first-child {
+  margin-top: 0;
+}
+
+.prose h1 {
+  font-size: 1.9rem;
+  margin: 2.4rem 0 1rem;
+}
+
+.prose h2 {
+  font-size: 1.28rem;
+  margin: 2.5rem 0 0.9rem;
+  padding-top: 1.1rem;
+  border-top: var(--rule);
+  letter-spacing: -0.012em;
+}
+
+.prose h3 {
+  font-size: 1.02rem;
+  margin: 1.9rem 0 0.6rem;
+  font-weight: 600;
+}
+
+.prose p,
+.prose li {
+  max-width: var(--measure);
+}
+
+.prose li {
+  margin-block: 0.4rem;
+}
+
+.prose ul,
+.prose ol {
+  padding-left: 1.3rem;
+}
+
+.prose code {
+  background: var(--shoal);
+  padding: 0.1em 0.36em;
+  font-size: 0.87em;
+  border-radius: 2px;
+}
+
+.prose pre {
+  background: var(--ink);
+  color: var(--paper);
+  padding: 1rem 1.15rem;
+  overflow-x: auto;
+  font-size: 0.82rem;
+  line-height: 1.7;
+  border-radius: 2px;
+}
+
+.prose pre code {
+  background: none;
+  padding: 0;
+  font-size: inherit;
+}
+
+.prose blockquote {
+  margin: 1.4rem 0;
+  padding-left: 1.1rem;
+  border-left: 2px solid var(--shoal);
+  color: var(--sounding);
+}
+
+.prose table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+  margin: 1.4rem 0;
+  display: block;
+  overflow-x: auto;
+}
+
+.prose th,
+.prose td {
+  text-align: left;
+  padding: 0.6rem 0.9rem 0.6rem 0;
+  border-bottom: var(--rule);
+  vertical-align: top;
+}
+
+.prose th {
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--sounding);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.prose hr {
+  border: 0;
+  border-top: var(--rule);
+  margin: 2.2rem 0;
+}
+
+/* ── Footer ──────────────────────────────────────────────────────────────── */
+
+.colophon {
+  border-top: var(--hairline);
+  padding-block: 2.2rem 3rem;
+  font-size: 0.82rem;
+  color: var(--sounding);
+}
+
+.colophon__inner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem 2rem;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.colophon a {
+  text-decoration: none;
+}
+
+.colophon a:hover {
+  color: var(--magenta);
+}
+
+.colophon__links {
+  display: flex;
+  gap: 1.4rem;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.75rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
