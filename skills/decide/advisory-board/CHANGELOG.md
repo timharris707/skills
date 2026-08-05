@@ -3,7 +3,7 @@
 All notable changes to the `advisory-board` skill are documented here.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Releases are
-cut as **skill-scoped semver tags** `advisory-board/vX.Y.Z` (see [`RELEASING.md`](../../RELEASING.md)).
+cut as **skill-scoped semver tags** `advisory-board/vX.Y.Z` (see [`RELEASING.md`](../../../RELEASING.md)).
 The skill follows SemVer; its artifact schemas (for example `advisory-board/verdict@N`) are
 versioned separately and do not replace the skill release version.
 

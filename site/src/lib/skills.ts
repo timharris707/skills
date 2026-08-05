@@ -9,7 +9,15 @@ import path from "node:path";
 
 const REPO_ROOT = path.join(process.cwd(), "..");
 const SKILLS_DIR = path.join(REPO_ROOT, "skills");
+const BUCKETS_FILE = path.join(SKILLS_DIR, "buckets.json");
 const MARKETPLACE = path.join(REPO_ROOT, ".claude-plugin", "marketplace.json");
+
+export type Bucket = {
+  id: string;
+  name: string;
+  promoted: boolean;
+  blurb: string;
+};
 
 export type Skill = {
   slug: string;
@@ -17,6 +25,8 @@ export type Skill = {
   description: string;
   /** The SKILL.md body with frontmatter stripped. */
   body: string;
+  /** The bucket directory it lives in — its category and its promotion status. */
+  bucket: string;
   /** The plugin that ships it, from marketplace.json. */
   plugin: string;
   pluginVersion: string;
@@ -91,8 +101,24 @@ function listExtras(dir: string): string[] {
   return out;
 }
 
+let bucketCache: Bucket[] | null = null;
+
+/** Every declared bucket, promoted or not. */
+export function getBuckets(): Bucket[] {
+  if (!bucketCache) {
+    bucketCache = JSON.parse(fs.readFileSync(BUCKETS_FILE, "utf8")).buckets as Bucket[];
+  }
+  return bucketCache;
+}
+
 let cache: Skill[] | null = null;
 
+/**
+ * Every skill in a **promoted** bucket. Unpromoted buckets — in-progress, misc,
+ * deprecated — are the whole point of the layout: a half-built skill parked
+ * there drops off the site and out of the marketplace in one `git mv`, with no
+ * other edit and no deletion.
+ */
 export function getSkills(): Skill[] {
   if (cache) return cache;
 
@@ -103,26 +129,33 @@ export function getSkills(): Skill[] {
   }
 
   const skills: Skill[] = [];
-  for (const entry of fs.readdirSync(SKILLS_DIR, { withFileTypes: true })) {
-    if (!entry.isDirectory()) continue;
-    const dir = path.join(SKILLS_DIR, entry.name);
-    const skillFile = path.join(dir, "SKILL.md");
-    // skills/team-workflow/ is the pack's changelog home and carries no SKILL.md.
-    if (!fs.existsSync(skillFile)) continue;
+  for (const bucket of getBuckets()) {
+    if (!bucket.promoted) continue;
+    const bucketDir = path.join(SKILLS_DIR, bucket.id);
+    if (!fs.existsSync(bucketDir)) continue;
 
-    const { data, body } = parseFrontmatter(fs.readFileSync(skillFile, "utf8"));
-    const owner = owners.get(`skills/${entry.name}`);
+    for (const entry of fs.readdirSync(bucketDir, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      const dir = path.join(bucketDir, entry.name);
+      const skillFile = path.join(dir, "SKILL.md");
+      if (!fs.existsSync(skillFile)) continue;
 
-    skills.push({
-      slug: entry.name,
-      name: data.name ?? entry.name,
-      description: data.description ?? "",
-      body,
-      plugin: owner?.name ?? "unpublished",
-      pluginVersion: owner?.version ?? "",
-      extras: listExtras(dir),
-      githubUrl: `https://github.com/timharris707/skills/blob/main/skills/${entry.name}/SKILL.md`,
-    });
+      const rel = `skills/${bucket.id}/${entry.name}`;
+      const { data, body } = parseFrontmatter(fs.readFileSync(skillFile, "utf8"));
+      const owner = owners.get(rel);
+
+      skills.push({
+        slug: entry.name,
+        name: data.name ?? entry.name,
+        description: data.description ?? "",
+        body,
+        bucket: bucket.id,
+        plugin: owner?.name ?? "unpublished",
+        pluginVersion: owner?.version ?? "",
+        extras: listExtras(dir),
+        githubUrl: `https://github.com/timharris707/skills/blob/main/${rel}/SKILL.md`,
+      });
+    }
   }
 
   cache = skills.sort((a, b) => a.slug.localeCompare(b.slug));

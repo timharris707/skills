@@ -39,7 +39,7 @@ The **decisions** are the decider's. Put each one to them and wait. A grilling a
 
 - **Before a decision map.** Charting needs a destination and a first read on the fog; grilling produces both. Reach for [decision-map](../decision-map/SKILL.md) when the answer is "this is too big for one sitting and the open questions gate each other" — grilling is the engine that surfaces that, not a replacement for it.
 - **Before a spec.** A conversation nobody pressure-tested makes a spec full of silent assumptions. Grill first, then write.
-- **Beside prototype and research.** When a question turns out to be "I need to see it in action," that is a [prototype](../prototype/SKILL.md); when it is "somebody documented this already," that is [research](../research/SKILL.md). Hand off and keep grilling the rest of the frontier.
+- **Beside prototype and research.** When a question turns out to be "I need to see it in action," that is a [prototype](../../investigate/prototype/SKILL.md); when it is "somebody documented this already," that is [research](../../investigate/research/SKILL.md). Hand off and keep grilling the rest of the frontier.
 - **Not the advisory board.** [advisory-board](../advisory-board/SKILL.md) puts a finished artifact in front of several models for independent review. Grilling is one agent interviewing one human about something that is not finished yet. Grill to reach a position; convene the board to test one you already hold.
 
 ## Done when (checkable — verify each line before reporting complete)

@@ -18,7 +18,7 @@ import unittest
 HERE = os.path.dirname(os.path.abspath(__file__))
 SCRIPTS = os.path.normpath(os.path.join(HERE, "..", "scripts"))
 REFS = os.path.normpath(os.path.join(HERE, "..", "references"))
-REPO_ROOT = os.path.normpath(os.path.join(HERE, "..", "..", ".."))
+REPO_ROOT = os.path.normpath(os.path.join(HERE, "..", "..", "..", ".."))
 
 sys.path.insert(0, SCRIPTS)
 import render_plan as rp  # noqa: E402

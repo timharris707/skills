@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { marked } from "marked";
 import Terminal from "@/components/Terminal";
 import { getSkill, getSkills, summarize } from "@/lib/skills";
-import { REGIONS } from "@/lib/catalog";
+import { getBuckets } from "@/lib/skills";
 
 type Params = { params: Promise<{ slug: string }> };
 
@@ -48,7 +48,7 @@ export default async function SkillPage({ params }: Params) {
   const skill = getSkill(slug);
   if (!skill) notFound();
 
-  const region = REGIONS.find((r) => r.skills.includes(skill.slug));
+  const region = getBuckets().find((b) => b.id === skill.bucket);
   // The SKILL.md H1 is the page title, so drop it rather than printing it twice.
   const body = skill.body.trimStart().replace(/^#\s+.*(\r?\n|$)/, "");
   const html = absolutise(await marked.parse(body), skill.slug);

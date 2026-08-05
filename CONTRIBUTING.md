@@ -4,10 +4,10 @@ This is a personal skills repository. Keep additions portable and provider-agnos
 
 ## Skill Structure
 
-Use one directory per skill:
+One directory per skill, inside a **bucket**:
 
 ```text
-skills/<skill-name>/
+skills/<bucket>/<skill-name>/
   SKILL.md
   references/
   scripts/
@@ -19,7 +19,26 @@ skills/<skill-name>/
 The repository root and the tracked `skills/` catalog are intentionally separate. A checkout may
 be named anything (`agent-skills/` is less visually repetitive than `skills/`); do not flatten the
 catalog into the repository root because release automation and multi-skill paths depend on
-`skills/<skill-name>/`.
+`skills/<bucket>/<skill-name>/`.
+
+## Buckets and Promotion
+
+Buckets are declared in [`skills/buckets.json`](./skills/buckets.json), and each is either **promoted** or not. Promoted buckets ship in the marketplace and appear on the site; unpromoted ones (`in-progress/`, `misc/`, `deprecated/`) do neither.
+
+**Start a new skill in `in-progress/`.** It is a real directory with a real `SKILL.md`, it just isn't claimed by any plugin and isn't listed anywhere. When it earns its place:
+
+1. `git mv skills/in-progress/<name> skills/<bucket>/<name>`
+2. Claim it in `.claude-plugin/marketplace.json` and bump that plugin's version
+3. Add it to the router roster if it joins the `team-workflow` pack
+4. Give it a position in `site/src/lib/catalog.ts` so the hero chart can draw it
+
+Retiring one is the same in reverse. Run the freshness check and it names whichever step you missed:
+
+```bash
+python3 scripts/check_router_freshness.py
+```
+
+Adding a bucket means adding it to `buckets.json` *and* creating the directory — CI fails on either half alone.
 
 ## Quality Bar
 

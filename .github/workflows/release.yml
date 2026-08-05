@@ -3,8 +3,10 @@ name: release
 # Publish a GitHub release whenever a skill-scoped version tag is pushed.
 #
 # Tag format:  <skill>/vX.Y.Z   e.g.  advisory-board/v0.5.0
-# Release body: that skill's mandatory CHANGELOG.md section for the version
-#               (skills/<skill>/CHANGELOG.md, heading "## [vX.Y.Z]").
+# Release body: that skill's mandatory CHANGELOG.md section for the version,
+#               found at skills/<bucket>/<skill>/CHANGELOG.md or, for a pack,
+#               packs/<pack>/CHANGELOG.md — resolved, not hard-coded, so moving
+#               a skill between buckets never breaks its release.
 # A missing or empty section fails the release. See RELEASING.md.
 
 on:
@@ -56,11 +58,28 @@ jobs:
             echo "::error::$tag does not point to a commit on origin/main" >&2
             exit 1
           fi
+          # Skills live in buckets (skills/<bucket>/<skill>/) and packs carry
+          # their changelog at packs/<pack>/. Resolve rather than hard-code, so
+          # moving a skill between buckets never breaks its release. Exactly one
+          # match is required: two would make the release notes ambiguous.
+          found=$(
+            find skills packs -mindepth 1 -maxdepth 2 -type d -name "$skill" \
+              -exec test -f '{}/CHANGELOG.md' \; -print 2>/dev/null | sort
+          )
+          count=$(printf '%s' "$found" | grep -c . || true)
+          if [ "$count" -eq 0 ]; then
+            echo "::error::no CHANGELOG.md found for '$skill' under skills/*/ or packs/" >&2
+            exit 1
+          fi
+          if [ "$count" -gt 1 ]; then
+            echo "::error::'$skill' has more than one CHANGELOG.md: $(printf '%s' "$found" | tr '\n' ' ')" >&2
+            exit 1
+          fi
           {
             echo "tag=$tag"
             echo "skill=$skill"
             echo "version=$version"
-            echo "changelog=skills/$skill/CHANGELOG.md"
+            echo "changelog=$found/CHANGELOG.md"
           } >> "$GITHUB_OUTPUT"
 
       - name: Extract release notes from the changelog

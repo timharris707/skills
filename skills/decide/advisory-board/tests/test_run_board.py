@@ -33,7 +33,7 @@ SCRIPTS = os.path.normpath(os.path.join(HERE, "..", "scripts"))
 MOCKS = os.path.join(HERE, "mocks")
 FIXTURES = os.path.join(HERE, "fixtures")
 SAMPLE = os.path.join(FIXTURES, "sample-plan.md")
-REPO_ROOT = os.path.normpath(os.path.join(HERE, "..", "..", ".."))
+REPO_ROOT = os.path.normpath(os.path.join(HERE, "..", "..", "..", ".."))
 
 sys.path.insert(0, SCRIPTS)
 import run_board as rb  # noqa: E402

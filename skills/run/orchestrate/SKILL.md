@@ -7,7 +7,7 @@ description: Run a session as the orchestrator of parallel agent-assisted work �
 
 One session coordinates many. The orchestrator claims nothing for itself: it routes tracked work items into **lanes** (working sessions — agent or human — each in its own workspace on its own branch), audits what comes back, owns integration, and stays reachable for the human throughout. This skill is the portable protocol: principles that hold anywhere, plus **binding slots** for the machinery every repo does differently. It is rule-based — do every step, every time; protocols that live only in memory drift between sessions.
 
-Read the team-workflow binding doc first. The tracker discipline (claims, frontier, blocking — see [setup's references](../setup/references/tracker-discipline.md)) is assumed throughout.
+Read the team-workflow binding doc first. The tracker discipline (claims, frontier, blocking — see [setup's references](../../orient/setup/references/tracker-discipline.md)) is assumed throughout.
 
 ## 1. The orchestrator is a router, not a worker
 
@@ -32,7 +32,7 @@ The human's messages arrive **between turns**. An orchestrator grinding through 
 ## 4. Launching lanes
 
 - **Claim first, per the tracker discipline** — read-before-write, then a fresh, item-named workspace per lane. How a lane session is actually started and recorded is the **lane-launch binding slot** (§7).
-- **Brief from the lane-brief template** (see [setup's templates](../setup/references/templates/lane-brief.md)): spec verbatim, the named verification set, standing constraints, and the integration rule — lanes commit on their own branch and stop; the orchestrator owns review and merge.
+- **Brief from the lane-brief template** (see [setup's templates](../../orient/setup/references/templates/lane-brief.md)): spec verbatim, the named verification set, standing constraints, and the integration rule — lanes commit on their own branch and stop; the orchestrator owns review and merge.
 - **Launch reports are written for the human, not the protocol.** Every launch and every lane mention names what is running where (which runner/model/session, which item, which workspace) legibly enough that the reader can tell the lanes apart at a glance.
 - **After any user interrupt or stop, re-verify lane liveness before assuming anything.** A stopped agent session is generally not resumable — relaunch fresh; completed work survives in the lane's workspace (checkpoint-commit first when resuming on top of it).
 

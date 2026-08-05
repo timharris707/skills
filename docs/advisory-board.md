@@ -80,7 +80,7 @@ Under the warm summary is a workflow built for technical rigor — and a machine
 
 ### Repo-grounded review
 
-Point the board at a real codebase with `--repo` and advisors cite exact `path:line` evidence, working from a captured snapshot rather than guesswork. Ready-made lens sets for software, product, research, legal, business, and writing live in [`lens-presets.md`](../skills/advisory-board/references/lens-presets.md). For software and technical work the seats take distinct lenses:
+Point the board at a real codebase with `--repo` and advisors cite exact `path:line` evidence, working from a captured snapshot rather than guesswork. Ready-made lens sets for software, product, research, legal, business, and writing live in [`lens-presets.md`](../skills/decide/advisory-board/references/lens-presets.md). For software and technical work the seats take distinct lenses:
 
 - **Claude** (`opus`, latest-Opus alias) — architecture, systems, and adversarial design review.
 - **Codex** (CLI-recommended model) — repo-grounded implementation, migration, testing, and execution.
@@ -120,17 +120,17 @@ Prefer to see the board on code? The [payments idempotency review](https://htmlp
 
 ### Source Files
 
-- [`SKILL.md`](../skills/advisory-board/SKILL.md)
-- [`prompt-templates.md`](../skills/advisory-board/references/prompt-templates.md)
-- [`lens-presets.md`](../skills/advisory-board/references/lens-presets.md)
-- [`preflight.md`](../skills/advisory-board/references/preflight.md)
-- [`board-composition.md`](../skills/advisory-board/references/board-composition.md)
-- [`data-handling.md`](../skills/advisory-board/references/data-handling.md)
-- [`epistemics.md`](../skills/advisory-board/references/epistemics.md)
-- [`run-metadata-template.md`](../skills/advisory-board/references/run-metadata-template.md)
-- [`verdict-schema.md`](../skills/advisory-board/references/verdict-schema.md)
-- [`output-formats.md`](../skills/advisory-board/references/output-formats.md)
-- [`intake-interview.md`](../skills/advisory-board/references/intake-interview.md)
-- [`handoff-template.html`](../skills/advisory-board/references/handoff-template.html)
-- [`scripts/`](../skills/advisory-board/scripts/) — `board_verdict.py`, `format_output.py`
-- [`openai.yaml`](../skills/advisory-board/agents/openai.yaml)
+- [`SKILL.md`](../skills/decide/advisory-board/SKILL.md)
+- [`prompt-templates.md`](../skills/decide/advisory-board/references/prompt-templates.md)
+- [`lens-presets.md`](../skills/decide/advisory-board/references/lens-presets.md)
+- [`preflight.md`](../skills/decide/advisory-board/references/preflight.md)
+- [`board-composition.md`](../skills/decide/advisory-board/references/board-composition.md)
+- [`data-handling.md`](../skills/decide/advisory-board/references/data-handling.md)
+- [`epistemics.md`](../skills/decide/advisory-board/references/epistemics.md)
+- [`run-metadata-template.md`](../skills/decide/advisory-board/references/run-metadata-template.md)
+- [`verdict-schema.md`](../skills/decide/advisory-board/references/verdict-schema.md)
+- [`output-formats.md`](../skills/decide/advisory-board/references/output-formats.md)
+- [`intake-interview.md`](../skills/decide/advisory-board/references/intake-interview.md)
+- [`handoff-template.html`](../skills/decide/advisory-board/references/handoff-template.html)
+- [`scripts/`](../skills/decide/advisory-board/scripts/) — `board_verdict.py`, `format_output.py`
+- [`openai.yaml`](../skills/decide/advisory-board/agents/openai.yaml)

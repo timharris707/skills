@@ -5,9 +5,9 @@ description: Turn a plan, a spec, a closed decision map, or a pressure-tested co
 
 # To Tickets
 
-The pack's bridge from **decided** to **takeable**. [decision-map](../decision-map/SKILL.md) produces decisions; [orchestrate](../orchestrate/SKILL.md) routes tracked items into lanes. This skill is what stands between them: it turns settled intent into work items a lane can claim without asking anyone what was meant.
+The pack's bridge from **decided** to **takeable**. [decision-map](../../decide/decision-map/SKILL.md) produces decisions; [orchestrate](../orchestrate/SKILL.md) routes tracked items into lanes. This skill is what stands between them: it turns settled intent into work items a lane can claim without asking anyone what was meant.
 
-Read the team-workflow binding doc first — it names the tracker, the label vocabulary, the verify commands, and the decider. The [tracker discipline](../setup/references/tracker-discipline.md) governs everything filed here.
+Read the team-workflow binding doc first — it names the tracker, the label vocabulary, the verify commands, and the decider. The [tracker discipline](../../orient/setup/references/tracker-discipline.md) governs everything filed here.
 
 ## Tracer bullets
 
@@ -23,7 +23,7 @@ Three tests, all of which must pass:
 
 Items need ids before they can reference each other, so filing is always two passes. Doing it in one produces edges pointing at numbers that do not exist yet.
 
-**Pass 1 — file the bodies.** Each item's body IS the spec, per the [work-item spec template](../setup/references/templates/issue-slice-spec.md) that setup seeds: destination, plan source, acceptance criteria, verification, out of scope. The **plan source** line is not optional — it links the primary source (the decision-map entry, the grilling verdict, the research findings) so review never relitigates a settled question.
+**Pass 1 — file the bodies.** Each item's body IS the spec, per the [work-item spec template](../../orient/setup/references/templates/issue-slice-spec.md) that setup seeds: destination, plan source, acceptance criteria, verification, out of scope. The **plan source** line is not optional — it links the primary source (the decision-map entry, the grilling verdict, the research findings) so review never relitigates a settled question.
 
 **Pass 2 — wire the edges.** Add native dependency edges for every blocker that is itself a tracker item, using the recipe's database-id form:
 
@@ -43,8 +43,8 @@ Confirm the labels exist on the tracker before filing. A frontier query against 
 ## What this skill does not do
 
 - **It does not claim.** Filing an item and starting it are separate acts by separate sessions. Run the claim recipe when work begins; a filer who claims their own batch has locked the board against every other lane.
-- **It does not decide.** Anything genuinely open when you reach it goes back to the decider as a question, or becomes a [decision-map](../decision-map/SKILL.md) ticket if the open questions gate each other. Filing a build slice over an undecided question buries the decision where nobody will see it until a lane hits it.
-- **It does not spec what nobody pressure-tested.** If the source is a conversation rather than a recorded decision, run [grilling](../grilling/SKILL.md) first. A ticket set derived from unexamined agreement inherits every silent assumption and multiplies it by the number of items.
+- **It does not decide.** Anything genuinely open when you reach it goes back to the decider as a question, or becomes a [decision-map](../../decide/decision-map/SKILL.md) ticket if the open questions gate each other. Filing a build slice over an undecided question buries the decision where nobody will see it until a lane hits it.
+- **It does not spec what nobody pressure-tested.** If the source is a conversation rather than a recorded decision, run [grilling](../../decide/grilling/SKILL.md) first. A ticket set derived from unexamined agreement inherits every silent assumption and multiplies it by the number of items.
 
 ## Done when (checkable — verify each line before reporting complete)
 
