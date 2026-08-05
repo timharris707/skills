@@ -48,9 +48,9 @@ Target the strongest reasoning model each provider offers **at run time**. Defau
 - Claude seat: Anthropic's maintained `opus` alias (latest Opus) at `--effort max`.
 - Codex seat: the Codex CLI's recommended model (no exact model pin) with `model_reasoning_effort="xhigh"`.
 - Gemini seat: Google's maintained `pro` alias (latest highest-reasoning Pro model) with the CLI's highest available thinking level.
-- Grok seat: xAI's maintained `grok-build` alias (Grok 4.5 as of 2026-07-15) through the official `grok` CLI at `--effort high`, the highest Grok 4.5 level.
+- Grok seat: `grok-4.5` through the official `grok` CLI at `--effort high`, the highest Grok 4.5 level. xAI retired the `grok-build` alias; `grok models` lists `grok-4.5` alone (verified on CLI 0.2.117, 2026-08-05).
 
-The selector (`opus`, `pro`, `grok-build`, or Codex `auto`) and the model that actually answered are separate provenance fields. If a CLI cannot report the resolved ID, record `unknown` rather than pretending. Use an exact `--model` override for an eval or replay that must not float.
+The selector (`opus`, `pro`, `grok-4.5`, or Codex `auto`) and the model that actually answered are separate provenance fields. If a CLI cannot report the resolved ID, record `unknown` rather than pretending. Use an exact `--model` override for an eval or replay that must not float.
 
 Preflight — run `references/preflight.md` before launching: for each seat, check the CLI is present, auth is active (subscription-backed where possible), the requested model resolves, and a one-token smoke ping returns. Proceed only with at least two seats GO; label any degraded or dropped seat in the handoff. In summary:
 
@@ -203,13 +203,13 @@ Run in a read-only / non-auto-approval mode so the seat can't make edits, and se
 Grok seat:
 
 ```
-grok --no-auto-update -p "<seat prompt>" --model grok-build --effort high \
+grok -p "<seat prompt>" --model grok-4.5 --effort high \
   --output-format plain --permission-mode plan --sandbox read-only \
   --no-subagents --no-memory --disable-web-search \
   --disallowed-tools WebFetch
 ```
 
-The conductor passes `--model grok-build`, xAI's maintained frontier alias (Grok 4.5 today). Override it only to pin an exact model ID. `--sandbox read-only` and plan mode block edits; the web flags remove search/fetch in gate mode.
+The conductor passes `--model grok-4.5`, the only model the CLI now lists. Override it only to pin a different exact model ID. `--no-auto-update` was removed upstream, so it is no longer passed. `--sandbox read-only` and plan mode block edits; the web flags remove search/fetch in gate mode.
 
 ### Gemini thinking level
 

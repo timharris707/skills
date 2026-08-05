@@ -197,13 +197,16 @@ class TestRegistry(unittest.TestCase):
         self.assertEqual(rb.REGISTRY["gemini"].default_model, "pro")
 
     def test_grok_default_frontier_and_high_effort(self):
+        # `grok models` stopped listing the `grok-build` alias; grok-4.5 is the
+        # only model and the CLI default. `--no-auto-update` was removed upstream.
         a = rb.REGISTRY["grok"]
-        self.assertEqual(a.default_model, "grok-build")
+        self.assertEqual(a.default_model, "grok-4.5")
         self.assertEqual(a.default_reasoning, "high")
-        argv = a.build_argv("grok-build", "PROMPT", reasoning="high", network=False,
+        argv = a.build_argv("grok-4.5", "PROMPT", reasoning="high", network=False,
                             workdir="/tmp/wd")
-        self.assertEqual(argv[:3], ["grok", "--no-auto-update", "-p"])
-        self.assertEqual(argv[argv.index("--model") + 1], "grok-build")
+        self.assertEqual(argv[:2], ["grok", "-p"])
+        self.assertNotIn("--no-auto-update", argv)
+        self.assertEqual(argv[argv.index("--model") + 1], "grok-4.5")
         self.assertEqual(argv[argv.index("--effort") + 1], "high")
         self.assertIn("--sandbox", argv)
         self.assertIn("read-only", argv)
