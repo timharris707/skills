@@ -221,6 +221,68 @@ h2 {
   margin: 0;
 }
 
+/* ── Runtime marks ───────────────────────────────────────────────────────── */
+
+/* Set like a chart's legend: hairline-boxed, mono, small caps-ish tracking —
+   so the marks read as notation on the drawing, not badges stuck over it. */
+.runtimes {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.55rem 0.85rem;
+  margin: 0;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.74rem;
+  letter-spacing: 0.02em;
+  color: var(--ink);
+}
+
+.runtimes__lead {
+  color: var(--sounding);
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  font-size: 0.68rem;
+}
+
+.runtimes__mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+  padding: 0.3rem 0.6rem 0.3rem 0.5rem;
+  border: var(--hairline);
+  background: var(--beacon);
+  white-space: nowrap;
+  transition: border-color 160ms ease, color 160ms ease;
+}
+
+.runtimes__mark svg {
+  flex: none;
+  opacity: 0.9;
+}
+
+.runtimes__mark:hover {
+  border-color: var(--magenta);
+  color: var(--magenta);
+}
+
+/* In the hero the pair sits above the headline, so it reads before anything
+   else — the eyebrow slot, carrying marks instead of words. */
+.hero .runtimes {
+  margin-bottom: 1.15rem;
+}
+
+/* The aside is narrow: stack rather than let the pair wrap awkwardly. */
+.aside .runtimes {
+  font-size: 0.7rem;
+  gap: 0.4rem;
+  margin-bottom: 1.5rem;
+}
+
+.aside .runtimes__lead {
+  width: 100%;
+  margin-bottom: 0.1rem;
+}
+
 /* ── Hero ────────────────────────────────────────────────────────────────── */
 
 .hero {

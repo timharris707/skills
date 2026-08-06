@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Terminal from "@/components/Terminal";
+import Runtimes from "@/components/Runtimes";
 import { getCodexPlugin, getPlugins, getSkills } from "@/lib/skills";
 
 export const metadata: Metadata = {
@@ -21,6 +22,8 @@ export default function Install() {
         Then install whichever plugins you want. Nothing here is locked to one runtime — every
         skill is a <code>SKILL.md</code> any agent can read.
       </p>
+
+      <Runtimes lead="Runs natively on" />
 
       <div className="prose" style={{ maxWidth: "none" }}>
         <h2>Claude Code</h2>

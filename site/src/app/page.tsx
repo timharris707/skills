@@ -2,6 +2,7 @@ import Link from "next/link";
 import Chart from "@/components/Chart";
 import Regions from "@/components/Regions";
 import Terminal from "@/components/Terminal";
+import Runtimes from "@/components/Runtimes";
 import { BEARINGS, PLOT, getCatalog } from "@/lib/catalog";
 
 export default function Home() {
@@ -17,7 +18,7 @@ export default function Home() {
     <>
       <div className="shell hero">
         <div>
-          <p className="eyebrow">Claude Code · Codex</p>
+          <Runtimes lead="Runs natively on" />
           <h1>Stop re-explaining your workflow every session.</h1>
           <p className="lede">
             Each skill is a self-contained playbook — a <code>SKILL.md</code> any agent can read,
@@ -31,9 +32,8 @@ export default function Home() {
             ]}
           />
           <p className="hero__runtimes">
-            Both runtimes, natively, from the same {skills.length} files. Neither is a port —
-            CI fails the build if they would ship a different set.{" "}
-            <Link href="/install">Install →</Link>
+            The same {skills.length} files on both. Neither is a port — CI fails the build if they
+            would ship a different set. <Link href="/install">Install →</Link>
           </p>
 
           <div className="hero__soundings">

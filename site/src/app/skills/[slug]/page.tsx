@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { marked } from "marked";
 import Terminal from "@/components/Terminal";
+import Runtimes from "@/components/Runtimes";
 import { getCodexPlugin, getSkill, getSkills, summarize } from "@/lib/skills";
 import { getBuckets } from "@/lib/skills";
 
@@ -74,9 +75,7 @@ export default async function SkillPage({ params }: Params) {
             { command: `codex plugin add ${codex.name}@${codex.marketplace}`, comment: "Codex" },
           ]}
         />
-        <p className="aside__note">
-          Runs natively on both, from the same <code>SKILL.md</code>.
-        </p>
+        <Runtimes lead="Runs on" />
 
         <h3>Details</h3>
         <dl>
