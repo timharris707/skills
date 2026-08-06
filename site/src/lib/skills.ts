@@ -81,23 +81,37 @@ function readMarketplace(): Plugin[] {
   }));
 }
 
-/** Files that ship beside SKILL.md, relative to the skill directory. */
+/** Local build artefacts that exist on a dev machine but are never shipped. */
+const IGNORED = /^(__pycache__|node_modules|\.DS_Store)$|\.pyc$/;
+
+/**
+ * What ships beside SKILL.md, summarised for reading rather than enumerated.
+ * Top-level files by name; directories as a name and a count — advisory-board
+ * alone carries 130+ files, and a wall of paths is noise in a sidebar and worse
+ * in the Markdown twin an agent fetches.
+ */
 function listExtras(dir: string): string[] {
-  const out: string[] = [];
-  const walk = (current: string, prefix: string) => {
-    for (const entry of fs.readdirSync(current, { withFileTypes: true }).sort((a, b) =>
-      a.name.localeCompare(b.name),
-    )) {
-      if (entry.name === "SKILL.md" || entry.name.startsWith(".")) continue;
-      const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
-      if (entry.isDirectory()) {
-        walk(path.join(current, entry.name), rel);
-      } else {
-        out.push(rel);
-      }
+  const countFiles = (current: string): number => {
+    let n = 0;
+    for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+      if (IGNORED.test(entry.name)) continue;
+      n += entry.isDirectory() ? countFiles(path.join(current, entry.name)) : 1;
     }
+    return n;
   };
-  walk(dir, "");
+
+  const out: string[] = [];
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true }).sort((a, b) =>
+    a.name.localeCompare(b.name),
+  )) {
+    if (entry.name === "SKILL.md" || entry.name.startsWith(".") || IGNORED.test(entry.name)) continue;
+    if (entry.isDirectory()) {
+      const n = countFiles(path.join(dir, entry.name));
+      if (n > 0) out.push(`${entry.name}/ — ${n} file${n === 1 ? "" : "s"}`);
+    } else {
+      out.push(entry.name);
+    }
+  }
   return out;
 }
 

@@ -237,6 +237,24 @@ h2 {
   }
 }
 
+.hero__runtimes {
+  font-size: 0.85rem;
+  color: var(--sounding);
+  margin: 0.9rem 0 0;
+  max-width: 48ch;
+  line-height: 1.55;
+}
+
+.hero__runtimes a {
+  color: var(--magenta);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.hero__runtimes a:hover {
+  text-decoration: underline;
+}
+
 .hero__soundings {
   display: flex;
   gap: 1.9rem;
@@ -626,6 +644,17 @@ h2 {
   overflow-wrap: anywhere;
 }
 
+.aside__note {
+  font-size: 0.76rem;
+  color: var(--sounding);
+  margin: -1rem 0 1.5rem;
+  line-height: 1.5;
+}
+
+.aside__note code {
+  font-size: 0.95em;
+}
+
 .aside h3 {
   font-family: var(--font-mono), monospace;
   font-size: 0.68rem;
@@ -636,7 +665,8 @@ h2 {
   font-weight: 500;
 }
 
-.aside h3 + h3 {
+.aside h3 + h3,
+.aside dl + h3 {
   margin-top: 1.5rem;
 }
 

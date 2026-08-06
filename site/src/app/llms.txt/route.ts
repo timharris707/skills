@@ -1,5 +1,5 @@
 import { getCatalog } from "@/lib/catalog";
-import { getPlugins } from "@/lib/skills";
+import { getCodexPlugin, getPlugins } from "@/lib/skills";
 
 export const dynamic = "force-static";
 
@@ -11,6 +11,7 @@ export const dynamic = "force-static";
 export function GET() {
   const { regions, skills } = getCatalog();
   const plugins = getPlugins();
+  const codex = getCodexPlugin();
 
   const lines = [
     "# Click AI — portable skills for AI agents",
@@ -20,11 +21,27 @@ export function GET() {
     "",
     `${skills.length} skills in ${regions.length} regions.`,
     "",
-    "## Install",
+    "## Runtimes",
+    "",
+    "Every skill runs natively on BOTH Claude Code and Codex, from the same SKILL.md.",
+    "Neither is a port or a second-class path: the instructions are the portable part,",
+    "and CI fails the build if the two runtimes would ship a different set of skills.",
+    "Any other harness can read each SKILL.md directly.",
+    "",
+    "## Install — Claude Code",
     "",
     "```",
     "/plugin marketplace add timharris707/skills",
     ...plugins.map((p) => `/plugin install ${p.name}@skills`),
+    "```",
+    "",
+    "## Install — Codex",
+    "",
+    "Codex allows one plugin per repository root, so the whole catalog is a single plugin.",
+    "",
+    "```",
+    "codex plugin marketplace add timharris707/skills",
+    `codex plugin add ${codex.name}@${codex.marketplace}`,
     "```",
     "",
   ];

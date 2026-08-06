@@ -2,7 +2,7 @@
 
 **Portable skills for AI agents.** Each skill is a self-contained playbook — a `SKILL.md` any agent can read, plus the templates and scripts it needs — that turns a workflow you'd otherwise re-explain every session into something you install once and invoke by name.
 
-This repo is a [Claude Code plugin marketplace](./.claude-plugin/marketplace.json), but nothing here is locked to one runtime: provider-specific adapters live beside each skill, and the core instructions stay readable and portable.
+**Runs natively on Claude Code and Codex** — the same `SKILL.md`, installed one line either way, with no port and no second-class path. This repo is both a [Claude Code plugin marketplace](./.claude-plugin/marketplace.json) and a [Codex plugin](./.codex-plugin/plugin.json); CI fails the build if the two would ship a different set of skills. Any other harness can read each `SKILL.md` directly.
 
 ## The Catalog
 
@@ -23,9 +23,11 @@ This repo is a [Claude Code plugin marketplace](./.claude-plugin/marketplace.jso
 
 The ten **team-workflow** skills ship and version together as one pack — install them as a set and they cover the full loop of tracked, multi-session, agent-assisted development. **advisory-board** stands alone and works anywhere a hard decision does; **writing-for-agents** stands alone as the standard the rest of this catalog is written against.
 
-## Install (Claude Code)
+## Install
 
-Add the marketplace once, then install whichever plugins you want:
+Add the marketplace once, then install whichever plugins you want.
+
+### Claude Code
 
 ```text
 /plugin marketplace add timharris707/skills
@@ -34,10 +36,10 @@ Add the marketplace once, then install whichever plugins you want:
 /plugin install writing-for-agents@skills  # the skill-authoring reference
 ```
 
-### Install (Codex)
+### Codex
 
-The same twelve skills ship as a native Codex plugin. Codex allows one plugin per
-repository root, so the whole catalog arrives as a single plugin rather than three:
+The same twelve skills, native. Codex allows one plugin per repository root, so the
+whole catalog arrives as a single plugin rather than three:
 
 ```bash
 codex plugin marketplace add timharris707/skills
@@ -49,7 +51,7 @@ name and one-line description Codex shows in its picker. CI enforces that Claude
 and Codex ship exactly the same set, so a skill can never exist on one runtime
 and silently not on the other.
 
-### Install without the plugin system
+### Any other runtime
 
 Clone the repo and copy or symlink skill directories into wherever your runtime discovers skills — for Claude Code, the personal skills folder:
 

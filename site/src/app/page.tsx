@@ -1,3 +1,4 @@
+import Link from "next/link";
 import Chart from "@/components/Chart";
 import Regions from "@/components/Regions";
 import Terminal from "@/components/Terminal";
@@ -12,13 +13,11 @@ export default function Home() {
     ...PLOT[skill.slug],
   }));
 
-  const packSize = skills.filter((s) => s.plugin === "team-workflow").length;
-
   return (
     <>
       <div className="shell hero">
         <div>
-          <p className="eyebrow">Portable agent skills</p>
+          <p className="eyebrow">Claude Code · Codex</p>
           <h1>Stop re-explaining your workflow every session.</h1>
           <p className="lede">
             Each skill is a self-contained playbook — a <code>SKILL.md</code> any agent can read,
@@ -28,9 +27,14 @@ export default function Home() {
           <Terminal
             lines={[
               { command: "/plugin marketplace add timharris707/skills" },
-              { command: "/plugin install team-workflow@skills", comment: `all ${packSize}` },
+              { command: "codex plugin marketplace add timharris707/skills" },
             ]}
           />
+          <p className="hero__runtimes">
+            Both runtimes, natively, from the same {skills.length} files. Neither is a port —
+            CI fails the build if they would ship a different set.{" "}
+            <Link href="/install">Install →</Link>
+          </p>
 
           <div className="hero__soundings">
             <div>

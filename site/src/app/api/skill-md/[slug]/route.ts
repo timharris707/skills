@@ -1,6 +1,12 @@
-import { getSkill, getSkills } from "@/lib/skills";
+import { getCodexPlugin, getSkill, getSkills } from "@/lib/skills";
 
 export const dynamic = "force-static";
+
+/** Indent a set of commands and line their trailing comments up. */
+function alignComments(rows: Array<[string, string]>): string[] {
+  const width = Math.max(...rows.map(([cmd]) => cmd.length));
+  return rows.map(([cmd, note]) => `    ${cmd.padEnd(width)}   # ${note}`);
+}
 
 export function generateStaticParams() {
   return getSkills().map((skill) => ({ slug: skill.slug }));
@@ -15,6 +21,7 @@ export async function GET(_request: Request, context: { params: Promise<{ slug: 
   const { slug } = await context.params;
   const skill = getSkill(slug);
   if (!skill) return new Response("Not found\n", { status: 404 });
+  const codex = getCodexPlugin();
 
   const source = [
     "---",
@@ -29,6 +36,15 @@ export async function GET(_request: Request, context: { params: Promise<{ slug: 
     `Ships in: ${skill.plugin}${skill.pluginVersion ? ` v${skill.pluginVersion}` : ""}`,
     `Source: ${skill.githubUrl}`,
     ...(skill.extras.length ? [`Also ships: ${skill.extras.join(", ")}`] : []),
+    "",
+    "Runs natively on both Claude Code and Codex, from this same file:",
+    "",
+    ...alignComments([
+      [`/plugin install ${skill.plugin}@skills`, "Claude Code"],
+      [`codex plugin add ${codex.name}@${codex.marketplace}`, "Codex"],
+    ]),
+    "",
+    "Any other harness can read this SKILL.md directly.",
     "",
   ].join("\n");
 

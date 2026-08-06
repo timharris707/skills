@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { marked } from "marked";
 import Terminal from "@/components/Terminal";
-import { getSkill, getSkills, summarize } from "@/lib/skills";
+import { getCodexPlugin, getSkill, getSkills, summarize } from "@/lib/skills";
 import { getBuckets } from "@/lib/skills";
 
 type Params = { params: Promise<{ slug: string }> };
@@ -53,6 +53,7 @@ export default async function SkillPage({ params }: Params) {
   const body = skill.body.trimStart().replace(/^#\s+.*(\r?\n|$)/, "");
   const html = absolutise(await marked.parse(body), skill.slug);
   const useWhen = trigger(skill.description);
+  const codex = getCodexPlugin();
 
   return (
     <div className="shell detail">
@@ -67,7 +68,15 @@ export default async function SkillPage({ params }: Params) {
 
       <aside className="aside">
         <h3>Install</h3>
-        <Terminal lines={[{ command: `/plugin install ${skill.plugin}@skills` }]} />
+        <Terminal
+          lines={[
+            { command: `/plugin install ${skill.plugin}@skills`, comment: "Claude Code" },
+            { command: `codex plugin add ${codex.name}@${codex.marketplace}`, comment: "Codex" },
+          ]}
+        />
+        <p className="aside__note">
+          Runs natively on both, from the same <code>SKILL.md</code>.
+        </p>
 
         <h3>Details</h3>
         <dl>
