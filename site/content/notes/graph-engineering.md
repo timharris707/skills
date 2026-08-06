@@ -68,7 +68,11 @@ The flattering claim is that this catalog is a graph-engineering toolkit and the
 
 And the graph on this site's homepage is not a task graph. Twelve nodes, thirteen edges, acyclic — it draws which skill hands off to which. That is an *org* graph, not a work graph. The work graph is the thing `to-tickets` files on your tracker, and it never appears on this site at all.
 
-No priority is claimed here. Anthropic published the patterns in December 2024, LangGraph shipped StateGraph before that, and every skill in this catalog except `advisory-board` was first committed after the term was coined. The claim is narrower: about what the naming event did and did not add.
+No priority is claimed here. Anthropic published the patterns in December 2024, and LangGraph shipped StateGraph before that.
+
+Worth separating two dates that are easy to conflate, though, because I conflated them myself while writing this. These skills reached this repository on 31 July and 5 August 2026, after the term was coined — that is when they were *published*. The practice they encode is older: worktree-isolated agent lanes are dated 29 March 2026 in my own repositories, a routing handoff document 3 April, an `AGENTS.md` 22 May, a `.handoffs/` directory 4 June. Those repositories are private, so take that as stated rather than shown; the publication dates are the ones you can check.
+
+Which is the same shape as everything above, in miniature. The work came first and the word arrived later, and a commit date measures when someone got around to sharing it.
 
 ## Provenance
 
