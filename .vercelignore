@@ -1,0 +1,6 @@
+# The site build only needs skills/, .claude-plugin/, and site/.
+examples/
+design/
+docs/
+*.zip
+skills/advisory-board/tests/
