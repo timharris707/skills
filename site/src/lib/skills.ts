@@ -9,7 +9,15 @@ import path from "node:path";
 
 const REPO_ROOT = path.join(process.cwd(), "..");
 const SKILLS_DIR = path.join(REPO_ROOT, "skills");
+const BUCKETS_FILE = path.join(SKILLS_DIR, "buckets.json");
 const MARKETPLACE = path.join(REPO_ROOT, ".claude-plugin", "marketplace.json");
+
+export type Bucket = {
+  id: string;
+  name: string;
+  promoted: boolean;
+  blurb: string;
+};
 
 export type Skill = {
   slug: string;
@@ -17,6 +25,8 @@ export type Skill = {
   description: string;
   /** The SKILL.md body with frontmatter stripped. */
   body: string;
+  /** The bucket directory it lives in — its category and its promotion status. */
+  bucket: string;
   /** The plugin that ships it, from marketplace.json. */
   plugin: string;
   pluginVersion: string;
@@ -71,28 +81,58 @@ function readMarketplace(): Plugin[] {
   }));
 }
 
-/** Files that ship beside SKILL.md, relative to the skill directory. */
+/** Local build artefacts that exist on a dev machine but are never shipped. */
+const IGNORED = /^(__pycache__|node_modules|\.DS_Store)$|\.pyc$/;
+
+/**
+ * What ships beside SKILL.md, summarised for reading rather than enumerated.
+ * Top-level files by name; directories as a name and a count — advisory-board
+ * alone carries 130+ files, and a wall of paths is noise in a sidebar and worse
+ * in the Markdown twin an agent fetches.
+ */
 function listExtras(dir: string): string[] {
-  const out: string[] = [];
-  const walk = (current: string, prefix: string) => {
-    for (const entry of fs.readdirSync(current, { withFileTypes: true }).sort((a, b) =>
-      a.name.localeCompare(b.name),
-    )) {
-      if (entry.name === "SKILL.md" || entry.name.startsWith(".")) continue;
-      const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
-      if (entry.isDirectory()) {
-        walk(path.join(current, entry.name), rel);
-      } else {
-        out.push(rel);
-      }
+  const countFiles = (current: string): number => {
+    let n = 0;
+    for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+      if (IGNORED.test(entry.name)) continue;
+      n += entry.isDirectory() ? countFiles(path.join(current, entry.name)) : 1;
     }
+    return n;
   };
-  walk(dir, "");
+
+  const out: string[] = [];
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true }).sort((a, b) =>
+    a.name.localeCompare(b.name),
+  )) {
+    if (entry.name === "SKILL.md" || entry.name.startsWith(".") || IGNORED.test(entry.name)) continue;
+    if (entry.isDirectory()) {
+      const n = countFiles(path.join(dir, entry.name));
+      if (n > 0) out.push(`${entry.name}/ — ${n} file${n === 1 ? "" : "s"}`);
+    } else {
+      out.push(entry.name);
+    }
+  }
   return out;
+}
+
+let bucketCache: Bucket[] | null = null;
+
+/** Every declared bucket, promoted or not. */
+export function getBuckets(): Bucket[] {
+  if (!bucketCache) {
+    bucketCache = JSON.parse(fs.readFileSync(BUCKETS_FILE, "utf8")).buckets as Bucket[];
+  }
+  return bucketCache;
 }
 
 let cache: Skill[] | null = null;
 
+/**
+ * Every skill in a **promoted** bucket. Unpromoted buckets — in-progress, misc,
+ * deprecated — are the whole point of the layout: a half-built skill parked
+ * there drops off the site and out of the marketplace in one `git mv`, with no
+ * other edit and no deletion.
+ */
 export function getSkills(): Skill[] {
   if (cache) return cache;
 
@@ -103,26 +143,33 @@ export function getSkills(): Skill[] {
   }
 
   const skills: Skill[] = [];
-  for (const entry of fs.readdirSync(SKILLS_DIR, { withFileTypes: true })) {
-    if (!entry.isDirectory()) continue;
-    const dir = path.join(SKILLS_DIR, entry.name);
-    const skillFile = path.join(dir, "SKILL.md");
-    // skills/team-workflow/ is the pack's changelog home and carries no SKILL.md.
-    if (!fs.existsSync(skillFile)) continue;
+  for (const bucket of getBuckets()) {
+    if (!bucket.promoted) continue;
+    const bucketDir = path.join(SKILLS_DIR, bucket.id);
+    if (!fs.existsSync(bucketDir)) continue;
 
-    const { data, body } = parseFrontmatter(fs.readFileSync(skillFile, "utf8"));
-    const owner = owners.get(`skills/${entry.name}`);
+    for (const entry of fs.readdirSync(bucketDir, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      const dir = path.join(bucketDir, entry.name);
+      const skillFile = path.join(dir, "SKILL.md");
+      if (!fs.existsSync(skillFile)) continue;
 
-    skills.push({
-      slug: entry.name,
-      name: data.name ?? entry.name,
-      description: data.description ?? "",
-      body,
-      plugin: owner?.name ?? "unpublished",
-      pluginVersion: owner?.version ?? "",
-      extras: listExtras(dir),
-      githubUrl: `https://github.com/timharris707/skills/blob/main/skills/${entry.name}/SKILL.md`,
-    });
+      const rel = `skills/${bucket.id}/${entry.name}`;
+      const { data, body } = parseFrontmatter(fs.readFileSync(skillFile, "utf8"));
+      const owner = owners.get(rel);
+
+      skills.push({
+        slug: entry.name,
+        name: data.name ?? entry.name,
+        description: data.description ?? "",
+        body,
+        bucket: bucket.id,
+        plugin: owner?.name ?? "unpublished",
+        pluginVersion: owner?.version ?? "",
+        extras: listExtras(dir),
+        githubUrl: `https://github.com/timharris707/skills/blob/main/${rel}/SKILL.md`,
+      });
+    }
   }
 
   cache = skills.sort((a, b) => a.slug.localeCompare(b.slug));
@@ -135,6 +182,19 @@ export function getSkill(slug: string): Skill | undefined {
 
 export function getPlugins(): Plugin[] {
   return readMarketplace();
+}
+
+/**
+ * The Codex plugin. Codex allows one plugin per repository root, so the whole
+ * promoted catalog ships as a single plugin there where Claude splits it into
+ * three. CI enforces that both ship the same skills.
+ */
+export function getCodexPlugin(): { name: string; marketplace: string; skills: number } {
+  const plugin = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, ".codex-plugin", "plugin.json"), "utf8"));
+  const marketplace = JSON.parse(
+    fs.readFileSync(path.join(REPO_ROOT, ".agents", "plugins", "marketplace.json"), "utf8"),
+  );
+  return { name: plugin.name, marketplace: marketplace.name, skills: plugin.skills.length };
 }
 
 /**

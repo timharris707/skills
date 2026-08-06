@@ -1,0 +1,43 @@
+{
+  "name": "clickai-skills",
+  "version": "1.0.0",
+  "description": "Portable skills for AI agents — a multi-model advisory board, a ten-skill team-workflow pack for tracked multi-session development, and the reference for writing documents agents consume.",
+  "author": {
+    "name": "Tim Harris"
+  },
+  "homepage": "https://clickai.dev",
+  "repository": "https://github.com/timharris707/skills",
+  "license": "MIT",
+  "keywords": [
+    "skills",
+    "workflow",
+    "planning",
+    "advisory-board",
+    "grilling",
+    "orchestration",
+    "handoff",
+    "tickets"
+  ],
+  "interface": {
+    "displayName": "Click AI Skills",
+    "shortDescription": "Playbooks for planning, deciding, and shipping with agents",
+    "longDescription": "Self-contained playbooks any agent can read: a multi-model advisory board for hard decisions, relentless grilling to pressure-test a plan, decision maps for foggy work, throwaway prototypes, autonomous research lanes, ticket filing, human-step wizards, session handoffs, and an orchestration protocol for parallel lanes.",
+    "developerName": "Tim Harris",
+    "category": "Engineering",
+    "websiteURL": "https://clickai.dev"
+  },
+  "skills": [
+    "./skills/author/writing-for-agents",
+    "./skills/decide/advisory-board",
+    "./skills/decide/decision-map",
+    "./skills/decide/grilling",
+    "./skills/investigate/prototype",
+    "./skills/investigate/research",
+    "./skills/orient/router",
+    "./skills/orient/setup",
+    "./skills/run/handoff",
+    "./skills/run/orchestrate",
+    "./skills/run/to-tickets",
+    "./skills/run/wizard"
+  ]
+}

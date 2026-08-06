@@ -13,13 +13,13 @@ The repository doubles as a Claude Code plugin marketplace, but nothing is locke
 | Skill | What it's for | Ships as |
 | --- | --- | --- |
 | [advisory-board](./advisory-board) | Convene a board of frontier AI models — Claude, Codex, Gemini, and Grok — that each review the same decision independently, debate across rounds, and hand back one clear recommendation. | Standalone plugin |
-| [router](https://github.com/timharris707/skills/blob/main/skills/router/SKILL.md) | The team-workflow pack's entry point: names every pack skill and when to reach for it. | team-workflow pack |
-| [setup](https://github.com/timharris707/skills/blob/main/skills/setup/SKILL.md) | Once-per-repo interview that binds the pack to your project — tracker, verify commands, who decides — and seeds the binding doc and templates. | team-workflow pack |
-| [decision-map](https://github.com/timharris707/skills/blob/main/skills/decision-map/SKILL.md) | Chart genuinely foggy work — where open questions gate each other — as a decision map before anyone writes a build spec. | team-workflow pack |
-| [prototype](https://github.com/timharris707/skills/blob/main/skills/prototype/SKILL.md) | Throwaway prototype code that answers a design question you can't settle by discussion; the verdict is the deliverable. | team-workflow pack |
-| [research](https://github.com/timharris707/skills/blob/main/skills/research/SKILL.md) | Fire-and-report investigation against primary sources, ending in a cited findings file. | team-workflow pack |
-| [handoff](https://github.com/timharris707/skills/blob/main/skills/handoff/SKILL.md) | Write a structured session handoff — at wrap-up or when context fills — so a fresh session resumes losslessly. | team-workflow pack |
-| [orchestrate](https://github.com/timharris707/skills/blob/main/skills/orchestrate/SKILL.md) | Run one session as the orchestrator of parallel working lanes: route tracked items, audit results, own integration. | team-workflow pack |
+| [router](https://github.com/timharris707/skills/blob/main/skills/orient/router/SKILL.md) | The team-workflow pack's entry point: names every pack skill and when to reach for it. | team-workflow pack |
+| [setup](https://github.com/timharris707/skills/blob/main/skills/orient/setup/SKILL.md) | Once-per-repo interview that binds the pack to your project — tracker, verify commands, who decides — and seeds the binding doc and templates. | team-workflow pack |
+| [decision-map](https://github.com/timharris707/skills/blob/main/skills/decide/decision-map/SKILL.md) | Chart genuinely foggy work — where open questions gate each other — as a decision map before anyone writes a build spec. | team-workflow pack |
+| [prototype](https://github.com/timharris707/skills/blob/main/skills/investigate/prototype/SKILL.md) | Throwaway prototype code that answers a design question you can't settle by discussion; the verdict is the deliverable. | team-workflow pack |
+| [research](https://github.com/timharris707/skills/blob/main/skills/investigate/research/SKILL.md) | Fire-and-report investigation against primary sources, ending in a cited findings file. | team-workflow pack |
+| [handoff](https://github.com/timharris707/skills/blob/main/skills/run/handoff/SKILL.md) | Write a structured session handoff — at wrap-up or when context fills — so a fresh session resumes losslessly. | team-workflow pack |
+| [orchestrate](https://github.com/timharris707/skills/blob/main/skills/run/orchestrate/SKILL.md) | Run one session as the orchestrator of parallel working lanes: route tracked items, audit results, own integration. | team-workflow pack |
 
 ## Advisory Board
 
@@ -31,7 +31,7 @@ The repository doubles as a Claude Code plugin marketplace, but nothing is locke
 
 **A workflow for teams building with agents — without the collisions.** Seven skills that ship and version together: decide before you build (decision-map), prototype what discussion can't settle (prototype), investigate what sources can answer (research), hand sessions off losslessly (handoff), coordinate parallel lanes from one seat (orchestrate), bind it all to your repo once (setup), and orient any session with the router. Everything repo-specific lives in one binding doc; every skill defers judgment calls to **the decider** — the role your repo names, not a person the pack assumes.
 
-Start with the [router](https://github.com/timharris707/skills/blob/main/skills/router/SKILL.md) to see the whole pack at a glance.
+Start with the [router](https://github.com/timharris707/skills/blob/main/skills/orient/router/SKILL.md) to see the whole pack at a glance.
 
 ## Install
 

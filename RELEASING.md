@@ -14,18 +14,23 @@ which publishes the release automatically — you never run `gh release create` 
   explicit flags; and **patch** for backward-compatible fixes. Model and artifact schema versions
   such as `advisory-board/verdict@N` are separate axes and do not replace the skill version.
 - **Packs:** skills that ship and version **together** release under one **pack-scoped tag**
-  instead of per-skill tags. The `team-workflow` pack (router, setup, decision-map, prototype,
-  research, handoff, orchestrate) releases as `team-workflow/vX.Y.Z` with one changelog at
-  [`skills/team-workflow/CHANGELOG.md`](skills/team-workflow/CHANGELOG.md) — exactly the path the
-  release workflow derives from the tag prefix, so pack releases run through the existing workflow
-  unchanged. Individual pack skills never get their own tags. The pack's plugin `version` in
+  instead of per-skill tags. The `team-workflow` pack (router, setup, grilling, decision-map,
+  prototype, research, to-tickets, wizard, handoff, orchestrate) releases as `team-workflow/vX.Y.Z`
+  with one changelog at [`packs/team-workflow/CHANGELOG.md`](packs/team-workflow/CHANGELOG.md).
+  A pack is not a skill, so its changelog lives outside `skills/`. Individual pack skills never get
+  their own tags. The pack's plugin `version` in
   [`.claude-plugin/marketplace.json`](.claude-plugin/marketplace.json) mirrors the latest pack tag;
   bump it in the release commit. Standalone skills (e.g. advisory-board) keep per-skill tags.
 - **Cadence:** cut a release **when a milestone PR merges to `main`** — not on every PR. Infra-only,
   CI-only, and docs-only PRs do **not** get a tag or release (no tag → the workflow never fires).
-- **Notes source:** each skill keeps a [`CHANGELOG.md`](skills/advisory-board/CHANGELOG.md)
-  (Keep a Changelog). The release body is that skill's non-empty `## [vX.Y.Z]` section. A missing
-  section fails the workflow; releases never silently fall back to generated notes.
+- **Notes source:** each releasable name keeps a
+  [`CHANGELOG.md`](skills/decide/advisory-board/CHANGELOG.md) (Keep a Changelog). The release body
+  is its non-empty `## [vX.Y.Z]` section. A missing section fails the workflow; releases never
+  silently fall back to generated notes.
+- **Changelog resolution:** the workflow *searches* for the tag name's changelog rather than
+  hard-coding a path — `skills/<bucket>/<skill>/CHANGELOG.md` for a standalone skill,
+  `packs/<pack>/CHANGELOG.md` for a pack. Moving a skill between buckets therefore never breaks its
+  release. Exactly one match is required: zero or two both fail the workflow rather than guess.
 
 ## Per-PR habit
 

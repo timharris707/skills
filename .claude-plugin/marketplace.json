@@ -16,7 +16,7 @@
       "description": "Convene a board of frontier AI models — Claude, Codex, Gemini, and Grok — that each review the same decision independently, debate across rounds, and hand back one clear recommendation.",
       "license": "MIT",
       "skills": [
-        "./skills/advisory-board"
+        "./skills/decide/advisory-board"
       ]
     },
     {
@@ -27,16 +27,16 @@
       "description": "Ten skills that ship as one pack — a portable discipline for tracked, multi-session, agent-assisted development: a router entry point, a once-per-repo setup interview, relentless grilling, decision maps, throwaway prototypes, autonomous research lanes, ticket filing, human-step wizards, session handoffs, and an orchestration protocol for parallel lanes. Versioned together (team-workflow/vX.Y.Z); this version mirrors the latest pack tag.",
       "license": "MIT",
       "skills": [
-        "./skills/router",
-        "./skills/setup",
-        "./skills/grilling",
-        "./skills/decision-map",
-        "./skills/prototype",
-        "./skills/research",
-        "./skills/to-tickets",
-        "./skills/wizard",
-        "./skills/handoff",
-        "./skills/orchestrate"
+        "./skills/orient/router",
+        "./skills/orient/setup",
+        "./skills/decide/grilling",
+        "./skills/decide/decision-map",
+        "./skills/investigate/prototype",
+        "./skills/investigate/research",
+        "./skills/run/to-tickets",
+        "./skills/run/wizard",
+        "./skills/run/handoff",
+        "./skills/run/orchestrate"
       ]
     },
     {
@@ -47,7 +47,7 @@
       "description": "Write and prune documents an agent consumes — a SKILL.md, an AGENTS.md or CLAUDE.md, a reference reached by a pointer. Context pointers, the two loads, the information hierarchy, leading words, and the no-op test.",
       "license": "MIT",
       "skills": [
-        "./skills/writing-for-agents"
+        "./skills/author/writing-for-agents"
       ]
     }
   ]

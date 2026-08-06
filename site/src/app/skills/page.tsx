@@ -15,10 +15,12 @@ export default function Catalog() {
     <>
       <div className="shell" style={{ paddingBlock: "clamp(2.5rem, 6vw, 4rem) 0" }}>
         <p className="eyebrow">The catalog</p>
-        <h1 style={{ maxWidth: "16ch" }}>{skills.length} skills, in five regions.</h1>
+        <h1 style={{ maxWidth: "16ch" }}>
+          {skills.length} skills, in {regions.length} regions.
+        </h1>
         <p className="lede">
-          Grouped by the job they do, roughly in the order work moves through them — orient, decide,
-          investigate, run.
+          Grouped by the job they do, roughly in the order work moves through them —{" "}
+          {regions.map((r) => r.name.toLowerCase()).join(", ")}.
         </p>
       </div>
       <Regions regions={regions} />

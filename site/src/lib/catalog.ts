@@ -1,54 +1,18 @@
-import { getSkills, type Skill } from "./skills";
+import { getBuckets, getSkills, type Bucket, type Skill } from "./skills";
 
 /**
- * Editorial layer over the generated catalog: which region a skill sits in, and
- * where it plots on the hero chart.
+ * The catalog's regions ARE the repository's promoted buckets — name, order,
+ * and blurb all come from `skills/buckets.json`, so a skill's category is the
+ * directory it sits in and there is no second list to keep in step.
  *
- * This file is deliberately the one hand-maintained surface, and `assertComplete`
- * fails the build when a new skill is not placed — the same enforcement the repo
- * uses for router freshness. A silently uncategorised skill is worse than a
- * broken build: it ships, and nobody finds it.
+ * What stays hand-maintained here is the one thing a directory cannot express:
+ * where each skill plots on the hero chart, and which handoffs to draw between
+ * them. `assertComplete` fails the build when a skill has no plot position —
+ * the same enforcement `scripts/check_router_freshness.py` applies to the
+ * marketplace and the router.
  */
 
-export type Region = {
-  id: string;
-  name: string;
-  blurb: string;
-  skills: string[];
-};
-
-export const REGIONS: Region[] = [
-  {
-    id: "orient",
-    name: "Orient",
-    blurb: "Bind the discipline to a repo, and find your way around it.",
-    skills: ["router", "setup"],
-  },
-  {
-    id: "decide",
-    name: "Decide",
-    blurb: "Settle what is still open before anyone writes a line of it.",
-    skills: ["grilling", "decision-map", "advisory-board"],
-  },
-  {
-    id: "investigate",
-    name: "Investigate",
-    blurb: "Answer what discussion cannot — from sources, or from running code.",
-    skills: ["research", "prototype"],
-  },
-  {
-    id: "run",
-    name: "Run",
-    blurb: "Get decided work onto the board, through the lanes, and handed on.",
-    skills: ["to-tickets", "wizard", "orchestrate", "handoff"],
-  },
-  {
-    id: "author",
-    name: "Author",
-    blurb: "The standard the rest of this catalog is written against.",
-    skills: ["writing-for-agents"],
-  },
-];
+export type Region = Bucket & { entries: Skill[] };
 
 /**
  * Plotted positions on the hero chart, in a 1000×520 viewBox. Left to right is
@@ -71,8 +35,14 @@ export const PLOT: Record<string, { x: number; y: number; anchor?: "start" | "en
 };
 
 /**
- * How the skills actually compose — each edge is a real handoff documented in
- * one of the SKILL.md files, not a decorative line.
+ * How the skills actually compose. Most edges are handoffs a SKILL.md states
+ * outright; two — advisory-board → decision-map and wizard → orchestrate — are
+ * compositions the pack supports that no SKILL.md names, so they are asserted
+ * here rather than quoted from there. None is a decorative line.
+ *
+ * Worth keeping straight, because /notes/graph-engineering cites this graph:
+ * it records which skill hands off to which, not what blocks what. That makes
+ * it an org graph, not a task graph.
  */
 export const BEARINGS: Array<{ from: string; to: string; note: string }> = [
   { from: "setup", to: "grilling", note: "bindings first" },
@@ -93,45 +63,53 @@ export const BEARINGS: Array<{ from: string; to: string; note: string }> = [
 export type PlacedSkill = Skill & { region: Region };
 
 /**
- * Every skill on disk must be placed in a region and plotted on the chart.
- * Throwing here fails `next build`, which is the point.
+ * A skill's region is settled by its directory, so the only thing left to check
+ * is that the chart knows where to draw it. Throwing here fails `next build`,
+ * which is the point: a skill with no position would silently vanish from the
+ * hero while still appearing in its region list.
  */
 function assertComplete(skills: Skill[]) {
-  const placed = new Set(REGIONS.flatMap((r) => r.skills));
-  const missing = skills.filter((s) => !placed.has(s.slug)).map((s) => s.slug);
-  if (missing.length) {
+  const unplotted = skills.filter((s) => !PLOT[s.slug]).map((s) => s.slug);
+  if (unplotted.length) {
     throw new Error(
-      `catalog.ts: ${missing.join(", ")} ${missing.length === 1 ? "is" : "are"} not in any region. ` +
-        `Add ${missing.length === 1 ? "it" : "them"} to REGIONS and PLOT in src/lib/catalog.ts.`,
+      `catalog.ts: ${unplotted.join(", ")} ${unplotted.length === 1 ? "has" : "have"} no PLOT ` +
+        "position for the hero chart. Add a position in src/lib/catalog.ts.",
     );
   }
 
   const known = new Set(skills.map((s) => s.slug));
-  const ghosts = [...placed].filter((slug) => !known.has(slug));
+  const ghosts = Object.keys(PLOT).filter((slug) => !known.has(slug));
   if (ghosts.length) {
-    throw new Error(`catalog.ts: ${ghosts.join(", ")} listed in REGIONS but not present in skills/.`);
+    throw new Error(
+      `catalog.ts: ${ghosts.join(", ")} plotted on the chart but not in any promoted bucket — ` +
+        "remove the PLOT entry, or promote the skill.",
+    );
   }
 
-  const unplotted = skills.filter((s) => !PLOT[s.slug]).map((s) => s.slug);
-  if (unplotted.length) {
-    throw new Error(`catalog.ts: ${unplotted.join(", ")} has no PLOT position for the hero chart.`);
+  const plotted = new Set(known);
+  const dangling = BEARINGS.filter((b) => !plotted.has(b.from) || !plotted.has(b.to));
+  if (dangling.length) {
+    throw new Error(
+      `catalog.ts: bearing(s) reference skills that are not in a promoted bucket: ` +
+        dangling.map((b) => `${b.from} → ${b.to}`).join(", "),
+    );
   }
 }
 
-export function getCatalog(): { regions: Array<Region & { entries: Skill[] }>; skills: PlacedSkill[] } {
+export function getCatalog(): { regions: Region[]; skills: PlacedSkill[] } {
   const skills = getSkills();
   assertComplete(skills);
 
-  const bySlug = new Map(skills.map((s) => [s.slug, s]));
-  const regions = REGIONS.map((region) => ({
-    ...region,
-    entries: region.skills.map((slug) => bySlug.get(slug)!),
-  }));
+  const regions = getBuckets()
+    .filter((b) => b.promoted)
+    .map((bucket) => ({
+      ...bucket,
+      entries: skills.filter((s) => s.bucket === bucket.id),
+    }))
+    .filter((region) => region.entries.length > 0);
 
-  const placed = skills.map((skill) => ({
-    ...skill,
-    region: REGIONS.find((r) => r.skills.includes(skill.slug))!,
-  }));
+  const byId = new Map(regions.map((r) => [r.id, r]));
+  const placed = skills.map((skill) => ({ ...skill, region: byId.get(skill.bucket)! }));
 
   return { regions, skills: placed };
 }

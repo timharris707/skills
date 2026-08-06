@@ -8,12 +8,27 @@
  */
 
 :root {
-  --paper: #edf1f1;      /* chart ground — cool, not cream */
-  --beacon: #f7f9f9;     /* raised surfaces */
-  --shoal: #dde5e5;      /* fills and rules */
-  --ink: #0e2a33;        /* sounding blue-black — text and linework */
-  --sounding: #5b7c87;   /* muted depth figures, secondary text */
-  --magenta: #b5007a;    /* chart magenta: cautions and actions, nothing else */
+  /*
+   * Day and night are the same drawing under a different lamp, so every token
+   * carries both values in one place — `light-dark()` keeps the palette a
+   * single readable table instead of two that drift apart.
+   */
+  color-scheme: light dark;
+
+  --paper: light-dark(#edf1f1, #0a1c22);      /* chart ground — cool, not cream */
+  --beacon: light-dark(#f7f9f9, #0f262d);     /* raised surfaces */
+  --shoal: light-dark(#dde5e5, #1b3a44);      /* fills and rules */
+  --ink: light-dark(#0e2a33, #dbe7e9);        /* linework and text */
+  --sounding: light-dark(#50707c, #8aa8b2);   /* muted depth figures, secondary text */
+  --magenta: light-dark(#b5007a, #f2559f);    /* chart magenta: cautions and actions, nothing else */
+
+  /*
+   * Terminals and code blocks are wells sunk into the page — dark under both
+   * lamps. They cannot key off --ink, which flips to pale at night and would
+   * turn every install command inside out.
+   */
+  --well: light-dark(#0e2a33, #050f13);
+  --well-ink: light-dark(#edf1f1, #cfe0e3);
 
   --hairline: 1px solid color-mix(in srgb, var(--ink) 16%, transparent);
   --rule: 1px solid color-mix(in srgb, var(--ink) 10%, transparent);
@@ -21,8 +36,41 @@
   --measure: 66ch;
   --gutter: clamp(1.25rem, 4vw, 3.5rem);
   --shell: 1180px;
+}
 
+/*
+ * Before `light-dark()` shipped, every token above would be invalid at
+ * computed-value time and the page would lose its grounds and its linework.
+ * The two-declaration fallback does not work for custom properties — a custom
+ * property accepts any token sequence, so the newer line always wins the
+ * cascade and the older one never gets a turn. Hence a floor, not a fallback:
+ * old browsers get the daytime chart and no lamp.
+ */
+@supports not (color: light-dark(#000, #fff)) {
+  :root {
+    --paper: #edf1f1;
+    --beacon: #f7f9f9;
+    --shoal: #dde5e5;
+    --ink: #0e2a33;
+    --sounding: #50707c;
+    --magenta: #b5007a;
+    --well: #0e2a33;
+    --well-ink: #edf1f1;
+  }
+
+  .lamp {
+    display: none;
+  }
+}
+
+/* No stored preference means the operating system chooses. Picking a lamp
+   explicitly pins it, and that is the only thing `data-theme` does. */
+:root[data-theme="light"] {
   color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
 }
 
 *,
@@ -140,6 +188,9 @@ pre {
   letter-spacing: 0.06em;
   text-transform: uppercase;
   font-weight: 500;
+  /* Pushes the nav and the lamp together on the right, so the wordmark keeps
+     the left edge to itself. */
+  margin-left: auto;
 }
 
 .masthead nav a {
@@ -154,15 +205,115 @@ pre {
   border-bottom-color: var(--magenta);
 }
 
-@media (max-width: 560px) {
+/*
+ * Below this the nav takes its own row instead of competing for the first one.
+ * Squeezing five links, a wordmark and the lamp onto one line was clipping the
+ * lamp at 320px; wrapping keeps every link reachable at any width, which
+ * hiding them did not.
+ */
+@media (max-width: 620px) {
+  .masthead__inner {
+    flex-wrap: wrap;
+    align-items: center;
+    row-gap: 0;
+    padding-bottom: 0.45rem;
+    min-height: 0;
+    padding-top: 0.45rem;
+  }
+
   .masthead nav {
-    gap: 0.95rem;
+    order: 3;
+    flex-basis: 100%;
+    margin-left: 0;
+    justify-content: space-between;
+    gap: 0.6rem;
     font-size: 0.7rem;
+    letter-spacing: 0.03em;
+    padding-top: 0.5rem;
+  }
+
+  .lamp {
+    margin-left: auto;
   }
 
   .wordmark {
     font-size: 0.8rem;
   }
+
+  /* The pair no longer fits beside the lead at this width, and a lead stranded
+     on its own line above them reads better than one orphaned mark below. */
+  .runtimes__lead {
+    width: 100%;
+  }
+}
+
+/* ── The lamp ────────────────────────────────────────────────────────────── */
+
+/* Drawn in the same hairline stroke as the rest of the linework, and set off
+   from the nav by a rule the way a chart separates its legend. */
+.lamp {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: var(--hairline);
+  border-radius: 50%;
+  background: var(--beacon);
+  color: var(--sounding);
+  cursor: pointer;
+  transition: color 160ms ease, border-color 160ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.lamp:hover {
+  color: var(--magenta);
+  border-color: var(--magenta);
+}
+
+/* Sits after the base rule rather than with the other narrow-screen tweaks
+   above, which share its specificity and would otherwise win on order. */
+@media (max-width: 560px) {
+  .lamp {
+    width: 26px;
+    height: 26px;
+  }
+}
+
+/*
+ * Both glyphs ship in the markup and CSS reveals exactly one, so the icon is
+ * correct in the very first painted frame — a server render cannot know which
+ * lamp is lit, and resolving it in an effect would flash the wrong one.
+ *
+ * Everything below is matched on a single class so the reveal rules, which
+ * carry an attribute as well, reliably outrank it.
+ */
+.lamp__day,
+.lamp__night {
+  display: block;
+}
+
+.lamp__night {
+  display: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .lamp__day {
+    display: none;
+  }
+
+  :root:not([data-theme="light"]) .lamp__night {
+    display: block;
+  }
+}
+
+:root[data-theme="dark"] .lamp__day {
+  display: none;
+}
+
+:root[data-theme="dark"] .lamp__night {
+  display: block;
 }
 
 /* ── Type ────────────────────────────────────────────────────────────────── */
@@ -221,6 +372,68 @@ h2 {
   margin: 0;
 }
 
+/* ── Runtime marks ───────────────────────────────────────────────────────── */
+
+/* Set like a chart's legend: hairline-boxed, mono, small caps-ish tracking —
+   so the marks read as notation on the drawing, not badges stuck over it. */
+.runtimes {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.55rem 0.85rem;
+  margin: 0;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.74rem;
+  letter-spacing: 0.02em;
+  color: var(--ink);
+}
+
+.runtimes__lead {
+  color: var(--sounding);
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  font-size: 0.68rem;
+}
+
+.runtimes__mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+  padding: 0.3rem 0.6rem 0.3rem 0.5rem;
+  border: var(--hairline);
+  background: var(--beacon);
+  white-space: nowrap;
+  transition: border-color 160ms ease, color 160ms ease;
+}
+
+.runtimes__mark svg {
+  flex: none;
+  opacity: 0.9;
+}
+
+.runtimes__mark:hover {
+  border-color: var(--magenta);
+  color: var(--magenta);
+}
+
+/* In the hero the pair sits above the headline, so it reads before anything
+   else — the eyebrow slot, carrying marks instead of words. */
+.hero .runtimes {
+  margin-bottom: 1.15rem;
+}
+
+/* The aside is narrow: stack rather than let the pair wrap awkwardly. */
+.aside .runtimes {
+  font-size: 0.7rem;
+  gap: 0.4rem;
+  margin-bottom: 1.5rem;
+}
+
+.aside .runtimes__lead {
+  width: 100%;
+  margin-bottom: 0.1rem;
+}
+
 /* ── Hero ────────────────────────────────────────────────────────────────── */
 
 .hero {
@@ -235,6 +448,24 @@ h2 {
   .hero {
     grid-template-columns: minmax(0, 1fr);
   }
+}
+
+.hero__runtimes {
+  font-size: 0.85rem;
+  color: var(--sounding);
+  margin: 0.9rem 0 0;
+  max-width: 48ch;
+  line-height: 1.55;
+}
+
+.hero__runtimes a {
+  color: var(--magenta);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.hero__runtimes a:hover {
+  text-decoration: underline;
 }
 
 .hero__soundings {
@@ -419,10 +650,26 @@ h2 {
 
 /* ── Install ─────────────────────────────────────────────────────────────── */
 
+/* The two runtime sections letter their own headings. Someone landing here is
+   scanning for their runtime, and the mark finds it faster than the word does
+   — so this is wayfinding rather than decoration, and it is the only place a
+   mark appears at heading scale. Muted ink: magenta stays reserved for
+   actions, and the commands below are the action. */
+.runtime-head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.runtime-head svg {
+  flex: none;
+  color: color-mix(in srgb, var(--ink) 62%, transparent);
+}
+
 .terminal {
   border: var(--hairline);
-  background: var(--ink);
-  color: var(--paper);
+  background: var(--well);
+  color: var(--well-ink);
   font-family: var(--font-mono), monospace;
   font-size: 0.83rem;
   line-height: 1.85;
@@ -440,8 +687,10 @@ h2 {
   user-select: none;
 }
 
+/* Keyed to the well's own ink, not the page's — at night --paper is nearly the
+   well itself, and the comment would vanish into it. */
 .terminal__comment {
-  color: color-mix(in srgb, var(--paper) 45%, transparent);
+  color: color-mix(in srgb, var(--well-ink) 45%, transparent);
 }
 
 /* ── Regions and skill rows ──────────────────────────────────────────────── */
@@ -553,6 +802,331 @@ h2 {
   max-width: var(--measure);
 }
 
+/* ── Legend and notes ────────────────────────────────────────────────────── */
+
+/*
+ * A band grades a claim, not a word. Only "thin" gets the caution colour —
+ * spending magenta on anything merely emerging would make the page read as a
+ * sneer, which is the failure the bands exist to prevent.
+ */
+.band {
+  font-family: var(--font-mono), monospace;
+  font-size: 0.62rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--sounding);
+  border-bottom: 1px solid currentColor;
+  padding-bottom: 1px;
+}
+
+.band--established {
+  color: var(--ink);
+  border-bottom-style: solid;
+}
+
+.band--emerging {
+  border-bottom-style: dashed;
+}
+
+.band--contested {
+  border-bottom-style: dotted;
+}
+
+.band--thin {
+  color: var(--magenta);
+  border-bottom-style: dotted;
+}
+
+/* The key to the bands, and to the note kinds — same shape for both. */
+.bands {
+  margin: 0.4rem 0 0;
+  display: grid;
+  /* Sized so all four bands sit on one row — a key that wraps reads as if the
+     last entry is an afterthought. */
+  grid-template-columns: repeat(auto-fit, minmax(205px, 1fr));
+  gap: 0.9rem 1.9rem;
+  border-top: var(--rule);
+  padding-top: 1.1rem;
+  max-width: 66rem;
+}
+
+.bands > div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.bands dd {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--sounding);
+  line-height: 1.5;
+}
+
+.kind {
+  font-family: var(--font-mono), monospace;
+  font-size: 0.62rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--sounding);
+}
+
+/* A correction is the one kind worth spending the accent on: it is the entry
+   that says this site got something wrong, and it should be findable. */
+.kind--correction {
+  color: var(--magenta);
+}
+
+.entry__meta {
+  grid-column: 1 / -1;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  color: color-mix(in srgb, var(--sounding) 80%, transparent);
+  margin-top: 0.35rem;
+}
+
+.term__band {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem 0.9rem;
+  margin: 0 0 2rem;
+  padding-bottom: 1.1rem;
+  border-bottom: var(--rule);
+  font-size: 0.86rem;
+  color: var(--sounding);
+  max-width: var(--measure);
+}
+
+.term__skill {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.term__skill a {
+  font-family: var(--font-mono), monospace;
+  font-size: 0.95rem;
+  font-weight: 700;
+  text-decoration: none;
+  color: var(--magenta);
+}
+
+.term__skill span {
+  font-size: 0.82rem;
+  color: var(--sounding);
+  line-height: 1.5;
+}
+
+.aside ul li a {
+  text-decoration: none;
+}
+
+.aside ul li a:hover {
+  color: var(--magenta);
+}
+
+.note__title {
+  font-size: clamp(1.9rem, 4vw, 2.7rem);
+  line-height: 1.08;
+  letter-spacing: -0.025em;
+  font-weight: 600;
+  margin: 0 0 1.2rem;
+  text-wrap: balance;
+}
+
+/* ── Work ────────────────────────────────────────────────────────────────── */
+
+/* Where a chart convention needs stating outright — the note under
+   "Unsurveyed" that turns withholding into a legend entry. */
+.region__note {
+  font-size: 0.84rem;
+  line-height: 1.55;
+  color: var(--sounding);
+  max-width: 34ch;
+  margin: 0.95rem 0 0;
+  padding-top: 0.9rem;
+  border-top: var(--rule);
+}
+
+/* Same grammar as a skill entry — mono name, muted status, prose beneath —
+   but not wrapped in a link, because half of these have nowhere to go. */
+.build {
+  border-bottom: var(--rule);
+  padding: 1.15rem 0 1.35rem;
+}
+
+.build:last-child {
+  border-bottom: 0;
+}
+
+.build__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.3rem 1.5rem;
+}
+
+.build__name {
+  font-family: var(--font-mono), monospace;
+  font-size: 1.02rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+.build__status {
+  font-family: var(--font-mono), monospace;
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  color: var(--sounding);
+  white-space: nowrap;
+}
+
+.build__what {
+  color: var(--sounding);
+  font-size: 0.93rem;
+  margin: 0.55rem 0 0;
+  max-width: var(--measure);
+}
+
+.build__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1.4rem;
+  margin: 0.8rem 0 0;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.74rem;
+}
+
+.build__link {
+  color: var(--magenta);
+  text-decoration: none;
+}
+
+.build__link:hover {
+  text-decoration: underline;
+}
+
+/* ── Instruments ─────────────────────────────────────────────────────────── */
+
+/* The caveat is the reason to read a recommendations page, so it is set as its
+   own block with the accent on the label — not buried at the end of a blurb. */
+.instrument__stops {
+  margin: 0.85rem 0 0;
+  padding-left: 1rem;
+  border-left: 2px solid color-mix(in srgb, var(--magenta) 45%, transparent);
+  font-size: 0.88rem;
+  line-height: 1.55;
+  color: var(--sounding);
+  max-width: var(--measure);
+}
+
+.instrument__stops span {
+  display: block;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.64rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--magenta);
+  margin-bottom: 0.3rem;
+}
+
+.instrument__disclosure {
+  font-size: 0.84rem;
+  color: var(--sounding);
+  max-width: 58ch;
+  margin: 1.4rem 0 0;
+  padding-top: 1.1rem;
+  border-top: var(--rule);
+  line-height: 1.55;
+}
+
+.instrument__disclosure a {
+  color: var(--magenta);
+  text-decoration: none;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.82rem;
+}
+
+.instrument__disclosure a:hover {
+  text-decoration: underline;
+}
+
+/* ── The maker ───────────────────────────────────────────────────────────── */
+
+.maker {
+  display: grid;
+  grid-template-columns: minmax(0, 0.34fr) minmax(0, 1fr);
+  gap: clamp(1.5rem, 4vw, 3rem);
+  padding-block: clamp(2.5rem, 5vw, 4rem) clamp(3rem, 6vw, 5rem);
+  border-top: var(--hairline);
+}
+
+@media (max-width: 800px) {
+  .maker {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.1rem;
+  }
+}
+
+/* Lettered like a region — a chart names its features in this face, and on
+   this page he is one of them. */
+.maker__name {
+  font-family: var(--font-display), Georgia, serif;
+  font-style: italic;
+  font-weight: 400;
+  font-size: clamp(1.8rem, 3.4vw, 2.5rem);
+  letter-spacing: -0.01em;
+  line-height: 1;
+  margin: 0;
+}
+
+.maker__body > p {
+  max-width: var(--measure);
+  margin: 0 0 1.15rem;
+}
+
+.maker__body > p:last-child {
+  margin-bottom: 0;
+}
+
+.maker__thesis {
+  font-size: 1.14rem;
+  color: var(--ink);
+  border-left: 2px solid var(--magenta);
+  padding-left: 1rem;
+}
+
+.maker__body .maker__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1.5rem;
+  margin: 1.6rem 0 0;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.76rem;
+}
+
+.maker__links a {
+  color: var(--magenta);
+  text-decoration: none;
+}
+
+.maker__links a:hover {
+  text-decoration: underline;
+}
+
+/* On the homepage the block closes the page rather than carrying it, so it
+   loses the top rule the regions above already provide. */
+.maker--brief {
+  padding-block: clamp(2.2rem, 4vw, 3.2rem) clamp(2.5rem, 5vw, 4rem);
+}
+
 /* ── Skill detail ────────────────────────────────────────────────────────── */
 
 .detail {
@@ -626,6 +1200,17 @@ h2 {
   overflow-wrap: anywhere;
 }
 
+.aside__note {
+  font-size: 0.76rem;
+  color: var(--sounding);
+  margin: -1rem 0 1.5rem;
+  line-height: 1.5;
+}
+
+.aside__note code {
+  font-size: 0.95em;
+}
+
 .aside h3 {
   font-family: var(--font-mono), monospace;
   font-size: 0.68rem;
@@ -636,7 +1221,10 @@ h2 {
   font-weight: 500;
 }
 
-.aside h3 + h3 {
+.aside h3 + h3,
+.aside dl + h3,
+.aside ul + h3,
+.aside p + h3 {
   margin-top: 1.5rem;
 }
 
@@ -733,8 +1321,8 @@ h2 {
 }
 
 .prose pre {
-  background: var(--ink);
-  color: var(--paper);
+  background: var(--well);
+  color: var(--well-ink);
   padding: 1rem 1.15rem;
   overflow-x: auto;
   font-size: 0.82rem;
@@ -746,6 +1334,16 @@ h2 {
   background: none;
   padding: 0;
   font-size: inherit;
+}
+
+/* A Terminal inside prose sets its own dark ground, and its lines are bare
+   <code> elements — so the inline-code chip above would paint a light fill
+   under light text. Same reset as .prose pre code, for the same reason. */
+.prose .terminal code {
+  background: none;
+  padding: 0;
+  font-size: inherit;
+  border-radius: 0;
 }
 
 .prose blockquote {
@@ -814,9 +1412,26 @@ h2 {
 
 .colophon__links {
   display: flex;
-  gap: 1.4rem;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.4rem;
   font-family: var(--font-mono), monospace;
   font-size: 0.75rem;
+}
+
+/* /instruments is not in the masthead — five items is the cap — so the footer
+   carries the one link that reaches it from every page. */
+.colophon__aside {
+  margin: 1.1rem 0 0;
+  font-size: 0.8rem;
+}
+
+.colophon__aside a {
+  color: var(--magenta);
+  text-decoration: none;
+}
+
+.colophon__aside a:hover {
+  text-decoration: underline;
 }
 
 @media (prefers-reduced-motion: reduce) {

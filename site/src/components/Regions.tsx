@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { summarize, type Skill } from "@/lib/skills";
+import { summarize } from "@/lib/skills";
 import type { Region } from "@/lib/catalog";
 
 const SHIPS_AS: Record<string, string> = {
@@ -8,11 +8,7 @@ const SHIPS_AS: Record<string, string> = {
   "writing-for-agents": "standalone",
 };
 
-export default function Regions({
-  regions,
-}: {
-  regions: Array<Region & { entries: Skill[] }>;
-}) {
+export default function Regions({ regions }: { regions: Region[] }) {
   return (
     <div className="shell regions" id="catalog">
       {regions.map((region) => (

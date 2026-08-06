@@ -3,8 +3,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { marked } from "marked";
 import Terminal from "@/components/Terminal";
-import { getSkill, getSkills, summarize } from "@/lib/skills";
-import { REGIONS } from "@/lib/catalog";
+import Runtimes from "@/components/Runtimes";
+import { getCodexPlugin, getSkill, getSkills, summarize } from "@/lib/skills";
+import { getBuckets } from "@/lib/skills";
 
 type Params = { params: Promise<{ slug: string }> };
 
@@ -32,14 +33,23 @@ function trigger(description: string): string | null {
 /**
  * SKILL.md links are relative to the skill's own directory, so they only
  * resolve on GitHub. Rewrite them there rather than shipping dead links.
+ *
+ * Resolved against `skills/<bucket>/<slug>/`, not `skills/<slug>/` — skills
+ * moved into buckets and every one of these links pointed at a 404 until this
+ * took the bucket into account. `..` segments are collapsed rather than
+ * stripped, so a link out of a skill's own directory lands where it means to.
  */
-function absolutise(html: string, slug: string): string {
-  const base = `https://github.com/timharris707/skills/blob/main/skills/${slug}/`;
-  return html.replace(/href="(?!https?:|\/|#|mailto:)([^"]+)"/g, (_m, href) => {
-    const target = href.startsWith("../")
-      ? `https://github.com/timharris707/skills/blob/main/skills/${href.slice(3)}`
-      : `${base}${href}`;
-    return `href="${target}"`;
+function absolutise(html: string, bucket: string, slug: string): string {
+  const root = "https://github.com/timharris707/skills/blob/main";
+  const from = ["skills", bucket, slug];
+
+  return html.replace(/href="(?!https?:|\/|#|mailto:)([^"]+)"/g, (_m, href: string) => {
+    const segments = [...from];
+    for (const part of href.split("/")) {
+      if (part === "..") segments.pop();
+      else if (part !== "." && part !== "") segments.push(part);
+    }
+    return `href="${root}/${segments.join("/")}"`;
   });
 }
 
@@ -48,11 +58,12 @@ export default async function SkillPage({ params }: Params) {
   const skill = getSkill(slug);
   if (!skill) notFound();
 
-  const region = REGIONS.find((r) => r.skills.includes(skill.slug));
+  const region = getBuckets().find((b) => b.id === skill.bucket);
   // The SKILL.md H1 is the page title, so drop it rather than printing it twice.
   const body = skill.body.trimStart().replace(/^#\s+.*(\r?\n|$)/, "");
-  const html = absolutise(await marked.parse(body), skill.slug);
+  const html = absolutise(await marked.parse(body), skill.bucket, skill.slug);
   const useWhen = trigger(skill.description);
+  const codex = getCodexPlugin();
 
   return (
     <div className="shell detail">
@@ -67,7 +78,13 @@ export default async function SkillPage({ params }: Params) {
 
       <aside className="aside">
         <h3>Install</h3>
-        <Terminal lines={[{ command: `/plugin install ${skill.plugin}@skills` }]} />
+        <Terminal
+          lines={[
+            { command: `/plugin install ${skill.plugin}@skills`, comment: "Claude Code" },
+            { command: `codex plugin add ${codex.name}@${codex.marketplace}`, comment: "Codex" },
+          ]}
+        />
+        <Runtimes lead="Runs on" />
 
         <h3>Details</h3>
         <dl>

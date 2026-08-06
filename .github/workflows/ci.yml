@@ -13,17 +13,24 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  router-freshness:
+  catalog-freshness:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       # Structural check, standard library only: marketplace.json is valid and
-      # claims every skills/<dir>; the team-workflow router roster names every
+      # claims every skill in a promoted bucket; the router roster names every
       # pack skill; every router link resolves. See the script's docstring.
-      - name: Check router and catalog freshness
+      - name: Check bucket, marketplace, and router freshness
         run: python3 scripts/check_router_freshness.py
+
+      # The site is written from a private context repository. This fails the
+      # build if a confidential name or any email address reaches site/src.
+      # The forbidden terms are stored as salted digests, so the check itself
+      # discloses nothing. See the script's docstring.
+      - name: Check the site discloses nothing it should not
+        run: python3 scripts/check_site_disclosure.py
 
   advisory-board:
     runs-on: ubuntu-latest
@@ -38,12 +45,12 @@ jobs:
           python-version: "3.12"
 
       - name: Compile Python sources
-        run: python -m compileall -q skills/advisory-board/scripts
+        run: python -m compileall -q skills/decide/advisory-board/scripts
 
       - name: Validate shell mocks
         run: |
           set -euo pipefail
-          for script in skills/advisory-board/tests/mocks/*; do
+          for script in skills/decide/advisory-board/tests/mocks/*; do
             [ -f "$script" ] || continue
             if head -n 1 "$script" | grep -qE '(ba|z|k)?sh'; then
               bash -n "$script"
@@ -51,7 +58,7 @@ jobs:
           done
 
       - name: Run advisory-board tests
-        run: python -m unittest discover -s skills/advisory-board/tests -p 'test*.py'
+        run: python -m unittest discover -s skills/decide/advisory-board/tests -p 'test*.py'
 
       - name: Check tracked whitespace
         run: git diff --check HEAD^1 HEAD
