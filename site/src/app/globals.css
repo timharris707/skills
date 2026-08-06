@@ -799,6 +799,149 @@ h2 {
   max-width: var(--measure);
 }
 
+/* ── Work ────────────────────────────────────────────────────────────────── */
+
+/* Where a chart convention needs stating outright — the note under
+   "Unsurveyed" that turns withholding into a legend entry. */
+.region__note {
+  font-size: 0.84rem;
+  line-height: 1.55;
+  color: var(--sounding);
+  max-width: 34ch;
+  margin: 0.95rem 0 0;
+  padding-top: 0.9rem;
+  border-top: var(--rule);
+}
+
+/* Same grammar as a skill entry — mono name, muted status, prose beneath —
+   but not wrapped in a link, because half of these have nowhere to go. */
+.build {
+  border-bottom: var(--rule);
+  padding: 1.15rem 0 1.35rem;
+}
+
+.build:last-child {
+  border-bottom: 0;
+}
+
+.build__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.3rem 1.5rem;
+}
+
+.build__name {
+  font-family: var(--font-mono), monospace;
+  font-size: 1.02rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+.build__status {
+  font-family: var(--font-mono), monospace;
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  color: var(--sounding);
+  white-space: nowrap;
+}
+
+.build__what {
+  color: var(--sounding);
+  font-size: 0.93rem;
+  margin: 0.55rem 0 0;
+  max-width: var(--measure);
+}
+
+.build__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1.4rem;
+  margin: 0.8rem 0 0;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.74rem;
+}
+
+.build__link {
+  color: var(--magenta);
+  text-decoration: none;
+}
+
+.build__link:hover {
+  text-decoration: underline;
+}
+
+/* ── The maker ───────────────────────────────────────────────────────────── */
+
+.maker {
+  display: grid;
+  grid-template-columns: minmax(0, 0.34fr) minmax(0, 1fr);
+  gap: clamp(1.5rem, 4vw, 3rem);
+  padding-block: clamp(2.5rem, 5vw, 4rem) clamp(3rem, 6vw, 5rem);
+  border-top: var(--hairline);
+}
+
+@media (max-width: 800px) {
+  .maker {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.1rem;
+  }
+}
+
+/* Lettered like a region — a chart names its features in this face, and on
+   this page he is one of them. */
+.maker__name {
+  font-family: var(--font-display), Georgia, serif;
+  font-style: italic;
+  font-weight: 400;
+  font-size: clamp(1.8rem, 3.4vw, 2.5rem);
+  letter-spacing: -0.01em;
+  line-height: 1;
+  margin: 0;
+}
+
+.maker__body > p {
+  max-width: var(--measure);
+  margin: 0 0 1.15rem;
+}
+
+.maker__body > p:last-child {
+  margin-bottom: 0;
+}
+
+.maker__thesis {
+  font-size: 1.14rem;
+  color: var(--ink);
+  border-left: 2px solid var(--magenta);
+  padding-left: 1rem;
+}
+
+.maker__body .maker__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1.5rem;
+  margin: 1.6rem 0 0;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.76rem;
+}
+
+.maker__links a {
+  color: var(--magenta);
+  text-decoration: none;
+}
+
+.maker__links a:hover {
+  text-decoration: underline;
+}
+
+/* On the homepage the block closes the page rather than carrying it, so it
+   loses the top rule the regions above already provide. */
+.maker--brief {
+  padding-block: clamp(2.2rem, 4vw, 3.2rem) clamp(2.5rem, 5vw, 4rem);
+}
+
 /* ── Skill detail ────────────────────────────────────────────────────────── */
 
 .detail {

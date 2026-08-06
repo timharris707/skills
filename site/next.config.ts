@@ -17,6 +17,7 @@ const config: NextConfig = {
       // `[slug].md` directory is not a param segment, so the suffix is matched
       // here and handed to a normal dynamic route.
       { source: "/skills/:slug.md", destination: "/api/skill-md/:slug" },
+      { source: "/work.md", destination: "/api/work-md" },
     ];
   },
 };

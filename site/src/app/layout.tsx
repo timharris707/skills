@@ -86,6 +86,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <nav>
                 <Link href="/skills">Catalog</Link>
                 <Link href="/install">Install</Link>
+                <Link href="/work">Work</Link>
                 <a className="masthead__github" href="https://github.com/timharris707/skills">
                   GitHub
                 </a>
@@ -101,10 +102,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <div className="shell colophon__inner">
             <div style={{ maxWidth: "42ch" }}>
               <p style={{ margin: "0 0 1.1rem" }}>
-                Built and maintained by{" "}
-                <a href="https://github.com/timharris707">Tim Harris</a>. Every skill on this site
-                is generated from its <code>SKILL.md</code>, so the catalog and the code cannot
-                drift.
+                Built and maintained by <Link href="/work">Tim Harris</Link>. Every skill on this
+                site is generated from its <code>SKILL.md</code>, so the catalog and the code
+                cannot drift.
               </p>
               <Runtimes lead="Runs on" />
             </div>

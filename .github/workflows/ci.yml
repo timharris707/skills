@@ -25,6 +25,13 @@ jobs:
       - name: Check bucket, marketplace, and router freshness
         run: python3 scripts/check_router_freshness.py
 
+      # The site is written from a private context repository. This fails the
+      # build if a confidential name or any email address reaches site/src.
+      # The forbidden terms are stored as salted digests, so the check itself
+      # discloses nothing. See the script's docstring.
+      - name: Check the site discloses nothing it should not
+        run: python3 scripts/check_site_disclosure.py
+
   advisory-board:
     runs-on: ubuntu-latest
     timeout-minutes: 10

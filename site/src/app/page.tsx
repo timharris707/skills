@@ -4,6 +4,7 @@ import Regions from "@/components/Regions";
 import Terminal from "@/components/Terminal";
 import Runtimes from "@/components/Runtimes";
 import { BEARINGS, PLOT, getCatalog } from "@/lib/catalog";
+import { MAKER_SHORT } from "@/lib/work";
 
 export default function Home() {
   const { regions, skills } = getCatalog();
@@ -56,6 +57,23 @@ export default function Home() {
       </div>
 
       <Regions regions={regions} />
+
+      {/* Last on the page on purpose: the reader meets the argument and the
+          artefact first, so this answers "who made this?" instead of opening
+          with a boast. */}
+      <section className="shell maker maker--brief">
+        <div className="maker__head">
+          <p className="eyebrow">The maker</p>
+          <h2 className="maker__name">Tim Harris</h2>
+        </div>
+        <div className="maker__body">
+          <p className="maker__thesis">I ship software by directing agents.</p>
+          <p>{MAKER_SHORT}</p>
+          <p className="maker__links">
+            <Link href="/work">The rest of the work →</Link>
+          </p>
+        </div>
+      </section>
     </>
   );
 }

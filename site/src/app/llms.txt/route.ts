@@ -1,5 +1,6 @@
 import { getCatalog } from "@/lib/catalog";
 import { getCodexPlugin, getPlugins } from "@/lib/skills";
+import { BUILD_COUNT, PRIVATE_COUNT } from "@/lib/work";
 
 export const dynamic = "force-static";
 
@@ -57,10 +58,17 @@ export function GET() {
   }
 
   lines.push(
+    "## Who makes this",
+    "",
+    "Tim Harris. Product and direction are his; agents do the implementation, and he",
+    `reviews it. ${BUILD_COUNT} builds on the same method — ModelDeck, Panely, HiveRunner and this`,
+    `catalog are public; ${PRIVATE_COUNT} are private. Full detail: https://clickai.dev/work.md`,
+    "",
     "## Formats",
     "",
     "- Append `.md` to any skill URL for its full SKILL.md.",
     "- https://clickai.dev/skills — the catalog.",
+    "- https://clickai.dev/work.md — the builds behind it, and the maker.",
     "- https://clickai.dev/sitemap.xml — every page.",
     "",
   );
