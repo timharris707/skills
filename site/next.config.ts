@@ -21,6 +21,7 @@ const config: NextConfig = {
       { source: "/legend.md", destination: "/api/legend-md" },
       { source: "/legend/:term.md", destination: "/api/legend-md/:term" },
       { source: "/notes/:slug.md", destination: "/api/notes-md/:slug" },
+      { source: "/instruments.md", destination: "/api/instruments-md" },
     ];
   },
 };

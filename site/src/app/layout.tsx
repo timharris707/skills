@@ -108,6 +108,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 cannot drift.
               </p>
               <Runtimes lead="Runs on" />
+              <p className="colophon__aside">
+                <Link href="/instruments">Instruments</Link> — what the work is run with.
+              </p>
             </div>
             <div className="colophon__links">
               <a href="https://github.com/timharris707/skills">source</a>

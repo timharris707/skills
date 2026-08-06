@@ -13,6 +13,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${BASE}/notes`, priority: 0.8 },
     { url: `${BASE}/install`, priority: 0.7 },
     { url: `${BASE}/work`, priority: 0.7 },
+    { url: `${BASE}/instruments`, priority: 0.7 },
     ...getSkills().map((skill) => ({
       url: `${BASE}/skills/${skill.slug}`,
       priority: 0.8,

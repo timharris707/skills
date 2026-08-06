@@ -107,6 +107,24 @@ export const PRIVATE_COUNT = WORK.find((w) => w.id === "unsurveyed")!.builds.len
 export const MAKER_SHORT =
   "The product calls and the standard are mine. The typing is theirs. ModelDeck, Panely and HiveRunner were all built that way, and so was this catalog — every skill here started as a workflow I got tired of re-explaining at the top of every session.";
 
+/**
+ * Why the catalog exists, told in figures rather than adjectives.
+ *
+ * Every number here came from the GitHub API on 2026-08-05 and is checkable
+ * against a public profile, which is the only reason it is worth printing. The
+ * prose deliberately stays flat: the figures are already emphatic and a
+ * sentence telling the reader so would only get in their way.
+ */
+export const LEDGER = {
+  eyebrow: "Why this exists",
+  lines: [
+    "The GitHub account is dated 24 February 2026. Nothing before it — no 2024, no 2025.",
+    "Since then: 6,862 contributions, 760 of them public commits, 279 pull requests, and 5,814 inside private repositories. Active on 143 of the 164 days the account has existed. A median of 24 contributions on a day I work at all, and 380 on 19 July. The months run 633, 452, 971, 1,318, 2,645.",
+    "Ten to twelve hours a day, six or seven days a week, since February.",
+    "This catalog is the residue of that. Every skill here started as a workflow I got tired of re-explaining at the top of a session, and I am publishing the parts that survived — along with the point at which each of them stops.",
+  ],
+};
+
 /** The long form, for /work. Two paragraphs: why the catalog exists, then who. */
 export const MAKER_LONG = [
   "I ship software by directing AI agents. The product calls, the standard, and the last read before anything ships are mine; the implementation is delegated and then reviewed. Every build on this page was made that way, and this catalog is that method written down — a skill here is a workflow that survived enough sessions to be worth keeping.",

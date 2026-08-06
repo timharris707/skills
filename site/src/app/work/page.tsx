@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import {
   BUILD_COUNT,
+  LEDGER,
   MAKER_LONG,
   PRIVATE_COUNT,
   PUBLIC_COUNT,
@@ -89,6 +90,9 @@ export default function Work() {
           shipped the same way — I make the product calls and hold the standard, agents do the
           typing.
         </p>
+        <p className="instrument__disclosure">
+          <Link href="/instruments">What the work is run with →</Link>
+        </p>
       </div>
 
       <div className="shell regions">
@@ -110,6 +114,20 @@ export default function Work() {
             </ul>
           </section>
         ))}
+      </div>
+
+      {/* The figures run before the biography. They are checkable against a
+          public profile, which the biography is not, so they carry more. */}
+      <div className="shell maker">
+        <div className="maker__head">
+          <p className="eyebrow">{LEDGER.eyebrow}</p>
+          <h2 className="maker__name">Six months.</h2>
+        </div>
+        <div className="maker__body">
+          {LEDGER.lines.map((line) => (
+            <p key={line.slice(0, 24)}>{line}</p>
+          ))}
+        </div>
       </div>
 
       <div className="shell maker">

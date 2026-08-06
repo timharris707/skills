@@ -82,7 +82,17 @@ The dates are short enough to state plainly.
 
 **23 July 2026** — the only repository fusing both halves is created and abandoned in the same second.
 
-Within a fortnight the term had a for-and-against literature, an obituary, and a repository. That is the whole basis for calling it settled; the traffic figures that would substantiate more than that are irreconcilable across sources.
+**3 August 2026** — the term reaches a much larger audience than the literature ever did, through a 26-minute video titled ["Why Graph Engineering will 10x your Claude/Codex"](https://www.youtube.com/watch?v=JWhICz1QR8M) (71,346 views two days after publication). It is worth reading the body against the title, because the two disagree.
+
+The string "10x" does not occur anywhere in the 4,058-word transcript. Neither does "benchmark", nor "percent", nor any measurement or comparison at all. The single use of "faster" runs the other way: *"if the manual version doesn't produce way better work, automating it, honestly, will just produce mediocre work way faster."* "Claude" is said twice in twenty-six minutes and "Codex" is not said once; the coding-agent segment runs seventy-two seconds, four and a half percent of a video named for two coding agents. It is really about founder and operator workflows.
+
+It also declines every error in circulation. It makes no origin claim beyond having seen the term go viral, never cites the obituary, never says loop engineering is dead, and cites no benchmark — correctly, because there is none. It warns against its own genre: *"more agents don't automatically mean better output. Sometimes actually more agents mean more noise."* It tells viewers to run the workflow by hand before touching a framework. It opens by asking whether the term is real or whether the field "just invent[ed] another phrase to make everyone feel behind."
+
+So the honest verdict is not that the video is wrong. Its substance is sound. What it does not do is attribute: the planner, the parallel workers, the separate checker, the synthesiser and the human gate are Anthropic's December 2024 patterns, and the video says "Anthropic" zero times and "OpenAI" zero times while crediting LangGraph five. **The overclaim is in the packaging. The body is more careful than its own title, and better evidence for how this term travels than any takedown would be.**
+
+Two disclosures. The view count is a snapshot taken 5 August 2026 and will drift. And the transcript is YouTube's auto-generated captioning, so quoted wording is approximate at the word level — it renders "Codex" as "code acts" — while the substance is reliable.
+
+Within a fortnight the term had a for-and-against literature, an obituary, and a repository; a fortnight after that it had a video with seventy thousand views. That is the whole basis for calling it settled; the traffic figures that would substantiate more than that are irreconcilable across sources.
 
 ## What I could not check
 
