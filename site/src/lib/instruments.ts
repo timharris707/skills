@@ -105,9 +105,9 @@ export const BENCHES: Bench[] = [
         status: "mine · free, macOS",
         mine: true,
         blurb:
-          "Mine, and the reason the proxy above is on this page rather than in a drawer. ModelDeck shows how much Claude Code and Codex capacity is left across every account you run; where a proxy auth directory is configured it also reads each account's routing weight out of those files and puts it on the card beside the remaining capacity, so “which account is the balancer favouring” and “which account is nearly out” become one glance instead of two tools. It reads four non-secret fields and nothing else. The OAuth tokens sitting in the same files are never touched, there is no write path, and the directory is never auto-discovered.",
+          "Mine, and the reason the proxy above is on this page rather than in a drawer. ModelDeck shows how much Claude Code and Codex capacity is left across every account you run; where a proxy auth directory is configured it also reads each account's routing weight out of those files and puts it on the card beside the remaining capacity, so “which way is the weighting leaning” and “which account is nearly out” become one glance instead of two tools. It reads four non-secret fields and nothing else. The OAuth tokens sitting in the same files are never touched, there is no write path, and the directory is never auto-discovered.",
         stopsAt:
-          "Read-only by design, and macOS only. It reports; it does not rebalance and will never rotate an account on your behalf. Every failure mode reads as plain absence, so a machine without the proxy simply shows nothing.",
+          "Read-only by design, and macOS only. It reports; it sets no weights and will never rotate an account on your behalf. Every failure mode reads as plain absence, so a machine without the proxy simply shows nothing.",
         url: "https://modeldeck.ai",
         repo: "https://github.com/timharris707/modeldeck",
       },
@@ -116,7 +116,7 @@ export const BENCHES: Bench[] = [
 ];
 
 /**
- * The closing note: the loop those last two cards make when a scheduler sits
+ * The closing note: the loop those last two cards make when the weighting sits
  * between them. Described rather than shipped — it is machine-local
  * infrastructure welded to one setup, not a portable skill, and putting it in
  * the catalog would be a category error.
@@ -124,7 +124,7 @@ export const BENCHES: Bench[] = [
 export const CLOSING_THE_LOOP = {
   title: "Closing the loop",
   body: [
-    "Those last two cards read; nothing in them decides. The piece that decides is a scheduler I run every five minutes: it asks ModelDeck what each account has left, works out a weight, and writes it into the proxy. ModelDeck observes, the scheduler routes, and neither one ever touches a provider credential.",
+    "Those last two cards read; nothing in them decides. The piece that decides is the weighting — a job that runs every five minutes, asks ModelDeck what each account has left, works out a weight for each one, and writes those weights into the proxy, which routes on them. ModelDeck observes and the weighting decides; neither ever touches a provider credential.",
     "The part worth stealing is the policy rather than the plumbing. Weighting on raw remaining capacity is the obvious approach and it is wrong, because quota left unused when the window resets is simply wasted. So the weight is pace-based: divide what remains by how much of the cycle remains, and an account with plenty left and an imminent reset gets drained first while an account burning ahead of schedule gets conserved. A floor keeps a nearly empty account out of the pool entirely, because a drained account returns errors rather than results.",
     "It is not in this catalog and it is not going to be. The skills here are a portable discipline that binds to any repository; this is one machine's infrastructure, and it belongs beside ModelDeck rather than pretending to be a skill.",
   ],
