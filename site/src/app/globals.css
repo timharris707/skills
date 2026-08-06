@@ -8,12 +8,27 @@
  */
 
 :root {
-  --paper: #edf1f1;      /* chart ground — cool, not cream */
-  --beacon: #f7f9f9;     /* raised surfaces */
-  --shoal: #dde5e5;      /* fills and rules */
-  --ink: #0e2a33;        /* sounding blue-black — text and linework */
-  --sounding: #5b7c87;   /* muted depth figures, secondary text */
-  --magenta: #b5007a;    /* chart magenta: cautions and actions, nothing else */
+  /*
+   * Day and night are the same drawing under a different lamp, so every token
+   * carries both values in one place — `light-dark()` keeps the palette a
+   * single readable table instead of two that drift apart.
+   */
+  color-scheme: light dark;
+
+  --paper: light-dark(#edf1f1, #0a1c22);      /* chart ground — cool, not cream */
+  --beacon: light-dark(#f7f9f9, #0f262d);     /* raised surfaces */
+  --shoal: light-dark(#dde5e5, #1b3a44);      /* fills and rules */
+  --ink: light-dark(#0e2a33, #dbe7e9);        /* linework and text */
+  --sounding: light-dark(#50707c, #8aa8b2);   /* muted depth figures, secondary text */
+  --magenta: light-dark(#b5007a, #f2559f);    /* chart magenta: cautions and actions, nothing else */
+
+  /*
+   * Terminals and code blocks are wells sunk into the page — dark under both
+   * lamps. They cannot key off --ink, which flips to pale at night and would
+   * turn every install command inside out.
+   */
+  --well: light-dark(#0e2a33, #050f13);
+  --well-ink: light-dark(#edf1f1, #cfe0e3);
 
   --hairline: 1px solid color-mix(in srgb, var(--ink) 16%, transparent);
   --rule: 1px solid color-mix(in srgb, var(--ink) 10%, transparent);
@@ -21,8 +36,41 @@
   --measure: 66ch;
   --gutter: clamp(1.25rem, 4vw, 3.5rem);
   --shell: 1180px;
+}
 
+/*
+ * Before `light-dark()` shipped, every token above would be invalid at
+ * computed-value time and the page would lose its grounds and its linework.
+ * The two-declaration fallback does not work for custom properties — a custom
+ * property accepts any token sequence, so the newer line always wins the
+ * cascade and the older one never gets a turn. Hence a floor, not a fallback:
+ * old browsers get the daytime chart and no lamp.
+ */
+@supports not (color: light-dark(#000, #fff)) {
+  :root {
+    --paper: #edf1f1;
+    --beacon: #f7f9f9;
+    --shoal: #dde5e5;
+    --ink: #0e2a33;
+    --sounding: #50707c;
+    --magenta: #b5007a;
+    --well: #0e2a33;
+    --well-ink: #edf1f1;
+  }
+
+  .lamp {
+    display: none;
+  }
+}
+
+/* No stored preference means the operating system chooses. Picking a lamp
+   explicitly pins it, and that is the only thing `data-theme` does. */
+:root[data-theme="light"] {
   color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
 }
 
 *,
@@ -133,6 +181,12 @@ pre {
   border-radius: 50%;
 }
 
+.masthead__right {
+  display: flex;
+  align-items: center;
+  gap: 1.1rem;
+}
+
 .masthead nav {
   display: flex;
   gap: 1.5rem;
@@ -154,15 +208,109 @@ pre {
   border-bottom-color: var(--magenta);
 }
 
+/* The row is full at this width: wordmark, three links and the lamp together
+   overrun the gutter unless each gives up a little. */
 @media (max-width: 560px) {
+  .masthead__inner {
+    gap: 0.9rem;
+  }
+
+  .masthead__right {
+    gap: 0.6rem;
+  }
+
   .masthead nav {
-    gap: 0.95rem;
-    font-size: 0.7rem;
+    gap: 0.85rem;
+    font-size: 0.68rem;
+    letter-spacing: 0.04em;
   }
 
   .wordmark {
     font-size: 0.8rem;
   }
+
+  /* The pair no longer fits beside the lead at this width, and a lead stranded
+     on its own line above them reads better than one orphaned mark below. */
+  .runtimes__lead {
+    width: 100%;
+  }
+}
+
+/* Below this the row runs out of room and the lamp gets clipped. The repository
+   is still one tap away in the colophon, and from every skill's source link. */
+@media (max-width: 430px) {
+  .masthead__github {
+    display: none;
+  }
+}
+
+/* ── The lamp ────────────────────────────────────────────────────────────── */
+
+/* Drawn in the same hairline stroke as the rest of the linework, and set off
+   from the nav by a rule the way a chart separates its legend. */
+.lamp {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: var(--hairline);
+  border-radius: 50%;
+  background: var(--beacon);
+  color: var(--sounding);
+  cursor: pointer;
+  transition: color 160ms ease, border-color 160ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.lamp:hover {
+  color: var(--magenta);
+  border-color: var(--magenta);
+}
+
+/* Sits after the base rule rather than with the other narrow-screen tweaks
+   above, which share its specificity and would otherwise win on order. */
+@media (max-width: 560px) {
+  .lamp {
+    width: 26px;
+    height: 26px;
+  }
+}
+
+/*
+ * Both glyphs ship in the markup and CSS reveals exactly one, so the icon is
+ * correct in the very first painted frame — a server render cannot know which
+ * lamp is lit, and resolving it in an effect would flash the wrong one.
+ *
+ * Everything below is matched on a single class so the reveal rules, which
+ * carry an attribute as well, reliably outrank it.
+ */
+.lamp__day,
+.lamp__night {
+  display: block;
+}
+
+.lamp__night {
+  display: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .lamp__day {
+    display: none;
+  }
+
+  :root:not([data-theme="light"]) .lamp__night {
+    display: block;
+  }
+}
+
+:root[data-theme="dark"] .lamp__day {
+  display: none;
+}
+
+:root[data-theme="dark"] .lamp__night {
+  display: block;
 }
 
 /* ── Type ────────────────────────────────────────────────────────────────── */
@@ -499,10 +647,26 @@ h2 {
 
 /* ── Install ─────────────────────────────────────────────────────────────── */
 
+/* The two runtime sections letter their own headings. Someone landing here is
+   scanning for their runtime, and the mark finds it faster than the word does
+   — so this is wayfinding rather than decoration, and it is the only place a
+   mark appears at heading scale. Muted ink: magenta stays reserved for
+   actions, and the commands below are the action. */
+.runtime-head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.runtime-head svg {
+  flex: none;
+  color: color-mix(in srgb, var(--ink) 62%, transparent);
+}
+
 .terminal {
   border: var(--hairline);
-  background: var(--ink);
-  color: var(--paper);
+  background: var(--well);
+  color: var(--well-ink);
   font-family: var(--font-mono), monospace;
   font-size: 0.83rem;
   line-height: 1.85;
@@ -520,8 +684,10 @@ h2 {
   user-select: none;
 }
 
+/* Keyed to the well's own ink, not the page's — at night --paper is nearly the
+   well itself, and the comment would vanish into it. */
 .terminal__comment {
-  color: color-mix(in srgb, var(--paper) 45%, transparent);
+  color: color-mix(in srgb, var(--well-ink) 45%, transparent);
 }
 
 /* ── Regions and skill rows ──────────────────────────────────────────────── */
@@ -825,8 +991,8 @@ h2 {
 }
 
 .prose pre {
-  background: var(--ink);
-  color: var(--paper);
+  background: var(--well);
+  color: var(--well-ink);
   padding: 1rem 1.15rem;
   overflow-x: auto;
   font-size: 0.82rem;

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Terminal from "@/components/Terminal";
-import Runtimes from "@/components/Runtimes";
+import Runtimes, { RuntimeMark } from "@/components/Runtimes";
 import { getCodexPlugin, getPlugins, getSkills } from "@/lib/skills";
 
 export const metadata: Metadata = {
@@ -26,7 +26,14 @@ export default function Install() {
       <Runtimes lead="Runs natively on" />
 
       <div className="prose" style={{ maxWidth: "none" }}>
-        <h2>Claude Code</h2>
+        <h2 className="runtime-head">
+          <RuntimeMark id="claude" size={22} />
+          Claude Code
+        </h2>
+        <p>
+          Claude Code installs plugins one at a time, so the catalog is split into {plugins.length} —
+          take the pack on its own, the standalone skills on their own, or all three.
+        </p>
         <Terminal
           lines={[
             { command: "/plugin marketplace add timharris707/skills" },
@@ -37,7 +44,10 @@ export default function Install() {
           ]}
         />
 
-        <h2>Codex</h2>
+        <h2 className="runtime-head">
+          <RuntimeMark id="codex" size={22} />
+          Codex
+        </h2>
         <p>
           The same {skills.length} skills ship as a native Codex plugin. Codex allows one plugin per
           repository root, so the whole catalog arrives as a single plugin instead of being split
