@@ -82,17 +82,18 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <span className="wordmark__fix" aria-hidden="true" />
               clickai.dev
             </Link>
-            <div className="masthead__right">
-              <nav>
-                <Link href="/skills">Catalog</Link>
-                <Link href="/install">Install</Link>
-                <Link href="/work">Work</Link>
-                <a className="masthead__github" href="https://github.com/timharris707/skills">
-                  GitHub
-                </a>
-              </nav>
-              <ThemeToggle />
-            </div>
+            {/* Five items, and GitHub is not one of them — it lives in the
+                colophon as "source". Six turns a hairline masthead into a
+                menu. The nav takes its own row below 620px rather than
+                competing with the wordmark for space. */}
+            <nav>
+              <Link href="/skills">Catalog</Link>
+              <Link href="/install">Install</Link>
+              <Link href="/legend">Legend</Link>
+              <Link href="/notes">Notes</Link>
+              <Link href="/work">Work</Link>
+            </nav>
+            <ThemeToggle />
           </div>
         </header>
 
@@ -110,6 +111,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </div>
             <div className="colophon__links">
               <a href="https://github.com/timharris707/skills">source</a>
+              <a href="https://x.com/TimHarris707">@TimHarris707</a>
+              <Link href="/rss.xml">rss</Link>
               <Link href="/llms.txt">llms.txt</Link>
               <a href="https://github.com/timharris707/skills/blob/main/LICENSE.md">MIT</a>
             </div>

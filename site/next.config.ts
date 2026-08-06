@@ -18,6 +18,9 @@ const config: NextConfig = {
       // here and handed to a normal dynamic route.
       { source: "/skills/:slug.md", destination: "/api/skill-md/:slug" },
       { source: "/work.md", destination: "/api/work-md" },
+      { source: "/legend.md", destination: "/api/legend-md" },
+      { source: "/legend/:term.md", destination: "/api/legend-md/:term" },
+      { source: "/notes/:slug.md", destination: "/api/notes-md/:slug" },
     ];
   },
 };

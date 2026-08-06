@@ -181,12 +181,6 @@ pre {
   border-radius: 50%;
 }
 
-.masthead__right {
-  display: flex;
-  align-items: center;
-  gap: 1.1rem;
-}
-
 .masthead nav {
   display: flex;
   gap: 1.5rem;
@@ -194,6 +188,9 @@ pre {
   letter-spacing: 0.06em;
   text-transform: uppercase;
   font-weight: 500;
+  /* Pushes the nav and the lamp together on the right, so the wordmark keeps
+     the left edge to itself. */
+  margin-left: auto;
 }
 
 .masthead nav a {
@@ -208,21 +205,35 @@ pre {
   border-bottom-color: var(--magenta);
 }
 
-/* The row is full at this width: wordmark, three links and the lamp together
-   overrun the gutter unless each gives up a little. */
-@media (max-width: 560px) {
+/*
+ * Below this the nav takes its own row instead of competing for the first one.
+ * Squeezing five links, a wordmark and the lamp onto one line was clipping the
+ * lamp at 320px; wrapping keeps every link reachable at any width, which
+ * hiding them did not.
+ */
+@media (max-width: 620px) {
   .masthead__inner {
-    gap: 0.9rem;
-  }
-
-  .masthead__right {
-    gap: 0.6rem;
+    flex-wrap: wrap;
+    align-items: center;
+    row-gap: 0;
+    padding-bottom: 0.45rem;
+    min-height: 0;
+    padding-top: 0.45rem;
   }
 
   .masthead nav {
-    gap: 0.85rem;
-    font-size: 0.68rem;
-    letter-spacing: 0.04em;
+    order: 3;
+    flex-basis: 100%;
+    margin-left: 0;
+    justify-content: space-between;
+    gap: 0.6rem;
+    font-size: 0.7rem;
+    letter-spacing: 0.03em;
+    padding-top: 0.5rem;
+  }
+
+  .lamp {
+    margin-left: auto;
   }
 
   .wordmark {
@@ -233,14 +244,6 @@ pre {
      on its own line above them reads better than one orphaned mark below. */
   .runtimes__lead {
     width: 100%;
-  }
-}
-
-/* Below this the row runs out of room and the lamp gets clipped. The repository
-   is still one tap away in the colophon, and from every skill's source link. */
-@media (max-width: 430px) {
-  .masthead__github {
-    display: none;
   }
 }
 
@@ -799,6 +802,143 @@ h2 {
   max-width: var(--measure);
 }
 
+/* ── Legend and notes ────────────────────────────────────────────────────── */
+
+/*
+ * A band grades a claim, not a word. Only "thin" gets the caution colour —
+ * spending magenta on anything merely emerging would make the page read as a
+ * sneer, which is the failure the bands exist to prevent.
+ */
+.band {
+  font-family: var(--font-mono), monospace;
+  font-size: 0.62rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--sounding);
+  border-bottom: 1px solid currentColor;
+  padding-bottom: 1px;
+}
+
+.band--established {
+  color: var(--ink);
+  border-bottom-style: solid;
+}
+
+.band--emerging {
+  border-bottom-style: dashed;
+}
+
+.band--contested {
+  border-bottom-style: dotted;
+}
+
+.band--thin {
+  color: var(--magenta);
+  border-bottom-style: dotted;
+}
+
+/* The key to the bands, and to the note kinds — same shape for both. */
+.bands {
+  margin: 0.4rem 0 0;
+  display: grid;
+  /* Sized so all four bands sit on one row — a key that wraps reads as if the
+     last entry is an afterthought. */
+  grid-template-columns: repeat(auto-fit, minmax(205px, 1fr));
+  gap: 0.9rem 1.9rem;
+  border-top: var(--rule);
+  padding-top: 1.1rem;
+  max-width: 66rem;
+}
+
+.bands > div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.bands dd {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--sounding);
+  line-height: 1.5;
+}
+
+.kind {
+  font-family: var(--font-mono), monospace;
+  font-size: 0.62rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--sounding);
+}
+
+/* A correction is the one kind worth spending the accent on: it is the entry
+   that says this site got something wrong, and it should be findable. */
+.kind--correction {
+  color: var(--magenta);
+}
+
+.entry__meta {
+  grid-column: 1 / -1;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  color: color-mix(in srgb, var(--sounding) 80%, transparent);
+  margin-top: 0.35rem;
+}
+
+.term__band {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem 0.9rem;
+  margin: 0 0 2rem;
+  padding-bottom: 1.1rem;
+  border-bottom: var(--rule);
+  font-size: 0.86rem;
+  color: var(--sounding);
+  max-width: var(--measure);
+}
+
+.term__skill {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.term__skill a {
+  font-family: var(--font-mono), monospace;
+  font-size: 0.95rem;
+  font-weight: 700;
+  text-decoration: none;
+  color: var(--magenta);
+}
+
+.term__skill span {
+  font-size: 0.82rem;
+  color: var(--sounding);
+  line-height: 1.5;
+}
+
+.aside ul li a {
+  text-decoration: none;
+}
+
+.aside ul li a:hover {
+  color: var(--magenta);
+}
+
+.note__title {
+  font-size: clamp(1.9rem, 4vw, 2.7rem);
+  line-height: 1.08;
+  letter-spacing: -0.025em;
+  font-weight: 600;
+  margin: 0 0 1.2rem;
+  text-wrap: balance;
+}
+
 /* ── Work ────────────────────────────────────────────────────────────────── */
 
 /* Where a chart convention needs stating outright — the note under
@@ -1037,7 +1177,9 @@ h2 {
 }
 
 .aside h3 + h3,
-.aside dl + h3 {
+.aside dl + h3,
+.aside ul + h3,
+.aside p + h3 {
   margin-top: 1.5rem;
 }
 

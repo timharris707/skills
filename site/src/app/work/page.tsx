@@ -66,6 +66,7 @@ const PERSON = {
     "Builds product and ships software by directing AI coding agents. Maker of ModelDeck, Panely, HiveRunner, and the Click AI skills catalog.",
   sameAs: [
     "https://github.com/timharris707",
+    "https://x.com/TimHarris707",
     "https://modeldeck.ai",
     "https://panely.ai",
     "https://hiverunner.ai",
@@ -123,6 +124,9 @@ export default function Work() {
           <p className="maker__links">
             <a href="https://github.com/timharris707" rel="noopener">
               github.com/timharris707
+            </a>
+            <a href="https://x.com/TimHarris707" rel="noopener">
+              @TimHarris707
             </a>
             <a href="https://insight.tm" rel="noopener">
               insight.tm

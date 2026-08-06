@@ -1,4 +1,6 @@
 import { getCatalog } from "@/lib/catalog";
+import { ENTRIES } from "@/lib/legend";
+import { KIND_LABEL, getNotes } from "@/lib/notes";
 import { getCodexPlugin, getPlugins } from "@/lib/skills";
 import { BUILD_COUNT, PRIVATE_COUNT } from "@/lib/work";
 
@@ -58,6 +60,25 @@ export function GET() {
   }
 
   lines.push(
+    "## Legend — the vocabulary",
+    "",
+    `${ENTRIES.length} terms from agentic coding, each graded for how solid the claim is and`,
+    "cross-linked to the skill that implements it where one does. Where a term is",
+    "mostly a rebrand, the entry says so.",
+    "",
+    "- https://clickai.dev/legend.md — every definition in one fetch.",
+    "- https://clickai.dev/legend/<term>.md — a single entry.",
+    "",
+    "## Notes",
+    "",
+    "Surveys, corrections and catalog releases. A correction is always a new note,",
+    "never a silent edit.",
+    "",
+    ...getNotes().map(
+      (n) =>
+        `- [${KIND_LABEL[n.kind]}: ${n.title}](https://clickai.dev/notes/${n.slug}.md) — ${n.standfirst}`,
+    ),
+    "",
     "## Who makes this",
     "",
     "Tim Harris. Product and direction are his; agents do the implementation, and he",
@@ -66,9 +87,11 @@ export function GET() {
     "",
     "## Formats",
     "",
-    "- Append `.md` to any skill URL for its full SKILL.md.",
+    "- Append `.md` to any skill, legend or note URL for its markdown twin.",
     "- https://clickai.dev/skills — the catalog.",
+    "- https://clickai.dev/legend.md — the vocabulary, in one fetch.",
     "- https://clickai.dev/work.md — the builds behind it, and the maker.",
+    "- https://clickai.dev/rss.xml — new notes.",
     "- https://clickai.dev/sitemap.xml — every page.",
     "",
   );

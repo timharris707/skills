@@ -35,8 +35,14 @@ export const PLOT: Record<string, { x: number; y: number; anchor?: "start" | "en
 };
 
 /**
- * How the skills actually compose — each edge is a real handoff documented in
- * one of the SKILL.md files, not a decorative line.
+ * How the skills actually compose. Most edges are handoffs a SKILL.md states
+ * outright; two — advisory-board → decision-map and wizard → orchestrate — are
+ * compositions the pack supports that no SKILL.md names, so they are asserted
+ * here rather than quoted from there. None is a decorative line.
+ *
+ * Worth keeping straight, because /notes/graph-engineering cites this graph:
+ * it records which skill hands off to which, not what blocks what. That makes
+ * it an org graph, not a task graph.
  */
 export const BEARINGS: Array<{ from: string; to: string; note: string }> = [
   { from: "setup", to: "grilling", note: "bindings first" },
