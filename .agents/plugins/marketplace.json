@@ -1,0 +1,15 @@
+{
+  "name": "clickai",
+  "interface": {
+    "displayName": "Click AI"
+  },
+  "plugins": [
+    {
+      "name": "clickai-skills",
+      "source": {
+        "source": "local",
+        "path": "."
+      }
+    }
+  ]
+}

@@ -171,6 +171,19 @@ export function getPlugins(): Plugin[] {
 }
 
 /**
+ * The Codex plugin. Codex allows one plugin per repository root, so the whole
+ * promoted catalog ships as a single plugin there where Claude splits it into
+ * three. CI enforces that both ship the same skills.
+ */
+export function getCodexPlugin(): { name: string; marketplace: string; skills: number } {
+  const plugin = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, ".codex-plugin", "plugin.json"), "utf8"));
+  const marketplace = JSON.parse(
+    fs.readFileSync(path.join(REPO_ROOT, ".agents", "plugins", "marketplace.json"), "utf8"),
+  );
+  return { name: plugin.name, marketplace: marketplace.name, skills: plugin.skills.length };
+}
+
+/**
  * The first sentence of a description is what it does; the "Use when" clause is
  * where the triggers live. Cards show the former, detail pages show both.
  */

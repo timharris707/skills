@@ -34,6 +34,21 @@ Add the marketplace once, then install whichever plugins you want:
 /plugin install writing-for-agents@skills  # the skill-authoring reference
 ```
 
+### Install (Codex)
+
+The same twelve skills ship as a native Codex plugin. Codex allows one plugin per
+repository root, so the whole catalog arrives as a single plugin rather than three:
+
+```bash
+codex plugin marketplace add timharris707/skills
+codex plugin add clickai-skills@clickai
+```
+
+Each skill carries a Codex adapter at `agents/openai.yaml` supplying the display
+name and one-line description Codex shows in its picker. CI enforces that Claude
+and Codex ship exactly the same set, so a skill can never exist on one runtime
+and silently not on the other.
+
 ### Install without the plugin system
 
 Clone the repo and copy or symlink skill directories into wherever your runtime discovers skills — for Claude Code, the personal skills folder:
@@ -47,7 +62,7 @@ for d in agent-skills/skills/*/*/; do
 done
 ```
 
-Symlinks track updates on `git pull`; copies pin what you have. Other agent runtimes can read each `SKILL.md` directly — advisory-board also ships a Codex adapter ([`agents/openai.yaml`](./skills/decide/advisory-board/agents/openai.yaml)).
+Symlinks track updates on `git pull`; copies pin what you have. Other agent runtimes can read each `SKILL.md` directly — the instructions are the portable part, and every skill also ships a Codex adapter at `agents/openai.yaml`.
 
 ## The Skills, Briefly
 

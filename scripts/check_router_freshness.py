@@ -20,9 +20,16 @@ Invariants:
   3. Promotion holds both ways: every skill in a *promoted* bucket is claimed by
      exactly one plugin, and no skill in an *unpromoted* bucket is claimed by
      any.
-  4. Every skill in the team-workflow plugin appears in the router's roster
+  4. Claude and Codex ship the SAME set. `.codex-plugin/plugin.json` lists
+     exactly the skills the Claude marketplace claims, and every promoted skill
+     carries a Codex adapter (`agents/openai.yaml`) with a display name and a
+     short description. Codex expresses one plugin per root where Claude splits
+     the catalog into three — that shape difference is fine; a difference in
+     which skills ship is not, because it would mean a skill exists on one
+     runtime and silently doesn't on the other.
+  5. Every skill in the team-workflow plugin appears in the router's roster
      (`skills/orient/router/SKILL.md`), except the router itself.
-  5. Every relative `.md` link in the router resolves to an existing file.
+  6. Every relative `.md` link in the router resolves to an existing file.
 
 Standard library only. Exit 0 = fresh; exit 1 = stale, with one line per problem.
 """
@@ -37,6 +44,7 @@ SKILLS_DIR = ROOT / "skills"
 BUCKETS = SKILLS_DIR / "buckets.json"
 MARKETPLACE = ROOT / ".claude-plugin" / "marketplace.json"
 ROUTER = SKILLS_DIR / "orient" / "router" / "SKILL.md"
+CODEX_PLUGIN = ROOT / ".codex-plugin" / "plugin.json"
 PACK_PLUGIN = "team-workflow"
 
 errors = []
@@ -117,7 +125,43 @@ def main():
                 f"'{claimed[rel][0]}' claims it — unpromoted skills must not ship"
             )
 
-    # 4 + 5. Router roster covers the pack; router links resolve.
+    # 4. Codex ships exactly what Claude ships, and every skill has an adapter.
+    #
+    # Codex expresses one plugin per root, so the whole promoted catalog is one
+    # plugin there while Claude splits it into three. That difference is fine;
+    # a difference in WHICH SKILLS SHIP is not — it would mean a skill works on
+    # one runtime and silently doesn't exist on the other.
+    try:
+        codex = json.loads(CODEX_PLUGIN.read_text())
+    except (OSError, json.JSONDecodeError) as exc:
+        errors.append(f"cannot read {CODEX_PLUGIN.relative_to(ROOT)}: {exc}")
+        codex = None
+
+    if codex is not None:
+        codex_skills = {s[2:] if s.startswith("./") else s for s in codex.get("skills", [])}
+        if not isinstance(codex.get("skills"), list):
+            errors.append(
+                ".codex-plugin/plugin.json 'skills' must be an array of skill paths "
+                "(verified supported on Codex CLI 0.146.0)"
+            )
+        for missing in sorted(set(claimed) - codex_skills):
+            errors.append(f"'{missing}' ships to Claude but is missing from .codex-plugin/plugin.json")
+        for extra in sorted(codex_skills - set(claimed)):
+            errors.append(f"'{extra}' is in .codex-plugin/plugin.json but no Claude plugin claims it")
+
+    for rel, bucket in sorted(skills.items()):
+        if not promoted[bucket]:
+            continue
+        adapter = ROOT / rel / "agents" / "openai.yaml"
+        if not adapter.is_file():
+            errors.append(f"'{rel}' has no Codex adapter at agents/openai.yaml")
+            continue
+        text = adapter.read_text()
+        for field in ("display_name", "short_description"):
+            if f"{field}:" not in text:
+                errors.append(f"'{rel}/agents/openai.yaml' is missing {field}")
+
+    # 5 + 6. Router roster covers the pack; router links resolve.
     try:
         router_text = ROUTER.read_text()
     except OSError as exc:

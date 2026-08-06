@@ -1,0 +1,3 @@
+interface:
+  display_name: "Wizard"
+  short_description: "Generate a bash wizard for human-only setup steps"

@@ -63,15 +63,46 @@ A skill must work with `scripts/` absent. Helpers accelerate; they never gate.
 
 Cross-skill links follow from the layout: same bucket is `../<name>/SKILL.md`, a different bucket is `../../<bucket>/<name>/SKILL.md`.
 
+## Running on Codex as well as Claude
+
+A skill is a `SKILL.md`, and both runtimes read it directly — so the *instructions* are already portable. What differs is packaging, and it takes two files plus one per skill:
+
+| | Claude Code | Codex |
+| --- | --- | --- |
+| Marketplace | `.claude-plugin/marketplace.json` | `.agents/plugins/marketplace.json` |
+| Plugin manifest | in the marketplace entry | `.codex-plugin/plugin.json` |
+| Per-skill metadata | frontmatter only | frontmatter **plus** `agents/openai.yaml` |
+| Plugins per repo | many | **one per plugin root** |
+
+The **one-plugin-per-root** rule is the only real asymmetry: a Codex plugin root is the directory holding `.codex-plugin/`, and skill paths are relative to it, so a repo root can host exactly one Codex plugin. This catalog therefore ships three Claude plugins (`advisory-board`, `team-workflow`, `writing-for-agents`) and one Codex plugin (`clickai-skills`) containing the same twelve skills. Different shape, identical contents — and CI enforces the "identical contents" half.
+
+**`skills` in `.codex-plugin/plugin.json` accepts an array of paths, and Codex exposes only those paths.** This is worth stating plainly because the widely-cited constraint says otherwise — that Codex accepts only a single path string and discovers `SKILL.md` recursively beneath it, which would make a curated subset impossible in a bucketed repo. Verified against **Codex CLI 0.146.0** with a control: a scratch plugin containing one promoted and one unpromoted skill, both carrying the same marker string.
+
+| `skills` in the manifest | Codex exposed |
+| --- | --- |
+| `["./skills/decide/alpha"]` | `probe:alpha` only |
+| `["./skills/in-progress/draft"]` | `probe:draft` only |
+
+Inverting the manifest inverted the result, so the array is authoritative rather than incidental. The unlisted skill is still *copied* into the plugin cache — it is simply never surfaced. Re-run that probe before trusting this on a newer CLI; provider manifests move.
+
+The per-skill adapter is small, and the short description is what a human reads in Codex's picker:
+
+```yaml
+interface:
+  display_name: "Grilling"
+  short_description: "Stress-test a plan one round of questions at a time"
+```
+
 ## Catalog invariants (CI enforces these)
 
-`scripts/check_router_freshness.py` runs on every PR and fails the build unless all five hold. Adding a skill means touching more than its own directory:
+`scripts/check_router_freshness.py` runs on every PR and fails the build unless all six hold. Adding a skill means touching more than its own directory:
 
 1. **Every directory under `skills/` is a declared bucket**, and every declared bucket exists.
 2. **`.claude-plugin/marketplace.json` claims the directory.** Every claimed `skills/<bucket>/<name>` contains a `SKILL.md`, and no path is claimed by two plugins.
 3. **Promotion holds both ways.** Every skill in a promoted bucket is claimed by exactly one plugin; no skill in an unpromoted bucket is claimed by any. This is what makes parking a skill a single `git mv` plus an unclaim — CI names both edits if you forget one.
-4. **The router names every pack skill.** A skill in the `team-workflow` plugin must appear in [`skills/orient/router/SKILL.md`](../../../orient/router/SKILL.md). The router itself is exempt.
-5. **Every relative `.md` link in the router resolves.**
+4. **Claude and Codex ship the same set.** `.codex-plugin/plugin.json` lists exactly what the Claude marketplace claims, and every promoted skill has an `agents/openai.yaml` carrying `display_name` and `short_description`. A skill that exists on one runtime and silently doesn't on the other is the failure this prevents.
+5. **The router names every pack skill.** A skill in the `team-workflow` plugin must appear in [`skills/orient/router/SKILL.md`](../../../orient/router/SKILL.md). The router itself is exempt.
+6. **Every relative `.md` link in the router resolves.**
 
 Run it locally before pushing:
 

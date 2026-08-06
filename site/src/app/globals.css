@@ -748,6 +748,16 @@ h2 {
   font-size: inherit;
 }
 
+/* A Terminal inside prose sets its own dark ground, and its lines are bare
+   <code> elements — so the inline-code chip above would paint a light fill
+   under light text. Same reset as .prose pre code, for the same reason. */
+.prose .terminal code {
+  background: none;
+  padding: 0;
+  font-size: inherit;
+  border-radius: 0;
+}
+
 .prose blockquote {
   margin: 1.4rem 0;
   padding-left: 1.1rem;

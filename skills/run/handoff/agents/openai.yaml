@@ -1,0 +1,3 @@
+interface:
+  display_name: "Session Handoff"
+  short_description: "Checkpoint state so a fresh session resumes cleanly"
