@@ -9,7 +9,8 @@ versioned separately and do not replace the skill release version.
 
 ## [Unreleased]
 
-_Nothing yet._
+### Fixed
+- Grok seat now works against current Grok CLI releases. xAI removed `--no-auto-update` (by 0.2.111) and retired the `grok-build` alias, so every Grok run failed on an unknown flag and an unresolvable model. The adapter drops the flag and selects `grok-4.5`, which `grok models` reports as the only model and the CLI default. All other flags the seat depends on — `-p`, `--effort`, `--output-format`, `--permission-mode plan`, `--sandbox read-only`, `--no-memory`, `--no-subagents` — re-verified against CLI 0.2.117 on 2026-08-05.
 
 ## [v1.16.0] - 2026-07-15 — Four-provider frontier board
 

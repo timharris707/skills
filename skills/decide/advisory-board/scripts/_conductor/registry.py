@@ -319,12 +319,13 @@ def grok_argv(model, prompt, *, reasoning="high", workdir=None, network=False, g
     Grok Build exposes the same core controls in headless mode that the board needs:
     a single prompt, an optional exact model id, reasoning effort, a read-only sandbox, and
     plan-mode permissions.  Keep sessions stateless and automation-friendly by
-    disabling memory, subagents, and the background updater.  In gate mode also
+    disabling memory and subagents (the `--no-auto-update` flag was removed
+    upstream by CLI 0.2.111; headless single-turn runs do not self-update).  In gate mode also
     remove Grok's built-in web-search/fetch surface; model inference still reaches
     xAI, exactly like every other hosted seat.
     """
     argv = [
-        "grok", "--no-auto-update", "-p", prompt,
+        "grok", "-p", prompt,
         "--effort", reasoning,
         "--output-format", "plain",
         "--permission-mode", "plan",
@@ -332,8 +333,9 @@ def grok_argv(model, prompt, *, reasoning="high", workdir=None, network=False, g
         "--no-subagents",
         "--no-memory",
     ]
-    # `grok-build` is xAI's maintained frontier alias. Explicit --model overrides
-    # remain exact pins; `auto` is accepted as an escape hatch for CLI defaults.
+    # `grok-4.5` is the only model the CLI now lists, and its default. Explicit
+    # --model overrides remain exact pins; `auto` is accepted as an escape hatch
+    # for whatever the CLI defaults to.
     if model != "auto":
         argv += ["--model", model]
     if workdir:
@@ -609,9 +611,9 @@ REGISTRY: dict = {
         # xAI's frontier model for coding, agentic work, and knowledge work. The
         # official CLI and API both expose low|medium|high effort; high is the
         # deepest supported setting and is also the model default.
-        # The installed CLI reports `grok-build` as its maintained default alias;
-        # xAI docs map that alias to Grok 4.5 today. The alias can advance later.
-        default_model="grok-build",
+        # `grok models` on 0.2.111 lists only `grok-4.5` (the default); the older
+        # `grok-build` alias was dropped and no longer resolves.
+        default_model="grok-4.5",
         provider="xAI",
         default_reasoning="high",
         build_argv=grok_argv,
@@ -631,7 +633,7 @@ REGISTRY: dict = {
         auth_hint="run `grok login` (or `grok login --device-code` headlessly); "
                   "XAI_API_KEY is also supported",
         pkg_label="npm @xai-official/grok",
-        flags_verified_version="0.2.101",
+        flags_verified_version="0.2.117",  # -p/--effort/--output-format/--permission-mode plan/--sandbox read-only/--no-memory/--no-subagents re-verified on 0.2.117 (2026-08-05); --no-auto-update absent, `grok models` lists grok-4.5 only
         fallback_models=(),
     ),
     "antigravity": SeatAdapter(

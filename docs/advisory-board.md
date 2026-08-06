@@ -85,7 +85,7 @@ Point the board at a real codebase with `--repo` and advisors cite exact `path:l
 - **Claude** (`opus`, latest-Opus alias) — architecture, systems, and adversarial design review.
 - **Codex** (CLI-recommended model) — repo-grounded implementation, migration, testing, and execution.
 - **Gemini** (`pro`, highest-reasoning Pro alias) — product, operations, rollout, latency, evaluation, and user-workflow risk.
-- **Grok** (`grok-build`, Grok 4.5 at this release) — contrarian synthesis, hidden assumptions, alternatives, and decision-changing evidence.
+- **Grok** (`grok-4.5`) — contrarian synthesis, hidden assumptions, alternatives, and decision-changing evidence.
 
 Every seat still reviews the whole brief; the lens reduces blind spots, it doesn't narrow responsibility.
 
