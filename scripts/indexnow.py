@@ -24,6 +24,7 @@ import json
 import re
 import sys
 import urllib.error
+import urllib.parse
 import urllib.request
 
 HOST = "clickai.dev"
@@ -73,6 +74,21 @@ def submit(urls: list[str]) -> int:
         return resp.status
 
 
+def off_host(urls: list[str]) -> list[str]:
+    """URLs the key cannot vouch for.
+
+    The key proves ownership of one host, and a submission containing a URL for
+    any other host is rejected whole rather than partially. Catching that here
+    beats reading it back out of an opaque 4xx.
+    """
+    return [
+        url
+        for url in urls
+        if urllib.parse.urlsplit(url).scheme != "https"
+        or urllib.parse.urlsplit(url).netloc != HOST
+    ]
+
+
 def main() -> int:
     args = [a for a in sys.argv[1:] if a != "--dry-run"]
     dry = "--dry-run" in sys.argv
@@ -85,6 +101,16 @@ def main() -> int:
     if not urls:
         print("no URLs to submit")
         return 1
+
+    # Before the dry run, not after: a dry run that reports URLs the real run
+    # would reject is worse than no dry run at all.
+    stray = off_host(urls)
+    if stray:
+        print(f"{len(stray)} URL(s) are not https on {HOST}:")
+        for url in stray[:5]:
+            print(f"  {url}")
+        return 1
+
     if len(urls) > MAX_BATCH:
         print(f"{len(urls)} URLs exceeds the {MAX_BATCH} batch cap")
         return 1
@@ -97,7 +123,16 @@ def main() -> int:
         print("\nKey file is not live. Merge and deploy first, then re-run.")
         return 1
 
-    status = submit(urls)
+    try:
+        status = submit(urls)
+    except urllib.error.HTTPError as exc:
+        # urlopen raises on non-2xx, so without this the one path that matters —
+        # a rejected submission — exits on a traceback instead of saying so.
+        status = exc.code
+    except urllib.error.URLError as exc:
+        print(f"could not reach {ENDPOINT}: {exc.reason}")
+        return 1
+
     # 200 and 202 both mean accepted; the protocol returns no per-URL detail.
     print(f"IndexNow returned HTTP {status}")
     return 0 if status in (200, 202) else 1

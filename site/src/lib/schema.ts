@@ -117,10 +117,23 @@ export const WEBSITE = {
   inLanguage: "en",
 };
 
-/** Renders a JSON-LD block. `data` is serialised, never interpolated raw. */
+/**
+ * Renders a JSON-LD block. `data` is serialised, never interpolated raw.
+ *
+ * `JSON.stringify` leaves `<` alone, so a `</script>` occurring anywhere in a
+ * title, standfirst or gloss would close this block early and spill the rest
+ * onto the page as markup. Escaping the characters that can open a tag or an
+ * entity keeps the payload inert. `\uXXXX` is valid inside a JSON string, so a
+ * parser still reads exactly the same values back out.
+ */
 export function jsonLdProps(data: object) {
+  const json = JSON.stringify(data)
+    .replace(/</g, "\\u003c")
+    .replace(/>/g, "\\u003e")
+    .replace(/&/g, "\\u0026");
+
   return {
     type: "application/ld+json" as const,
-    dangerouslySetInnerHTML: { __html: JSON.stringify(data) },
+    dangerouslySetInnerHTML: { __html: json },
   };
 }
