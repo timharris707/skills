@@ -31,7 +31,7 @@ A board needs at least two independent voices. Rather than dead-ending, prefligh
 
 So a user who only has one provider (say, only Anthropic) is never stuck: they can run a same-provider multi-lens board or add a local/human seat, and the skill says so instead of just refusing.
 
-**Default selectors float; explicit model IDs stay pinned.** The default board uses provider-maintained selectors (`opus`, `pro`, or the CLI's recommended/default model) so new frontier releases can be adopted without a skill update. An explicit `--model <seat>=<id>` remains an exact pin. If an exact pin no longer resolves, preflight may propose a same-provider fallback; it never silently rewrites the user's pin.
+**Default selectors float; explicit model IDs stay pinned.** The default board uses provider-maintained selectors (`fable`, `pro`, or the CLI's recommended/default model) so new frontier releases can be adopted without a skill update. An explicit `--model <seat>=<id>` remains an exact pin. If an exact pin no longer resolves, preflight may propose a same-provider fallback; it never silently rewrites the user's pin.
 
 ## What to check, per seat
 

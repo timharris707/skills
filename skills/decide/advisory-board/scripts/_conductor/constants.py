@@ -106,6 +106,15 @@ LENS_PRESETS = {
         "Audience & impact — does it land, what is missing, what a skeptic seizes on",
         "Adversarial editor — test the argument against hostile readings and synthesize the strongest revision",
     ],
+    # red-team (v1.17): every seat hostile by assignment — the stress-test preset
+    # for artifacts (skills, specs, plans, docs). Pairs with --repo so attacks
+    # cite path:line. Positional like every preset; smaller boards take the prefix.
+    "red-team": [
+        "Correctness attacker — find the input, state, or sequence that makes it wrong; construct the failing case",
+        "Ambiguity attacker — instructions two reasonable readers would execute differently, contradictions, undefined edge behavior",
+        "Security & data-handling attacker — what leaks, what escalates, what a malicious input or poisoned dependency reaches; secrets, PII, and consent paths first",
+        "Unimagined-failure hunter — the failure class the author's framing excludes: wrong assumptions about environment, scale, users, or time",
+    ],
     # stakeholder-panel (v1.15 P4 / D20): "the room this decision would face" — three
     # DISTINCT stakeholder archetypes, one per seat, in this SEAT-ORDER binding:
     #   seat 1 → the decision owner / executive who must answer for the outcome,

@@ -532,9 +532,13 @@ def model_not_found(result: "SpawnResult", *, include_stdout: bool = False) -> b
 REGISTRY: dict = {
     "claude": SeatAdapter(
         name="claude",
-        # Anthropic documents `opus` as an alias for the latest Opus model. Use
-        # the maintained alias so a fresh run advances with the provider.
-        default_model="opus",
+        # Anthropic's maintained `fable` alias selects Fable 5, the Mythos-class
+        # tier above Opus — the strongest generally available Anthropic model
+        # (v1.17). `opus` is the ordered fallback preflight PROBES + PROPOSES
+        # (never silently applies) on builds/accounts where `fable` doesn't
+        # resolve. Maintained aliases keep a fresh run advancing with the
+        # provider.
+        default_model="fable",
         provider="Anthropic",
         default_reasoning="max",   # forwarded via --effort; deepest level the CLI exposes
         build_argv=claude_argv,
@@ -553,7 +557,7 @@ REGISTRY: dict = {
         auth_hint="run `claude` once and sign in (Claude subscription, or set ANTHROPIC_API_KEY)",
         pkg_label="npm @anthropic-ai/claude-code",
         flags_verified_version="2.1.191",   # --model/--effort/--permission-mode plan verified here
-        fallback_models=(),
+        fallback_models=("opus",),   # proposed (never silently applied) where `fable` doesn't resolve
     ),
     "codex": SeatAdapter(
         name="codex",

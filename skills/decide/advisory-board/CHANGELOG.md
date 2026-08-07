@@ -7,7 +7,16 @@ cut as **skill-scoped semver tags** `advisory-board/vX.Y.Z` (see [`RELEASING.md`
 The skill follows SemVer; its artifact schemas (for example `advisory-board/verdict@N`) are
 versioned separately and do not replace the skill release version.
 
-## [Unreleased]
+## [v1.17.0] - 2026-08-07 — Modes, guided intake, and the Fable seat
+
+### Added
+- **Modes** (`references/modes.md`): the board's interaction topology is now a named, user-chosen axis, sharing vocabulary with panely.ai — **Formal Board Review** (the existing Round Protocol, now named; the default and the only conductor-driven mode), **Roundtable** (collaborative, shared transcript, optional moderator), and **Competitive** (pitch → critique → blind vote). The two new topologies ship as hand-runnable protocols with prompt skeletons and artifact sets; `run_board.py --mode` support is a tracked follow-up. Neither produces a `verdict.json` or feeds a gate.
+- **`red-team` lens preset** — every seat hostile by assignment (correctness attacker, ambiguity attacker, security & data-handling attacker, unimagined-failure hunter), for stress-testing artifacts before staking something on them; pairs with `--repo` for `path:line` attacks. Mirrored in `references/lens-presets.md` and the conductor's `LENS_PRESETS`.
+
+### Changed
+- **The intake is now a mandatory guided wizard** (`references/intake-interview.md`, rewritten): doctor probes every seat first and broken seats get an explicit fix-now (consent-gated) / continue-without / abort choice; the user's stated goal drives a mode recommendation the user confirms; seats (2–10 of the GO providers, "latest frontier of each" shortcut), reasoning depth, rounds, and output are all chosen on the record. "Use defaults" collapses to a single confirm-summary card — never to zero questions — and data-handling consent remains separate and unwaivable. A new Must Not line makes launching an unconfirmed run a violation.
+- **Claude seat targets `fable`** — Anthropic's maintained alias for Fable 5 (Mythos-class, above Opus), at `--effort max`; `opus` is the ordered fallback preflight proposes (never silently applies) where `fable` doesn't resolve.
+- **Board ceiling raised from ~5 to 10 seats**, with the lens rule refined: the same lens on two different providers is a valid cross-model pairing; only same-provider-same-lens wastes a seat. Past a preset's lens count the intake proposes distinct additional lenses for confirmation, and big/deep boards get a cost warning up front.
 
 ### Fixed
 - Grok seat now works against current Grok CLI releases. xAI removed `--no-auto-update` (by 0.2.111) and retired the `grok-build` alias, so every Grok run failed on an unknown flag and an unresolvable model. The adapter drops the flag and selects `grok-4.5`, which `grok models` reports as the only model and the CLI default. All other flags the seat depends on — `-p`, `--effort`, `--output-format`, `--permission-mode plan`, `--sandbox read-only`, `--no-memory`, `--no-subagents` — re-verified against CLI 0.2.117 on 2026-08-05.
