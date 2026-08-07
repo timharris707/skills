@@ -5,6 +5,7 @@ import Terminal from "@/components/Terminal";
 import Runtimes from "@/components/Runtimes";
 import { BEARINGS, PLOT, getCatalog } from "@/lib/catalog";
 import { MAKER_SHORT } from "@/lib/work";
+import { graph, jsonLdProps, PERSON, WEBSITE } from "@/lib/schema";
 
 export default function Home() {
   const { regions, skills } = getCatalog();
@@ -17,6 +18,7 @@ export default function Home() {
 
   return (
     <>
+      <script {...jsonLdProps(graph(PERSON, WEBSITE))} />
       <div className="shell hero">
         <div>
           <Runtimes lead="Runs natively on" />

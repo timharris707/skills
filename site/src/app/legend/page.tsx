@@ -2,6 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { BANDS, ENTRIES, assertLegendSound, byGroup, type Band } from "@/lib/legend";
 import { getSkills } from "@/lib/skills";
+import {
+  DEFINED_TERM_SET,
+  definedTermNode,
+  graph,
+  jsonLdProps,
+  PERSON,
+} from "@/lib/schema";
 
 export const metadata: Metadata = {
   title: "Legend",
@@ -21,6 +28,16 @@ export default function Legend() {
 
   return (
     <>
+      {/* The whole set in one graph: an index page is the natural place to
+          declare every term, so a crawler gets the vocabulary in one fetch. */}
+      <script
+        {...jsonLdProps(
+          graph(PERSON, {
+            ...DEFINED_TERM_SET,
+            hasDefinedTerm: ENTRIES.map(definedTermNode),
+          }),
+        )}
+      />
       <div className="shell" style={{ paddingBlock: "clamp(2.5rem, 6vw, 4rem) 0" }}>
         <p className="eyebrow">Legend</p>
         <h1 style={{ maxWidth: "17ch" }}>The words, and how much they are worth.</h1>

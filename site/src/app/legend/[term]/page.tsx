@@ -3,6 +3,15 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BANDS, ENTRIES, getEntry } from "@/lib/legend";
 import { getSkill, summarize } from "@/lib/skills";
+import {
+  DEFINED_TERM_SET,
+  definedTermNode,
+  graph,
+  jsonLdProps,
+  LEGEND_REVISED,
+  PERSON,
+} from "@/lib/schema";
+import { formatDate } from "@/lib/notes";
 
 type Params = { params: Promise<{ term: string }> };
 
@@ -31,6 +40,9 @@ export default async function LegendTerm({ params }: Params) {
 
   return (
     <div className="shell detail">
+      <script
+        {...jsonLdProps(graph(PERSON, DEFINED_TERM_SET, definedTermNode(entry)))}
+      />
       <article>
         <Link href="/legend" className="crumb">
           ← Legend / {entry.group}
@@ -45,6 +57,13 @@ export default async function LegendTerm({ params }: Params) {
         <div className="prose">
           <p style={{ fontSize: "1.06rem" }}>{entry.definition}</p>
         </div>
+
+        {/* The glossary is one file, revised as a whole, so the date is the
+            set's rather than the term's — stated plainly instead of implied. */}
+        <p className="term__revised">
+          Legend last revised{" "}
+          <time dateTime={LEGEND_REVISED}>{formatDate(LEGEND_REVISED)}</time>.
+        </p>
       </article>
 
       <aside className="aside">
