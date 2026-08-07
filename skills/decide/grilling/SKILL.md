@@ -13,11 +13,19 @@ Map the work as a **design tree**: every decision branches into the decisions th
 
 The **frontier** is every decision whose prerequisites are already settled — the questions askable *now* without guessing at answers you have not heard. Ask the whole frontier in one round, then wait.
 
-The word is the pack's, and it means the same thing here as it does on the tracker: the edge of what is takeable. A question whose answer depends on another question still open in this round belongs to a *later* round. Putting it in this round forces the decider to answer twice — once on a guess, once for real.
+The word means the same thing here as it does on the tracker — the edge of what is takeable — where [decision-map](../decision-map/SKILL.md) works a frontier of gated tickets. A question whose answer depends on another question still open in this round belongs to a *later* round. Putting it in this round forces the decider to answer twice — once on a guess, once for real.
 
 Each answer reshapes the tree. Settled decisions push the frontier outward and unblock what depended on them. Recompute and ask the next round.
 
-Format every question so a round is scannable and answerable by number:
+## How to ask a round
+
+Two presentations, chosen per question rather than per session.
+
+**Choice-shaped questions go to the harness's structured question tool** where one exists — in Claude Code that is `AskUserQuestion`, which renders each question as selectable cards. Put your recommendation first and mark its label `(Recommended)`. Give each question two to four real options, keep the header under twelve characters, and set multi-select only where the choices genuinely combine. The tool always appends an "Other" escape, so the card format never costs the decider the ability to answer in their own words.
+
+That tool takes at most four questions per call. **A wide frontier is split across consecutive calls, never deferred to the next round.** Frontier questions are mutually independent by construction — that is what being on the frontier means — so answering four of them cannot change what the remaining three should be. The tree reshapes when the frontier is answered, not between calls.
+
+**Open questions stay in text.** "Which failure mode worries you most" has no option list that is not an invention, and inventing one narrows the answer to whatever you happened to think of. Ask those so a round stays scannable and answerable by number:
 
 ```text
 ❓ **Q1** — **<short title>**: <the question, with options where options exist>
@@ -25,7 +33,9 @@ Format every question so a round is scannable and answerable by number:
 ➡️ <your recommended answer, and the one-line reason>
 ```
 
-Always give the recommendation. A question without one makes the decider do your thinking as well as their own; a wrong recommendation is *more* useful than none, because disagreeing with a concrete claim is faster than composing an answer from nothing.
+One round may mix both presentations, and usually will. Where the harness offers no structured tool, every question uses the text block and the round is no different for it.
+
+Always give the recommendation, in either presentation. A question without one makes the decider do your thinking as well as their own; a wrong recommendation is *more* useful than none, because disagreeing with a concrete claim is faster than composing an answer from nothing.
 
 ## Facts are yours, decisions are theirs
 
@@ -53,5 +63,11 @@ The **decisions** are the decider's. Put each one to them and wait. A grilling a
 ## Hard guardrails
 
 - **Do not act on the understanding.** Grilling produces agreement, not changes. Building, speccing, or filing tickets off the session happens after the decider confirms, as its own move.
-- **One round at a time.** Asking the next round before the current one is answered collapses the tree into a questionnaire and loses the reshaping that makes the rounds worth running.
+- **One round at a time.** Asking the next round before the current one is answered collapses the tree into a questionnaire and loses the reshaping that makes the rounds worth running. Splitting a single frontier across consecutive structured-question calls is still one round; asking anything whose prerequisite is unanswered is not, however it is presented.
 - **Relentless means relentless.** Stopping at the first coherent answer is the failure mode this skill exists to prevent. An unasked question is a decision made silently, by you.
+
+## Attribution
+
+This skill is adapted from Matt Pocock's [`grilling`](https://github.com/mattpocock/skills/tree/main/skills/productivity/grilling) (MIT), and follows it closely. The core model is his: the design tree, working it in rounds, the frontier as the set of decisions whose prerequisites are settled, deferring dependent questions to a later round, the ❓/➡️ question format, finding facts yourself while leaving decisions to the human, and not acting until shared understanding is confirmed.
+
+What this repo adds: the presentation split between structured questions and text, the placement against the rest of the pack, the checkable Done-when list, the hard guardrails, and the argument for why a recommendation is mandatory.

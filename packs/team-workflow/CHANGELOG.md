@@ -14,6 +14,22 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **grilling:** a presentation split for asking a round. Choice-shaped questions go to the
+  harness's structured question tool (`AskUserQuestion` in Claude Code) as selectable cards with
+  the recommendation marked; open questions keep the ❓/➡️ text block. A frontier wider than the
+  tool's four-question limit splits across consecutive calls rather than deferring to the next
+  round — frontier questions are independent by construction, so the split is sound. Harnesses
+  without such a tool use the text block throughout.
+
+### Changed
+
+- **grilling, to-tickets:** added Attribution sections naming [mattpocock/skills](https://github.com/mattpocock/skills)
+  (MIT) as the source, matching what `wizard` and `writing-for-agents` already carried. Both were
+  adapted from it and neither said so. `grilling` follows its original closely enough that the
+  section states which parts are his.
+
 ## [v1.1.0] - 2026-08-01 — handoff + orchestrate siblings
 
 ### Added

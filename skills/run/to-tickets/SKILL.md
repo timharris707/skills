@@ -54,3 +54,7 @@ Confirm the labels exist on the tracker before filing. A frontier query against 
 - Every item is labeled, and every ready-labeled item could be handed to a stranger as-is.
 - The frontier query returns the items you expect to be takeable now — run it and read the result rather than assuming.
 - Nothing filed is claimed, and every question that surfaced while slicing is recorded for the decider rather than resolved by you.
+
+## Attribution
+
+The slicing model here — tracer-bullet vertical slices, each declaring the blocking edges that gate it — is adapted from Matt Pocock's [`to-tickets`](https://github.com/mattpocock/skills/tree/main/skills/engineering/to-tickets) (MIT). The vocabulary is his; the two-pass filing order, the coupling to the binding doc and tracker discipline, the readiness bar, and the refusals in "What this skill does not do" are this repo's.
