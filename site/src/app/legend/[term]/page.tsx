@@ -49,14 +49,17 @@ export default async function LegendTerm({ params }: Params) {
         </Link>
         <h1 className="detail__title">{entry.term}</h1>
 
+        {/* Definition first, band second. The band line is identical on every
+            entry that shares a band, so leading with it gave nineteen pages the
+            same opening sentence — and whatever leads is what gets quoted. */}
+        <div className="prose">
+          <p style={{ fontSize: "1.06rem" }}>{entry.definition}</p>
+        </div>
+
         <p className="term__band">
           <span className={`band band--${entry.band}`}>{entry.band}</span>
           <span>{entry.bandClaim ?? BANDS[entry.band]}</span>
         </p>
-
-        <div className="prose">
-          <p style={{ fontSize: "1.06rem" }}>{entry.definition}</p>
-        </div>
 
         {/* The glossary is one file, revised as a whole, so the date is the
             set's rather than the term's — stated plainly instead of implied. */}
@@ -74,6 +77,30 @@ export default async function LegendTerm({ params }: Params) {
               <Link href={`/skills/${skill.slug}`}>{skill.name}</Link>
               <span>{summarize(skill.description)}</span>
             </p>
+          </>
+        ) : null}
+
+        {entry.sources?.length ? (
+          <>
+            {/* An entry banded "established" says a primary source exists. This
+                is where it has to actually be, or the band is just a font. */}
+            <h3>Sources</h3>
+            <ul>
+              {entry.sources.map((source) => (
+                <li key={source.url}>
+                  {/* `.aside ul li a` drops the underline, which is right for a
+                      list of internal cross-links and wrong here: a citation
+                      nobody can tell is clickable does not get checked. */}
+                  <a
+                    href={source.url}
+                    rel="nofollow noopener"
+                    style={{ textDecoration: "underline" }}
+                  >
+                    {source.label}
+                  </a>
+                </li>
+              ))}
+            </ul>
           </>
         ) : null}
 

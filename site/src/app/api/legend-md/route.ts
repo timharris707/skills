@@ -28,10 +28,15 @@ export function GET() {
   for (const { group, entries } of byGroup()) {
     lines.push(`## ${group.name}`, "", group.standfirst, "");
     for (const entry of entries) {
-      lines.push(`### ${entry.term}`, "", `Band: ${entry.band}`);
+      // Definition first, provenance after — same reason as the single-term
+      // route: whatever leads is what gets quoted.
+      lines.push(`### ${entry.term}`, "", entry.definition, "", `Band: ${entry.band}`);
       if (entry.bandClaim) lines.push(`Grading: ${entry.bandClaim}`);
       if (entry.skill) lines.push(`Implemented by: https://clickai.dev/skills/${entry.skill}`);
-      lines.push("", entry.definition, "");
+      if (entry.sources?.length) {
+        lines.push(`Sources: ${entry.sources.map((s) => `[${s.label}](${s.url})`).join(", ")}`);
+      }
+      lines.push("");
       if (entry.seeAlso?.length) {
         lines.push(
           `See also: ${entry.seeAlso.map((s) => `https://clickai.dev/legend/${s}`).join(", ")}`,

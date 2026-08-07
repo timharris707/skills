@@ -46,7 +46,7 @@ export const AUTHOR_REF = { "@id": AUTHOR_ID };
  * Last hand-revision of `legend.ts`, in ISO form. Taken from that file's git
  * history rather than guessed. Bump it when the glossary changes.
  */
-export const LEGEND_REVISED = "2026-08-05";
+export const LEGEND_REVISED = "2026-08-07";
 
 /** Wraps a node set in the envelope schema.org expects. */
 export function graph(...nodes: object[]) {
@@ -77,17 +77,29 @@ export function articleNode(note: {
   };
 }
 
+/**
+ * `description` is the definition's opening sentence, not the one-line gloss.
+ *
+ * The gloss is written to be scanned in an index — it is a fragment, and it
+ * assumes the term is sitting right next to it as a heading. The definition's
+ * first sentence is a complete "X is …" statement that stands on its own, which
+ * is what a machine reading this node actually needs. Both are on the visible
+ * page, so this asserts nothing the reader cannot see.
+ */
 export function definedTermNode(entry: {
   slug: string;
   term: string;
   gloss: string;
   group: string;
+  definition: string;
 }) {
+  const [opening] = entry.definition.split(/\.\s/);
+
   return {
     "@type": "DefinedTerm",
     "@id": `${SITE_URL}/legend/${entry.slug}#term`,
     name: entry.term,
-    description: entry.gloss,
+    description: opening.endsWith(".") ? opening : `${opening}.`,
     url: `${SITE_URL}/legend/${entry.slug}`,
     termCode: entry.slug,
     inDefinedTermSet: { "@id": `${SITE_URL}/legend#set` },
