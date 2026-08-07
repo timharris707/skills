@@ -64,7 +64,7 @@ The run dir is the archive, and the rule is what can't be re-fetched stays: a lo
 
 - The purpose was stated by the user — intent and goal — before the pipeline ran, and `manifest.json` records both.
 - The run reported `packet complete`: every stage carries a status of `ok` or `skipped` and every artifact it claims exists and is non-empty. (The script re-checks this from disk before saying so, and refuses to say it otherwise.)
-- The transcript covers the recording: its last timestamp reaches the probed true duration, or the gap is explained — trailing silence and a `no_speech` packet are legitimate, an unexplained short transcript is not.
+- The transcript covers the recording: the run's validation compares its last timestamp against the probed duration and fails the packet on an unexplained gap, so a clean `packet complete` is the check. Trailing silence and a declared `no_speech` packet are legitimate and pass.
 - The whole transcript was read, and a frame was opened at every reaction and every load-bearing claim.
 - Every takeaway in the recommendation carries a route and, where the transcript supports it, a timestamp.
 - Anything quoted came from the whisper transcript, with the caption preview used for triage only.

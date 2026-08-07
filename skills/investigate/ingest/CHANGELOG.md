@@ -38,10 +38,12 @@ v1.0.0 (Formal Board Review, four seats, unanimous `block`; run recorded at
 - **Stage success is validated.** The true-duration decode now fails on a
   non-zero ffmpeg exit instead of trusting the last `time=` from a partial
   decode; an empty whisper result is recorded as an explicit `no_speech`
-  packet instead of silently completing; failed extra-frame grabs are counted
-  as written, not as scheduled; and `run` re-derives completion from disk
-  (every stage statused, every artifact present and non-empty) before it will
-  say `packet complete`.
+  packet instead of silently completing; extra frames record `extras_scheduled`
+  and `extras_written` separately so a failed grab can no longer inflate the
+  count the manifest reports; and `run` re-derives completion from disk (every
+  stage statused, every artifact present and non-empty, every listed frame on
+  disk, and the transcript reaching the probed duration) before it will say
+  `packet complete`.
 - **AppleScript paths are escaped** in the Finder staging fallback, so a quote
   or backslash in a filename can no longer terminate the script literal.
 

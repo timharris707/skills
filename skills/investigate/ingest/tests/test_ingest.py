@@ -6,6 +6,7 @@ invariants are testable without ever invoking ffmpeg or whisper.
 
 Run:  python3 -m unittest discover -s tests -t tests
 """
+import io
 import json
 import sys
 import tempfile
@@ -136,12 +137,25 @@ class TestRetention(unittest.TestCase):
 
             m = ing.Manifest(out, identity_hash="abc")
             m.finish("fetch", [ours])
-            ing.discard_media(out, m, wav)
+            m.finish("audio", [wav])       # the ledger is the only delete list
+            ing.discard_media(out, m)
 
             self.assertFalse(ours.exists())
             self.assertFalse(wav.exists())
             self.assertTrue(theirs.exists(), "deleted a file it never created")
             self.assertTrue(m.data["media_discarded"])
+
+    def test_an_unledgered_wav_survives(self):
+        # Nothing is deleted for being named audio.wav — only for being in the
+        # ledger. Guards the rule itself, not just today's call sites.
+        with tempfile.TemporaryDirectory() as t:
+            out = Path(t) / "packet"
+            out.mkdir()
+            stray = out / "audio.wav"
+            stray.write_text("not ours")
+            m = ing.Manifest(out, identity_hash="abc")
+            ing.discard_media(out, m)
+            self.assertTrue(stray.exists())
 
 
 class TestTranscriptFidelity(unittest.TestCase):
@@ -202,11 +216,80 @@ class TestPacketValidation(unittest.TestCase):
             any("frames" in p for p in ing.validate_packet(m, self.dir))
         )
 
+    def test_declared_no_speech_srt_may_be_empty(self):
+        m = ing.Manifest(self.dir, identity_hash="abc")
+        srt = self.dir / "transcript.srt"
+        srt.write_text("")
+        m.finish("transcribe", [srt], segments=0, no_speech=True)
+        self.assertEqual(ing.validate_packet(m, self.dir), [])
+
+    def test_an_undeclared_empty_srt_is_still_a_problem(self):
+        m = ing.Manifest(self.dir, identity_hash="abc")
+        srt = self.dir / "transcript.srt"
+        srt.write_text("")
+        m.finish("transcribe", [srt], segments=0)
+        self.assertTrue(
+            any("empty" in p for p in ing.validate_packet(m, self.dir))
+        )
+
+    def test_short_transcript_against_a_long_recording_is_a_problem(self):
+        m = ing.Manifest(self.dir, identity_hash="abc")
+        srt = self.dir / "transcript.srt"
+        srt.write_text("1\n00:00:05,000 --> 00:00:07,000\nhello\n")
+        m.finish("probe", [], info={"true_duration_s": 3600})
+        m.finish("transcribe", [srt])
+        problems = ing.validate_packet(m, self.dir)
+        self.assertTrue(any("uncovered" in p for p in problems), problems)
+
+    def test_trailing_silence_is_not_a_coverage_problem(self):
+        m = ing.Manifest(self.dir, identity_hash="abc")
+        srt = self.dir / "transcript.srt"
+        srt.write_text("1\n00:04:30,000 --> 00:04:35,000\nbye\n")
+        m.finish("probe", [], info={"true_duration_s": 300})
+        m.finish("transcribe", [srt])
+        self.assertEqual(ing.validate_packet(m, self.dir), [])
+
+    def test_declared_no_speech_skips_the_coverage_check(self):
+        m = ing.Manifest(self.dir, identity_hash="abc")
+        srt = self.dir / "transcript.srt"
+        srt.write_text("")
+        m.finish("probe", [], info={"true_duration_s": 3600})
+        m.finish("transcribe", [srt], segments=0, no_speech=True)
+        self.assertEqual(ing.validate_packet(m, self.dir), [])
+
     def test_discarded_media_is_not_reported_missing(self):
         m = ing.Manifest(self.dir, identity_hash="abc")
         m.finish("fetch", [self.dir / "media" / "source.mp4"])
         m.data["media_discarded"] = True
         self.assertEqual(ing.validate_packet(m, self.dir), [])
+
+
+class TestCommandLine(unittest.TestCase):
+    """The purpose gate is only real if the CLI enforces it.
+
+    argparse writes its usage message to stderr on rejection; these tests
+    silence it so a passing run's output stays readable.
+    """
+
+    def setUp(self):
+        original = sys.stderr
+        sys.stderr = io.StringIO()
+
+        def restore():
+            sys.stderr = original
+
+        self.addCleanup(restore)
+
+    def test_run_requires_a_goal(self):
+        with self.assertRaises(SystemExit) as cm:
+            ing.main(["run", "--input", "x.mp4", "--intent", "call", "--out", "/tmp/x"])
+        self.assertEqual(cm.exception.code, 2)      # argparse: missing required
+
+    def test_run_rejects_an_unknown_intent(self):
+        with self.assertRaises(SystemExit) as cm:
+            ing.main(["run", "--input", "x.mp4", "--intent", "not-an-intent",
+                      "--goal", "why", "--out", "/tmp/x"])
+        self.assertEqual(cm.exception.code, 2)
 
 
 class TestPathSafety(unittest.TestCase):

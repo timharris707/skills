@@ -55,6 +55,41 @@ ffmpeg -nostdin -y -ss <ts> -i media/<file> -frames:v 1 frames/extra_<ts>.jpg
 
 **7. Manifest.** Record every frame's file, timestamp, and reason, plus stage completion and tool versions, in `manifest.json` — downstream reads frames through it, never by doing arithmetic on filenames.
 
+**8. Validate before calling it complete.** Walk the manifest: every stage has a status, every artifact it lists exists and is non-empty, every frame it lists is on disk, and the transcript's last timestamp reaches the probed duration. A failure here is a failed run, not a caveat.
+
+## The packet contract by hand
+
+The script enforces these; a by-hand run has to enforce them itself, or the packet it produces is not the same artifact.
+
+**Claim the directory before writing anything.** Use a new directory, or one you created for this purpose earlier. Drop a `.ingest-run` marker in it. Never point a run at a directory holding anything else — step 9 deletes files inside it.
+
+**Write the purpose and the identity first.** Before staging a byte:
+
+```json
+{
+  "input": "<path or URL>",
+  "intent": "<call|playtest|demo|memo|triage|reference>",
+  "goal": "<why, in the user's own words — verbatim>",
+  "identity": {"input": "…", "intent": "…", "ladder_s": 10, "frames": true,
+               "whisper_model": "mlx-community/whisper-large-v3-turbo",
+               "source_size": 0, "source_mtime_ns": 0},
+  "stages": {}, "frames": []
+}
+```
+
+**One packet, one source.** Before reusing a directory, compare its recorded `identity` with this run's. Any difference — a different URL, an edited local file, a changed ladder or frame policy — means **stop and use a fresh directory**. Reusing it mixes two sources' evidence under one label, which is the failure this contract exists to prevent.
+
+**A stage is complete when it says so.** Each entry records a status and what it produced:
+
+```json
+"transcribe": {"status": "ok", "artifacts": ["transcript.srt", "transcript.txt",
+               "transcript.md"], "segments": 101, "at": "2026-08-07T09:14:02"}
+```
+
+Use `"status": "skipped"` with a reason for a stage you deliberately did not run (frames on a `memo`, say). "No artifacts" never means "finished" on its own — an empty list plus no status is an unfinished stage, and re-running must redo it.
+
+**9. Retention deletes by ledger.** When the source is re-fetchable and you are discarding media, delete exactly the paths the manifest recorded under `fetch`/`stage`/`audio` — never the `media/` directory wholesale. Remove the directory only if it ends up empty; anything else in there was not yours. Remember a URL is not a promise: signed, expiring, and private links look identical to durable ones, so keep the media whenever the source might not survive.
+
 ## The gotcha ledger
 
 Merged from four `video-review` runs (loanmeld) and the first `playtest-review` runs (gameoflife). Each entry cost a real session.

@@ -670,20 +670,18 @@ def tool_versions() -> dict:
     return out
 
 
-def discard_media(out_dir: Path, manifest: Manifest, wav: Path) -> None:
+def discard_media(out_dir: Path, manifest: Manifest) -> None:
     """Delete only the media files THIS run recorded creating. The run
     directory belongs to the tool, but a blanket rmtree of media/ would still
     take anything else that landed there — deletion is by ledger, not by
-    directory name."""
+    directory name, and the ledger is the only list consulted (the extracted
+    wav included: extract_audio records it under the `audio` stage)."""
     removed = 0
-    for stage in ("fetch", "stage"):
+    for stage in ("fetch", "stage", "audio"):
         for path in manifest.artifacts(stage):
             if path.exists() and path.is_file():
                 path.unlink()
                 removed += 1
-    if wav.exists():
-        wav.unlink()
-        removed += 1
     media_dir = out_dir / "media"
     if media_dir.is_dir() and not any(media_dir.iterdir()):
         media_dir.rmdir()
@@ -709,13 +707,53 @@ def validate_packet(manifest: Manifest, out_dir: Path) -> list:
         for path in (Path(p) for p in rec.get("artifacts", [])):
             if not path.exists():
                 problems.append(f"{stage}: missing artifact {path.name}")
-            elif path.stat().st_size == 0:
+                continue
+            if path.stat().st_size == 0:
+                # A genuinely silent recording yields an empty raw SRT, and the
+                # stage says so. Every other empty artifact is a defect.
+                if rec.get("no_speech") and path.suffix == ".srt":
+                    continue
                 problems.append(f"{stage}: empty artifact {path.name}")
     for frame in manifest.data.get("frames", []):
         if not (out_dir / frame["file"]).exists():
             problems.append(f"frames: manifest lists missing {frame['file']}")
             break
+    problems += transcript_coverage_problems(manifest)
     return problems
+
+
+def transcript_coverage_problems(manifest: Manifest) -> list:
+    """The documented Done-when says the transcript must reach the probed true
+    duration. Checking it here is the difference between a criterion a reader is
+    asked to eyeball and one the run actually enforces — a transcription that
+    stops a third of the way in otherwise reports `packet complete`.
+
+    Trailing silence is legitimate, so the gap is only a problem when it is
+    large AND unexplained; a declared no-speech packet is exempt outright.
+    """
+    tr = manifest.data["stages"].get("transcribe")
+    probe_rec = manifest.data["stages"].get("probe")
+    if not tr or not probe_rec or tr.get("status") != "ok":
+        return []
+    if tr.get("no_speech"):
+        return []                      # declared, not silently short
+    duration = (probe_rec.get("info") or {}).get("true_duration_s") or 0
+    srt = next((Path(p) for p in tr.get("artifacts", []) if str(p).endswith(".srt")), None)
+    if not duration or srt is None or not srt.exists():
+        return []
+    segs = srt_to_segments(srt.read_text(errors="replace"))
+    if not segs:
+        return []                      # already caught as an empty/absent artifact
+    last = segs[-1][0]
+    gap = duration - last
+    # A tail of quiet is normal; losing a quarter of a recording is not.
+    if gap > max(60, duration * 0.25):
+        return [
+            f"transcribe: transcript ends at {last:.0f}s of {duration:.0f}s "
+            f"({gap:.0f}s uncovered) — re-run transcription, or record the "
+            f"packet as no_speech if the tail is genuinely silent"
+        ]
+    return []
 
 
 def cmd_run(args) -> None:
@@ -793,7 +831,7 @@ def cmd_run(args) -> None:
     # guarantee of re-fetchability (signed, expiring, and private links all
     # look the same) — pass --keep-media when the source may not survive.
     if manifest.data["refetchable"] and not args.keep_media:
-        discard_media(out_dir, manifest, wav)
+        discard_media(out_dir, manifest)
 
     problems = validate_packet(manifest, out_dir)
     if problems:
