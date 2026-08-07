@@ -120,6 +120,10 @@ The promoted buckets are also the site's regions, read straight from `buckets.js
 - **Releases:** standalone skills tag as `<skill>/vX.Y.Z`, the pack as `team-workflow/vX.Y.Z`; each release's notes come from the relevant `CHANGELOG.md`. See [`RELEASING.md`](./RELEASING.md).
 - **Contributing:** structure, quality bar, and validation in [`CONTRIBUTING.md`](./CONTRIBUTING.md).
 
+## Acknowledgements
+
+Four skills here are adapted from [mattpocock/skills](https://github.com/mattpocock/skills) (MIT) — [grilling](./skills/decide/grilling/SKILL.md), [to-tickets](./skills/run/to-tickets/SKILL.md), [wizard](./skills/run/wizard/SKILL.md), and [writing-for-agents](./skills/author/writing-for-agents/SKILL.md). Each names what it took and what it added in its own Attribution section; `grilling` follows its original most closely.
+
 ## License
 
 Released under the [MIT License](./LICENSE.md) — free to use, copy, modify, and adapt with attribution.
