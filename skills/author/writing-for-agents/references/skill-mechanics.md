@@ -74,7 +74,7 @@ A skill is a `SKILL.md`, and both runtimes read it directly — so the *instruct
 | Per-skill metadata | frontmatter only | frontmatter **plus** `agents/openai.yaml` |
 | Plugins per repo | many | **one per plugin root** |
 
-The **one-plugin-per-root** rule is the only real asymmetry: a Codex plugin root is the directory holding `.codex-plugin/`, and skill paths are relative to it, so a repo root can host exactly one Codex plugin. This catalog therefore ships three Claude plugins (`advisory-board`, `team-workflow`, `writing-for-agents`) and one Codex plugin (`clickai-skills`) containing the same twelve skills. Different shape, identical contents — and CI enforces the "identical contents" half.
+The **one-plugin-per-root** rule is the only real asymmetry: a Codex plugin root is the directory holding `.codex-plugin/`, and skill paths are relative to it, so a repo root can host exactly one Codex plugin. This catalog therefore ships four Claude plugins (`advisory-board`, `team-workflow`, `ingest`, `writing-for-agents`) and one Codex plugin (`clickai-skills`) containing the same thirteen skills. Different shape, identical contents — and CI enforces the "identical contents" half.
 
 **`skills` in `.codex-plugin/plugin.json` accepts an array of paths, and Codex exposes only those paths.** This is worth stating plainly because the widely-cited constraint says otherwise — that Codex accepts only a single path string and discovers `SKILL.md` recursively beneath it, which would make a curated subset impossible in a bucketed repo. Verified against **Codex CLI 0.146.0** with a control: a scratch plugin containing one promoted and one unpromoted skill, both carrying the same marker string.
 
