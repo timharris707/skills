@@ -1,13 +1,9 @@
 name: release
 
-# Publish a GitHub release whenever a skill-scoped version tag is pushed.
-#
-# Tag format:  <skill>/vX.Y.Z   e.g.  advisory-board/v0.5.0
-# Release body: that skill's mandatory CHANGELOG.md section for the version,
-#               found at skills/<bucket>/<skill>/CHANGELOG.md or, for a pack,
-#               packs/<pack>/CHANGELOG.md — resolved, not hard-coded, so moving
-#               a skill between buckets never breaks its release.
-# A missing or empty section fails the release. See RELEASING.md.
+# Publish a GitHub release whenever a skill-scoped version tag is pushed
+# manually. The release logic itself lives in release-core.yml (one place);
+# auto-release.yml calls the same core when a version bump lands on main.
+# See RELEASING.md.
 
 on:
   push:
@@ -23,132 +19,6 @@ concurrency:
 
 jobs:
   release:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        with:
-          fetch-depth: 0
-
-      # Derive + VALIDATE skill/version from the tag. GITHUB_REF_NAME is an env
-      # var (safe); downstream steps read these via env, never via ${{ }} inside a
-      # run block, so a crafted tag name can't inject into the shell.
-      - name: Resolve tag, skill, and version
-        id: meta
-        env:
-          REF_NAME: ${{ github.ref_name }}
-        run: |
-          set -euo pipefail
-          tag="$REF_NAME"
-          skill="${tag%/*}"        # advisory-board/v0.5.0 -> advisory-board
-          version="${tag##*/}"     # advisory-board/v0.5.0 -> v0.5.0
-          if ! printf '%s' "$skill" | grep -Eq '^[a-z0-9][a-z0-9._-]*$'; then
-            echo "::error::tag '$tag' has an unexpected skill segment '$skill'" >&2
-            exit 1
-          fi
-          if ! printf '%s' "$version" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
-            echo "::error::tag '$tag' is not <skill>/vMAJOR.MINOR.PATCH" >&2
-            exit 1
-          fi
-          if [ "$(git cat-file -t "$tag")" != "tag" ]; then
-            echo "::error::$tag must be an annotated tag" >&2
-            exit 1
-          fi
-          git fetch --no-tags origin main:refs/remotes/origin/main
-          if ! git merge-base --is-ancestor "$tag^{commit}" origin/main; then
-            echo "::error::$tag does not point to a commit on origin/main" >&2
-            exit 1
-          fi
-          # Skills live in buckets (skills/<bucket>/<skill>/) and packs carry
-          # their changelog at packs/<pack>/. Resolve rather than hard-code, so
-          # moving a skill between buckets never breaks its release. Exactly one
-          # match is required: two would make the release notes ambiguous.
-          found=$(
-            find skills packs -mindepth 1 -maxdepth 2 -type d -name "$skill" \
-              -exec test -f '{}/CHANGELOG.md' \; -print 2>/dev/null | sort
-          )
-          count=$(printf '%s' "$found" | grep -c . || true)
-          if [ "$count" -eq 0 ]; then
-            echo "::error::no CHANGELOG.md found for '$skill' under skills/*/ or packs/" >&2
-            exit 1
-          fi
-          if [ "$count" -gt 1 ]; then
-            echo "::error::'$skill' has more than one CHANGELOG.md: $(printf '%s' "$found" | tr '\n' ' ')" >&2
-            exit 1
-          fi
-          {
-            echo "tag=$tag"
-            echo "skill=$skill"
-            echo "version=$version"
-            echo "changelog=$found/CHANGELOG.md"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Extract release notes from the changelog
-        id: notes
-        env:
-          CHANGELOG: ${{ steps.meta.outputs.changelog }}
-          VERSION: ${{ steps.meta.outputs.version }}
-        run: |
-          set -euo pipefail
-          if [ ! -f "$CHANGELOG" ]; then
-            echo "::error::missing changelog: $CHANGELOG" >&2
-            exit 1
-          fi
-          awk -v ver="$VERSION" '
-            { sub(/\r$/, "") }                                # tolerate CRLF
-            {
-              heading = "## [" ver "]"
-              exact = ($0 == heading || index($0, heading " ") == 1)
-            }
-            exact                           { capture = 1; next }
-            capture && /^## \[/            { exit }
-            capture                        { print }
-          ' "$CHANGELOG" > notes.md
-          if ! grep -q '[^[:space:]]' notes.md; then
-            echo "::error::missing or empty '## [$VERSION]' section in $CHANGELOG" >&2
-            exit 1
-          fi
-
-      - name: Publish release from changelog
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: ${{ steps.meta.outputs.tag }}
-          SKILL: ${{ steps.meta.outputs.skill }}
-          VERSION: ${{ steps.meta.outputs.version }}
-        run: |
-          set -euo pipefail
-          verify_existing_release() {
-            EXPECTED_NAME="$SKILL $VERSION" python - <<'PY'
-          import json
-          import os
-          from pathlib import Path
-
-          release = json.loads(Path("existing-release.json").read_text())
-          expected_name = os.environ["EXPECTED_NAME"]
-          expected_body = Path("notes.md").read_text()
-          if release.get("name") != expected_name:
-              raise SystemExit(
-                  f"existing release title mismatch: {release.get('name')!r} != {expected_name!r}"
-              )
-          if release.get("body") != expected_body:
-              raise SystemExit("existing release body does not match the changelog section")
-          PY
-          }
-
-          if gh release view "$TAG" --json name,body > existing-release.json 2>/dev/null; then
-            verify_existing_release
-            echo "::notice::release $TAG already exists with the expected title and notes"
-            exit 0
-          fi
-
-          if gh release create "$TAG" \
-              --title "$SKILL $VERSION" \
-              --notes-file notes.md \
-              --verify-tag; then
-            exit 0
-          fi
-
-          # A duplicated tag event can race between the initial existence check
-          # and creation. Accept that race only when the winning release is exact.
-          gh release view "$TAG" --json name,body > existing-release.json
-          verify_existing_release
-          echo "::notice::a concurrent run created $TAG with the expected title and notes"
+    uses: ./.github/workflows/release-core.yml
+    with:
+      tag: ${{ github.ref_name }}
