@@ -391,6 +391,13 @@ def validate(data: dict) -> None:
     if "lens_preset" in data and not isinstance(data["lens_preset"], str):
         die(f"lens_preset must be a string when present; got {type(data['lens_preset']).__name__}")
 
+    # Optional plain-prose fields (v1.18): the bottom-line `summary`, the one-line
+    # `verdict_note` under the headline, and `reviewed` (what the material IS).
+    # Prose is never gated on — only type-checked so a renderer can trust the shape.
+    for key in ("summary", "verdict_note", "reviewed", "subtitle"):
+        if key in data and not isinstance(data[key], str):
+            die(f"{key} must be a string when present; got {type(data[key]).__name__}")
+
     for key in EVIDENCE_CONTAINERS:
         if key in data and not isinstance(data[key], list):
             die(f"{key} must be a list when present; got {type(data[key]).__name__}")

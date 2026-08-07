@@ -7,7 +7,7 @@
 <title>Payments API idempotency keys</title>
 <style>
   :root {
-    --maxw: 820px;
+    --maxw: 760px;
     /* light "Boardroom" body */
     --page: #faf8f3;
     --surface: #ffffff;
@@ -22,16 +22,14 @@
     --accent: #2347ff;          /* cobalt — signature */
     --accent-deep: #0f2bc2;
     --accent-tint: #eaedff;
-    --gold: #a8843c;            /* secondary — the lead seat */
+    --gold: #a8843c;            /* secondary — the human/chair color */
     /* dark "Signal" bands */
     --dark: #0a0e1a;
-    --dark-2: #111726;
     --dark-line: #232b3e;
     --on-dark: #fbfaf7;
     --on-dark-soft: #b9c0d0;
     --on-dark-faint: #8a93a8;
     --accent-bright: #5b8cff;
-    --gold-bright: #e2b658;
     /* verdict palettes (muted — counsel, not error toasts) */
     --ship-bg: #e9f1ec;     --ship-edge: #2f6f57;   --ship-ink: #235540;
     --caution-bg: #fbf1de;  --caution-edge: #b07a1e; --caution-ink: #7a5410;
@@ -51,106 +49,270 @@
   }
 
   /* ---- dark masthead band ---- */
-  header.masthead { background: var(--dark); color: var(--on-dark); padding: 30px 20px 28px; }
+  header.masthead { background: var(--dark); color: var(--on-dark); padding: 34px 20px 30px; }
   .band-inner { max-width: var(--maxw); margin: 0 auto; }
-  .brand-lockup { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
-  .brand-mark { width: 46px; height: 46px; border-radius: 11px; overflow: hidden; flex: 0 0 auto; }
+  .brand-lockup { display: flex; align-items: center; gap: 11px; margin-bottom: 26px; }
+  .brand-mark { width: 34px; height: 34px; border-radius: 8px; overflow: hidden; flex: 0 0 auto; }
   .brand-mark svg { display: block; width: 100%; height: 100%; }
-  .brand-name { display: flex; flex-direction: column; line-height: 1.1; }
-  .brand-name .p { font-size: 18px; font-weight: 700; letter-spacing: -0.01em; color: var(--on-dark); }
-  .brand-name .ab { font-size: 10.5px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--accent-bright); margin-top: 4px; }
-  header.masthead h1 { font-size: 29px; line-height: 1.18; font-weight: 700; margin: 0 0 8px; letter-spacing: -0.01em; color: var(--on-dark); }
-  .subtitle { font-size: 16px; color: var(--on-dark-soft); margin: 0 0 18px; max-width: 60ch; }
-  .meta-row { display: flex; flex-wrap: wrap; gap: 8px; }
-  .chip {
-    display: inline-flex; align-items: center; gap: 6px;
-    background: rgba(255,255,255,0.05); border: 1px solid var(--dark-line);
-    border-radius: 999px; padding: 5px 13px; font-size: 13px; color: var(--on-dark-soft);
-  }
-  .chip b { font-weight: 600; color: var(--on-dark); }
+  .brand-name { font-size: 14px; font-weight: 700; letter-spacing: -0.01em; color: var(--on-dark); }
+  .brand-name .by { font-weight: 400; color: var(--on-dark-faint); font-size: 12.5px; margin-left: 6px; }
+  header.masthead h1 { font-size: 30px; line-height: 1.2; font-weight: 700; margin: 0 0 8px; letter-spacing: -0.015em; color: var(--on-dark); }
+  .subtitle { font-size: 16px; color: var(--on-dark-soft); margin: 0 0 14px; max-width: 62ch; }
+  .masthead-meta { margin: 0; font-size: 13.5px; color: var(--on-dark-faint); }
+  .masthead-meta b { font-weight: 600; color: var(--on-dark-soft); }
 
   /* ---- body column ---- */
-  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 30px 20px 56px; }
+  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 36px 20px 64px; }
 
-  /* ---- verdict banner ---- */
+  /* ---- verdict banner: the page's one colored moment ---- */
   .verdict {
-    border-radius: 12px; padding: 22px 24px; margin: 4px 0 32px;
-    border: 1px solid transparent; border-left-width: 6px;
+    border-radius: 10px; padding: 24px 26px; margin: 0 0 40px;
+    border: 1px solid transparent; border-left-width: 5px;
   }
   .verdict .label {
     font-size: 12px; letter-spacing: 0.09em; text-transform: uppercase;
-    font-weight: 700; margin: 0 0 6px; opacity: 0.85;
+    font-weight: 700; margin: 0 0 8px; opacity: 0.8;
   }
-  .verdict .conf-badge {
-    display: inline-block; margin-left: 9px; font-size: 10.5px; letter-spacing: 0.05em;
-    font-weight: 700; padding: 1px 8px; border-radius: 999px;
-    background: rgba(0,0,0,0.07); vertical-align: 1.5px;
+  .verdict .conf-badge { font-weight: 600; text-transform: none; letter-spacing: 0; }
+  .verdict .conf-badge::before { content: " · "; }
+  .verdict .headline { font-size: 24px; font-weight: 700; margin: 0; line-height: 1.3; letter-spacing: -0.01em; }
+  .verdict .note { margin: 8px 0 0; font-size: 16px; line-height: 1.55; }
+  .verdict .bottom-line {
+    margin: 14px 0 0; padding-top: 14px; font-size: 16px; line-height: 1.65;
+    border-top: 1px solid rgba(0,0,0,0.1);
   }
-  .verdict .headline { font-size: 23px; font-weight: 700; margin: 0; line-height: 1.25; }
-  .verdict .note { margin: 10px 0 0; font-size: 15.5px; line-height: 1.55; }
   .verdict.ship    { background: var(--ship-bg);    border-color: var(--ship-edge);    color: var(--ship-ink); }
   .verdict.caution { background: var(--caution-bg); border-color: var(--caution-edge); color: var(--caution-ink); }
   .verdict.block   { background: var(--block-bg);   border-color: var(--block-edge);   color: var(--block-ink); }
 
+  /* ---- delta vs previous run (revise runs only; section drops when absent) ---- */
+  .delta-revises { margin: 0 0 6px; font-size: 13.5px; color: var(--ink-faint); }
+  .delta-traj { margin: 0 0 12px; font-size: 17px; font-weight: 700; }
+  .delta-note { margin: 0 0 12px; font-size: 14px; font-style: italic; color: var(--ink-faint); }
+  .delta-cols { display: flex; gap: 18px; flex-wrap: wrap; }
+  .delta-col { flex: 1 1 180px; }
+  .delta-col h4 {
+    font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--ink-faint); margin: 0 0 6px;
+  }
+  .delta-list { margin: 0; padding-left: 18px; font-size: 14px; line-height: 1.5; }
+
   /* ---- sections ---- */
-  section { margin: 0 0 34px; }
+  section { margin: 0 0 40px; }
   h2 {
-    font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase;
-    font-weight: 700; color: var(--ink-faint); margin: 0 0 14px;
-    padding-bottom: 8px; border-bottom: 1px solid var(--line);
+    font-size: 12.5px; letter-spacing: 0.1em; text-transform: uppercase;
+    font-weight: 700; color: var(--ink-faint); margin: 0 0 16px;
+    padding-bottom: 8px; border-bottom: 1px solid var(--line-strong);
   }
 
-  /* ---- plan callout ---- */
-  .plan {
-    background: var(--surface-soft); border: 1px solid var(--line);
-    border-left: 4px solid var(--accent); border-radius: 0 10px 10px 0;
-    padding: 16px 20px;
-  }
+  /* ---- what was reviewed: plain prose, no panel ---- */
+  .plan { font-size: 16.5px; color: var(--ink-soft); }
   .plan p { margin: 0 0 10px; } .plan p:last-child { margin: 0; }
 
-  /* ---- seat cards ---- */
-  .seat {
-    background: var(--surface); border: 1px solid var(--line-strong);
-    border-radius: 12px; padding: 20px 22px; margin: 0 0 18px;
+  /* ---- how the board voted: one quiet table ---- */
+  table.votes { width: 100%; border-collapse: collapse; font-size: 15px; }
+  table.votes th {
+    text-align: left; font-size: 12px; letter-spacing: 0.05em; text-transform: uppercase;
+    color: var(--ink-faint); font-weight: 600; padding: 0 12px 8px 0;
+    border-bottom: 1px solid var(--line-strong);
   }
-  .seat-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 12px; margin-bottom: 4px; }
-  .seat-name { font-size: 19px; font-weight: 700; margin: 0; }
-  .seat-lens {
-    font-size: 12.5px; font-weight: 600; color: var(--accent);
-    background: var(--accent-tint); border-radius: 999px; padding: 3px 11px;
+  table.votes td { padding: 9px 12px 9px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+  table.votes .vote-seat { font-weight: 600; white-space: nowrap; }
+  table.votes .vote-lens { color: var(--ink-soft); }
+  table.votes .vote-model { font-family: var(--font-mono); font-size: 12.5px; color: var(--ink-faint); }
+  table.votes .vote-rounds { white-space: nowrap; font-weight: 600; }
+  table.votes .vote-rounds.ship    { color: var(--ship-edge); }
+  table.votes .vote-rounds.caution { color: var(--caution-edge); }
+  table.votes .vote-rounds.block   { color: var(--block-edge); }
+  table.votes .vote-status { font-style: italic; color: var(--block-ink); font-weight: 400; white-space: nowrap; }
+
+  /* ---- findings: a numbered editorial list, not cards ---- */
+  ol.blockers { list-style: none; counter-reset: blk; margin: 0; padding: 0; }
+  ol.blockers > li {
+    counter-increment: blk; position: relative;
+    padding: 0 0 22px 44px; margin: 0 0 22px;
+    border-bottom: 1px solid var(--line);
   }
-  .seat-model { font-size: 13px; color: var(--ink-faint); font-family: var(--font-mono); }
-  .seat-status {
-    font-size: 11.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
-    border-radius: 999px; padding: 3px 10px;
+  ol.blockers > li:last-child { border-bottom: 0; margin-bottom: 0; padding-bottom: 6px; }
+  ol.blockers > li::before {
+    content: counter(blk); position: absolute; left: 2px; top: 1px;
+    font-size: 19px; font-weight: 700; color: var(--line-strong);
+    font-variant-numeric: tabular-nums;
   }
-  .seat-status.ran      { background: var(--vellum);     color: var(--ink-faint); }
-  .seat-status.degraded { background: var(--caution-bg); color: var(--caution-ink); }
-  .seat-status.dropped  { background: var(--block-bg);   color: var(--block-ink); }
-  .round { margin-top: 16px; padding-top: 16px; border-top: 1px dashed var(--line); }
-  .round:first-of-type { margin-top: 12px; }
-  .round-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 8px; }
-  .round-tag { font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-faint); }
-  /* per-round verdict pill */
-  .vpill { font-size: 12px; font-weight: 700; border-radius: 999px; padding: 3px 11px; line-height: 1.4; }
-  .vpill.ship    { background: var(--ship-bg);    color: var(--ship-ink); }
-  .vpill.caution { background: var(--caution-bg); color: var(--caution-ink); }
-  .vpill.block   { background: var(--block-bg);   color: var(--block-ink); }
-  .vpill.moved::after { content: " ↓"; }
-  .conf {
-    font-size: 11.5px; font-weight: 600; color: var(--ink-faint);
-    background: var(--surface-soft); border: 1px solid var(--line);
-    border-radius: 999px; padding: 2px 9px;
+  ol.blockers .b-title { display: block; font-weight: 650; font-size: 17px; line-height: 1.45; }
+  ol.blockers .b-body { font-size: 15.5px; color: var(--ink-soft); margin-top: 6px; line-height: 1.6; }
+
+  /* receipts: the finding's evidence, collapsed so mechanics don't drown prose */
+  details.receipts { margin-top: 10px; }
+  details.receipts > summary {
+    cursor: pointer; font-size: 13px; font-weight: 600; color: var(--ink-faint);
+    list-style: none; display: inline-block;
+  }
+  details.receipts > summary::-webkit-details-marker { display: none; }
+  details.receipts > summary::before { content: "▸ "; }
+  details.receipts[open] > summary::before { content: "▾ "; }
+  details.receipts ul {
+    margin: 8px 0 0; padding: 10px 14px; list-style: none;
+    background: var(--surface-soft); border: 1px solid var(--line); border-radius: 8px;
+  }
+  details.receipts li {
+    font-family: var(--font-mono); font-size: 12.5px; line-height: 1.6;
+    color: var(--ink-soft); margin: 4px 0; word-break: break-word;
+  }
+  code {
+    font-family: var(--font-mono);
+    font-size: 0.86em; background: var(--vellum); border: 1px solid var(--line);
+    border-radius: 5px; padding: 1px 5px;
   }
 
-  .review-body { font-size: 15.5px; color: var(--ink); }
-  .review-body strong { font-weight: 600; }
+  /* ---- dissent / minority report: set-off prose, no box ---- */
+  .dissent { border-left: 3px solid var(--caution-edge); padding: 2px 0 2px 18px; }
+  .dissent .d-flag {
+    display: block; font-size: 12px; font-weight: 700;
+    letter-spacing: 0.07em; text-transform: uppercase; color: var(--caution-ink);
+    margin-bottom: 6px;
+  }
+  .dissent p { margin: 8px 0; font-size: 15.5px; color: var(--ink-soft); }
+  .dissent .who { font-weight: 700; color: var(--ink); }
+
+  /* ---- what the board couldn't verify ---- */
+  .caveats ul { margin: 0; padding-left: 20px; }
+  .caveats li { margin: 8px 0; font-size: 15.5px; color: var(--ink-soft); }
+  .caveats .c-claim { color: var(--ink); }
+
+  /* ---- severity-filter elision line (v1.14 P1); present only on a filtered render ---- */
+  .filter-note {
+    margin: 0 0 18px; font-size: 13.5px; font-style: italic; color: var(--ink-soft);
+  }
+
+  /* ---- independence / echo-risk pill (v1.14 #9 / P2); present only on a ≥2-round
+     run whose run dir carries echo-score.json. Coarse band, band-tinted; the text
+     already says it flags echo, it does not prove independence. ---- */
+  .echo-pill {
+    margin: 0 0 18px; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--line);
+    font-size: 13.5px; color: var(--ink-soft); background: var(--surface-soft);
+  }
+  .echo-pill.echo-low      { border-color: var(--ship-edge);    background: var(--ship-bg);    color: var(--ship-ink); }
+  .echo-pill.echo-moderate { border-color: var(--caution-edge); background: var(--caution-bg); color: var(--caution-ink); }
+  .echo-pill.echo-high     { border-color: var(--block-edge);   background: var(--block-bg);   color: var(--block-ink); }
+
+  /* ---- rubric scorecard (v1.15 P4; --rubric runs only) — informational, never gates ---- */
+  .scorecard-sec { margin: 26px 0; }
+  .sc-intro { margin: 0 0 12px; font-size: 14px; color: var(--ink-soft); }
+  .sc-contra {
+    margin: 0 0 14px; padding: 10px 14px; border-radius: 8px;
+    border: 1px solid var(--block-edge); background: var(--block-bg); color: var(--block-ink);
+    font-size: 14px; font-weight: 600;
+  }
+  table.sc-crit-table, table.sc-seat-table {
+    width: 100%; border-collapse: collapse; margin: 0 0 16px; font-size: 14px;
+  }
+  .sc-crit-table th, .sc-crit-table td, .sc-seat-table th, .sc-seat-table td {
+    text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line); vertical-align: top;
+  }
+  .sc-crit-table th, .sc-seat-table th { color: var(--ink-soft); font-weight: 600; font-size: 12.5px; }
+  .sc-band { font-weight: 600; }
+  .sc-band-weak   { color: var(--block-ink); }
+  .sc-band-mixed  { color: var(--caution-ink); }
+  .sc-band-strong { color: var(--ship-ink); }
+  .sc-notes { margin: 0; }
+  .sc-note { margin: 6px 0; font-size: 13.5px; color: var(--ink-soft); }
+
+  /* ---- simple lists ---- */
+  ul.plain { margin: 0; padding-left: 20px; }
+  ul.plain li { margin: 8px 0; font-size: 15.5px; color: var(--ink-soft); }
+
+  .actions ol { margin: 0; padding-left: 22px; }
+  .actions li { margin: 9px 0; font-size: 15.5px; }
+
+  /* ---- a note a person added by hand, attached to a finding (amendment) ---- */
+  ol.blockers .blocker-sev-notes { margin: 8px 0 0; padding-left: 18px; }
+  ol.blockers .blocker-sev-notes li {
+    font-size: 14px; color: var(--accent-deep); margin: 3px 0; font-style: italic;
+  }
+
+  /* ---- changes a person made after the board reported (amendments) ----
+     Deliberately set apart from the board's own words: a gold left edge (the
+     human/chair color) says "a person changed this", not "the board said this". */
+  ol.amend-list { list-style: none; margin: 0; padding: 0; }
+  .amend-intro { margin: -6px 0 14px; font-size: 14px; font-style: italic; color: var(--ink-faint); }
+  ol.amend-list > li {
+    border-left: 3px solid var(--gold);
+    padding: 4px 0 4px 18px; margin: 0 0 14px;
+  }
+  ol.amend-list .amend-who { font-weight: 700; }
+  ol.amend-list .amend-when { color: var(--ink-faint); font-size: 13px; }
+  ol.amend-list .amend-reason { margin: 4px 0 0; font-size: 15px; color: var(--ink-soft); }
+  ol.amend-list .amend-effect {
+    display: inline-block; margin-top: 6px; font-size: 13.5px; font-weight: 600;
+    color: var(--gold);
+  }
+
+  /* ---- the board's revised copy: redline (prose) OR unified patch (code) ----
+     A line-by-line VIEW of the change the revision seat produced. Deletions ride
+     the block/red family, insertions the ship/green family — the same verdict
+     tints used elsewhere, so the page stays two-color. The applied file itself is
+     the byte-clean revised-draft.* artifact; this is orientation only. */
+  .rl-body, .patch-pre {
+    font-family: var(--font-mono); font-size: 13px; line-height: 1.55;
+    background: var(--surface-soft); border: 1px solid var(--line);
+    border-radius: 8px; padding: 12px 14px; margin: 10px 0 0; overflow-x: auto;
+  }
+  .rl-row { white-space: pre-wrap; word-break: break-word; padding: 0 4px; }
+  .rl-ctx { color: var(--ink-faint); }
+  .rl-gap { color: var(--ink-faint); font-style: italic; text-align: center; }
+  .rl-del { background: var(--block-bg);  color: var(--block-ink); }
+  .rl-ins { background: var(--ship-bg);   color: var(--ship-ink); }
+  .rl-del del { text-decoration: line-through; background: #f2cccc; }
+  .rl-ins ins { text-decoration: none; font-weight: 700; background: #cfe8d8; }
+  .patch-pre { white-space: pre; }
+  .rl-note, .patch-note { margin: 8px 0 0; font-size: 13px; font-style: italic; color: var(--ink-faint); }
+
+  /* ---- board endorsement summary (v1.13 P4) ----
+     A compact per-edit position tally + objection notes, above the redline/patch
+     body. Present only when changes.json carries endorsement rows; the whole block
+     is absent (byte-identical) on a --no-endorse run. */
+  .endorse-summary {
+    margin: 10px 0 0; padding: 10px 14px; font-size: 13.5px;
+    background: var(--surface-soft); border: 1px solid var(--line); border-radius: 8px;
+  }
+  .endorse-summary .endorse-head, .endorse-summary .endorse-obj-head {
+    margin: 0 0 4px; font-weight: 700;
+  }
+  .endorse-summary .endorse-obj-head { margin-top: 10px; }
+  .endorse-summary ul { margin: 0; padding-left: 20px; }
+  .endorse-summary .endorse-obj li { color: var(--block-ink); }
+
+  /* ---- appendix: full seat reviews (only seats with recovered prose) ---- */
+  .appendix-reviews .seat { margin: 0 0 30px; padding: 0 0 8px; border-bottom: 1px solid var(--line); }
+  .appendix-reviews .seat:last-of-type { border-bottom: 0; }
+  .seat-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px; margin-bottom: 2px; }
+  .seat-name { font-size: 18px; font-weight: 700; margin: 0; }
+  .seat-lens { font-size: 13.5px; font-weight: 600; color: var(--accent-deep); }
+  .seat-model { font-size: 12.5px; color: var(--ink-faint); font-family: var(--font-mono); }
+  .seat-status { font-size: 12.5px; font-weight: 600; font-style: italic; }
+  .seat-status.ran      { color: var(--ink-faint); }
+  .seat-status.degraded { color: var(--caution-ink); }
+  .seat-status.dropped  { color: var(--block-ink); }
+  .round { margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--line); }
+  .round:first-of-type { margin-top: 10px; border-top: 0; padding-top: 0; }
+  .round-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; margin-bottom: 6px; }
+  .round-tag { font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-faint); }
+  .vpill { font-size: 13px; font-weight: 600; }
+  .vpill.ship    { color: var(--ship-edge); }
+  .vpill.caution { color: var(--caution-edge); }
+  .vpill.block   { color: var(--block-edge); }
+  .vpill.moved::after { content: " ↓"; }
+  .conf { font-size: 12.5px; color: var(--ink-faint); }
+
+  .review-body { font-size: 15px; color: var(--ink-soft); }
+  .review-body strong { font-weight: 600; color: var(--ink); }
   .review-body em { font-style: italic; }
   .review-body a { color: var(--accent); text-decoration: underline; }
   .review-body ul, .review-body ol { margin: 6px 0; padding-left: 22px; }
   .review-body li { margin: 5px 0; }
   .review-body p { margin: 6px 0; }
-  .review-body p.r-title { font-weight: 600; margin-top: 12px; }
+  .review-body p.r-title { font-weight: 600; margin-top: 12px; color: var(--ink); }
   .review-body blockquote {
     margin: 8px 0; padding: 2px 0 2px 14px;
     border-left: 3px solid var(--line-strong); color: var(--ink-soft);
@@ -161,100 +323,40 @@
     overflow-x: auto; font-size: 13px; line-height: 1.5;
   }
   .review-body pre code { background: none; border: 0; padding: 0; font-size: inherit; }
-  code {
-    font-family: var(--font-mono);
-    font-size: 0.86em; background: var(--vellum); border: 1px solid var(--line);
-    border-radius: 5px; padding: 1px 5px;
-  }
 
   /* highlight callout (e.g. a seat that changed its verdict) */
   .highlight {
-    background: #fff6e3; border: 1px solid #ecd9a3; border-radius: 10px;
-    padding: 12px 16px; margin: 14px 0 0; font-size: 14.5px; color: #6f5212;
+    border-left: 3px solid var(--caution-edge);
+    padding: 4px 0 4px 16px; margin: 14px 0 0; font-size: 14.5px; color: var(--caution-ink);
   }
-  .highlight b { color: #5a4209; }
-
-  /* ---- numbered blocker checklist ---- */
-  ol.blockers { list-style: none; counter-reset: blk; margin: 0; padding: 0; }
-  ol.blockers > li {
-    counter-increment: blk; position: relative;
-    background: var(--surface); border: 1px solid var(--line-strong);
-    border-radius: 11px; padding: 15px 18px 15px 56px; margin: 0 0 11px;
-  }
-  ol.blockers > li::before {
-    content: counter(blk); position: absolute; left: 14px; top: 14px;
-    width: 28px; height: 28px; border-radius: 50%;
-    background: var(--block-bg); color: var(--block-ink);
-    font-size: 14px; font-weight: 700; display: flex; align-items: center; justify-content: center;
-  }
-  ol.blockers .b-title { font-weight: 600; }
-  ol.blockers .b-body { font-size: 15px; color: var(--ink-soft); margin-top: 3px; }
-
-  /* ---- dissent (visually distinct) ---- */
-  .dissent {
-    background: #fbf3ec; border: 1px dashed var(--caution-edge);
-    border-radius: 12px; padding: 16px 20px;
-  }
-  .dissent .d-flag {
-    display: inline-block; font-size: 11.5px; font-weight: 700;
-    letter-spacing: 0.07em; text-transform: uppercase; color: var(--caution-ink);
-    background: var(--caution-bg); border-radius: 999px; padding: 3px 10px; margin-bottom: 8px;
-  }
-  .dissent p { margin: 6px 0; font-size: 15.5px; color: #5e4a31; }
-  .dissent .who { font-weight: 700; color: var(--caution-ink); }
-
-  /* ---- what the board couldn't verify (epistemic caveats) ---- */
-  .caveats {
-    background: var(--surface-soft); border: 1px solid var(--line);
-    border-left: 4px solid var(--ink-faint); border-radius: 0 12px 12px 0;
-    padding: 16px 20px;
-  }
-  .caveats ul { margin: 0; padding-left: 22px; }
-  .caveats li { margin: 7px 0; font-size: 15.5px; }
-  .caveats .c-claim { font-weight: 600; }
-  .caveats .c-change { color: var(--ink-soft); }
-
-  /* ---- simple lists ---- */
-  ul.plain { margin: 0; padding-left: 22px; }
-  ul.plain li { margin: 7px 0; font-size: 15.5px; }
-
-  .actions {
-    background: var(--surface-soft); border: 1px solid var(--line);
-    border-radius: 12px; padding: 16px 20px; font-size: 15.5px;
-  }
-  .actions ol { margin: 0; padding-left: 20px; }
-  .actions li { margin: 6px 0; }
+  .highlight b { color: var(--ink); }
 
   /* ---- dark footer / colophon band ---- */
-  footer.colophon { background: var(--dark); color: var(--on-dark-soft); padding: 26px 20px 32px; }
+  footer.colophon { background: var(--dark); color: var(--on-dark-soft); padding: 26px 20px 30px; }
   footer.colophon .disclaimer {
     display: block; margin: 0 0 16px; font-style: italic;
     color: var(--on-dark-faint); font-size: 13.5px;
   }
-  .colophon-grid { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; justify-content: space-between; }
+  .colophon-grid { display: flex; flex-wrap: wrap; gap: 24px; align-items: baseline; justify-content: space-between; }
   .colophon-about { flex: 1 1 320px; }
-  .footer-lockup { display: flex; align-items: center; gap: 9px; font-weight: 700; color: var(--on-dark); font-size: 14px; margin-bottom: 9px; }
-  .footer-lockup svg { width: 26px; height: 26px; display: block; }
+  .footer-lockup { display: flex; align-items: center; gap: 9px; font-weight: 700; color: var(--on-dark); font-size: 14px; margin-bottom: 8px; }
+  .footer-lockup svg { width: 22px; height: 22px; display: block; }
   .colophon-about p { margin: 0; font-size: 13.5px; line-height: 1.6; color: var(--on-dark-soft); max-width: 54ch; }
   .colophon-cta { flex: 0 0 auto; }
-  .cta {
-    display: inline-block; background: var(--accent); color: #ffffff;
-    font-weight: 600; font-size: 14.5px; text-decoration: none;
-    padding: 10px 20px; border-radius: 9px;
-  }
+  .cta { color: var(--accent-bright); font-weight: 600; font-size: 14px; text-decoration: none; }
   .cta::after { content: " →"; }
-  footer.colophon .prov { display: block; margin-top: 12px; font-size: 11.5px; color: var(--on-dark-faint); font-family: var(--font-mono); }
+  footer.colophon .prov { display: block; margin-top: 14px; font-size: 11.5px; color: var(--on-dark-faint); font-family: var(--font-mono); }
 
   /* ---- responsive ---- */
   @media (max-width: 560px) {
     body { font-size: 16px; }
-    .wrap { padding: 22px 15px 44px; }
+    .wrap { padding: 24px 15px 44px; }
     header.masthead, footer.colophon { padding-left: 15px; padding-right: 15px; }
     header.masthead h1 { font-size: 25px; }
+    .verdict { padding: 18px 18px; }
     .verdict .headline { font-size: 20px; }
-    .seat, ol.blockers > li { padding-left: 16px; padding-right: 16px; }
-    ol.blockers > li { padding-left: 50px; }
-    .colophon-cta { width: 100%; }
+    ol.blockers > li { padding-left: 32px; }
+    table.votes .vote-model { display: none; }
   }
 
   /* ---- print / PDF (Print -> Save as PDF) ---- */
@@ -262,7 +364,7 @@
     body { background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     header.masthead, footer.colophon { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     .wrap { max-width: none; }
-    .verdict, .plan, .seat, .round, ol.blockers > li, .dissent, .actions { break-inside: avoid; }
+    .verdict, ol.blockers > li, .dissent, .seat, .round { break-inside: avoid; }
     a { color: inherit; text-decoration: none; }
   }
 </style>
@@ -273,60 +375,241 @@
   <header class="masthead">
     <div class="band-inner">
       <div class="brand-lockup">
-        <span class="brand-mark"><svg viewBox="0 0 1000 1000" xmlns="http://www.w3.org/2000/svg"><defs><radialGradient id="bg" cx="50%" cy="38%" r="74%"><stop offset="0%" stop-color="#122046"/><stop offset="55%" stop-color="#0a1024"/><stop offset="100%" stop-color="#05070f"/></radialGradient><radialGradient id="vig" cx="50%" cy="50%" r="62%"><stop offset="60%" stop-color="#000000" stop-opacity="0"/><stop offset="100%" stop-color="#000000" stop-opacity="0.5"/></radialGradient><linearGradient id="cobalt" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#a9c2ff"/><stop offset="52%" stop-color="#5b8cff"/><stop offset="100%" stop-color="#2347ff"/></linearGradient><linearGradient id="gold" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#ffe6a3"/><stop offset="55%" stop-color="#e2b658"/><stop offset="100%" stop-color="#b9842e"/></linearGradient><radialGradient id="core" cx="50%" cy="42%" r="62%"><stop offset="0%" stop-color="#ffffff"/><stop offset="34%" stop-color="#dbe6ff"/><stop offset="70%" stop-color="#6f93ff"/><stop offset="100%" stop-color="#2347ff"/></radialGradient><radialGradient id="spark" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#eaf1ff"/><stop offset="100%" stop-color="#5b8cff"/></radialGradient><filter id="gM" x="-180%" y="-180%" width="460%" height="460%"><feGaussianBlur stdDeviation="14"/></filter><filter id="gL" x="-220%" y="-220%" width="540%" height="540%"><feGaussianBlur stdDeviation="32"/></filter></defs><rect width="1000" height="1000" fill="#05070f"/><rect width="1000" height="1000" fill="url(#bg)"/><circle cx="500" cy="500" r="220" fill="#3a5fff" opacity="0.12" filter="url(#gL)"/><circle cx="500" cy="500" r="312" fill="none" stroke="url(#cobalt)" stroke-width="3" opacity="0.7"/><circle cx="500" cy="500" r="210" fill="none" stroke="#4f7bff" stroke-width="2" opacity="0.32"/><circle cx="500" cy="500" r="120" fill="none" stroke="#4f7bff" stroke-width="2" opacity="0.22"/><g stroke="#4f7bff" stroke-width="2"><line x1="830" y1="500" x2="850" y2="500" opacity="0.4"/><line x1="500" y1="830" x2="500" y2="850" opacity="0.4"/><line x1="170" y1="500" x2="150" y2="500" opacity="0.4"/><line x1="500" y1="170" x2="500" y2="150" opacity="0.4"/><line x1="733.3" y1="733.3" x2="743.2" y2="743.2" opacity="0.16"/><line x1="266.7" y1="733.3" x2="256.8" y2="743.2" opacity="0.16"/><line x1="266.7" y1="266.7" x2="256.8" y2="256.8" opacity="0.16"/><line x1="733.3" y1="266.7" x2="743.2" y2="256.8" opacity="0.16"/></g><line x1="500" y1="250" x2="500" y2="188" stroke="#f7b500" stroke-width="3" opacity="0.45"/><circle cx="500" cy="188" r="46" fill="#e2b658" opacity="0.30" filter="url(#gM)"/><circle cx="500" cy="188" r="34" fill="#0a1430" stroke="url(#gold)" stroke-width="5"/><circle cx="500" cy="188" r="15" fill="url(#gold)"/><circle cx="770.2" cy="344" r="46" fill="#2f54e6" opacity="0.30" filter="url(#gM)"/><circle cx="770.2" cy="344" r="34" fill="#0a1430" stroke="url(#cobalt)" stroke-width="5"/><circle cx="770.2" cy="344" r="15" fill="url(#spark)"/><circle cx="770.2" cy="656" r="46" fill="#2f54e6" opacity="0.30" filter="url(#gM)"/><circle cx="770.2" cy="656" r="34" fill="#0a1430" stroke="url(#cobalt)" stroke-width="5"/><circle cx="770.2" cy="656" r="15" fill="url(#spark)"/><circle cx="500" cy="812" r="46" fill="#2f54e6" opacity="0.30" filter="url(#gM)"/><circle cx="500" cy="812" r="34" fill="#0a1430" stroke="url(#cobalt)" stroke-width="5"/><circle cx="500" cy="812" r="15" fill="url(#spark)"/><circle cx="229.8" cy="656" r="46" fill="#2f54e6" opacity="0.30" filter="url(#gM)"/><circle cx="229.8" cy="656" r="34" fill="#0a1430" stroke="url(#cobalt)" stroke-width="5"/><circle cx="229.8" cy="656" r="15" fill="url(#spark)"/><circle cx="229.8" cy="344" r="46" fill="#2f54e6" opacity="0.30" filter="url(#gM)"/><circle cx="229.8" cy="344" r="34" fill="#0a1430" stroke="url(#cobalt)" stroke-width="5"/><circle cx="229.8" cy="344" r="15" fill="url(#spark)"/><circle cx="500" cy="500" r="74" fill="none" stroke="#4f7bff" stroke-width="2" opacity="0.5"/><circle cx="500" cy="500" r="144" fill="#3a5fff" opacity="0.16" filter="url(#gL)"/><circle cx="500" cy="500" r="77" fill="url(#core)" opacity="0.5" filter="url(#gM)"/><circle cx="500" cy="500" r="48" fill="url(#core)" stroke="#ffffff" stroke-width="3"/><circle cx="500" cy="489" r="13" fill="#ffffff" opacity="0.92"/><rect width="1000" height="1000" fill="url(#vig)"/></svg></span>
-        <span class="brand-name"><span class="p">Advisory Board</span><span class="ab" style="text-transform:none; letter-spacing:0.03em; font-weight:600; margin-top:3px;">powered by Panely</span></span>
+        <span class="brand-mark"><svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect x="2" y="2" width="96" height="96" rx="22" fill="#0a0e1a"/><circle cx="50" cy="50" r="30" fill="none" stroke="#3a5fd9" stroke-width="3" opacity="0.55"/><circle cx="50" cy="20" r="10" fill="#0a0e1a" stroke="#e2b658" stroke-width="4"/><circle cx="50" cy="20" r="4" fill="#e2b658"/><circle cx="76" cy="65" r="10" fill="#0a0e1a" stroke="#3d6bff" stroke-width="4"/><circle cx="76" cy="65" r="4" fill="#3d6bff"/><circle cx="24" cy="65" r="10" fill="#0a0e1a" stroke="#3d6bff" stroke-width="4"/><circle cx="24" cy="65" r="4" fill="#3d6bff"/><circle cx="50" cy="50" r="13" fill="#5b8cff"/><circle cx="50" cy="50" r="5.5" fill="#ffffff"/></svg></span>
+        <span class="brand-name">Advisory Board <span class="by">powered by Panely</span></span>
       </div>
       <h1>Payments API idempotency keys</h1>
       <p class="subtitle">An independent multi-model review.</p>
-      <div class="meta-row">
-        <span class="chip"><b>Date</b> 2026-06-25</span>
-        <span class="chip"><b>Rounds</b> 2</span>
-        <span class="chip"><b>Board</b> Claude · Codex · Gemini</span>
-      </div>
+      <p class="masthead-meta"><b>2026-06-25</b> · 2 rounds · Claude · Codex · Gemini</p>
     </div>
   </header>
 
   <main class="wrap">
 
   <!-- ===================== VERDICT BANNER ===================== -->
-  
+
   <div class="verdict block">
-    <p class="label">Final verdict<span class="conf-badge">high confidence</span></p>
+    <p class="label">The board's verdict<span class="conf-badge">high confidence</span></p>
     <p class="headline">DO NOT SHIP YET — unanimous</p>
-    <p class="note"></p>
   </div>
 
-  <!-- ===================== PLAN UNDER REVIEW ===================== -->
+  <!-- ===================== HOW THE BOARD VOTED ===================== -->
+  <section class="votes-sec">
+    <h2>How the board voted</h2>
+    <table class="votes">
+      <thead><tr><th>Seat</th><th>Lens</th><th>Model</th><th>Round votes</th><th>Status</th></tr></thead>
+      <tbody>
+
+        <tr>
+          <td class="vote-seat">Claude</td>
+          <td class="vote-lens">architecture</td>
+          <td class="vote-model">claude-opus-4-8</td>
+          <td class="vote-rounds block">DO NOT SHIP YET → DO NOT SHIP YET</td>
+          <td class="vote-status"></td>
+        </tr>
+
+        <tr>
+          <td class="vote-seat">Codex</td>
+          <td class="vote-lens">implementation/testing</td>
+          <td class="vote-model">gpt-5.5</td>
+          <td class="vote-rounds block">SHIP WITH CHANGES → DO NOT SHIP YET</td>
+          <td class="vote-status"></td>
+        </tr>
+
+        <tr>
+          <td class="vote-seat">Gemini</td>
+          <td class="vote-lens">product/ops</td>
+          <td class="vote-model">gemini-3.5-flash</td>
+          <td class="vote-rounds block">DO NOT SHIP YET → DO NOT SHIP YET</td>
+          <td class="vote-status"></td>
+        </tr>
+
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ===================== CONSENSUS FINDINGS ===================== -->
   <section>
-    <h2>What was reviewed</h2>
-    <div class="plan">
-      Payments API idempotency keys
+    <h2>Consensus blockers — must fix before ship</h2>
+    <ol class="blockers">
+
+      <li>
+        <span class="b-title">Concurrency window → double charge (no atomic reserve-before-charge)</span>
+        <div class="b-body">Storing the response only after the charge completes leaves a race: two same-key requests arriving concurrently (retry storm, double-click, client-timeout-and-retry) both miss the cache and both charge. Atomically reserve the key (durable INSERT … ON CONFLICT, or SET NX) BEFORE the side effect; the loser blocks-and-polls for the original result. All three seats raised this independently.</div>
+        <details class="receipts">
+          <summary>Receipts — 2 citations</summary>
+          <ul>
+            <li>plan.md — “on a duplicate key it returns the cached response” (source) — verified</li>
+
+            <li>judgment — the plan specifies no reservation/lock step, so the concurrency window is unhandled — inferred from the absence, not stated</li>
+          </ul>
+        </details>
+      </li>
+
+      <li>
+        <span class="b-title">No key→payload binding (same key, different body served stale)</span>
+        <div class="b-body">Nothing binds the key to the request. A client reusing a key with a different amount/recipient/currency gets the prior cached response — a silent under-charge or a replay of an unrelated charge. Bind the key to a hash of the canonicalized request body; same-key/different-payload must return 409/422, never a cached success.</div>
+        <details class="receipts">
+          <summary>Receipts — 1 citation</summary>
+          <ul>
+            <li>plan.md — “on a duplicate key it returns the cached response” (source) — verified</li>
+          </ul>
+        </details>
+      </li>
+
+      <li>
+        <span class="b-title">No per-tenant scoping → cross-tenant response leak</span>
+        <div class="b-body">Keys are client-supplied strings with no stated namespace. Enabling a single shared keyspace for all clients means Client B sending a key Client A already used receives Client A&#x27;s cached charge response — a cross-tenant data leak. The lookup key must be (account_id, idempotency_key), never the raw header.</div>
+        <details class="receipts">
+          <summary>Receipts — 2 citations</summary>
+          <ul>
+            <li>plan.md — “Clients may send an Idempotency-Key header on POST /charges” (source) — verified</li>
+
+            <li>plan.md — “We will enable it for all clients at once next sprint” (source) — verified</li>
+          </ul>
+        </details>
+      </li>
+
+      <li>
+        <span class="b-title">Redis as sole system of record → non-durable idempotency</span>
+        <div class="b-body">Redis is not durable by default; failover, restart without AOF, or maxmemory eviction can drop idempotency records early, after which a retry re-charges. The durable transactional DB must be the system of record; Redis, if used, is a fast-path cache in front of it. (Gemini&#x27;s noeviction does not make Redis durable — it trades the double-charge for a write-availability cliff.)</div>
+        <details class="receipts">
+          <summary>Receipts — 1 citation</summary>
+          <ul>
+            <li>plan.md — “The server stores the key-to-response mapping in Redis wi...” (source) — verified</li>
+          </ul>
+        </details>
+      </li>
+
+      <li>
+        <span class="b-title">Indeterminate downstream outcome + non-idempotent processor</span>
+        <div class="b-body">API-layer idempotency cannot make a non-idempotent money movement exactly-once. A processor timeout leaves the charge state unknown; on retry you must neither replay a fabricated success nor blind-recharge — you must propagate the key to the processor and reconcile by it. Claude elevated this above the concurrency window as the requirement the plan is furthest from.</div>
+        <details class="receipts">
+          <summary>Receipts — 1 citation</summary>
+          <ul>
+            <li>judgment — the plan is silent on the downstream payment processor and on partial-failure/reconciliation — a gap inferred from omission, with no source line to quote</li>
+          </ul>
+        </details>
+      </li>
+
+      <li>
+        <span class="b-title">Caching of transient / indeterminate failures</span>
+        <div class="b-body">An unqualified &#x27;cached response&#x27; pins every retry to a cached 5xx/timeout for 24h, turning a brief downstream glitch into a prolonged checkout outage — and caching an indeterminate result as terminal is unsafe. Cache only KNOWN-terminal outcomes; never cache in-flight or indeterminate-failure states (deterministic pre-side-effect validation errors are a documented exception).</div>
+        <details class="receipts">
+          <summary>Receipts — 1 citation</summary>
+          <ul>
+            <li>plan.md — “on a duplicate key it returns the cached response” (source) — verified</li>
+          </ul>
+        </details>
+      </li>
+
+      <li>
+        <span class="b-title">Big-bang rollout on the money path (no shadow/canary/kill switch)</span>
+        <div class="b-body">Flipping a correctness-critical charge-path interceptor on for everyone at once is volatile: existing clients sending static/placeholder keys would have their checkout funnels break on enforcement. Ship staged — shadow → canary → percentage ramp behind a kill switch — with hit/miss/payload-mismatch/conflict/Redis-latency metrics wired up before the canary.</div>
+        <details class="receipts">
+          <summary>Receipts — 1 citation</summary>
+          <ul>
+            <li>plan.md — “We will enable it for all clients at once next sprint” (source) — verified</li>
+          </ul>
+        </details>
+      </li>
+
+    </ol>
+  </section>
+
+  <!-- ===================== DISSENT / MINORITY REPORT ===================== -->
+
+  <section class="dissent-sec">
+    <h2>Dissent &amp; minority report</h2>
+    <div class="dissent">
+      <span class="d-flag">Dissent on the record</span>
+
+      <p><span class="who">Gemini:</span> Returning a raw 409 to a duplicate in-flight request is dangerous for naive client SDKs: on a client-side timeout retry the SDK shows &#x27;Payment Failed&#x27;, the consumer retries on another card, and the original charge then succeeds. Prefer block-and-poll (≈3–5s) or a 202 + Retry-After, plus a published client retry-integration guide. (Claude and Codex favor 409 for the in-flight loser.)</p>
+
+      <p><span class="who">Claude:</span> Dissents from Gemini&#x27;s resiliency mechanics — fail-closed (503) on Redis-down and noeviction — and from any short-TTL auto-expiring lock as the primary guarantee: a lock that expires while the side effect is still in flight re-opens the exact double-charge it exists to prevent. These problems largely dissolve once the durable store, not Redis, holds the invariant; then a Redis outage is a fast-path degradation, not a payments outage.</p>
+
     </div>
   </section>
 
-  <!-- ===================== SEAT REVIEWS ===================== -->
-  <section>
-    <h2>Board reviews — round by round</h2>
+  <!-- ===================== WHAT THE BOARD COULDN'T VERIFY ===================== -->
 
-    
+  <section class="caveats-sec">
+    <h2>What the board couldn't verify</h2>
+    <div class="caveats">
+      <ul>
+
+        <li><span class="c-claim">The board reviewed the written plan, not the implementation. If the actual handler already does an atomic reserve + request-fingerprint binding, the concurrency and payload-binding blockers may already be satisfied — re-check against the code before treating them as gaps.</span></li>
+
+        <li><span class="c-claim">The downstream processor&#x27;s own idempotency support is unknown. If it already dedupes on a client reference, the double-charge blast radius is smaller than assumed.</span></li>
+
+        <li><span class="c-claim">Retry behavior after the 24h TTL is unverified — whether a legitimate post-expiry retry double-charges depends on real client retry/settlement windows no seat could observe.</span></li>
+
+      </ul>
+    </div>
+  </section>
+
+  <!-- ===================== OPEN QUESTIONS ===================== -->
+  <section class="questions-sec">
+    <h2>Open questions</h2>
+    <ul class="plain">
+
+      <li>Does the downstream payment processor support idempotency keys, and do we propagate the client&#x27;s key to it?</li>
+
+      <li>What is the current baseline double-charge rate (to size rollout gates and prove the change works)?</li>
+
+      <li>Redis durability/eviction/failover and memory-sizing config (volume × avg response size × buffer)?</li>
+
+      <li>Do existing clients already send static, low-entropy, or reused Idempotency-Key headers that enforcement would break?</li>
+
+      <li>Client SDK default timeouts vs the processor&#x27;s worst-case latency (mismatch drives duplicate storms).</li>
+
+      <li>PCI/PII compliance for caching full charge responses (encryption-at-rest, retention).</li>
+
+    </ul>
+  </section>
+
+  <!-- ===================== NEXT ACTIONS ===================== -->
+  <section class="actions-sec">
+    <h2>Next actions</h2>
+    <div class="actions">
+      <ol>
+
+        <li>Write the contract first: scope (account_id, key); key format/length; what 24h expiry means to clients; same-key/different-payload behavior; Redis-down policy; which outcomes are cached.</li>
+
+        <li>Add a durable idempotency record in the primary DB — unique on (account_id, endpoint, key) — storing request fingerprint, state (in_flight|completed|failed_terminal), and the response.</li>
+
+        <li>Reserve-then-process: atomic durable insert of in_flight BEFORE charging; loser polls for the terminal result or returns a deterministic conflict.</li>
+
+        <li>Propagate the key to the processor; on an indeterminate outcome, reconcile by the key — never finalize as success or re-charge blindly.</li>
+
+        <li>Wire observability + a reconciliation job + a standing duplicate-charge-per-key detector before any enforcement.</li>
+
+        <li>Roll out shadow → canary → ramp behind a kill switch, then re-review.</li>
+
+      </ol>
+    </div>
+  </section>
+
+  <section class="appendix-reviews">
+    <h2>Appendix — each seat in its own words</h2>
+
     <article class="seat">
       <div class="seat-head">
         <h3 class="seat-name">Claude</h3>
         <span class="seat-lens">Architecture lens</span>
         <span class="seat-model">claude-opus-4-8</span>
-        
+
       </div>
 
-      
       <div class="round">
         <div class="round-head">
           <span class="round-tag">Round 1</span>
-          
+
           <span class="vpill block">DO NOT SHIP YET</span>
-          
+
         </div>
         <div class="review-body">
-          
+
           <p class="r-title">Advisory Board Review — Idempotency Keys for Payments API</p>
 <p><em>Claude seat · Architecture &amp; systems</em></p>
 <p class="r-title">1. Verdict</p>
@@ -354,16 +637,16 @@
 <ul><li><strong>Reliability/SRE seat:</strong> When Redis is unavailable, do we fail open (risk double charge) or fail closed (reject charges)? Is the durability story (AOF, replication, no-evict) real, or should the DB be the source of truth?</li><li><strong>API/product seat:</strong> What does key expiry mean to clients, and is 24h the right window? What's the documented behavior for same-key/different-body and for the 409 conflict path?</li><li><strong>Security/compliance seat:</strong> Are we storing card/PII in cached responses, and does that pass PCI? Are client-supplied keys validated and namespaced to prevent enumeration or cross-tenant collisions?</li><li><strong>Data/analytics seat:</strong> What's the <em>current</em> double-charge rate, so we can prove this change works and size the rollout gates?</li><li><strong>Downstream-payments seat:</strong> Does the processor accept and honor an idempotency key itself? If not, API-layer idempotency cannot deliver exactly-once on the actual money movement.</li></ul>
         </div>
       </div>
-      
+
       <div class="round">
         <div class="round-head">
           <span class="round-tag">Round 2</span>
-          
+
           <span class="vpill block">DO NOT SHIP YET</span>
-          
+
         </div>
         <div class="review-body">
-          
+
           <p class="r-title">Advisory Board Review — Idempotency Keys for Payments API — Round 2</p>
 <p><em>Claude seat · Architecture &amp; systems · cross-read of codex, gemini</em></p>
 <p class="r-title">1. Updated verdict</p>
@@ -391,30 +674,26 @@
 <p><strong>Bottom line:</strong> Three independent reviews converged with no defense of the original; the design as written can produce the exact double-charge and cross-tenant-leak failures it exists to prevent. REVISE. My one sharpening over round 1 and over my co-reviewers: the hardest case is not the racing duplicate but the charge whose processor outcome is <em>unknown</em> — get reconciliation and durable reservation right, and gemini's fail-closed/noeviction mechanics become unnecessary.</p>
         </div>
       </div>
-      
-
-      
 
     </article>
-    
+
     <article class="seat">
       <div class="seat-head">
         <h3 class="seat-name">Codex</h3>
         <span class="seat-lens">Implementation/testing lens</span>
         <span class="seat-model">gpt-5.5</span>
-        
+
       </div>
 
-      
       <div class="round">
         <div class="round-head">
           <span class="round-tag">Round 1</span>
-          
+
           <span class="vpill caution">SHIP WITH CHANGES</span>
-          
+
         </div>
         <div class="review-body">
-          
+
           <p class="r-title">1. Verdict</p>
 <p>Medium confidence: the plan is directionally right but under-specified for payments. As written, Redis-only response caching is not a sufficient idempotency design for charge creation.</p>
 <p>What would change this: evidence that charge creation already has a durable, transactional idempotency record tied to the charge row, with Redis used only as an optimization.</p>
@@ -433,16 +712,16 @@
 <ul><li>Product/API: Is 24h the right contract, and what should clients expect after expiry?</li><li>Security/compliance: Can cached responses in Redis expose payment data or cross-tenant data?</li><li>SRE: What happens during Redis failover, eviction, replication lag, or regional outage?</li><li>Payments/domain: Can the downstream processor also receive idempotency keys, and how do we reconcile processor results?</li><li>QA: Do tests prove no duplicate charges under concurrent retries and network timeouts?</li></ul>
         </div>
       </div>
-      
+
       <div class="round">
         <div class="round-head">
           <span class="round-tag">Round 2</span>
-          
+
           <span class="vpill block">DO NOT SHIP YET</span>
-          
+
         </div>
         <div class="review-body">
-          
+
           <p class="r-title">1. Updated Verdict</p>
 <p class="r-title">REVISE / do not ship as specified. Confidence: high.</p>
 <p>What would change it: a revised design where idempotency is backed by durable storage, scoped per tenant/client, bound to a canonical request fingerprint, protected against concurrent in-flight duplicates, propagated to the payment processor, and rolled out behind telemetry and flags.</p>
@@ -465,30 +744,26 @@
 <p>Those lines establish the current plan relies on optional client-supplied headers, Redis TTL response caching, duplicate replay, and broad rollout, but does not specify durable reservation, request fingerprinting, tenant scoping, concurrent in-flight handling, downstream idempotency, or failure semantics.</p>
         </div>
       </div>
-      
-
-      
 
     </article>
-    
+
     <article class="seat">
       <div class="seat-head">
         <h3 class="seat-name">Gemini</h3>
         <span class="seat-lens">Product/ops lens</span>
         <span class="seat-model">gemini-3.5-flash</span>
-        
+
       </div>
 
-      
       <div class="round">
         <div class="round-head">
           <span class="round-tag">Round 1</span>
-          
+
           <span class="vpill block">DO NOT SHIP YET</span>
-          
+
         </div>
         <div class="review-body">
-          
+
           <p class="r-title">1. Verdict</p>
 <ul><li><strong>Verdict:</strong> <strong>REJECT / DO NOT SHIP</strong> in its current form. The plan requires critical architectural and operational safeguards before implementation.</li><li><strong>Confidence Level:</strong> <strong>High</strong></li><li><strong>One line on what would change it:</strong> A revised plan incorporating tenant namespacing, payload integrity verification, in-flight transaction locks, transient error exclusions, and a canary-based rollout strategy.</li></ul>
 <p>---</p>
@@ -524,16 +799,16 @@
 <ol><li><strong>To the Security Seat:</strong><ul><li><em>Data-at-Rest in Cache:</em> Since we are caching the raw response payload of <code>POST /charges</code> in Redis, which contains sensitive financial information, should we encrypt the cached payloads in Redis using an application-level key, or is raw transport encryption (TLS) sufficient?</li><li><em>Key Exhaustion/Hashing:</em> What is the risk of an attacker brute-forcing short or non-random <code>Idempotency-Key</code> headers to trigger cache-poisoning or DOS attacks on other customers?</li></ul></li><li><strong>To the Systems Architecture Seat:</strong><ul><li><em>Distributed Lock Implementation:</em> How should the concurrent "in-flight" locking be safely modeled to avoid race conditions? Is a simple Redis <code>SETNX</code> with a short TTL sufficient, or do we require a robust distributed lock library?</li><li><em>Eviction Policy:</em> Can we guarantee that the Redis cluster configuration has eviction disabled (<code>noeviction</code>), and how will we trigger alerts when memory consumption crosses critical thresholds?</li></ul></li></ol>
         </div>
       </div>
-      
+
       <div class="round">
         <div class="round-head">
           <span class="round-tag">Round 2</span>
-          
+
           <span class="vpill block">DO NOT SHIP YET</span>
-          
+
         </div>
         <div class="review-body">
-          
+
           <p class="r-title">Advisory Board Review (Round 2) · Gemini Seat</p>
 <p><strong>Role Focus:</strong> Product &amp; Operations — rollout, latency, observability, evaluation, and user-workflow risk</p>
 <p>---</p>
@@ -595,135 +870,15 @@
 <ul><li><strong>"POST /charges"</strong>: Confirms this is our critical revenue path where latency, operational stability, and conversion rates are paramount.</li><li><strong>"stores the key-to-response mapping in Redis"</strong>: Proves the plan relies on an ephemeral, non-durable store as the sole system of record, presenting a severe risk of early key eviction or failover loss.</li><li><strong>"on a duplicate key it returns the cached response"</strong>: Highlights the lack of request payload fingerprint validation (creating potential under-charging risks) and lack of concurrent in-flight locking (creating double-charge risks).</li><li><strong>"Keys are optional."</strong>: Underlines that buggy clients will not adopt the safety benefits of this feature without an operational plan to eventually mandate its use.</li><li><strong>"We will enable it for all clients at once next sprint."</strong>: Confirms a highly volatile, instant release model on our critical payment path, lacking shadow-mode or canarying stages.</li></ul>
         </div>
       </div>
-      
-
-      
 
     </article>
-    
 
-  </section>
-
-  <!-- ===================== CONSENSUS BLOCKERS ===================== -->
-  <section>
-    <h2>Consensus blockers — must fix before ship</h2>
-    <ol class="blockers">
-      
-      <li>
-        <span class="b-title">Concurrency window → double charge (no atomic reserve-before-charge)</span>
-        <div class="b-body">Storing the response only after the charge completes leaves a race: two same-key requests arriving concurrently (retry storm, double-click, client-timeout-and-retry) both miss the cache and both charge. Atomically reserve the key (durable INSERT … ON CONFLICT, or SET NX) BEFORE the side effect; the loser blocks-and-polls for the original result. All three seats raised this independently.</div>
-      </li>
-      
-      <li>
-        <span class="b-title">No key→payload binding (same key, different body served stale)</span>
-        <div class="b-body">Nothing binds the key to the request. A client reusing a key with a different amount/recipient/currency gets the prior cached response — a silent under-charge or a replay of an unrelated charge. Bind the key to a hash of the canonicalized request body; same-key/different-payload must return 409/422, never a cached success.</div>
-      </li>
-      
-      <li>
-        <span class="b-title">No per-tenant scoping → cross-tenant response leak</span>
-        <div class="b-body">Keys are client-supplied strings with no stated namespace. Enabling a single shared keyspace for all clients means Client B sending a key Client A already used receives Client A&#x27;s cached charge response — a cross-tenant data leak. The lookup key must be (account_id, idempotency_key), never the raw header.</div>
-      </li>
-      
-      <li>
-        <span class="b-title">Redis as sole system of record → non-durable idempotency</span>
-        <div class="b-body">Redis is not durable by default; failover, restart without AOF, or maxmemory eviction can drop idempotency records early, after which a retry re-charges. The durable transactional DB must be the system of record; Redis, if used, is a fast-path cache in front of it. (Gemini&#x27;s noeviction does not make Redis durable — it trades the double-charge for a write-availability cliff.)</div>
-      </li>
-      
-      <li>
-        <span class="b-title">Indeterminate downstream outcome + non-idempotent processor</span>
-        <div class="b-body">API-layer idempotency cannot make a non-idempotent money movement exactly-once. A processor timeout leaves the charge state unknown; on retry you must neither replay a fabricated success nor blind-recharge — you must propagate the key to the processor and reconcile by it. Claude elevated this above the concurrency window as the requirement the plan is furthest from.</div>
-      </li>
-      
-      <li>
-        <span class="b-title">Caching of transient / indeterminate failures</span>
-        <div class="b-body">An unqualified &#x27;cached response&#x27; pins every retry to a cached 5xx/timeout for 24h, turning a brief downstream glitch into a prolonged checkout outage — and caching an indeterminate result as terminal is unsafe. Cache only KNOWN-terminal outcomes; never cache in-flight or indeterminate-failure states (deterministic pre-side-effect validation errors are a documented exception).</div>
-      </li>
-      
-      <li>
-        <span class="b-title">Big-bang rollout on the money path (no shadow/canary/kill switch)</span>
-        <div class="b-body">Flipping a correctness-critical charge-path interceptor on for everyone at once is volatile: existing clients sending static/placeholder keys would have their checkout funnels break on enforcement. Ship staged — shadow → canary → percentage ramp behind a kill switch — with hit/miss/payload-mismatch/conflict/Redis-latency metrics wired up before the canary.</div>
-      </li>
-      
-    </ol>
-  </section>
-
-  <!-- ===================== DISSENT / MINORITY REPORT ===================== -->
-  
-  <section>
-    <h2>Dissent &amp; minority report</h2>
-    <div class="dissent">
-      <span class="d-flag">Dissent on the record</span>
-      
-      <p><span class="who">Gemini:</span> Returning a raw 409 to a duplicate in-flight request is dangerous for naive client SDKs: on a client-side timeout retry the SDK shows &#x27;Payment Failed&#x27;, the consumer retries on another card, and the original charge then succeeds. Prefer block-and-poll (≈3–5s) or a 202 + Retry-After, plus a published client retry-integration guide. (Claude and Codex favor 409 for the in-flight loser.)</p>
-      
-      <p><span class="who">Claude:</span> Dissents from Gemini&#x27;s resiliency mechanics — fail-closed (503) on Redis-down and noeviction — and from any short-TTL auto-expiring lock as the primary guarantee: a lock that expires while the side effect is still in flight re-opens the exact double-charge it exists to prevent. These problems largely dissolve once the durable store, not Redis, holds the invariant; then a Redis outage is a fast-path degradation, not a payments outage.</p>
-      
-    </div>
-  </section>
-
-  <!-- ===================== WHAT THE BOARD COULDN'T VERIFY ===================== -->
-  
-  <section>
-    <h2>What the board couldn't verify</h2>
-    <div class="caveats">
-      <ul>
-        
-        <li><span class="c-claim">The board reviewed the written plan, not the implementation. If the actual handler already does an atomic reserve + request-fingerprint binding, the concurrency and payload-binding blockers may already be satisfied — re-check against the code before treating them as gaps.</span> — <span class="c-change"></span></li>
-        
-        <li><span class="c-claim">The downstream processor&#x27;s own idempotency support is unknown. If it already dedupes on a client reference, the double-charge blast radius is smaller than assumed.</span> — <span class="c-change"></span></li>
-        
-        <li><span class="c-claim">Retry behavior after the 24h TTL is unverified — whether a legitimate post-expiry retry double-charges depends on real client retry/settlement windows no seat could observe.</span> — <span class="c-change"></span></li>
-        
-      </ul>
-    </div>
-  </section>
-
-  <!-- ===================== OPEN QUESTIONS ===================== -->
-  <section>
-    <h2>Open questions</h2>
-    <ul class="plain">
-      
-      <li>Does the downstream payment processor support idempotency keys, and do we propagate the client&#x27;s key to it?</li>
-      
-      <li>What is the current baseline double-charge rate (to size rollout gates and prove the change works)?</li>
-      
-      <li>Redis durability/eviction/failover and memory-sizing config (volume × avg response size × buffer)?</li>
-      
-      <li>Do existing clients already send static, low-entropy, or reused Idempotency-Key headers that enforcement would break?</li>
-      
-      <li>Client SDK default timeouts vs the processor&#x27;s worst-case latency (mismatch drives duplicate storms).</li>
-      
-      <li>PCI/PII compliance for caching full charge responses (encryption-at-rest, retention).</li>
-      
-    </ul>
-  </section>
-
-  <!-- ===================== NEXT ACTIONS ===================== -->
-  <section>
-    <h2>Next actions</h2>
-    <div class="actions">
-      <ol>
-        
-        <li>Write the contract first: scope (account_id, key); key format/length; what 24h expiry means to clients; same-key/different-payload behavior; Redis-down policy; which outcomes are cached.</li>
-        
-        <li>Add a durable idempotency record in the primary DB — unique on (account_id, endpoint, key) — storing request fingerprint, state (in_flight|completed|failed_terminal), and the response.</li>
-        
-        <li>Reserve-then-process: atomic durable insert of in_flight BEFORE charging; loser polls for the terminal result or returns a deterministic conflict.</li>
-        
-        <li>Propagate the key to the processor; on an indeterminate outcome, reconcile by the key — never finalize as success or re-charge blindly.</li>
-        
-        <li>Wire observability + a reconciliation job + a standing duplicate-charge-per-key detector before any enforcement.</li>
-        
-        <li>Roll out shadow → canary → ramp behind a kill switch, then re-review.</li>
-        
-      </ol>
-    </div>
   </section>
 
   </main>
 
   <!-- ===================== FOOTER / COLOPHON (Panely / dark band) ===================== -->
-  
+
   <footer class="colophon">
     <div class="band-inner">
       <div class="colophon-grid">
@@ -732,7 +887,7 @@
             <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect x="2" y="2" width="96" height="96" rx="22" fill="#0a0e1a"/><circle cx="50" cy="50" r="30" fill="none" stroke="#3a5fd9" stroke-width="3" opacity="0.55"/><circle cx="50" cy="20" r="10" fill="#0a0e1a" stroke="#e2b658" stroke-width="4"/><circle cx="50" cy="20" r="4" fill="#e2b658"/><circle cx="76" cy="65" r="10" fill="#0a0e1a" stroke="#3d6bff" stroke-width="4"/><circle cx="76" cy="65" r="4" fill="#3d6bff"/><circle cx="24" cy="65" r="10" fill="#0a0e1a" stroke="#3d6bff" stroke-width="4"/><circle cx="24" cy="65" r="4" fill="#3d6bff"/><circle cx="50" cy="50" r="13" fill="#5b8cff"/><circle cx="50" cy="50" r="5.5" fill="#ffffff"/></svg>
             <span>Advisory Board <span style="font-weight:400; color:var(--on-dark-soft); font-size:11.5px; letter-spacing:0.02em;">powered by Panely</span></span>
           </div>
-          <p>Convene Claude, Codex, and Gemini on your own subscriptions — the ones you already pay for, no new accounts and no API keys — to review the same material and reach one clear verdict.</p>
+          <p>Convene Claude, Codex, Gemini, and Grok through their installed provider CLIs to review the same material and reach one clear verdict.</p>
         </div>
         <div class="colophon-cta">
           <a class="cta" href="https://panely.ai">panely.ai</a>
