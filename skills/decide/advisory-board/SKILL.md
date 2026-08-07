@@ -15,7 +15,7 @@ Hard rules, collected here so they are never missed (each is elaborated in conte
 - **Never write artifacts into a tracked git tree** without naming the location first; default to the persistent runs root (`~/.advisory-board/runs/<slug>-<date>/`), or a throwaway `/tmp/advisory-board-*` folder with `--ephemeral`.
 - **Never substitute a model silently** — if a requested model is unavailable, use the nearest same-provider frontier model and say so.
 - **Never skip the data-handling disclosure** for non-public material — not even when the user says "use defaults." Disclose what leaves the machine and to whom, and get a go-ahead, before any external seat runs (`references/data-handling.md`).
-- **Never present a degraded or dropped seat as a full board** — label it on the seat card and in `verdict.json` (`dropped: true`); a board needs at least two seats that actually ran.
+- **Never present a degraded or dropped seat as a full board** — label it on the seat card and in `verdict.json` (`dropped: true`) on a Formal Board Review run; Roundtable and Competitive, which emit no `verdict.json`, record it in `run-metadata.md` and name it in `synthesis.md`/`results.md` (`references/modes.md`). A board needs at least two seats that actually ran.
 - **Never print or store secrets** — keys, tokens, cookies, or private environment values — in prompts, packets, artifacts, logs, or metadata.
 - **Never launch a run the user hasn't confirmed.** The guided intake (`references/intake-interview.md`) is mandatory: mode, seats, lenses, effort, rounds, and output are the user's choices, made on the record. "Use defaults" collapses the intake to a single confirm-summary card — never to zero questions.
 

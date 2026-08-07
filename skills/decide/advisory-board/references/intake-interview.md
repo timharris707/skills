@@ -24,6 +24,8 @@ The stated goal also settles the lens preset recommendation (`references/lens-pr
 
 Offer the GO providers. **"Latest frontier of each"** is the one-tap shortcut; any subset of 2–10 seats is valid (never 1 — one model reviewing alone is not a board).
 
+One GO provider is not a dead end: to reach the two-seat minimum, offer the documented fallbacks — the same provider in multiple seats with different lenses, a local `ollama` seat (never egresses), or a human seat (`references/board-composition.md`).
+
 Before launch, show the full **seat → provider → lens** table:
 
 - Up to the preset's lens count, lenses auto-assign positionally.

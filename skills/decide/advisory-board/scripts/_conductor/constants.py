@@ -112,7 +112,7 @@ LENS_PRESETS = {
     "red-team": [
         "Correctness attacker — find the input, state, or sequence that makes it wrong; construct the failing case",
         "Ambiguity attacker — instructions two reasonable readers would execute differently, contradictions, undefined edge behavior",
-        "Security & data-handling attacker — what leaks, what escalates, what a malicious input reaches; secrets, PII, and consent paths first",
+        "Security & data-handling attacker — what leaks, what escalates, what a malicious input or poisoned dependency reaches; secrets, PII, and consent paths first",
         "Unimagined-failure hunter — the failure class the author's framing excludes: wrong assumptions about environment, scale, users, or time",
     ],
     # stakeholder-panel (v1.15 P4 / D20): "the room this decision would face" — three

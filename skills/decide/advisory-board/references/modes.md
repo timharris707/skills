@@ -33,13 +33,15 @@ Everyone sees everything; the value is accumulation, not independence.
 
 4. After the last round, the moderator (or you) writes the synthesis: where the panel converged, the strongest unresolved disagreement, and the recommendation — labeled as a roundtable synthesis, not a formal verdict.
 
-**Artifacts.** `turn-<round>-<order>-<seat>.md` per contribution, `synthesis.md` at the end, and `run-metadata.md` as always. A roundtable produces no `verdict.json` — it is a conversation record, not a gate input.
+**Artifacts.** `turn-<round>-<order>-<seat>.md` per contribution, `synthesis.md` at the end, and `run-metadata.md` as always. A seat that drops mid-run is recorded in `run-metadata.md` (status: dropped) and named in `synthesis.md` — the smaller panel is never presented as full. A roundtable produces no `verdict.json` — it is a conversation record, not a gate input.
 
 **Honesty rule.** A roundtable's agreement is social by construction — later seats read earlier ones. Never present roundtable convergence as independent corroboration; that property belongs to Formal Board Review round 1 only.
 
 ## Competitive
 
 Three fixed phases; the output is a ranked field of ideas, not a consensus.
+
+**Minimum three seats.** With two, each voter has exactly one eligible pitch (its own is excluded), so every tally is 1–1 by construction. The intake refuses a two-seat Competitive run and offers a third seat or Formal Board Review instead.
 
 **Mechanics.**
 
@@ -49,7 +51,7 @@ Three fixed phases; the output is a ranked field of ideas, not a consensus.
 
 **Run it by hand:** phase 1 prompts carry only the brief + lens; phase 2 prompts carry the brief + all pitches; phase 3 prompts carry the brief, pitches, and critiques — but no votes. Collect votes before revealing any.
 
-**Artifacts.** `pitch-<seat>.md`, `critique-<seat>.md`, `vote-<seat>.md`, and `results.md` (the tally, the winning pitch, and the strongest surviving objections to it). No `verdict.json`.
+**Artifacts.** `pitch-<seat>.md`, `critique-<seat>.md`, `vote-<seat>.md`, and `results.md` (the tally, the winning pitch, and the strongest surviving objections to it). A seat that drops mid-run is recorded in `run-metadata.md` (status: dropped) and named in `results.md` — its pitch stays in the field, its missing votes are stated, never imputed. No `verdict.json`.
 
 **Variant.** Vote on individual *ideas* rather than whole pitches when pitches each contain several separable options; say which variant ran in `results.md`.
 
