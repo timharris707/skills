@@ -60,5 +60,11 @@ jobs:
       - name: Run advisory-board tests
         run: python -m unittest discover -s skills/decide/advisory-board/tests -p 'test*.py'
 
+      - name: Compile ingest sources
+        run: python -m compileall -q skills/investigate/ingest/scripts
+
+      - name: Run ingest tests
+        run: python -m unittest discover -s skills/investigate/ingest/tests -t skills/investigate/ingest/tests -p 'test*.py'
+
       - name: Check tracked whitespace
         run: git diff --check HEAD^1 HEAD
