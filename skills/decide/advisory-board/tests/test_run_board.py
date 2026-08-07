@@ -763,6 +763,30 @@ class TestPreflight(EnvMixin):
         self.assertFalse(pf.go)
         self.assertEqual(pf.smoke_status, "dropped")
 
+    def test_signed_out_cli_is_nogo_despite_exit_zero(self):
+        # The claude CLI answers any prompt with "Not logged in · Please run
+        # /login" on STDOUT and exits 0, so every mechanical health signal looks
+        # fine. Passing that as GO is what let a real run take consent, spend the
+        # other seats' tokens, and lose this seat at round 1.
+        os.environ["MOCK_CLAUDE_MODE"] = "signed_out"
+        results = {r.seat: r for r in rb.run_preflight(_config())}
+        claude = results["claude"]
+        self.assertFalse(claude.go)
+        self.assertEqual(claude.smoke_status, "dropped")
+        self.assertIn("not signed in", claude.auth.lower())
+        self.assertIn(rb.FAILURE_AUTH, claude.detail)
+
+    def test_signed_out_nogo_names_the_fix(self):
+        os.environ["MOCK_CLAUDE_MODE"] = "signed_out"
+        seat = _config().board[0]
+        pf = rb.preflight_seat(seat, network_on=False, smoke_timeout=5)
+        self.assertIn("fix:", pf.detail)          # the auth hint, not just a verdict
+        self.assertNotIn("token", pf.detail.lower())
+
+    def test_healthy_seat_is_not_flagged_signed_out(self):
+        results = {r.seat: r for r in rb.run_preflight(_config())}
+        self.assertTrue(results["claude"].go)
+
     def test_no_token_in_output(self):
         # auth strings must never look like a secret
         for r in rb.run_preflight(_config()):

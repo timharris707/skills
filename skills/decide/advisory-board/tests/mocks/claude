@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Mock `claude` CLI for testing the conductor without burning tokens or network.
 # Banner-accurate enough for preflight; behavior switched by MOCK_CLAUDE_MODE.
-#   go (default) | nogo_version | nogo_smoke | empty | degraded | timeout
-#   | model_not_found | stub
+#   go (default) | nogo_version | nogo_smoke | signed_out | empty | degraded
+#   | timeout | model_not_found | stub
 # The smoke ping ("Reply with the single word: ready") gets "ready"; a round-1
 # prompt (contains "MATERIAL UNDER REVIEW") gets a full multi-section review, so a
 # single test can exercise preflight AND the fan-out. `stub` returns a short
@@ -862,6 +862,9 @@ case "$mode" in
   # Unknown model: claude prints this to STDOUT with exit 1 (grounded 2026-06-25).
   model_not_found) echo "There's an issue with the selected model. It may not exist or you may not have access to it."; exit 1 ;;
   nogo_smoke) exit 1 ;;
+  # Installed but signed out: the real CLI answers ANY prompt with this on
+  # STDOUT and exits 0 — every health signal looks fine (grounded 2026-08-07).
+  signed_out) echo "Not logged in · Please run /login"; exit 0 ;;
   empty)      exit 0 ;;
   timeout)    exec sleep 30 ;;   # exec so no orphaned sleep survives the kill
   stub)
