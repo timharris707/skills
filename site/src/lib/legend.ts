@@ -307,7 +307,7 @@ export const ENTRIES: Entry[] = [
     band: "established",
     gloss: "A shell command the harness runs at a fixed point. Exit codes are the interface.",
     definition:
-      "A hook is a shell command the harness runs at a fixed point in the agent's loop — not a request to the model. Exit codes are the interface, and the exact code matters: in Claude Code an exit of 2 blocks the transition the hook fired on and feeds the hook's stderr back to the model, while any other non-zero exit is reported and then allowed through. Writing <code>exit 1</code> in a validator and assuming it blocks is the common way to ship a gate that gates nothing. It is the only lever on this page the model cannot argue with, which is also why an untrusted repository that can write a hook has execution on your machine. The distinction worth holding: an instruction is obeyed by disposition, a hook is enforced by the harness.",
+      "A hook is a shell command the harness runs at a fixed point in the agent's loop — not a request to the model. Exit codes are the interface, and the exact code matters: in Claude Code an exit of 2 blocks the transition the hook fired on and feeds the hook's stderr back to the model, while any other non-zero exit is reported and then allowed through. Writing “exit 1” in a validator and assuming it blocks is the common way to ship a gate that gates nothing. It is the only lever on this page the model cannot argue with, which is also why an untrusted repository that can write a hook has execution on your machine. The distinction worth holding: an instruction is obeyed by disposition, a hook is enforced by the harness.",
     sources: [
       {
         label: "Claude Code, Hooks reference — exit-code behaviour and blocking events",
@@ -366,6 +366,10 @@ export const ENTRIES: Entry[] = [
         label: "AppSec Santa, MCP Server Security Audit 2026 — the 78% false-positive finding",
         url: "https://appsecsanta.com/research/mcp-server-security-audit-2026",
       },
+      {
+        label: "Hasan et al., MCP at First Glance (2025) — 1,899 servers scanned, 5.5% tool poisoning",
+        url: "https://arxiv.org/abs/2506.13538",
+      },
     ],
     seeAlso: ["mcp", "hook", "couldnt-verify"],
   },
@@ -415,8 +419,9 @@ export const ENTRIES: Entry[] = [
       "A frontier is the set of nodes whose prerequisites are all satisfied — the edge of what is takeable now. The word is borrowed from graph search, where the frontier is the set of generated but not-yet-expanded nodes and its defining property is that it separates the explored part of the graph from the unexplored. On a tracker that is items which are ready-labelled, unassigned, and blocked neither by a dependency edge nor by a label. In an interview it is every decision whose prerequisites are already settled. Same word, same meaning, two surfaces. An empty frontier is a fact that needs a reason attached — all claimed, triage stalled, or everything blocked — because an empty answer with no breakdown sends people guessing.",
     sources: [
       {
-        label: "Russell & Norvig, Artificial Intelligence: A Modern Approach, ch. 3 — the frontier and the separation property",
-        url: "https://aimacode.github.io/aima-javascript/3-Solving-Problems-By-Searching/",
+        label:
+          "Russell & Norvig, Artificial Intelligence: A Modern Approach, 3rd ed. — ch. 3, “Solving Problems by Searching” (publisher's sample chapter)",
+        url: "https://www.pearsonhighered.com/assets/samplechapter/0/1/3/6/0136042597.pdf",
       },
     ],
     seeAlso: ["task-graph", "fog", "claim"],
@@ -600,7 +605,7 @@ export const ENTRIES: Entry[] = [
     skill: "orchestrate",
     gloss: "A claim that verification passed, offered instead of evidence. Re-run it.",
     definition:
-      "Self-reported green is an agent's claim that verification passed, offered in place of evidence. Re-run it. Require per-command exit codes with zero skipped checks, and remember that piped output is not evidence: the bash manual is explicit that a pipeline's exit status is the status of its last command unless <code>pipefail</code> is set, so any command followed by <code>tail</code> reads green whenever <code>tail</code> does. This is a bug most teams have shipped at least once, usually in CI, usually for months.",
+      "Self-reported green is an agent's claim that verification passed, offered in place of evidence. Re-run it. Require per-command exit codes with zero skipped checks, and remember that piped output is not evidence: the bash manual is explicit that a pipeline's exit status is the status of its last command unless “pipefail” is set, so a test command piped into “tail” reads green whenever “tail” does. This is a bug most teams have shipped at least once, usually in CI, usually for months.",
     sources: [
       {
         label: "GNU Bash Reference Manual, Pipelines — pipeline exit status and pipefail",
@@ -701,7 +706,13 @@ export const ENTRIES: Entry[] = [
     band: "emerging",
     gloss: "Designing the system that prompts the agent, instead of prompting it yourself.",
     definition:
-      "Loop engineering is designing the system that prompts the agent instead of prompting it yourself. It was named by Addy Osmani on 7 June 2026; attribution is genuinely muddled, with other accounts crediting different coinages. The practice is real and the load-bearing part is the caveats, which the marketing versions drop: a loop running unattended is a loop making mistakes unattended, and “done” is a claim rather than proof.",
+      "Loop engineering is designing the system that prompts the agent instead of prompting it yourself. Addy Osmani named it on 7 June 2026, and is explicit that he did not invent the practice — he credits Peter Steinberger's formulation and Boris Cherny's account of running loops rather than prompting. The practice is real and the load-bearing part is the caveats, which the marketing versions drop: a loop running unattended is a loop making mistakes unattended, and “done” is a claim rather than proof.",
+    sources: [
+      {
+        label: "Addy Osmani, Loop Engineering: designing loops that prompt coding agents (7 June 2026)",
+        url: "https://addyosmani.com/blog/loop-engineering/",
+      },
+    ],
     seeAlso: ["graph-engineering", "verification-gate", "oracle"],
   },
   {
@@ -712,6 +723,12 @@ export const ENTRIES: Entry[] = [
     gloss: "Directing fallible agents under human oversight. Automates what you can verify.",
     definition:
       "Agentic engineering is Andrej Karpathy's successor framing to vibe coding — the term he coined in February 2025 for accepting generated code without reading it, and later bounded rather than disowned: “Vibe coding raises the floor. Agentic engineering is about extrapolating the ceiling.” The framing is directing fallible agents under structured human oversight rather than writing the code yourself, with people in charge of the spec and the plan. The most load-bearing line is about scope: traditional computers automate what you can specify in code, and this round of models automates what you can verify — which is why capability peaks in verifiable domains.",
+    sources: [
+      {
+        label: "Andrej Karpathy, Sequoia AI Ascent 2026 — his own summary, carrying the floor/ceiling line",
+        url: "https://karpathy.bearblog.dev/sequoia-ascent-2026/",
+      },
+    ],
     seeAlso: ["oracle", "the-decider", "verification-gate"],
   },
   {
@@ -721,7 +738,25 @@ export const ENTRIES: Entry[] = [
     band: "emerging",
     gloss: "Index the repo as symbols and relationships. Building it is the easy half.",
     definition:
-      "A code knowledge graph is an index of a repository as symbols and relationships — call edges, imports, inheritance, tests — so an agent traverses dependencies rather than matching strings. This half has the actual evidence: RepoGraph, CodexGraph, LocBench results, and a controlled three-arm study reporting a localisation gain within a harness and no regression against agentic grep. The finding that matters most for anyone building one is behavioural, not technical: in CodeCompass's trials, 58% of runs with graph access made zero tool calls, and agents needed explicit prompting to use it. Building the index is the easy half.",
+      "A code knowledge graph is an index of a repository as symbols and relationships — call edges, imports, inheritance, tests — so an agent traverses dependencies rather than matching strings. This half has the actual evidence: RepoGraph, CodexGraph and LocAgent all report retrieval or localisation gains, and CodeCompass ran a controlled three-arm comparison against a plain agent and against BM25 retrieval. The finding that matters most for anyone building one is behavioural, not technical: across CodeCompass's 258 trials, 58% of the runs that had graph access made zero tool calls, and agents needed explicit prompting before they would use it at all. Building the index is the easy half.",
+    sources: [
+      {
+        label: "CodeCompass: Navigating the Navigation Paradox in Agentic Code Intelligence (2026) — the three-arm comparison and the 58% figure",
+        url: "https://arxiv.org/abs/2602.20048",
+      },
+      {
+        label: "Ouyang et al., RepoGraph: repository-level code graphs for AI software engineering",
+        url: "https://arxiv.org/abs/2410.14684",
+      },
+      {
+        label: "Liu et al., CodexGraph: bridging LLMs and code repositories via graph databases",
+        url: "https://arxiv.org/abs/2408.03910",
+      },
+      {
+        label: "LocAgent: graph-guided LLM agents for code localisation — the LocBench results",
+        url: "https://arxiv.org/abs/2503.09089",
+      },
+    ],
     seeAlso: ["agentic-search", "graph-engineering", "context-pointer"],
   },
   {
@@ -757,12 +792,39 @@ export function getEntry(slug: string): Entry | undefined {
  * `next build` rather than shipping — the legend's whole value is that its links
  * go somewhere and its bands mean something.
  */
+/**
+ * The part of a term a definition has to say out loud. Parentheticals and the
+ * alternative half of a slashed or "vs." heading are dropped, so "Agent Skill
+ * (SKILL.md)" only obliges the entry to say "Agent Skill".
+ */
+function termHead(term: string): string {
+  return term
+    .replace(/\s*\([^)]*\)/g, "")
+    .split(/\s+\/\s+| vs\.? /)[0]
+    .trim();
+}
+
 export function assertLegendSound(skillSlugs: string[]): void {
   const slugs = new Set(ENTRIES.map((e) => e.slug));
   const known = new Set(skillSlugs);
   const problems: string[] = [];
 
   for (const entry of ENTRIES) {
+    // Rule 5, enforced rather than merely written down: the first sentence is
+    // what a reader skims and what an answer engine quotes, so it has to name
+    // the thing being defined.
+    const opening = entry.definition.split(/\.\s/)[0];
+    const head = termHead(entry.term);
+    if (!opening.toLowerCase().includes(head.toLowerCase())) {
+      problems.push(
+        `${entry.slug}: opening sentence never says "${head}". Definitions open by naming the term.`,
+      );
+    }
+    if (/<[a-z/][^>]*>/i.test(entry.definition)) {
+      // Definitions render as a React text child and as plain markdown, so a
+      // tag here reaches the reader as literal angle brackets.
+      problems.push(`${entry.slug}: definition contains markup. Definitions are plain text.`);
+    }
     for (const ref of entry.seeAlso ?? []) {
       if (!slugs.has(ref)) problems.push(`${entry.slug}: see-also "${ref}" does not exist`);
     }
