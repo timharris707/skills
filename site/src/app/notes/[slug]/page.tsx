@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { marked } from "marked";
 import { KIND_LABEL, formatDate, getNote, getNotes } from "@/lib/notes";
+import { articleNode, graph, jsonLdProps, PERSON } from "@/lib/schema";
 
 type Params = { params: Promise<{ slug: string }> };
 
@@ -15,10 +16,18 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const note = getNote(slug);
   if (!note) return {};
   return {
-    title: note.title,
+    // The kind is part of the title because a note and a legend entry can share
+    // a subject — "Graph engineering" was both, under one identical title, and
+    // neither a reader nor a crawler could tell which page they had landed on.
+    title: `${note.title} — ${KIND_LABEL[note.kind]}`,
     description: note.standfirst,
     alternates: { canonical: `/notes/${note.slug}` },
-    openGraph: { type: "article", publishedTime: note.date },
+    openGraph: {
+      type: "article",
+      publishedTime: note.date,
+      modifiedTime: note.checked ?? note.date,
+      authors: ["Tim Harris"],
+    },
   };
 }
 
@@ -31,6 +40,7 @@ export default async function NotePage({ params }: Params) {
 
   return (
     <div className="shell detail">
+      <script {...jsonLdProps(graph(PERSON, articleNode(note)))} />
       <article>
         <Link href="/notes" className="crumb">
           ← Notes / {KIND_LABEL[note.kind]}
@@ -46,11 +56,17 @@ export default async function NotePage({ params }: Params) {
           <dt>Kind</dt>
           <dd>{KIND_LABEL[note.kind]}</dd>
           <dt>Published</dt>
-          <dd>{formatDate(note.date)}</dd>
+          {/* The <time> wrapper is the same date the reader sees, in the form a
+              crawler can parse. Without it the page is undated to a machine. */}
+          <dd>
+            <time dateTime={note.date}>{formatDate(note.date)}</time>
+          </dd>
           {note.checked ? (
             <>
               <dt>Claims last checked</dt>
-              <dd>{formatDate(note.checked)}</dd>
+              <dd>
+                <time dateTime={note.checked}>{formatDate(note.checked)}</time>
+              </dd>
             </>
           ) : null}
           <dt>Reading</dt>

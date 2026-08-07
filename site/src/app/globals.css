@@ -1211,6 +1211,16 @@ h2 {
   font-size: 0.95em;
 }
 
+/* Small print under a term. Quiet on purpose — a revision date is provenance,
+   not part of the definition. */
+.term__revised {
+  font-size: 0.76rem;
+  color: var(--sounding);
+  margin-top: 2.2rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--shoal);
+}
+
 .aside h3 {
   font-family: var(--font-mono), monospace;
   font-size: 0.68rem;

@@ -42,6 +42,11 @@ export const metadata: Metadata = {
     url: "https://clickai.dev",
   },
   alternates: { canonical: "/" },
+  // The colophon has said this in prose since the site launched; these say it
+  // in the form a crawler reads. Inherited by every route.
+  authors: [{ name: "Tim Harris", url: "https://clickai.dev/work" }],
+  creator: "Tim Harris",
+  publisher: "Tim Harris",
 };
 
 /* So the browser's own chrome — address bar, scrollbars — is lit the same way
