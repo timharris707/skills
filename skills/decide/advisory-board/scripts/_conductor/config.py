@@ -362,6 +362,7 @@ def resolve_board(seat_specs: list, lens_preset: str, model_overrides: dict,
     # stale id — fail loudly rather than silently ignore it (the old behavior). A bare
     # provider name is a valid target only when that provider is the seat's id (unique board).
     for kind, keys in (("--model", model_overrides), ("--lens", lens_overrides),
+                       ("--effort", reasoning_overrides),
                        ("--timeout", timeout_overrides)):
         for key in keys:
             if key not in seen:
@@ -598,7 +599,9 @@ def resolve_config(args) -> RunConfig:
         base = None
 
     lens_overrides: dict = {}
-    reasoning_overrides: dict = {}
+    # CLI --effort wins over a recipe's recorded per-seat reasoning (recipe fills
+    # via setdefault below) and over --tier's per-provider base (resolve_board).
+    reasoning_overrides: dict = parse_effort_overrides(getattr(args, "effort", None) or [])
     if base is not None and not getattr(args, "source", None):
         source = load_source(base["source_ref"])
         # Reconstruct the exact board from the recipe (an explicit CLI --model already
@@ -932,6 +935,19 @@ def parse_model_overrides(pairs: list) -> dict:
             die(f"--model expects seat=model_id; got {pair!r}")
         seat, _, model = pair.partition("=")
         overrides[seat.strip()] = model.strip()
+    return overrides
+
+
+def parse_effort_overrides(pairs: list) -> dict:
+    """--effort SEAT=LEVEL, same shape as --model. The LEVEL is each seat CLI's
+    own vocabulary (claude max/high/…, codex xhigh/…), so it passes through
+    unvalidated here — a level the CLI rejects fails loudly at the seat."""
+    overrides: dict = {}
+    for pair in pairs:
+        if "=" not in pair:
+            die(f"--effort expects seat=level; got {pair!r}")
+        seat, _, level = pair.partition("=")
+        overrides[seat.strip()] = level.strip()
     return overrides
 
 

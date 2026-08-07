@@ -1715,6 +1715,12 @@ def add_run_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--board", help="comma-separated seats (default claude,codex,gemini,grok)")
     parser.add_argument("--model", action="append", metavar="SEAT=ID",
                         help="override a seat's model (repeatable)")
+    parser.add_argument("--effort", action="append", metavar="SEAT=LEVEL",
+                        help="override a seat's reasoning effort (repeatable), targeted by id "
+                             "exactly like --model (an unknown id fails loudly). LEVEL uses that "
+                             "seat CLI's own scale and is passed through unvalidated — a level "
+                             "the CLI rejects fails at the seat, loudly. Explicit --effort wins "
+                             "over --tier's per-provider base.")
     parser.add_argument("--sensitivity", choices=("public", "redacted", "local-only"),
                         help="public proceeds after disclosure; redacted (default) blocks for "
                              "hash-bound approval; local-only forbids external egress")

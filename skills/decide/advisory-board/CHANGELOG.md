@@ -7,6 +7,11 @@ cut as **skill-scoped semver tags** `advisory-board/vX.Y.Z` (see [`RELEASING.md`
 The skill follows SemVer; its artifact schemas (for example `advisory-board/verdict@N`) are
 versioned separately and do not replace the skill release version.
 
+## [Unreleased]
+
+### Added
+- `run_board.py run --effort SEAT=LEVEL` (repeatable): per-seat reasoning-effort override in each CLI's own vocabulary, targeted by seat id exactly like `--model` (unknown ids fail loudly). Wins over `--tier`'s per-provider base; recorded in the recipe like every resolved per-seat value. Closes the gap where the guided intake promised per-seat effort overrides the conductor couldn't deliver.
+
 ## [v1.17.0] - 2026-08-07 — Modes, guided intake, and the Fable seat
 
 ### Added

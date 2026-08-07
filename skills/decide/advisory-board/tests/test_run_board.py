@@ -334,6 +334,20 @@ class TestConfig(EnvMixin):
         self.assertEqual(models["codex"], "gpt-5.6")
         self.assertEqual(models["claude"], "fable")
 
+    def test_effort_override_per_seat(self):
+        c = _config(effort=["claude=medium"])
+        levels = {s.name: s.reasoning for s in c.board}
+        self.assertEqual(levels["claude"], "medium")
+        self.assertEqual(levels["codex"], rb.REGISTRY["codex"].default_reasoning)
+
+    def test_effort_override_unknown_seat_dies(self):
+        with self.assertRaises(SystemExit):
+            _config(effort=["nope=high"])
+
+    def test_effort_override_malformed_dies(self):
+        with self.assertRaises(SystemExit):
+            _config(effort=["high"])
+
     def test_board_subset(self):
         c = _config(board="claude,gemini")
         self.assertEqual([s.name for s in c.board], ["claude", "gemini"])
