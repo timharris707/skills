@@ -464,6 +464,21 @@ def srt_to_segments(srt_text: str):
     return segs
 
 
+_SRT_END_RE = re.compile(r"-->\s*(\d+):(\d\d):(\d\d)[,.](\d+)")
+
+
+def srt_last_end(srt_text: str):
+    """Where the transcript STOPS, in seconds — the last cue's END, not its
+    start. One long cue covers everything between its two timestamps, so
+    measuring coverage from cue starts would report a whole recording as
+    uncovered. None when nothing parses."""
+    ends = [
+        int(h) * 3600 + int(m) * 60 + int(s) + int(ms.ljust(3, "0")[:3]) / 1000
+        for h, m, s, ms in _SRT_END_RE.findall(srt_text)
+    ]
+    return max(ends) if ends else None
+
+
 def collapse_repeats(segs):
     """Whisper loops one line over silence. Collapse such a run in the DERIVED
     reading copy — but only when it repeats enough AND spans enough time to be
@@ -675,12 +690,24 @@ def discard_media(out_dir: Path, manifest: Manifest) -> None:
     directory belongs to the tool, but a blanket rmtree of media/ would still
     take anything else that landed there — deletion is by ledger, not by
     directory name, and the ledger is the only list consulted (the extracted
-    wav included: extract_audio records it under the `audio` stage)."""
+    wav included: extract_audio records it under the `audio` stage).
+
+    The ledger is a file on disk, so it is an input, not a fact: every path is
+    resolved and refused unless it lands inside this packet. A hand-edited or
+    corrupted manifest must not be able to point deletion at the rest of the
+    filesystem."""
+    packet_root = out_dir.resolve()
     removed = 0
     for stage in ("fetch", "stage", "audio"):
         for path in manifest.artifacts(stage):
-            if path.exists() and path.is_file():
-                path.unlink()
+            try:
+                resolved = path.resolve()
+                resolved.relative_to(packet_root)
+            except (OSError, ValueError):
+                log(f"note: manifest lists {path} outside the packet — not deleting")
+                continue
+            if resolved.is_file():
+                resolved.unlink()
                 removed += 1
     media_dir = out_dir / "media"
     if media_dir.is_dir() and not any(media_dir.iterdir()):
@@ -741,10 +768,14 @@ def transcript_coverage_problems(manifest: Manifest) -> list:
     srt = next((Path(p) for p in tr.get("artifacts", []) if str(p).endswith(".srt")), None)
     if not duration or srt is None or not srt.exists():
         return []
-    segs = srt_to_segments(srt.read_text(errors="replace"))
-    if not segs:
-        return []                      # already caught as an empty/absent artifact
-    last = segs[-1][0]
+    text = srt.read_text(errors="replace")
+    last = srt_last_end(text)
+    if last is None:
+        if text.strip():
+            # Bytes but no cues: the artifact check sees a non-empty file and
+            # passes it, so this is the only place the garbage is caught.
+            return [f"transcribe: {srt.name} has no parseable cues"]
+        return []                      # empty: already caught as an empty artifact
     gap = duration - last
     # A tail of quiet is normal; losing a quarter of a recording is not.
     if gap > max(60, duration * 0.25):

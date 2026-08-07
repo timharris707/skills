@@ -145,6 +145,19 @@ class TestRetention(unittest.TestCase):
             self.assertTrue(theirs.exists(), "deleted a file it never created")
             self.assertTrue(m.data["media_discarded"])
 
+    def test_a_ledger_path_outside_the_packet_is_refused(self):
+        # manifest.json is an input, not a fact: a hand-edited or corrupted
+        # ledger must not be able to aim deletion at the rest of the disk.
+        with tempfile.TemporaryDirectory() as t:
+            out = Path(t) / "packet"
+            out.mkdir()
+            outsider = Path(t) / "not-the-packet.mp4"
+            outsider.write_text("someone else's file")
+            m = ing.Manifest(out, identity_hash="abc")
+            m.finish("fetch", [outsider])
+            ing.discard_media(out, m)
+            self.assertTrue(outsider.exists())
+
     def test_an_unledgered_wav_survives(self):
         # Nothing is deleted for being named audio.wav — only for being in the
         # ledger. Guards the rule itself, not just today's call sites.
@@ -248,6 +261,26 @@ class TestPacketValidation(unittest.TestCase):
         m.finish("probe", [], info={"true_duration_s": 300})
         m.finish("transcribe", [srt])
         self.assertEqual(ing.validate_packet(m, self.dir), [])
+
+    def test_one_long_cue_covers_the_recording(self):
+        # Coverage is measured from the last cue's END; measuring from its start
+        # would call a single hour-long cue an hour of missing transcript.
+        m = ing.Manifest(self.dir, identity_hash="abc")
+        srt = self.dir / "transcript.srt"
+        srt.write_text("1\n00:00:00,000 --> 01:00:00,000\na long single cue\n")
+        m.finish("probe", [], info={"true_duration_s": 3600})
+        m.finish("transcribe", [srt])
+        self.assertEqual(ing.validate_packet(m, self.dir), [])
+
+    def test_srt_with_bytes_but_no_cues_is_a_problem(self):
+        m = ing.Manifest(self.dir, identity_hash="abc")
+        srt = self.dir / "transcript.srt"
+        srt.write_text("this is not an SRT at all\n")
+        m.finish("probe", [], info={"true_duration_s": 300})
+        m.finish("transcribe", [srt])
+        self.assertTrue(
+            any("no parseable cues" in p for p in ing.validate_packet(m, self.dir))
+        )
 
     def test_declared_no_speech_skips_the_coverage_check(self):
         m = ing.Manifest(self.dir, identity_hash="abc")
