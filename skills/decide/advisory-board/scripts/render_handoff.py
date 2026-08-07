@@ -418,6 +418,9 @@ def render(data: dict, template: str) -> str:
     out = render_item(template, data, BLOCK_KEYS, RAW_TOKENS)
     out = drop_empty_optionals(out)
     out = strip_comments(out)
+    # Stripped comments and empty inline tokens leave trailing spaces; scrub them
+    # so a committed render passes the repo's tracked-whitespace check.
+    out = re.sub(r"[ \t]+\n", "\n", out)
     out = re.sub(r"\n{3,}", "\n\n", out)
     assert_fully_resolved(out)
     return out

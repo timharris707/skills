@@ -387,13 +387,11 @@
   <main class="wrap">
 
   <!-- ===================== VERDICT BANNER ===================== -->
-  
+
   <div class="verdict caution">
     <p class="label">The board's verdict<span class="conf-badge">high confidence</span></p>
     <p class="headline">SHIP WITH CHANGES — unanimous</p>
   </div>
-
-  
 
   <!-- ===================== HOW THE BOARD VOTED ===================== -->
   <section class="votes-sec">
@@ -401,7 +399,7 @@
     <table class="votes">
       <thead><tr><th>Seat</th><th>Lens</th><th>Model</th><th>Round votes</th><th></th></tr></thead>
       <tbody>
-        
+
         <tr>
           <td class="vote-seat">Claude</td>
           <td class="vote-lens">Architecture &amp; systems</td>
@@ -409,7 +407,7 @@
           <td class="vote-rounds caution">SHIP WITH CHANGES → SHIP WITH CHANGES → SHIP WITH CHANGES</td>
           <td class="vote-status"></td>
         </tr>
-        
+
         <tr>
           <td class="vote-seat">Codex</td>
           <td class="vote-lens">Implementation &amp; testing</td>
@@ -417,7 +415,7 @@
           <td class="vote-rounds caution">DO NOT SHIP YET → SHIP WITH CHANGES → SHIP WITH CHANGES</td>
           <td class="vote-status"></td>
         </tr>
-        
+
         <tr>
           <td class="vote-seat">Gemini</td>
           <td class="vote-lens">Product &amp; operations</td>
@@ -425,7 +423,7 @@
           <td class="vote-rounds caution">SHIP WITH CHANGES → DO NOT SHIP YET → SHIP WITH CHANGES</td>
           <td class="vote-status"></td>
         </tr>
-        
+
       </tbody>
     </table>
   </section>
@@ -434,7 +432,7 @@
   <section>
     <h2>Consensus blockers — must fix before ship</h2>
     <ol class="blockers">
-      
+
       <li>
         <span class="b-title">Wall-clock source on the refill hot path</span>
         <div class="b-body">All three seats agree the use of time.time() on the refill path is a correctness bug under the stated operating context: a backward clock step makes elapsed negative, so self._tokens + elapsed*rate subtracts tokens and the min() clamp only bounds the top, never zero. Result is spurious denials / a multi-second denial window after an NTP or operator clock correction — exactly the traffic conditions the limiter exists to handle. Fix: switch to time.monotonic() (injectable), and clamp elapsed = max(0.0, now - self._last).</div>
@@ -442,18 +440,18 @@
           <summary>Receipts — 5 citations</summary>
           <ul>
             <li><code>tokenbucket.py::__init__</code> (code) — verified</li>
-          
+
             <li><code>tokenbucket.py:24</code> (code) — verified</li>
-          
+
             <li><code>tokenbucket.py:30</code> (code) — verified</li>
-          
+
             <li><code>tokenbucket.py:31</code> (code) — verified</li>
-          
+
             <li>tokenbucket.py — “Hosts run <code>ntpd</code>; wall-clock corrections (and operator cl...” (source) — verified</li>
           </ul>
         </details>
       </li>
-      
+
       <li>
         <span class="b-title">allow(n) accepts invalid request costs</span>
         <div class="b-body">All three seats flag that allow(n) performs no validation on n. A negative n (e.g. allow(-5)) executes self._tokens -= n, which mints tokens and returns True — a caller can refill the bucket by asking. Non-finite values have undefined behavior and n is never bounded against capacity. Fix: require finite, positive n and define behavior for n &gt; capacity.</div>
@@ -461,12 +459,12 @@
           <summary>Receipts — 2 citations</summary>
           <ul>
             <li><code>tokenbucket.py:35</code> (code) — verified</li>
-          
+
             <li><code>tokenbucket.py::allow</code> (code) — verified</li>
           </ul>
         </details>
       </li>
-      
+
       <li>
         <span class="b-title">Per-process / deployment enforcement semantics unresolved</span>
         <div class="b-body">Claude and Codex flag that one bucket per worker process means the globally enforced rate is roughly rate × worker_count, so advertised limit ≠ enforced limit. Claude treats this as a must-decide operational caveat (acceptable as a soft abuse cap, not as a hard ceiling) rather than a code fix; Codex states that if a fixed per-client RPS must be enforced globally across processes/hosts this becomes a block unless moved to a shared limiter or upstream gateway. The seats did not settle whether &#x27;per-client&#x27; is global or local. Requires an explicit, recorded operator decision.</div>
@@ -474,12 +472,12 @@
           <summary>Receipts — 2 citations</summary>
           <ul>
             <li>tokenbucket.py — “Workers are multi-threaded; a single <code>TokenBucket</code> instan...” (source) — verified</li>
-          
+
             <li>judgment — No packet evidence states whether &#x27;per-client&#x27; means globally across the API fleet or locally within a worker, nor whether the configured limit is a soft abuse cap or a hard contractual ceiling.</li>
           </ul>
         </details>
       </li>
-      
+
       <li>
         <span class="b-title">Tests are timing-dependent and prove none of the failure modes</span>
         <div class="b-body">Claude and Codex find the tests use time.sleep() and real wall-clock, making them flaky on loaded CI. No test injects a clock, exercises a backward clock jump, asserts the 0 ≤ _tokens ≤ capacity invariant, covers n ≤ 0, or exercises concurrent access — so they cannot deterministically reproduce the primary failure mode. The suite does pass clean — the command citation below re-runs it (exit 0, `OK`) — which is exactly the point: a green suite is a verified receipt that the tests pass, not evidence that the failure modes are covered. Fix: rewrite around a fake/injected clock and add the missing cases.</div>
@@ -487,50 +485,50 @@
           <summary>Receipts — 4 citations</summary>
           <ul>
             <li><code>test_tokenbucket.py::test_refills_over_time</code> (code) — verified</li>
-          
+
             <li><code>test_tokenbucket.py::test_caps_at_capacity</code> (code) — verified</li>
-          
+
             <li><code>python3 -m unittest</code> (command) — verified</li>
-          
+
             <li>judgment — Tests use time.sleep(0.05)/time.sleep(0.02) with no injected clock; no backward-jump, concurrency, invariant, or n ≤ 0 coverage.</li>
           </ul>
         </details>
       </li>
-      
+
     </ol>
   </section>
 
   <!-- ===================== DISSENT / MINORITY REPORT ===================== -->
-  
+
   <section class="dissent-sec">
     <h2>Dissent &amp; minority report</h2>
     <div class="dissent">
       <span class="d-flag">Dissent on the record</span>
-      
+
       <p><span class="who">Claude:</span> Dissents from Gemini on two named points: (1) &#x27;migrate to an API Gateway / centralized store instead&#x27; is a recommendation to build a different system, not a defect in the artifact under review — per-process and centralized limiting are both legitimate, and a block must rest on an unfixable in-scope defect; (2) the GIL/lock-contention latency-spike rationale is overstated to the point of being wrong as a blocking reason — the critical section is ~four arithmetic ops with no I/O or allocation, sub-microsecond, and the GIL already serializes the workers, so the lock adds negligible marginal contention. If contention ever mattered, the fix is sharding buckets, not abandoning the design.</p>
-      
+
       <p><span class="who">Codex:</span> Dissents from Gemini: Python lock contention alone does not justify an unconditional block on the provided evidence. It is a real risk needing load testing, but the packet gives no peak RPS, thread count, latency SLO, or contention benchmark.</p>
-      
+
       <p><span class="who">Gemini:</span> Dissents from Codex for focusing narrowly on code correctness while ignoring operational risk: deploying to the hot path of every public request without built-in observability, dry-run/shadow mode, and a fail-open circuit breaker is a critical operational risk regardless of clock correctness. Also dissents from Claude&#x27;s structural acceptance of per-process limits without operational remediation, insisting on explicit configuration scaling guidelines (e.g. dividing limits by active worker count) to prevent SLA drift.</p>
-      
+
     </div>
   </section>
 
   <!-- ===================== WHAT THE BOARD COULDN'T VERIFY ===================== -->
-  
+
   <section class="caveats-sec">
     <h2>What the board couldn't verify</h2>
     <div class="caveats">
       <ul>
-        
+
         <li><span class="c-claim">Whether per-process multiplication is tolerable cannot be judged without peak RPS and worker/process count per host, which are absent from the packet.</span></li>
-        
+
         <li><span class="c-claim">Whether &#x27;per-client&#x27; means globally across the fleet or locally within a worker is not stated, so the block-vs-caution boundary on enforcement semantics cannot be resolved from the reviews.</span></li>
-        
+
         <li><span class="c-claim">The lock-contention / GIL latency risk cannot be confirmed or dismissed without load/benchmark data, which the packet does not provide.</span></li>
-        
+
         <li><span class="c-claim">There is no production baseline of client request volumes, so the false-positive-block rate of active blocking mode cannot be predicted from the packet.</span></li>
-        
+
       </ul>
     </div>
   </section>
@@ -539,13 +537,13 @@
   <section class="questions-sec">
     <h2>Open questions</h2>
     <ul class="plain">
-      
+
       <li>Does &#x27;per-client&#x27; mean a hard limit enforced globally across all processes/hosts, or a local per-worker soft cap?</li>
-      
+
       <li>Is the configured limit a soft abuse cap (per-process multiplication acceptable) or a hard contractual/security ceiling (requires a shared store or upstream gateway)?</li>
-      
+
       <li>What are the expected peak RPS, worker/process count, thread count, and latency SLO needed to judge per-process multiplication and lock contention?</li>
-      
+
     </ul>
   </section>
 
@@ -554,50 +552,47 @@
     <h2>Next actions</h2>
     <div class="actions">
       <ol>
-        
+
         <li>Replace time.time() with an injectable clock defaulting to time.monotonic() in __init__ and allow().</li>
-        
+
         <li>Clamp elapsed = max(0.0, now - self._last) so refill math never goes negative; never move _last backward.</li>
-        
+
         <li>Validate n in allow(): require finite, positive values and define behavior for n &gt; capacity.</li>
-        
+
         <li>Constructor already rejects rate ≤ 0 / capacity ≤ 0 (tested by test_rejects_nonpositive_config); additionally reject non-finite rate/capacity (NaN/inf) per Codex, and preserve the invariant 0 ≤ _tokens ≤ capacity after every call.</li>
-        
+
         <li>Rewrite tests around a fake/injected clock; add cases for backward time, invalid n (≤ 0 and non-finite), capacity caps, denied-request no-consumption, the invariant assertion, and concurrent callers.</li>
-        
+
         <li>Decide and record enforcement semantics (per-worker, per-host, or global per-client); if global enforcement is required, move to a shared store / upstream gateway / sticky routing, and document per-worker limit partitioning (e.g. local_limit = global_limit / worker_count).</li>
-        
+
         <li>Add stress/load testing for abusive single-client and normal multi-client traffic before hot-path rollout.</li>
-        
+
         <li>(Gemini) Add operational safeguards: dry-run/shadow mode emitting metrics while returning True, allow/reject telemetry tagged by client ID, a fail-open try/except around allow() in the caller, and a canary rollout via feature flag.</li>
-        
+
       </ol>
     </div>
   </section>
 
-  
   <section class="appendix-reviews">
     <h2>Appendix — each seat in its own words</h2>
 
-    
     <article class="seat">
       <div class="seat-head">
         <h3 class="seat-name">Claude</h3>
         <span class="seat-lens">Architecture &amp; systems lens</span>
         <span class="seat-model">claude-opus-4-8</span>
-        
+
       </div>
 
-      
       <div class="round">
         <div class="round-head">
           <span class="round-tag">Round 1</span>
-          
+
           <span class="vpill caution">SHIP WITH CHANGES</span>
-          
+
         </div>
         <div class="review-body">
-          
+
           <p class="r-title">Architecture &amp; Systems Review — <code>TokenBucket</code> rate limiter</p>
 <p class="r-title">1. Verdict</p>
 <p class="r-title">Ship with changes (caution).<strong> Confidence: </strong>high.</p>
@@ -629,16 +624,16 @@
 <p>VERDICT: caution</p>
         </div>
       </div>
-      
+
       <div class="round">
         <div class="round-head">
           <span class="round-tag">Round 2</span>
-          
+
           <span class="vpill caution">SHIP WITH CHANGES</span>
-          
+
         </div>
         <div class="review-body">
-          
+
           <p class="r-title">Round 2 review — Claude seat (Architecture &amp; systems)</p>
 <p class="r-title">1. Updated verdict</p>
 <p class="r-title">Caution — proceed only with the changes below. Confidence: high.</p>
@@ -658,16 +653,16 @@
 <p>VERDICT: caution</p>
         </div>
       </div>
-      
+
       <div class="round">
         <div class="round-head">
           <span class="round-tag">Round 3</span>
-          
+
           <span class="vpill caution">SHIP WITH CHANGES</span>
-          
+
         </div>
         <div class="review-body">
-          
+
           <p>I'll respond with the review directly, as the task instructs — no files written, read-only.</p>
 <p>---</p>
 <p class="r-title">Round 3 — Claude seat (Architecture &amp; systems)</p>
@@ -690,30 +685,26 @@
 <p>VERDICT: caution</p>
         </div>
       </div>
-      
-
-      
 
     </article>
-    
+
     <article class="seat">
       <div class="seat-head">
         <h3 class="seat-name">Codex</h3>
         <span class="seat-lens">Implementation &amp; testing lens</span>
         <span class="seat-model">gpt-5.5</span>
-        
+
       </div>
 
-      
       <div class="round">
         <div class="round-head">
           <span class="round-tag">Round 1</span>
-          
+
           <span class="vpill block">DO NOT SHIP YET</span>
-          
+
         </div>
         <div class="review-body">
-          
+
           <p class="r-title">1. Verdict</p>
 <p>Block, high confidence. Current implementation is not production-ready for the stated environment because it uses wall-clock time on a hot path where clock corrections are explicitly in scope.</p>
 <p>What would change it: switch to an injectable monotonic clock, validate token/request/config inputs as finite positive values, and add deterministic tests for backward/forward clock movement plus threaded contention.</p>
@@ -732,16 +723,16 @@
 <p>VERDICT: block</p>
         </div>
       </div>
-      
+
       <div class="round">
         <div class="round-head">
           <span class="round-tag">Round 2</span>
-          
+
           <span class="vpill caution">SHIP WITH CHANGES</span>
-          
+
         </div>
         <div class="review-body">
-          
+
           <p class="r-title">1. Updated Verdict</p>
 <p>Caution, high confidence. Do not ship the current implementation as-is; it can proceed after the clock source, input validation, deterministic tests, and integration boundaries are fixed.</p>
 <p>What would change it: an injectable monotonic clock, finite positive validation, regression/concurrency tests, and an explicit per-process vs service-wide rate-limit design.</p>
@@ -781,16 +772,16 @@
 <p>VERDICT: caution</p>
         </div>
       </div>
-      
+
       <div class="round">
         <div class="round-head">
           <span class="round-tag">Round 3</span>
-          
+
           <span class="vpill caution">SHIP WITH CHANGES</span>
-          
+
         </div>
         <div class="review-body">
-          
+
           <ol><li><strong>Updated Verdict</strong></li></ol>
 <p><strong>Caution, high confidence.</strong> Do not ship this implementation as-is; proceed only after fixing clock semantics, request-cost validation, deterministic tests, and the deployment semantics for per-client limits across worker processes.</p>
 <p>What would change it: if “fixed per-client RPS” must be globally enforced across all processes/hosts, this becomes <strong>block</strong> unless moved to a shared limiter or upstream gateway.</p>
@@ -827,30 +818,26 @@
 <p>VERDICT: caution</p>
         </div>
       </div>
-      
-
-      
 
     </article>
-    
+
     <article class="seat">
       <div class="seat-head">
         <h3 class="seat-name">Gemini</h3>
         <span class="seat-lens">Product &amp; operations lens</span>
         <span class="seat-model">gemini-3.5-flash</span>
-        
+
       </div>
 
-      
       <div class="round">
         <div class="round-head">
           <span class="round-tag">Round 1</span>
-          
+
           <span class="vpill caution">SHIP WITH CHANGES</span>
-          
+
         </div>
         <div class="review-body">
-          
+
           <p class="r-title">1. Verdict and Confidence</p>
 <ul><li><strong>Verdict:</strong> CAUTION (proceed only with the changes specified below).</li><li><strong>Confidence Level:</strong> HIGH.</li><li><strong>One line on what would change it:</strong> A move to an external rate-limiting layer (e.g., API Gateway or Redis) would shift this from "Caution" to "Ship" (by rendering this in-memory implementation obsolete).</li></ul>
 <p>---</p>
@@ -874,16 +861,16 @@
 <p>VERDICT: caution</p>
         </div>
       </div>
-      
+
       <div class="round">
         <div class="round-head">
           <span class="round-tag">Round 2</span>
-          
+
           <span class="vpill block">DO NOT SHIP YET</span>
-          
+
         </div>
         <div class="review-body">
-          
+
           <p class="r-title">1. Updated Verdict</p>
 <ul><li><strong>Verdict:</strong> BLOCK (do not proceed).</li><li><strong>Confidence Level:</strong> High.</li><li><strong>One line on what would change it:</strong> Migrating rate limiting upstream to an API Gateway (e.g., Envoy, Nginx) or a centralized, non-blocking caching layer (e.g., Redis), or adding explicit dry-run execution, structured telemetry emission, and a memory-bounded registry with eviction.</li></ul>
 <p>---</p>
@@ -908,16 +895,16 @@
 <p>VERDICT: block</p>
         </div>
       </div>
-      
+
       <div class="round">
         <div class="round-head">
           <span class="round-tag">Round 3</span>
-          
+
           <span class="vpill caution">SHIP WITH CHANGES</span>
-          
+
         </div>
         <div class="review-body">
-          
+
           <p class="r-title">1. Updated Verdict &amp; Confidence</p>
 <ul><li><strong>Verdict:</strong> CAUTION (proceed only with the changes below).</li><li><strong>Confidence Level:</strong> High.</li><li><strong>One line on what would change it:</strong> If high-concurrency synthetic load testing (e.g., 10,000 RPS across 32 threads under the Python GIL) reveals that <code>self._lock</code> acquisition latency degrades p99 API response times by &gt;5ms, we would revert to BLOCK.</li></ul>
 <p>---</p>
@@ -941,19 +928,15 @@
 <p>VERDICT: caution</p>
         </div>
       </div>
-      
-
-      
 
     </article>
-    
 
   </section>
 
   </main>
 
   <!-- ===================== FOOTER / COLOPHON (Panely / dark band) ===================== -->
-  
+
   <footer class="colophon">
     <div class="band-inner">
       <div class="colophon-grid">

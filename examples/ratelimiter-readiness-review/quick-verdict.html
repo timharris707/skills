@@ -187,7 +187,7 @@
   <main class="wrap">
 
   <!-- ===================== VERDICT BANNER ===================== -->
-  
+
   <div class="verdict caution">
     <p class="label">The board's verdict<span class="conf-badge">high confidence</span></p>
     <p class="headline">SHIP WITH CHANGES — unanimous</p>
@@ -197,49 +197,49 @@
   <section class="qv-sec qv-blockers-sec">
     <h2>Consensus blockers — must fix before ship</h2>
     <ol class="qv-blockers">
-      
+
       <li>
         <span class="b-title">Wall-clock source on the refill hot path</span>
         <div class="b-sub">All three seats agree the use of time.time() on the refill path is a correctness bug under the stated operating context: a backward clock step makes elapsed negative, so…</div>
       </li>
-      
+
       <li>
         <span class="b-title">allow(n) accepts invalid request costs</span>
         <div class="b-sub">All three seats flag that allow(n) performs no validation on n. A negative n (e.g. allow(-5)) executes self._tokens -= n, which mints tokens and returns True — a caller can refill…</div>
       </li>
-      
+
       <li>
         <span class="b-title">Per-process / deployment enforcement semantics unresolved</span>
         <div class="b-sub">Claude and Codex flag that one bucket per worker process means the globally enforced rate is roughly rate × worker_count, so advertised limit ≠ enforced limit. Claude treats this…</div>
       </li>
-      
+
       <li>
         <span class="b-title">Tests are timing-dependent and prove none of the failure modes</span>
         <div class="b-sub">Claude and Codex find the tests use time.sleep() and real wall-clock, making them flaky on loaded CI. No test injects a clock, exercises a backward clock jump, asserts the 0 ≤…</div>
       </li>
-      
+
     </ol>
   </section>
 
   <!-- ===================== DISSENT (one line) ===================== -->
   <div class="qv-dissent">
     <span class="qv-dflag">Dissent on the record</span>
-    
+
     <p class="qv-d"><span class="who">Claude</span> — Dissents from Gemini on two named points: (1) &#x27;migrate to an API Gateway / centralized store instead&#x27; is a recommendation to build a different system, not a defect in the artifact… <span class="qv-more">(+2 more in the full handoff)</span></p>
-    
+
   </div>
 
   <!-- ===================== NEXT STEPS ===================== -->
   <section class="qv-sec qv-actions-sec">
     <h2>Next steps</h2>
     <ol class="qv-actions">
-      
+
       <li>Replace time.time() with an injectable clock defaulting to time.monotonic() in __init__ and allow().</li>
-      
+
       <li>Clamp elapsed = max(0.0, now - self._last) so refill math never goes negative; never move _last backward.</li>
-      
+
       <li>Validate n in allow(): require finite, positive values and define behavior for n &gt; capacity.</li>
-      
+
       <li class="qv-more-li">…5 more in the full handoff</li>
     </ol>
   </section>
@@ -247,7 +247,7 @@
   </main>
 
   <!-- ===================== FOOTER / COLOPHON (Panely / dark band) ===================== -->
-  
+
   <footer class="colophon">
     <div class="band-inner">
       <div class="colophon-grid">

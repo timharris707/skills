@@ -187,7 +187,7 @@
   <main class="wrap">
 
   <!-- ===================== VERDICT BANNER ===================== -->
-  
+
   <div class="verdict block">
     <p class="label">The board's verdict<span class="conf-badge">high confidence</span></p>
     <p class="headline">DO NOT SHIP YET — unanimous</p>
@@ -197,64 +197,64 @@
   <section class="qv-sec qv-blockers-sec">
     <h2>Consensus blockers — must fix before ship</h2>
     <ol class="qv-blockers">
-      
+
       <li>
         <span class="b-title">Concurrency window → double charge (no atomic reserve-before-charge)</span>
         <div class="b-sub">Storing the response only after the charge completes leaves a race: two same-key requests arriving concurrently (retry storm, double-click, client-timeout-and-retry) both miss the…</div>
       </li>
-      
+
       <li>
         <span class="b-title">No key→payload binding (same key, different body served stale)</span>
         <div class="b-sub">Nothing binds the key to the request. A client reusing a key with a different amount/recipient/currency gets the prior cached response — a silent under-charge or a replay of an…</div>
       </li>
-      
+
       <li>
         <span class="b-title">No per-tenant scoping → cross-tenant response leak</span>
         <div class="b-sub">Keys are client-supplied strings with no stated namespace. Enabling a single shared keyspace for all clients means Client B sending a key Client A already used receives Client A&#x27;s…</div>
       </li>
-      
+
       <li>
         <span class="b-title">Redis as sole system of record → non-durable idempotency</span>
         <div class="b-sub">Redis is not durable by default; failover, restart without AOF, or maxmemory eviction can drop idempotency records early, after which a retry re-charges. The durable transactional…</div>
       </li>
-      
+
       <li>
         <span class="b-title">Indeterminate downstream outcome + non-idempotent processor</span>
         <div class="b-sub">API-layer idempotency cannot make a non-idempotent money movement exactly-once. A processor timeout leaves the charge state unknown; on retry you must neither replay a fabricated…</div>
       </li>
-      
+
       <li>
         <span class="b-title">Caching of transient / indeterminate failures</span>
         <div class="b-sub">An unqualified &#x27;cached response&#x27; pins every retry to a cached 5xx/timeout for 24h, turning a brief downstream glitch into a prolonged checkout outage — and caching an…</div>
       </li>
-      
+
       <li>
         <span class="b-title">Big-bang rollout on the money path (no shadow/canary/kill switch)</span>
         <div class="b-sub">Flipping a correctness-critical charge-path interceptor on for everyone at once is volatile: existing clients sending static/placeholder keys would have their checkout funnels…</div>
       </li>
-      
+
     </ol>
   </section>
 
   <!-- ===================== DISSENT (one line) ===================== -->
   <div class="qv-dissent">
     <span class="qv-dflag">Dissent on the record</span>
-    
+
     <p class="qv-d"><span class="who">Gemini</span> — Returning a raw 409 to a duplicate in-flight request is dangerous for naive client SDKs: on a client-side timeout retry the SDK shows &#x27;Payment Failed&#x27;, the consumer retries on… <span class="qv-more">(+1 more in the full handoff)</span></p>
-    
+
   </div>
 
   <!-- ===================== NEXT STEPS ===================== -->
   <section class="qv-sec qv-actions-sec">
     <h2>Next steps</h2>
     <ol class="qv-actions">
-      
+
       <li>Write the contract first: scope (account_id, key); key format/length; what 24h expiry means to clients; same-key/different-payload behavior; Redis-down policy; which outcomes are cached.</li>
-      
+
       <li>Add a durable idempotency record in the primary DB — unique on (account_id, endpoint, key) — storing request fingerprint, state (in_flight|completed|failed_terminal), and the response.</li>
-      
+
       <li>Reserve-then-process: atomic durable insert of in_flight BEFORE charging; loser polls for the terminal result or returns a deterministic conflict.</li>
-      
+
       <li class="qv-more-li">…3 more in the full handoff</li>
     </ol>
   </section>
@@ -262,7 +262,7 @@
   </main>
 
   <!-- ===================== FOOTER / COLOPHON (Panely / dark band) ===================== -->
-  
+
   <footer class="colophon">
     <div class="band-inner">
       <div class="colophon-grid">
