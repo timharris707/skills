@@ -334,6 +334,32 @@ class TestConfig(EnvMixin):
         self.assertEqual(models["codex"], "gpt-5.6")
         self.assertEqual(models["claude"], "fable")
 
+    def test_effort_override_per_seat(self):
+        c = _config(effort=["claude=medium"])
+        levels = {s.name: s.reasoning for s in c.board}
+        self.assertEqual(levels["claude"], "medium")
+        self.assertEqual(levels["codex"], rb.REGISTRY["codex"].default_reasoning)
+
+    def test_effort_override_unknown_seat_dies(self):
+        with self.assertRaises(SystemExit):
+            _config(effort=["nope=high"])
+
+    def test_effort_override_malformed_dies(self):
+        with self.assertRaises(SystemExit):
+            _config(effort=["high"])
+
+    def test_effort_override_knobless_seat_dies(self):
+        # gemini_argv ignores `reasoning`; a silent no-op override is refused.
+        with self.assertRaises(SystemExit):
+            _config(effort=["gemini=LOW"])
+
+    def test_effort_override_knobless_default_is_exempt(self):
+        # The adapter's own default passes — a --from-recipe replay restores every
+        # seat's recorded reasoning through the same overrides dict.
+        c = _config(effort=["gemini=HIGH"])
+        levels = {s.name: s.reasoning for s in c.board}
+        self.assertEqual(levels["gemini"], "HIGH")
+
     def test_board_subset(self):
         c = _config(board="claude,gemini")
         self.assertEqual([s.name for s in c.board], ["claude", "gemini"])
