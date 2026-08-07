@@ -7,12 +7,16 @@
   "verdict": "SHIP WITH CHANGES — unanimous",
   "verdict_class": "caution",
   "verdict_note": "",
+  "summary": "",
   "confidence": "high confidence",
   "blockers_heading": "Consensus blockers — must fix before ship",
   "disclaimer": "",
-  "plan": "review packet",
+  "plan": "",
   "metadata": "Board: Claude · Codex · Gemini · 3 rounds · 2026-06-25",
   "dissent_flag": "Dissent on the record",
+  "filter_note": "",
+  "echo_pill": "",
+  "echo_class": "",
   "seats": [
     {
       "seat_name": "Claude",
@@ -112,22 +116,77 @@
     {
       "blocker_title": "Wall-clock source on the refill hot path",
       "blocker_body": "All three seats agree the use of time.time() on the refill path is a correctness bug under the stated operating context: a backward clock step makes elapsed negative, so self._tokens + elapsed*rate subtracts tokens and the min() clamp only bounds the top, never zero. Result is spurious denials / a multi-second denial window after an NTP or operator clock correction — exactly the traffic conditions the limiter exists to handle. Fix: switch to time.monotonic() (injectable), and clamp elapsed = max(0.0, now - self._last).",
-      "blocker_summary": "All three seats agree the use of time.time() on the refill path is a correctness bug under the stated operating context: a backward clock step makes elapsed negative, so…"
+      "blocker_summary": "All three seats agree the use of time.time() on the refill path is a correctness bug under the stated operating context: a backward clock step makes elapsed negative, so…",
+      "blocker_evidence": [
+        {
+          "blocker_evidence_line": "<code>tokenbucket.py::__init__</code> (code) — verified"
+        },
+        {
+          "blocker_evidence_line": "<code>tokenbucket.py:24</code> (code) — verified"
+        },
+        {
+          "blocker_evidence_line": "<code>tokenbucket.py:30</code> (code) — verified"
+        },
+        {
+          "blocker_evidence_line": "<code>tokenbucket.py:31</code> (code) — verified"
+        },
+        {
+          "blocker_evidence_line": "tokenbucket.py — “Hosts run <code>ntpd</code>; wall-clock corrections (and operator cl...” (source) — verified"
+        }
+      ],
+      "blocker_evidence_label": "Receipts — 5 citations",
+      "blocker_severity_notes": []
     },
     {
       "blocker_title": "allow(n) accepts invalid request costs",
       "blocker_body": "All three seats flag that allow(n) performs no validation on n. A negative n (e.g. allow(-5)) executes self._tokens -= n, which mints tokens and returns True — a caller can refill the bucket by asking. Non-finite values have undefined behavior and n is never bounded against capacity. Fix: require finite, positive n and define behavior for n &gt; capacity.",
-      "blocker_summary": "All three seats flag that allow(n) performs no validation on n. A negative n (e.g. allow(-5)) executes self._tokens -= n, which mints tokens and returns True — a caller can refill…"
+      "blocker_summary": "All three seats flag that allow(n) performs no validation on n. A negative n (e.g. allow(-5)) executes self._tokens -= n, which mints tokens and returns True — a caller can refill…",
+      "blocker_evidence": [
+        {
+          "blocker_evidence_line": "<code>tokenbucket.py:35</code> (code) — verified"
+        },
+        {
+          "blocker_evidence_line": "<code>tokenbucket.py::allow</code> (code) — verified"
+        }
+      ],
+      "blocker_evidence_label": "Receipts — 2 citations",
+      "blocker_severity_notes": []
     },
     {
       "blocker_title": "Per-process / deployment enforcement semantics unresolved",
       "blocker_body": "Claude and Codex flag that one bucket per worker process means the globally enforced rate is roughly rate × worker_count, so advertised limit ≠ enforced limit. Claude treats this as a must-decide operational caveat (acceptable as a soft abuse cap, not as a hard ceiling) rather than a code fix; Codex states that if a fixed per-client RPS must be enforced globally across processes/hosts this becomes a block unless moved to a shared limiter or upstream gateway. The seats did not settle whether &#x27;per-client&#x27; is global or local. Requires an explicit, recorded operator decision.",
-      "blocker_summary": "Claude and Codex flag that one bucket per worker process means the globally enforced rate is roughly rate × worker_count, so advertised limit ≠ enforced limit. Claude treats this…"
+      "blocker_summary": "Claude and Codex flag that one bucket per worker process means the globally enforced rate is roughly rate × worker_count, so advertised limit ≠ enforced limit. Claude treats this…",
+      "blocker_evidence": [
+        {
+          "blocker_evidence_line": "tokenbucket.py — “Workers are multi-threaded; a single <code>TokenBucket</code> instan...” (source) — verified"
+        },
+        {
+          "blocker_evidence_line": "judgment — No packet evidence states whether &#x27;per-client&#x27; means globally across the API fleet or locally within a worker, nor whether the configured limit is a soft abuse cap or a hard contractual ceiling."
+        }
+      ],
+      "blocker_evidence_label": "Receipts — 2 citations",
+      "blocker_severity_notes": []
     },
     {
       "blocker_title": "Tests are timing-dependent and prove none of the failure modes",
       "blocker_body": "Claude and Codex find the tests use time.sleep() and real wall-clock, making them flaky on loaded CI. No test injects a clock, exercises a backward clock jump, asserts the 0 ≤ _tokens ≤ capacity invariant, covers n ≤ 0, or exercises concurrent access — so they cannot deterministically reproduce the primary failure mode. The suite does pass clean — the command citation below re-runs it (exit 0, `OK`) — which is exactly the point: a green suite is a verified receipt that the tests pass, not evidence that the failure modes are covered. Fix: rewrite around a fake/injected clock and add the missing cases.",
-      "blocker_summary": "Claude and Codex find the tests use time.sleep() and real wall-clock, making them flaky on loaded CI. No test injects a clock, exercises a backward clock jump, asserts the 0 ≤…"
+      "blocker_summary": "Claude and Codex find the tests use time.sleep() and real wall-clock, making them flaky on loaded CI. No test injects a clock, exercises a backward clock jump, asserts the 0 ≤…",
+      "blocker_evidence": [
+        {
+          "blocker_evidence_line": "<code>test_tokenbucket.py::test_refills_over_time</code> (code) — verified"
+        },
+        {
+          "blocker_evidence_line": "<code>test_tokenbucket.py::test_caps_at_capacity</code> (code) — verified"
+        },
+        {
+          "blocker_evidence_line": "<code>python3 -m unittest</code> (command) — verified"
+        },
+        {
+          "blocker_evidence_line": "judgment — Tests use time.sleep(0.05)/time.sleep(0.02) with no injected clock; no backward-jump, concurrency, invariant, or n ≤ 0 coverage."
+        }
+      ],
+      "blocker_evidence_label": "Receipts — 4 citations",
+      "blocker_severity_notes": []
     }
   ],
   "dissents": [
@@ -220,5 +279,148 @@
       "action": "Validate n in allow(): require finite, positive values and define behavior for n &gt; capacity."
     }
   ],
-  "actions_more": "…5 more in the full handoff"
+  "actions_more": "…5 more in the full handoff",
+  "sequence": [
+    {
+      "seq_action": "Replace time.time() with an injectable clock defaulting to time.monotonic() in __init__ and allow().",
+      "seq_owner": ""
+    },
+    {
+      "seq_action": "Clamp elapsed = max(0.0, now - self._last) so refill math never goes negative; never move _last backward.",
+      "seq_owner": ""
+    },
+    {
+      "seq_action": "Validate n in allow(): require finite, positive values and define behavior for n &gt; capacity.",
+      "seq_owner": ""
+    },
+    {
+      "seq_action": "Constructor already rejects rate ≤ 0 / capacity ≤ 0 (tested by test_rejects_nonpositive_config); additionally reject non-finite rate/capacity (NaN/inf) per Codex, and preserve the invariant 0 ≤ _tokens ≤ capacity after every call.",
+      "seq_owner": ""
+    },
+    {
+      "seq_action": "Rewrite tests around a fake/injected clock; add cases for backward time, invalid n (≤ 0 and non-finite), capacity caps, denied-request no-consumption, the invariant assertion, and concurrent callers.",
+      "seq_owner": ""
+    },
+    {
+      "seq_action": "Decide and record enforcement semantics (per-worker, per-host, or global per-client); if global enforcement is required, move to a shared store / upstream gateway / sticky routing, and document per-worker limit partitioning (e.g. local_limit = global_limit / worker_count).",
+      "seq_owner": ""
+    },
+    {
+      "seq_action": "Add stress/load testing for abusive single-client and normal multi-client traffic before hot-path rollout.",
+      "seq_owner": ""
+    },
+    {
+      "seq_action": "(Gemini) Add operational safeguards: dry-run/shadow mode emitting metrics while returning True, allow/reject telemetry tagged by client ID, a fail-open try/except around allow() in the caller, and a canary rollout via feature flag.",
+      "seq_owner": ""
+    }
+  ],
+  "seq_blockers": [
+    {
+      "seq_blocker_title": "Wall-clock source on the refill hot path",
+      "seq_blocker_body": "All three seats agree the use of time.time() on the refill path is a correctness bug under the stated operating context: a backward clock step makes elapsed negative, so self._tokens + elapsed*rate subtracts tokens and the min() clamp only bounds the top, never zero. Result is spurious denials / a multi-second denial window after an NTP or operator clock correction — exactly the traffic conditions the limiter exists to handle. Fix: switch to time.monotonic() (injectable), and clamp elapsed = max(0.0, now - self._last).",
+      "seq_evidence": [
+        {
+          "seq_evidence_line": "<code>tokenbucket.py::__init__</code> (code) — verified"
+        },
+        {
+          "seq_evidence_line": "<code>tokenbucket.py:24</code> (code) — verified"
+        },
+        {
+          "seq_evidence_line": "<code>tokenbucket.py:30</code> (code) — verified"
+        },
+        {
+          "seq_evidence_line": "<code>tokenbucket.py:31</code> (code) — verified"
+        },
+        {
+          "seq_evidence_line": "tokenbucket.py — “Hosts run <code>ntpd</code>; wall-clock corrections (and operator cl...” (source) — verified"
+        }
+      ]
+    },
+    {
+      "seq_blocker_title": "allow(n) accepts invalid request costs",
+      "seq_blocker_body": "All three seats flag that allow(n) performs no validation on n. A negative n (e.g. allow(-5)) executes self._tokens -= n, which mints tokens and returns True — a caller can refill the bucket by asking. Non-finite values have undefined behavior and n is never bounded against capacity. Fix: require finite, positive n and define behavior for n &gt; capacity.",
+      "seq_evidence": [
+        {
+          "seq_evidence_line": "<code>tokenbucket.py:35</code> (code) — verified"
+        },
+        {
+          "seq_evidence_line": "<code>tokenbucket.py::allow</code> (code) — verified"
+        }
+      ]
+    },
+    {
+      "seq_blocker_title": "Per-process / deployment enforcement semantics unresolved",
+      "seq_blocker_body": "Claude and Codex flag that one bucket per worker process means the globally enforced rate is roughly rate × worker_count, so advertised limit ≠ enforced limit. Claude treats this as a must-decide operational caveat (acceptable as a soft abuse cap, not as a hard ceiling) rather than a code fix; Codex states that if a fixed per-client RPS must be enforced globally across processes/hosts this becomes a block unless moved to a shared limiter or upstream gateway. The seats did not settle whether &#x27;per-client&#x27; is global or local. Requires an explicit, recorded operator decision.",
+      "seq_evidence": [
+        {
+          "seq_evidence_line": "tokenbucket.py — “Workers are multi-threaded; a single <code>TokenBucket</code> instan...” (source) — verified"
+        },
+        {
+          "seq_evidence_line": "judgment — No packet evidence states whether &#x27;per-client&#x27; means globally across the API fleet or locally within a worker, nor whether the configured limit is a soft abuse cap or a hard contractual ceiling."
+        }
+      ]
+    },
+    {
+      "seq_blocker_title": "Tests are timing-dependent and prove none of the failure modes",
+      "seq_blocker_body": "Claude and Codex find the tests use time.sleep() and real wall-clock, making them flaky on loaded CI. No test injects a clock, exercises a backward clock jump, asserts the 0 ≤ _tokens ≤ capacity invariant, covers n ≤ 0, or exercises concurrent access — so they cannot deterministically reproduce the primary failure mode. The suite does pass clean — the command citation below re-runs it (exit 0, `OK`) — which is exactly the point: a green suite is a verified receipt that the tests pass, not evidence that the failure modes are covered. Fix: rewrite around a fake/injected clock and add the missing cases.",
+      "seq_evidence": [
+        {
+          "seq_evidence_line": "<code>test_tokenbucket.py::test_refills_over_time</code> (code) — verified"
+        },
+        {
+          "seq_evidence_line": "<code>test_tokenbucket.py::test_caps_at_capacity</code> (code) — verified"
+        },
+        {
+          "seq_evidence_line": "<code>python3 -m unittest</code> (command) — verified"
+        },
+        {
+          "seq_evidence_line": "judgment — Tests use time.sleep(0.05)/time.sleep(0.02) with no injected clock; no backward-jump, concurrency, invariant, or n ≤ 0 coverage."
+        }
+      ]
+    }
+  ],
+  "amendments": [],
+  "seat_votes": [
+    {
+      "vote_seat": "Claude",
+      "vote_lens": "Architecture & systems",
+      "vote_model": "claude-opus-4-8",
+      "vote_rounds": "SHIP WITH CHANGES → SHIP WITH CHANGES → SHIP WITH CHANGES",
+      "vote_final_class": "caution",
+      "vote_status": ""
+    },
+    {
+      "vote_seat": "Codex",
+      "vote_lens": "Implementation & testing",
+      "vote_model": "gpt-5.5",
+      "vote_rounds": "DO NOT SHIP YET → SHIP WITH CHANGES → SHIP WITH CHANGES",
+      "vote_final_class": "caution",
+      "vote_status": ""
+    },
+    {
+      "vote_seat": "Gemini",
+      "vote_lens": "Product & operations",
+      "vote_model": "gemini-3.5-flash",
+      "vote_rounds": "SHIP WITH CHANGES → DO NOT SHIP YET → SHIP WITH CHANGES",
+      "vote_final_class": "caution",
+      "vote_status": ""
+    }
+  ],
+  "delta_revises": "",
+  "delta_trajectory": "",
+  "delta_note": "",
+  "delta_cleared": [],
+  "delta_open": [],
+  "delta_new": [],
+  "redline_source_name": "",
+  "redline_rows": [],
+  "redline_note": "",
+  "patch_pre": "",
+  "patch_note": "",
+  "endorsement_summary": "",
+  "scorecard_intro": "",
+  "scorecard_contradiction": "",
+  "sc_criteria": [],
+  "sc_seats": [],
+  "sc_notes": []
 }

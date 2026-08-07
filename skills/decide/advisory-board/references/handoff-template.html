@@ -6,11 +6,15 @@
   A SELF-CONTAINED HTML template for rendering a finished multi-model advisory
   board review into a clean, human-readable, Panely-branded handoff page.
 
+  Design intent (v1.18): an editorial document, not a dashboard. One colored
+  moment (the verdict banner); everything else is typography — headings, prose,
+  hairline rules, one table. No badge pills, no per-item card boxes. The page
+  must read top-to-bottom like a memo: bottom line first, then the record.
+
   Brand: a light, readable body (the "Boardroom" light theme) bookended by dark
-  ("Signal") masthead and footer bands carrying the Panely Advisory Board mark,
-  lockup, the subscriptions line, and the panely.ai call-to-action. Brand kit:
-  ~/Desktop/panely-brand-kit (cobalt #2347FF signature accent, gold #E2B658
-  secondary / lead seat; muted verdict colors).
+  ("Signal") masthead and footer bands carrying the Panely Advisory Board mark.
+  Brand kit: ~/Desktop/panely-brand-kit (cobalt #2347FF signature accent, gold
+  #E2B658 secondary / lead seat; muted verdict colors).
 
   OUTPUT CONTRACT (read first)
   ----------------------------
@@ -32,11 +36,11 @@
      the whole block once per item and fill its tokens. If there are zero
      items, delete the sample block (don't leave an empty shell).
 
-  Repeatable blocks here: SEAT CARD (per seat) > ROUND (per round, nested in a
-  seat) ; BLOCKER (per consensus blocker) > BLOCKER SEVERITY NOTE (per human note
-  on it) ; DISSENT (per dissenting point) ; CAVEAT (per couldn't-verify item) ;
-  QUESTION (per open question) ; ACTION (per next action) ; AMENDMENT (per
-  human-owned change made after the board reported).
+  Repeatable blocks here: SEAT VOTE (per seat — the votes table) ; SEAT CARD
+  (per seat with recovered prose, appendix) > ROUND (per round, nested) ;
+  BLOCKER (per consensus finding) > BLOCKER EVIDENCE (per receipt) + BLOCKER
+  SEVERITY NOTE (per human note) ; DISSENT ; CAVEAT ; QUESTION ; ACTION ;
+  AMENDMENT.
 
   SINGLE TOKENS
   -------------
@@ -45,21 +49,19 @@
   {{DATE}}           Review date, e.g. "2026-06-24".
   {{BOARD}}          Board roster: models + lenses (HTML allowed).
   {{ROUNDS}}         Number of rounds, e.g. "2".
-  {{VERDICT}}        Final verdict headline. Software: "<label> — <stance>" (e.g.
-                     "DO NOT SHIP YET — unanimous"). Other lenses lead with a plain
-                     should-I/shouldn't-I directive (e.g. "Go ahead, with conditions ·
-                     unanimous"), or the board's authored decision verbatim.
+  {{VERDICT}}        Final verdict headline, in PLAIN language — a directive a
+                     reader acts on ("Don't rely on this as evidence yet"), never
+                     a coined slug.
   {{VERDICT_CLASS}}  One of: ship | caution | block  (colors the banner).
-  {{CONFIDENCE}}     OPTIONAL banner pill, e.g. "high confidence". Shows the effective
-                     value; when a person changed it by hand it reads "medium confidence
-                     (amended)" (the full record is in the Amendments section). Empty -> dropped.
-  {{VERDICT_NOTE}}   One-line explanation under the verdict headline.
-  {{BLOCKERS_HEADING}}  Consensus-section header, lens-aware: "Consensus blockers —
-                     must fix before ship" (software) or "What to resolve first" (else).
-  {{DISCLAIMER}}     OPTIONAL lens-aware professional-advice caveat (subtle footer
-                     line). Empty for a software-lens board — leave blank and the
-                     line is dropped.
-  {{PLAN}}           What was reviewed (HTML allowed; use <p>).
+  {{CONFIDENCE}}     OPTIONAL, e.g. "high confidence" (or "... (amended)").
+                     Empty -> dropped.
+  {{VERDICT_NOTE}}   One-line plain-language explanation under the headline.
+  {{SUMMARY}}        The bottom line: 3-6 plain sentences a reader who reads
+                     nothing else still understands. Empty -> dropped.
+  {{BLOCKERS_HEADING}}  Findings-section header, lens-aware.
+  {{DISCLAIMER}}     OPTIONAL lens-aware professional-advice caveat (footer).
+  {{PLAN}}           What was reviewed — the material itself, described plainly.
+                     Empty -> the whole section drops (never echo the title).
   {{METADATA}}       Footer provenance (board, rounds, date).
   ============================================================================
 -->
@@ -70,7 +72,7 @@
 <title>{{TITLE}}</title>
 <style>
   :root {
-    --maxw: 820px;
+    --maxw: 760px;
     /* light "Boardroom" body */
     --page: #faf8f3;
     --surface: #ffffff;
@@ -85,16 +87,14 @@
     --accent: #2347ff;          /* cobalt — signature */
     --accent-deep: #0f2bc2;
     --accent-tint: #eaedff;
-    --gold: #a8843c;            /* secondary — the lead seat */
+    --gold: #a8843c;            /* secondary — the human/chair color */
     /* dark "Signal" bands */
     --dark: #0a0e1a;
-    --dark-2: #111726;
     --dark-line: #232b3e;
     --on-dark: #fbfaf7;
     --on-dark-soft: #b9c0d0;
     --on-dark-faint: #8a93a8;
     --accent-bright: #5b8cff;
-    --gold-bright: #e2b658;
     /* verdict palettes (muted — counsel, not error toasts) */
     --ship-bg: #e9f1ec;     --ship-edge: #2f6f57;   --ship-ink: #235540;
     --caution-bg: #fbf1de;  --caution-edge: #b07a1e; --caution-ink: #7a5410;
@@ -114,43 +114,38 @@
   }
 
   /* ---- dark masthead band ---- */
-  header.masthead { background: var(--dark); color: var(--on-dark); padding: 30px 20px 28px; }
+  header.masthead { background: var(--dark); color: var(--on-dark); padding: 34px 20px 30px; }
   .band-inner { max-width: var(--maxw); margin: 0 auto; }
-  .brand-lockup { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
-  .brand-mark { width: 46px; height: 46px; border-radius: 11px; overflow: hidden; flex: 0 0 auto; }
+  .brand-lockup { display: flex; align-items: center; gap: 11px; margin-bottom: 26px; }
+  .brand-mark { width: 34px; height: 34px; border-radius: 8px; overflow: hidden; flex: 0 0 auto; }
   .brand-mark svg { display: block; width: 100%; height: 100%; }
-  .brand-name { display: flex; flex-direction: column; line-height: 1.1; }
-  .brand-name .p { font-size: 18px; font-weight: 700; letter-spacing: -0.01em; color: var(--on-dark); }
-  .brand-name .ab { font-size: 10.5px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--accent-bright); margin-top: 4px; }
-  header.masthead h1 { font-size: 29px; line-height: 1.18; font-weight: 700; margin: 0 0 8px; letter-spacing: -0.01em; color: var(--on-dark); }
-  .subtitle { font-size: 16px; color: var(--on-dark-soft); margin: 0 0 18px; max-width: 60ch; }
-  .meta-row { display: flex; flex-wrap: wrap; gap: 8px; }
-  .chip {
-    display: inline-flex; align-items: center; gap: 6px;
-    background: rgba(255,255,255,0.05); border: 1px solid var(--dark-line);
-    border-radius: 999px; padding: 5px 13px; font-size: 13px; color: var(--on-dark-soft);
-  }
-  .chip b { font-weight: 600; color: var(--on-dark); }
+  .brand-name { font-size: 14px; font-weight: 700; letter-spacing: -0.01em; color: var(--on-dark); }
+  .brand-name .by { font-weight: 400; color: var(--on-dark-faint); font-size: 12.5px; margin-left: 6px; }
+  header.masthead h1 { font-size: 30px; line-height: 1.2; font-weight: 700; margin: 0 0 8px; letter-spacing: -0.015em; color: var(--on-dark); }
+  .subtitle { font-size: 16px; color: var(--on-dark-soft); margin: 0 0 14px; max-width: 62ch; }
+  .masthead-meta { margin: 0; font-size: 13.5px; color: var(--on-dark-faint); }
+  .masthead-meta b { font-weight: 600; color: var(--on-dark-soft); }
 
   /* ---- body column ---- */
-  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 30px 20px 56px; }
+  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 36px 20px 64px; }
 
-  /* ---- verdict banner ---- */
+  /* ---- verdict banner: the page's one colored moment ---- */
   .verdict {
-    border-radius: 12px; padding: 22px 24px; margin: 4px 0 32px;
-    border: 1px solid transparent; border-left-width: 6px;
+    border-radius: 10px; padding: 24px 26px; margin: 0 0 40px;
+    border: 1px solid transparent; border-left-width: 5px;
   }
   .verdict .label {
     font-size: 12px; letter-spacing: 0.09em; text-transform: uppercase;
-    font-weight: 700; margin: 0 0 6px; opacity: 0.85;
+    font-weight: 700; margin: 0 0 8px; opacity: 0.8;
   }
-  .verdict .conf-badge {
-    display: inline-block; margin-left: 9px; font-size: 10.5px; letter-spacing: 0.05em;
-    font-weight: 700; padding: 1px 8px; border-radius: 999px;
-    background: rgba(0,0,0,0.07); vertical-align: 1.5px;
+  .verdict .conf-badge { font-weight: 600; text-transform: none; letter-spacing: 0; }
+  .verdict .conf-badge::before { content: " · "; }
+  .verdict .headline { font-size: 24px; font-weight: 700; margin: 0; line-height: 1.3; letter-spacing: -0.01em; }
+  .verdict .note { margin: 8px 0 0; font-size: 16px; line-height: 1.55; }
+  .verdict .bottom-line {
+    margin: 14px 0 0; padding-top: 14px; font-size: 16px; line-height: 1.65;
+    border-top: 1px solid rgba(0,0,0,0.1);
   }
-  .verdict .headline { font-size: 23px; font-weight: 700; margin: 0; line-height: 1.25; }
-  .verdict .note { margin: 10px 0 0; font-size: 15.5px; line-height: 1.55; }
   .verdict.ship    { background: var(--ship-bg);    border-color: var(--ship-edge);    color: var(--ship-ink); }
   .verdict.caution { background: var(--caution-bg); border-color: var(--caution-edge); color: var(--caution-ink); }
   .verdict.block   { background: var(--block-bg);   border-color: var(--block-edge);   color: var(--block-ink); }
@@ -168,126 +163,87 @@
   .delta-list { margin: 0; padding-left: 18px; font-size: 14px; line-height: 1.5; }
 
   /* ---- sections ---- */
-  section { margin: 0 0 34px; }
+  section { margin: 0 0 40px; }
   h2 {
-    font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase;
-    font-weight: 700; color: var(--ink-faint); margin: 0 0 14px;
-    padding-bottom: 8px; border-bottom: 1px solid var(--line);
+    font-size: 12.5px; letter-spacing: 0.1em; text-transform: uppercase;
+    font-weight: 700; color: var(--ink-faint); margin: 0 0 16px;
+    padding-bottom: 8px; border-bottom: 1px solid var(--line-strong);
   }
 
-  /* ---- plan callout ---- */
-  .plan {
-    background: var(--surface-soft); border: 1px solid var(--line);
-    border-left: 4px solid var(--accent); border-radius: 0 10px 10px 0;
-    padding: 16px 20px;
-  }
+  /* ---- what was reviewed: plain prose, no panel ---- */
+  .plan { font-size: 16.5px; color: var(--ink-soft); }
   .plan p { margin: 0 0 10px; } .plan p:last-child { margin: 0; }
 
-  /* ---- seat cards ---- */
-  .seat {
-    background: var(--surface); border: 1px solid var(--line-strong);
-    border-radius: 12px; padding: 20px 22px; margin: 0 0 18px;
+  /* ---- how the board voted: one quiet table ---- */
+  table.votes { width: 100%; border-collapse: collapse; font-size: 15px; }
+  table.votes th {
+    text-align: left; font-size: 12px; letter-spacing: 0.05em; text-transform: uppercase;
+    color: var(--ink-faint); font-weight: 600; padding: 0 12px 8px 0;
+    border-bottom: 1px solid var(--line-strong);
   }
-  .seat-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 12px; margin-bottom: 4px; }
-  .seat-name { font-size: 19px; font-weight: 700; margin: 0; }
-  .seat-lens {
-    font-size: 12.5px; font-weight: 600; color: var(--accent);
-    background: var(--accent-tint); border-radius: 999px; padding: 3px 11px;
-  }
-  .seat-model { font-size: 13px; color: var(--ink-faint); font-family: var(--font-mono); }
-  .seat-status {
-    font-size: 11.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
-    border-radius: 999px; padding: 3px 10px;
-  }
-  .seat-status.ran      { background: var(--vellum);     color: var(--ink-faint); }
-  .seat-status.degraded { background: var(--caution-bg); color: var(--caution-ink); }
-  .seat-status.dropped  { background: var(--block-bg);   color: var(--block-ink); }
-  .round { margin-top: 16px; padding-top: 16px; border-top: 1px dashed var(--line); }
-  .round:first-of-type { margin-top: 12px; }
-  .round-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 8px; }
-  .round-tag { font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-faint); }
-  /* per-round verdict pill */
-  .vpill { font-size: 12px; font-weight: 700; border-radius: 999px; padding: 3px 11px; line-height: 1.4; }
-  .vpill.ship    { background: var(--ship-bg);    color: var(--ship-ink); }
-  .vpill.caution { background: var(--caution-bg); color: var(--caution-ink); }
-  .vpill.block   { background: var(--block-bg);   color: var(--block-ink); }
-  .vpill.moved::after { content: " ↓"; }
-  .conf {
-    font-size: 11.5px; font-weight: 600; color: var(--ink-faint);
-    background: var(--surface-soft); border: 1px solid var(--line);
-    border-radius: 999px; padding: 2px 9px;
-  }
+  table.votes td { padding: 9px 12px 9px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+  table.votes .vote-seat { font-weight: 600; white-space: nowrap; }
+  table.votes .vote-lens { color: var(--ink-soft); }
+  table.votes .vote-model { font-family: var(--font-mono); font-size: 12.5px; color: var(--ink-faint); }
+  table.votes .vote-rounds { white-space: nowrap; font-weight: 600; }
+  table.votes .vote-rounds.ship    { color: var(--ship-edge); }
+  table.votes .vote-rounds.caution { color: var(--caution-edge); }
+  table.votes .vote-rounds.block   { color: var(--block-edge); }
+  table.votes .vote-status { font-style: italic; color: var(--block-ink); font-weight: 400; white-space: nowrap; }
 
-  .review-body { font-size: 15.5px; color: var(--ink); }
-  .review-body strong { font-weight: 600; }
-  .review-body em { font-style: italic; }
-  .review-body a { color: var(--accent); text-decoration: underline; }
-  .review-body ul, .review-body ol { margin: 6px 0; padding-left: 22px; }
-  .review-body li { margin: 5px 0; }
-  .review-body p { margin: 6px 0; }
-  .review-body p.r-title { font-weight: 600; margin-top: 12px; }
-  .review-body blockquote {
-    margin: 8px 0; padding: 2px 0 2px 14px;
-    border-left: 3px solid var(--line-strong); color: var(--ink-soft);
+  /* ---- findings: a numbered editorial list, not cards ---- */
+  ol.blockers { list-style: none; counter-reset: blk; margin: 0; padding: 0; }
+  ol.blockers > li {
+    counter-increment: blk; position: relative;
+    padding: 0 0 22px 44px; margin: 0 0 22px;
+    border-bottom: 1px solid var(--line);
   }
-  .review-body pre {
-    background: var(--surface-soft); border: 1px solid var(--line);
-    border-radius: 8px; padding: 10px 12px; margin: 8px 0;
-    overflow-x: auto; font-size: 13px; line-height: 1.5;
+  ol.blockers > li:last-child { border-bottom: 0; margin-bottom: 0; padding-bottom: 6px; }
+  ol.blockers > li::before {
+    content: counter(blk); position: absolute; left: 2px; top: 1px;
+    font-size: 19px; font-weight: 700; color: var(--line-strong);
+    font-variant-numeric: tabular-nums;
   }
-  .review-body pre code { background: none; border: 0; padding: 0; font-size: inherit; }
+  ol.blockers .b-title { display: block; font-weight: 650; font-size: 17px; line-height: 1.45; }
+  ol.blockers .b-body { font-size: 15.5px; color: var(--ink-soft); margin-top: 6px; line-height: 1.6; }
+
+  /* receipts: the finding's evidence, collapsed so mechanics don't drown prose */
+  details.receipts { margin-top: 10px; }
+  details.receipts > summary {
+    cursor: pointer; font-size: 13px; font-weight: 600; color: var(--ink-faint);
+    list-style: none; display: inline-block;
+  }
+  details.receipts > summary::-webkit-details-marker { display: none; }
+  details.receipts > summary::before { content: "▸ "; }
+  details.receipts[open] > summary::before { content: "▾ "; }
+  details.receipts ul {
+    margin: 8px 0 0; padding: 10px 14px; list-style: none;
+    background: var(--surface-soft); border: 1px solid var(--line); border-radius: 8px;
+  }
+  details.receipts li {
+    font-family: var(--font-mono); font-size: 12.5px; line-height: 1.6;
+    color: var(--ink-soft); margin: 4px 0; word-break: break-word;
+  }
   code {
     font-family: var(--font-mono);
     font-size: 0.86em; background: var(--vellum); border: 1px solid var(--line);
     border-radius: 5px; padding: 1px 5px;
   }
 
-  /* highlight callout (e.g. a seat that changed its verdict) */
-  .highlight {
-    background: #fff6e3; border: 1px solid #ecd9a3; border-radius: 10px;
-    padding: 12px 16px; margin: 14px 0 0; font-size: 14.5px; color: #6f5212;
-  }
-  .highlight b { color: #5a4209; }
-
-  /* ---- numbered blocker checklist ---- */
-  ol.blockers { list-style: none; counter-reset: blk; margin: 0; padding: 0; }
-  ol.blockers > li {
-    counter-increment: blk; position: relative;
-    background: var(--surface); border: 1px solid var(--line-strong);
-    border-radius: 11px; padding: 15px 18px 15px 56px; margin: 0 0 11px;
-  }
-  ol.blockers > li::before {
-    content: counter(blk); position: absolute; left: 14px; top: 14px;
-    width: 28px; height: 28px; border-radius: 50%;
-    background: var(--block-bg); color: var(--block-ink);
-    font-size: 14px; font-weight: 700; display: flex; align-items: center; justify-content: center;
-  }
-  ol.blockers .b-title { font-weight: 600; }
-  ol.blockers .b-body { font-size: 15px; color: var(--ink-soft); margin-top: 3px; }
-
-  /* ---- dissent (visually distinct) ---- */
-  .dissent {
-    background: #fbf3ec; border: 1px dashed var(--caution-edge);
-    border-radius: 12px; padding: 16px 20px;
-  }
+  /* ---- dissent / minority report: set-off prose, no box ---- */
+  .dissent { border-left: 3px solid var(--caution-edge); padding: 2px 0 2px 18px; }
   .dissent .d-flag {
-    display: inline-block; font-size: 11.5px; font-weight: 700;
+    display: block; font-size: 12px; font-weight: 700;
     letter-spacing: 0.07em; text-transform: uppercase; color: var(--caution-ink);
-    background: var(--caution-bg); border-radius: 999px; padding: 3px 10px; margin-bottom: 8px;
+    margin-bottom: 6px;
   }
-  .dissent p { margin: 6px 0; font-size: 15.5px; color: #5e4a31; }
-  .dissent .who { font-weight: 700; color: var(--caution-ink); }
+  .dissent p { margin: 8px 0; font-size: 15.5px; color: var(--ink-soft); }
+  .dissent .who { font-weight: 700; color: var(--ink); }
 
-  /* ---- what the board couldn't verify (epistemic caveats) ---- */
-  .caveats {
-    background: var(--surface-soft); border: 1px solid var(--line);
-    border-left: 4px solid var(--ink-faint); border-radius: 0 12px 12px 0;
-    padding: 16px 20px;
-  }
-  .caveats ul { margin: 0; padding-left: 22px; }
-  .caveats li { margin: 7px 0; font-size: 15.5px; }
-  .caveats .c-claim { font-weight: 600; }
-  .caveats .c-change { color: var(--ink-soft); }
+  /* ---- what the board couldn't verify ---- */
+  .caveats ul { margin: 0; padding-left: 20px; }
+  .caveats li { margin: 8px 0; font-size: 15.5px; color: var(--ink-soft); }
+  .caveats .c-claim { color: var(--ink); }
 
   /* ---- severity-filter elision line (v1.14 P1); present only on a filtered render ---- */
   .filter-note {
@@ -298,7 +254,7 @@
      run whose run dir carries echo-score.json. Coarse band, band-tinted; the text
      already says it flags echo, it does not prove independence. ---- */
   .echo-pill {
-    margin: 0 0 18px; padding: 8px 14px; border-radius: 10px; border: 1px solid var(--line);
+    margin: 0 0 18px; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--line);
     font-size: 13.5px; color: var(--ink-soft); background: var(--surface-soft);
   }
   .echo-pill.echo-low      { border-color: var(--ship-edge);    background: var(--ship-bg);    color: var(--ship-ink); }
@@ -309,7 +265,7 @@
   .scorecard-sec { margin: 26px 0; }
   .sc-intro { margin: 0 0 12px; font-size: 14px; color: var(--ink-soft); }
   .sc-contra {
-    margin: 0 0 14px; padding: 10px 14px; border-radius: 10px;
+    margin: 0 0 14px; padding: 10px 14px; border-radius: 8px;
     border: 1px solid var(--block-edge); background: var(--block-bg); color: var(--block-ink);
     font-size: 14px; font-weight: 600;
   }
@@ -328,17 +284,13 @@
   .sc-note { margin: 6px 0; font-size: 13.5px; color: var(--ink-soft); }
 
   /* ---- simple lists ---- */
-  ul.plain { margin: 0; padding-left: 22px; }
-  ul.plain li { margin: 7px 0; font-size: 15.5px; }
+  ul.plain { margin: 0; padding-left: 20px; }
+  ul.plain li { margin: 8px 0; font-size: 15.5px; color: var(--ink-soft); }
 
-  .actions {
-    background: var(--surface-soft); border: 1px solid var(--line);
-    border-radius: 12px; padding: 16px 20px; font-size: 15.5px;
-  }
-  .actions ol { margin: 0; padding-left: 20px; }
-  .actions li { margin: 6px 0; }
+  .actions ol { margin: 0; padding-left: 22px; }
+  .actions li { margin: 9px 0; font-size: 15.5px; }
 
-  /* ---- a note a person added by hand, attached to a blocker (amendment) ---- */
+  /* ---- a note a person added by hand, attached to a finding (amendment) ---- */
   ol.blockers .blocker-sev-notes { margin: 8px 0 0; padding-left: 18px; }
   ol.blockers .blocker-sev-notes li {
     font-size: 14px; color: var(--accent-deep); margin: 3px 0; font-style: italic;
@@ -350,17 +302,15 @@
   ol.amend-list { list-style: none; margin: 0; padding: 0; }
   .amend-intro { margin: -6px 0 14px; font-size: 14px; font-style: italic; color: var(--ink-faint); }
   ol.amend-list > li {
-    background: var(--surface); border: 1px solid var(--line-strong);
-    border-left: 4px solid var(--gold); border-radius: 0 11px 11px 0;
-    padding: 13px 18px; margin: 0 0 11px;
+    border-left: 3px solid var(--gold);
+    padding: 4px 0 4px 18px; margin: 0 0 14px;
   }
   ol.amend-list .amend-who { font-weight: 700; }
   ol.amend-list .amend-when { color: var(--ink-faint); font-size: 13px; }
   ol.amend-list .amend-reason { margin: 4px 0 0; font-size: 15px; color: var(--ink-soft); }
   ol.amend-list .amend-effect {
-    display: inline-block; margin-top: 8px; font-size: 13.5px; font-weight: 600;
-    color: var(--gold); background: #fff6e3; border: 1px solid #ecd9a3;
-    border-radius: 999px; padding: 2px 11px;
+    display: inline-block; margin-top: 6px; font-size: 13.5px; font-weight: 600;
+    color: var(--gold);
   }
 
   /* ---- the board's revised copy: redline (prose) OR unified patch (code) ----
@@ -398,36 +348,80 @@
   .endorse-summary ul { margin: 0; padding-left: 20px; }
   .endorse-summary .endorse-obj li { color: var(--block-ink); }
 
+  /* ---- appendix: full seat reviews (only seats with recovered prose) ---- */
+  .appendix-reviews .seat { margin: 0 0 30px; padding: 0 0 8px; border-bottom: 1px solid var(--line); }
+  .appendix-reviews .seat:last-of-type { border-bottom: 0; }
+  .seat-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px; margin-bottom: 2px; }
+  .seat-name { font-size: 18px; font-weight: 700; margin: 0; }
+  .seat-lens { font-size: 13.5px; font-weight: 600; color: var(--accent-deep); }
+  .seat-model { font-size: 12.5px; color: var(--ink-faint); font-family: var(--font-mono); }
+  .seat-status { font-size: 12.5px; font-weight: 600; font-style: italic; }
+  .seat-status.ran      { color: var(--ink-faint); }
+  .seat-status.degraded { color: var(--caution-ink); }
+  .seat-status.dropped  { color: var(--block-ink); }
+  .round { margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--line); }
+  .round:first-of-type { margin-top: 10px; border-top: 0; padding-top: 0; }
+  .round-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; margin-bottom: 6px; }
+  .round-tag { font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-faint); }
+  .vpill { font-size: 13px; font-weight: 600; }
+  .vpill.ship    { color: var(--ship-edge); }
+  .vpill.caution { color: var(--caution-edge); }
+  .vpill.block   { color: var(--block-edge); }
+  .vpill.moved::after { content: " ↓"; }
+  .conf { font-size: 12.5px; color: var(--ink-faint); }
+
+  .review-body { font-size: 15px; color: var(--ink-soft); }
+  .review-body strong { font-weight: 600; color: var(--ink); }
+  .review-body em { font-style: italic; }
+  .review-body a { color: var(--accent); text-decoration: underline; }
+  .review-body ul, .review-body ol { margin: 6px 0; padding-left: 22px; }
+  .review-body li { margin: 5px 0; }
+  .review-body p { margin: 6px 0; }
+  .review-body p.r-title { font-weight: 600; margin-top: 12px; color: var(--ink); }
+  .review-body blockquote {
+    margin: 8px 0; padding: 2px 0 2px 14px;
+    border-left: 3px solid var(--line-strong); color: var(--ink-soft);
+  }
+  .review-body pre {
+    background: var(--surface-soft); border: 1px solid var(--line);
+    border-radius: 8px; padding: 10px 12px; margin: 8px 0;
+    overflow-x: auto; font-size: 13px; line-height: 1.5;
+  }
+  .review-body pre code { background: none; border: 0; padding: 0; font-size: inherit; }
+
+  /* highlight callout (e.g. a seat that changed its verdict) */
+  .highlight {
+    border-left: 3px solid var(--caution-edge);
+    padding: 4px 0 4px 16px; margin: 14px 0 0; font-size: 14.5px; color: var(--caution-ink);
+  }
+  .highlight b { color: var(--ink); }
+
   /* ---- dark footer / colophon band ---- */
-  footer.colophon { background: var(--dark); color: var(--on-dark-soft); padding: 26px 20px 32px; }
+  footer.colophon { background: var(--dark); color: var(--on-dark-soft); padding: 26px 20px 30px; }
   footer.colophon .disclaimer {
     display: block; margin: 0 0 16px; font-style: italic;
     color: var(--on-dark-faint); font-size: 13.5px;
   }
-  .colophon-grid { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; justify-content: space-between; }
+  .colophon-grid { display: flex; flex-wrap: wrap; gap: 24px; align-items: baseline; justify-content: space-between; }
   .colophon-about { flex: 1 1 320px; }
-  .footer-lockup { display: flex; align-items: center; gap: 9px; font-weight: 700; color: var(--on-dark); font-size: 14px; margin-bottom: 9px; }
-  .footer-lockup svg { width: 26px; height: 26px; display: block; }
+  .footer-lockup { display: flex; align-items: center; gap: 9px; font-weight: 700; color: var(--on-dark); font-size: 14px; margin-bottom: 8px; }
+  .footer-lockup svg { width: 22px; height: 22px; display: block; }
   .colophon-about p { margin: 0; font-size: 13.5px; line-height: 1.6; color: var(--on-dark-soft); max-width: 54ch; }
   .colophon-cta { flex: 0 0 auto; }
-  .cta {
-    display: inline-block; background: var(--accent); color: #ffffff;
-    font-weight: 600; font-size: 14.5px; text-decoration: none;
-    padding: 10px 20px; border-radius: 9px;
-  }
+  .cta { color: var(--accent-bright); font-weight: 600; font-size: 14px; text-decoration: none; }
   .cta::after { content: " →"; }
-  footer.colophon .prov { display: block; margin-top: 12px; font-size: 11.5px; color: var(--on-dark-faint); font-family: var(--font-mono); }
+  footer.colophon .prov { display: block; margin-top: 14px; font-size: 11.5px; color: var(--on-dark-faint); font-family: var(--font-mono); }
 
   /* ---- responsive ---- */
   @media (max-width: 560px) {
     body { font-size: 16px; }
-    .wrap { padding: 22px 15px 44px; }
+    .wrap { padding: 24px 15px 44px; }
     header.masthead, footer.colophon { padding-left: 15px; padding-right: 15px; }
     header.masthead h1 { font-size: 25px; }
+    .verdict { padding: 18px 18px; }
     .verdict .headline { font-size: 20px; }
-    .seat, ol.blockers > li { padding-left: 16px; padding-right: 16px; }
-    ol.blockers > li { padding-left: 50px; }
-    .colophon-cta { width: 100%; }
+    ol.blockers > li { padding-left: 32px; }
+    table.votes .vote-model { display: none; }
   }
 
   /* ---- print / PDF (Print -> Save as PDF) ---- */
@@ -435,7 +429,7 @@
     body { background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     header.masthead, footer.colophon { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     .wrap { max-width: none; }
-    .verdict, .plan, .seat, .round, ol.blockers > li, .dissent, .actions { break-inside: avoid; }
+    .verdict, ol.blockers > li, .dissent, .seat, .round { break-inside: avoid; }
     a { color: inherit; text-decoration: none; }
   }
 </style>
@@ -446,16 +440,12 @@
   <header class="masthead">
     <div class="band-inner">
       <div class="brand-lockup">
-        <span class="brand-mark"><svg viewBox="0 0 1000 1000" xmlns="http://www.w3.org/2000/svg"><defs><radialGradient id="bg" cx="50%" cy="38%" r="74%"><stop offset="0%" stop-color="#122046"/><stop offset="55%" stop-color="#0a1024"/><stop offset="100%" stop-color="#05070f"/></radialGradient><radialGradient id="vig" cx="50%" cy="50%" r="62%"><stop offset="60%" stop-color="#000000" stop-opacity="0"/><stop offset="100%" stop-color="#000000" stop-opacity="0.5"/></radialGradient><linearGradient id="cobalt" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#a9c2ff"/><stop offset="52%" stop-color="#5b8cff"/><stop offset="100%" stop-color="#2347ff"/></linearGradient><linearGradient id="gold" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#ffe6a3"/><stop offset="55%" stop-color="#e2b658"/><stop offset="100%" stop-color="#b9842e"/></linearGradient><radialGradient id="core" cx="50%" cy="42%" r="62%"><stop offset="0%" stop-color="#ffffff"/><stop offset="34%" stop-color="#dbe6ff"/><stop offset="70%" stop-color="#6f93ff"/><stop offset="100%" stop-color="#2347ff"/></radialGradient><radialGradient id="spark" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#eaf1ff"/><stop offset="100%" stop-color="#5b8cff"/></radialGradient><filter id="gM" x="-180%" y="-180%" width="460%" height="460%"><feGaussianBlur stdDeviation="14"/></filter><filter id="gL" x="-220%" y="-220%" width="540%" height="540%"><feGaussianBlur stdDeviation="32"/></filter></defs><rect width="1000" height="1000" fill="#05070f"/><rect width="1000" height="1000" fill="url(#bg)"/><circle cx="500" cy="500" r="220" fill="#3a5fff" opacity="0.12" filter="url(#gL)"/><circle cx="500" cy="500" r="312" fill="none" stroke="url(#cobalt)" stroke-width="3" opacity="0.7"/><circle cx="500" cy="500" r="210" fill="none" stroke="#4f7bff" stroke-width="2" opacity="0.32"/><circle cx="500" cy="500" r="120" fill="none" stroke="#4f7bff" stroke-width="2" opacity="0.22"/><g stroke="#4f7bff" stroke-width="2"><line x1="830" y1="500" x2="850" y2="500" opacity="0.4"/><line x1="500" y1="830" x2="500" y2="850" opacity="0.4"/><line x1="170" y1="500" x2="150" y2="500" opacity="0.4"/><line x1="500" y1="170" x2="500" y2="150" opacity="0.4"/><line x1="733.3" y1="733.3" x2="743.2" y2="743.2" opacity="0.16"/><line x1="266.7" y1="733.3" x2="256.8" y2="743.2" opacity="0.16"/><line x1="266.7" y1="266.7" x2="256.8" y2="256.8" opacity="0.16"/><line x1="733.3" y1="266.7" x2="743.2" y2="256.8" opacity="0.16"/></g><line x1="500" y1="250" x2="500" y2="188" stroke="#f7b500" stroke-width="3" opacity="0.45"/><circle cx="500" cy="188" r="46" fill="#e2b658" opacity="0.30" filter="url(#gM)"/><circle cx="500" cy="188" r="34" fill="#0a1430" stroke="url(#gold)" stroke-width="5"/><circle cx="500" cy="188" r="15" fill="url(#gold)"/><circle cx="770.2" cy="344" r="46" fill="#2f54e6" opacity="0.30" filter="url(#gM)"/><circle cx="770.2" cy="344" r="34" fill="#0a1430" stroke="url(#cobalt)" stroke-width="5"/><circle cx="770.2" cy="344" r="15" fill="url(#spark)"/><circle cx="770.2" cy="656" r="46" fill="#2f54e6" opacity="0.30" filter="url(#gM)"/><circle cx="770.2" cy="656" r="34" fill="#0a1430" stroke="url(#cobalt)" stroke-width="5"/><circle cx="770.2" cy="656" r="15" fill="url(#spark)"/><circle cx="500" cy="812" r="46" fill="#2f54e6" opacity="0.30" filter="url(#gM)"/><circle cx="500" cy="812" r="34" fill="#0a1430" stroke="url(#cobalt)" stroke-width="5"/><circle cx="500" cy="812" r="15" fill="url(#spark)"/><circle cx="229.8" cy="656" r="46" fill="#2f54e6" opacity="0.30" filter="url(#gM)"/><circle cx="229.8" cy="656" r="34" fill="#0a1430" stroke="url(#cobalt)" stroke-width="5"/><circle cx="229.8" cy="656" r="15" fill="url(#spark)"/><circle cx="229.8" cy="344" r="46" fill="#2f54e6" opacity="0.30" filter="url(#gM)"/><circle cx="229.8" cy="344" r="34" fill="#0a1430" stroke="url(#cobalt)" stroke-width="5"/><circle cx="229.8" cy="344" r="15" fill="url(#spark)"/><circle cx="500" cy="500" r="74" fill="none" stroke="#4f7bff" stroke-width="2" opacity="0.5"/><circle cx="500" cy="500" r="144" fill="#3a5fff" opacity="0.16" filter="url(#gL)"/><circle cx="500" cy="500" r="77" fill="url(#core)" opacity="0.5" filter="url(#gM)"/><circle cx="500" cy="500" r="48" fill="url(#core)" stroke="#ffffff" stroke-width="3"/><circle cx="500" cy="489" r="13" fill="#ffffff" opacity="0.92"/><rect width="1000" height="1000" fill="url(#vig)"/></svg></span>
-        <span class="brand-name"><span class="p">Advisory Board</span><span class="ab" style="text-transform:none; letter-spacing:0.03em; font-weight:600; margin-top:3px;">powered by Panely</span></span>
+        <span class="brand-mark"><svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect x="2" y="2" width="96" height="96" rx="22" fill="#0a0e1a"/><circle cx="50" cy="50" r="30" fill="none" stroke="#3a5fd9" stroke-width="3" opacity="0.55"/><circle cx="50" cy="20" r="10" fill="#0a0e1a" stroke="#e2b658" stroke-width="4"/><circle cx="50" cy="20" r="4" fill="#e2b658"/><circle cx="76" cy="65" r="10" fill="#0a0e1a" stroke="#3d6bff" stroke-width="4"/><circle cx="76" cy="65" r="4" fill="#3d6bff"/><circle cx="24" cy="65" r="10" fill="#0a0e1a" stroke="#3d6bff" stroke-width="4"/><circle cx="24" cy="65" r="4" fill="#3d6bff"/><circle cx="50" cy="50" r="13" fill="#5b8cff"/><circle cx="50" cy="50" r="5.5" fill="#ffffff"/></svg></span>
+        <span class="brand-name">Advisory Board <span class="by">powered by Panely</span></span>
       </div>
       <h1>{{TITLE}}</h1>
       <p class="subtitle">{{SUBTITLE}}</p>
-      <div class="meta-row">
-        <span class="chip"><b>Date</b> {{DATE}}</span>
-        <span class="chip"><b>Rounds</b> {{ROUNDS}}</span>
-        <span class="chip"><b>Board</b> {{BOARD}}</span>
-      </div>
+      <p class="masthead-meta"><b>{{DATE}}</b> · {{ROUNDS}} rounds · {{BOARD}}</p>
     </div>
   </header>
 
@@ -464,9 +454,12 @@
   <!-- ===================== VERDICT BANNER ===================== -->
   <!-- {{VERDICT_CLASS}} = ship | caution | block  (controls color) -->
   <div class="verdict {{VERDICT_CLASS}}">
-    <p class="label">Final verdict<span class="conf-badge">{{CONFIDENCE}}</span></p>
+    <p class="label">The board's verdict<span class="conf-badge">{{CONFIDENCE}}</span></p>
     <p class="headline">{{VERDICT}}</p>
     <p class="note">{{VERDICT_NOTE}}</p>
+    <!-- {{SUMMARY}}: the bottom line — plain prose for a reader who reads nothing
+         else. Empty on an older verdict.json — the paragraph drops. -->
+    <p class="bottom-line">{{SUMMARY}}</p>
   </div>
 
   <!-- {{FILTER_NOTE}}: OPTIONAL severity-filter elision line (v1.14 P1). Empty on a
@@ -570,17 +563,141 @@
     <p class="patch-note">{{PATCH_NOTE}}</p>
   </section>
 
-  <!-- ===================== PLAN UNDER REVIEW ===================== -->
-  <section>
+  <!-- ===================== WHAT WAS REVIEWED =====================
+       {{PLAN}} is the authored plain description of the material itself. The
+       renderer drops this whole section when it rendered empty (an older
+       verdict.json with no `reviewed` field) — never an echo of the title. -->
+  <section class="plan-sec">
     <h2>What was reviewed</h2>
     <div class="plan">
       {{PLAN}}
     </div>
   </section>
 
-  <!-- ===================== SEAT REVIEWS ===================== -->
+  <!-- ===================== HOW THE BOARD VOTED ===================== -->
+  <section class="votes-sec">
+    <h2>How the board voted</h2>
+    <table class="votes">
+      <thead><tr><th>Seat</th><th>Lens</th><th>Model</th><th>Round votes</th><th>Status</th></tr></thead>
+      <tbody>
+        <!-- BEGIN SEAT VOTE (duplicate per seat) -->
+        <tr>
+          <td class="vote-seat">{{VOTE_SEAT}}</td>
+          <td class="vote-lens">{{VOTE_LENS}}</td>
+          <td class="vote-model">{{VOTE_MODEL}}</td>
+          <td class="vote-rounds {{VOTE_FINAL_CLASS}}">{{VOTE_ROUNDS}}</td>
+          <td class="vote-status">{{VOTE_STATUS}}</td>
+        </tr>
+        <!-- END SEAT VOTE -->
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ===================== CONSENSUS FINDINGS ===================== -->
   <section>
-    <h2>Board reviews — round by round</h2>
+    <h2>{{BLOCKERS_HEADING}}</h2>
+    <ol class="blockers">
+      <!-- BEGIN BLOCKER (duplicate per blocker; the number is added automatically) -->
+      <li>
+        <span class="b-title">{{BLOCKER_TITLE}}</span>
+        <div class="b-body">{{BLOCKER_BODY}}</div>
+        <!-- OPTIONAL: notes a person added by hand about this item (amendments).
+             The whole list is dropped when there are none. -->
+        <ul class="blocker-sev-notes"><!-- BEGIN BLOCKER SEVERITY NOTE (duplicate per note) -->
+          <li>{{BLOCKER_SEVERITY_NOTE}}</li>
+        <!-- END BLOCKER SEVERITY NOTE --></ul>
+        <details class="receipts">
+          <summary>{{BLOCKER_EVIDENCE_LABEL}}</summary>
+          <ul><!-- BEGIN BLOCKER EVIDENCE (duplicate per receipt) -->
+            <li>{{BLOCKER_EVIDENCE_LINE}}</li>
+          <!-- END BLOCKER EVIDENCE --></ul>
+        </details>
+      </li>
+      <!-- END BLOCKER -->
+    </ol>
+  </section>
+
+  <!-- ===================== DISSENT / MINORITY REPORT ===================== -->
+  <!-- Records disagreement that survived the debate. If the board was UNANIMOUS, this
+       holds the minority report — the strongest case against the verdict (see
+       references/epistemics.md); set {{DISSENT_FLAG}} to "Minority report". The
+       renderer drops the whole section when there is genuinely neither. -->
+  <section class="dissent-sec">
+    <h2>Dissent &amp; minority report</h2>
+    <div class="dissent">
+      <span class="d-flag">{{DISSENT_FLAG}}</span>
+      <!-- BEGIN DISSENT (duplicate per point; name the seat in .who, or use "Minority report") -->
+      <p><span class="who">{{DISSENT_WHO}}:</span> {{DISSENT_BODY}}</p>
+      <!-- END DISSENT -->
+    </div>
+  </section>
+
+  <!-- ===================== WHAT THE BOARD COULDN'T VERIFY ===================== -->
+  <!-- Claims the board relied on but did NOT check, and shared blind spots: facts every
+       seat assumed, things outside what any seat could see (live data, prod config, the
+       real code when only a plan was reviewed), and what would flip the verdict if false.
+       Guards against a confident, unanimous, wrong call (see references/epistemics.md).
+       The renderer drops the whole section when there are no items; if the board truly
+       verified everything load-bearing, say so in the verdict note. -->
+  <section class="caveats-sec">
+    <h2>What the board couldn't verify</h2>
+    <div class="caveats">
+      <ul>
+        <!-- BEGIN CAVEAT (duplicate per couldn't-verify item) -->
+        <li><span class="c-claim">{{CAVEAT_CLAIM}}</span></li>
+        <!-- END CAVEAT -->
+      </ul>
+    </div>
+  </section>
+
+  <!-- ===================== OPEN QUESTIONS ===================== -->
+  <section class="questions-sec">
+    <h2>Open questions</h2>
+    <ul class="plain">
+      <!-- BEGIN QUESTION (duplicate per open question) -->
+      <li>{{QUESTION}}</li>
+      <!-- END QUESTION -->
+    </ul>
+  </section>
+
+  <!-- ===================== NEXT ACTIONS ===================== -->
+  <section class="actions-sec">
+    <h2>Next actions</h2>
+    <div class="actions">
+      <ol>
+        <!-- BEGIN ACTION (duplicate per next action) -->
+        <li>{{ACTION}}</li>
+        <!-- END ACTION -->
+      </ol>
+    </div>
+  </section>
+
+  <!-- ===================== AMENDMENTS (human-owned; v1.12 P4) ==============
+       Changes a person made to this review AFTER the board reported — a lower
+       confidence, an added caveat, a note on a finding. The board's own words
+       above are untouched; these are set apart (gold edge) as the human record.
+       The renderer drops this whole section when there are no amendments. -->
+  <section class="amend-sec">
+    <h2>Amendments</h2>
+    <p class="amend-intro">Applied by a person after the board reported — the board's own words above are unchanged.</p>
+    <ol class="amend-list">
+      <!-- BEGIN AMENDMENT (duplicate per amendment, in order) -->
+      <li>
+        <span class="amend-who">{{AMEND_WHO}}</span>
+        <span class="amend-when">· {{AMEND_WHEN}}</span>
+        <p class="amend-reason">{{AMEND_REASON}}</p>
+        <span class="amend-effect">{{AMEND_EFFECT}}</span>
+      </li>
+      <!-- END AMENDMENT -->
+    </ol>
+  </section>
+
+  <!-- ===================== APPENDIX: FULL SEAT REVIEWS =====================
+       Each seat's own words, round by round — ONLY seats whose round prose was
+       recovered from the run dir. The renderer drops the whole section when no
+       seat carries prose (the vote table above is then the seat record). -->
+  <section class="appendix-reviews">
+    <h2>Appendix — each seat in its own words</h2>
 
     <!-- BEGIN SEAT CARD (duplicate per seat) -->
     <article class="seat">
@@ -616,99 +733,6 @@
     </article>
     <!-- END SEAT CARD -->
 
-  </section>
-
-  <!-- ===================== CONSENSUS BLOCKERS ===================== -->
-  <section>
-    <h2>{{BLOCKERS_HEADING}}</h2>
-    <ol class="blockers">
-      <!-- BEGIN BLOCKER (duplicate per blocker; the number is added automatically) -->
-      <li>
-        <span class="b-title">{{BLOCKER_TITLE}}</span>
-        <div class="b-body">{{BLOCKER_BODY}}</div>
-        <!-- OPTIONAL: notes a person added by hand about this item (amendments).
-             The whole list is dropped when there are none. -->
-        <ul class="blocker-sev-notes"><!-- BEGIN BLOCKER SEVERITY NOTE (duplicate per note) -->
-          <li>{{BLOCKER_SEVERITY_NOTE}}</li>
-        <!-- END BLOCKER SEVERITY NOTE --></ul>
-      </li>
-      <!-- END BLOCKER -->
-    </ol>
-  </section>
-
-  <!-- ===================== DISSENT / MINORITY REPORT ===================== -->
-  <!-- Records disagreement that survived the debate. If the board was UNANIMOUS, this
-       holds the minority report — the strongest case against the verdict (see
-       references/epistemics.md); set {{DISSENT_FLAG}} to "Minority report". Delete the
-       section only if there is genuinely neither dissent nor a minority report. -->
-  <section>
-    <h2>Dissent &amp; minority report</h2>
-    <div class="dissent">
-      <span class="d-flag">{{DISSENT_FLAG}}</span>
-      <!-- BEGIN DISSENT (duplicate per point; name the seat in .who, or use "Minority report") -->
-      <p><span class="who">{{DISSENT_WHO}}:</span> {{DISSENT_BODY}}</p>
-      <!-- END DISSENT -->
-    </div>
-  </section>
-
-  <!-- ===================== WHAT THE BOARD COULDN'T VERIFY ===================== -->
-  <!-- Claims the board relied on but did NOT check, and shared blind spots: facts every
-       seat assumed, things outside what any seat could see (live data, prod config, the
-       real code when only a plan was reviewed), and what would flip the verdict if false.
-       Guards against a confident, unanimous, wrong call (see references/epistemics.md).
-       Delete this section only if the board verified everything load-bearing — rare; say
-       so in the verdict note instead of dropping it silently. -->
-  <section>
-    <h2>What the board couldn't verify</h2>
-    <div class="caveats">
-      <ul>
-        <!-- BEGIN CAVEAT (duplicate per couldn't-verify item) -->
-        <li><span class="c-claim">{{CAVEAT_CLAIM}}</span> — <span class="c-change">{{CAVEAT_IMPACT}}</span></li>
-        <!-- END CAVEAT -->
-      </ul>
-    </div>
-  </section>
-
-  <!-- ===================== OPEN QUESTIONS ===================== -->
-  <section>
-    <h2>Open questions</h2>
-    <ul class="plain">
-      <!-- BEGIN QUESTION (duplicate per open question) -->
-      <li>{{QUESTION}}</li>
-      <!-- END QUESTION -->
-    </ul>
-  </section>
-
-  <!-- ===================== NEXT ACTIONS ===================== -->
-  <section>
-    <h2>Next actions</h2>
-    <div class="actions">
-      <ol>
-        <!-- BEGIN ACTION (duplicate per next action) -->
-        <li>{{ACTION}}</li>
-        <!-- END ACTION -->
-      </ol>
-    </div>
-  </section>
-
-  <!-- ===================== AMENDMENTS (human-owned; v1.12 P4) ==============
-       Changes a person made to this review AFTER the board reported — a lower
-       confidence, an added caveat, a note on a finding. The board's own words
-       above are untouched; these are set apart (gold edge) as the human record.
-       The renderer drops this whole section when there are no amendments. -->
-  <section class="amend-sec">
-    <h2>Amendments</h2>
-    <p class="amend-intro">Applied by a person after the board reported — the board's own words above are unchanged.</p>
-    <ol class="amend-list">
-      <!-- BEGIN AMENDMENT (duplicate per amendment, in order) -->
-      <li>
-        <span class="amend-who">{{AMEND_WHO}}</span>
-        <span class="amend-when">· {{AMEND_WHEN}}</span>
-        <p class="amend-reason">{{AMEND_REASON}}</p>
-        <span class="amend-effect">{{AMEND_EFFECT}}</span>
-      </li>
-      <!-- END AMENDMENT -->
-    </ol>
   </section>
 
   </main>

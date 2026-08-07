@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from _conductor.constants import (
+    FAILURE_AUTH,
     FAILURE_MODEL,
     FAILURE_NOOUTPUT,
     SMOKE_PROMPT,
@@ -19,6 +20,7 @@ from _conductor.config import (
 )
 from _conductor.spawn import (
     classify,
+    smoke_auth_failed,
     spawn,
 )
 from _conductor.toolchain import propose_model
@@ -78,6 +80,19 @@ def preflight_seat(seat: SeatConfig, *, network_on: bool, workdir: Optional[str]
             detail += f"; fallback that resolves: {proposal}"
         return SeatPreflight(seat.id, binary_ok, "unknown (model id did not resolve)",
                              False, "dropped", False, detail, proposal, provider=seat.name)
+
+    # A signed-out CLI can answer on stdout and exit 0 (claude: "Not logged in ·
+    # Please run /login"), which classify() reads as a healthy ping. Screening the
+    # smoke reply's text is the only honest signal — and the difference between a
+    # NO-GO carrying a fix-it line and a seat that dies at round 1, after consent
+    # and after every other seat has spent its tokens. Safe to read stdout here:
+    # this reply answers a fixed SMOKE_PROMPT (see smoke_auth_failed).
+    if smoke_auth_failed(smoke):
+        detail = f"version ok; CLI is installed but not signed in ({FAILURE_AUTH})"
+        if adapter.auth_hint:
+            detail += f"; fix: {adapter.auth_hint}"
+        return SeatPreflight(seat.id, binary_ok, "NOT signed in (the CLI said so)",
+                             False, "dropped", False, detail, provider=seat.name)
 
     # The smoke ping proves model + transport end to end and that *some* auth is
     # live, but we do NOT run a separate session/whoami probe, so we report the

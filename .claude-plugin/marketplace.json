@@ -12,7 +12,7 @@
       "name": "advisory-board",
       "source": "./",
       "strict": false,
-      "version": "1.17.0",
+      "version": "1.18.0",
       "description": "Convene a board of frontier AI models — Claude, Codex, Gemini, and Grok — that each review the same decision independently, debate across rounds, and hand back one clear recommendation.",
       "license": "MIT",
       "skills": [

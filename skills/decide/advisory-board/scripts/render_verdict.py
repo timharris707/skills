@@ -716,11 +716,24 @@ def render_markdown(data: dict, filt: str = DEFAULT_FILTER, run_dir=None) -> str
     note = data.get("verdict_note") or note
     if note:
         out.append(note)
+    # The bottom line (v1.18): the synthesizer's plain-prose summary, leading the
+    # document right under the verdict heading. Absent on an older verdict.json —
+    # the render is then byte-identical to before.
+    if data.get("summary"):
+        out.append("")
+        out.append(str(data["summary"]).strip())
     # Token↔band contradiction (v1.15 P4 / D17), surfaced LOUDLY in the primary verdict
     # summary. Empty on a non-rubric run or a run with no contradiction, so the default
     # output stays byte-identical.
     out += _scorecard_contradiction_summary(data, run_dir)
     out.append("")
+
+    # What was reviewed (v1.18): the synthesizer's plain description of the material
+    # itself. Absent on an older verdict.json — byte-identical to before.
+    if data.get("reviewed"):
+        out.append("## What was reviewed")
+        out.append(str(data["reviewed"]).strip())
+        out.append("")
 
     # --revise runs only (previous_run present): the cross-run delta, right under
     # the verdict so the trajectory reads first. Absent on every other verdict.
@@ -994,6 +1007,15 @@ def _plain(text: str) -> str:
     return _nb(text)
 
 
+def _receipts_label(finding: dict) -> str:
+    """The <details> summary line for a finding's evidence receipts, or "" (the whole
+    receipts block then drops) when the finding cites nothing."""
+    count = sum(1 for ev in (finding.get("evidence") or []) if isinstance(ev, dict))
+    if not count:
+        return ""
+    return f"Receipts — {count} citation" + ("" if count == 1 else "s")
+
+
 def _oneliner(text: str, limit: int = 180) -> str:
     """Collapse a blocker/dissent body to ONE plain-text line for the quick-verdict brief.
 
@@ -1025,7 +1047,10 @@ def _round_review(run_dir, seat_name: str, round_no: int, verdict: str) -> str:
     Markdown->HTML conversion (its _md_review), so this must NOT pre-render HTML — a
     second conversion there would escape the tags into literal text. The full prose
     lives in the round-N/<seat>.md artifacts; when one is present we hand it back
-    verbatim, else a Markdown pointer to it."""
+    verbatim. When it isn't (no --run, or the file is gone), return "" — the vote
+    already lives in the how-the-board-voted table, and a card that only says
+    "full review in round-1/x.md" is noise, not a review (v1.18)."""
+    _ = verdict  # the vote renders in the seat-votes table, not here
     if run_dir:
         for candidate in glob.glob(os.path.join(run_dir, f"round-{round_no}", "*.md")):
             if os.path.splitext(os.path.basename(candidate))[0].lower() == seat_name.lower():
@@ -1034,8 +1059,7 @@ def _round_review(run_dir, seat_name: str, round_no: int, verdict: str) -> str:
                         return handle.read()
                 except OSError:
                     break
-    return (f"Round {round_no} verdict: **{verdict}**. "
-            f"Full review in `round-{round_no}/{seat_name.lower()}.md`.")
+    return ""
 
 
 def _seat_reported_token_totals(run_dir) -> "dict | None":
@@ -1573,11 +1597,17 @@ def build_handoff_data(data: dict, run_dir=None, shape: str = "full-handoff",
         "verdict": _plain(headline),
         "verdict_class": _VERDICT_CLASS.get(verdict, ""),
         "verdict_note": _raw(verdict_note) if verdict_note else "",
+        # The bottom line (v1.18): the synthesizer's plain-prose summary, rendered
+        # inside the verdict banner. "" on an older verdict — the paragraph drops.
+        "summary": _raw(str(data.get("summary") or "").strip()),
         "confidence": _plain(confidence_str),
         # Lens-aware section header for the consensus must-resolve items.
         "blockers_heading": _plain(blockers_heading(lens_preset, "html")),
         "disclaimer": _raw(disclaimer) if disclaimer else "",
-        "plan": _raw(data.get("title", "")),
+        # What was reviewed (v1.18): the authored plain description of the material
+        # itself. Previously this echoed the title — a duplicate that told the reader
+        # nothing. "" (the whole section drops) when the verdict carries no `reviewed`.
+        "plan": _raw(str(data.get("reviewed") or "").strip()),
         "metadata": _raw(metadata),
         # The dissent flag follows what is SHOWN: a filter that hides the dissent
         # section hides its flag too (else a "Dissent on the record" banner with no
@@ -1600,7 +1630,15 @@ def build_handoff_data(data: dict, run_dir=None, shape: str = "full-handoff",
         # dissent_body (the full prose). Both are non-RAW (the renderer escapes them).
         "blockers": [{"blocker_title": _plain(b.get("title", "blocker")),
                       "blocker_body": _raw(b.get("body", "")),
-                      "blocker_summary": _plain(_oneliner(b.get("body", "")))}
+                      "blocker_summary": _plain(_oneliner(b.get("body", ""))),
+                      # Receipts (v1.18): the finding's evidence trail, tucked into a
+                      # collapsed <details> under the prose so the mechanics don't
+                      # drown the finding. Label "" (the details block drops) when
+                      # the finding cites nothing.
+                      "blocker_evidence": [
+                          {"blocker_evidence_line": _evidence_html(ev)}
+                          for ev in (b.get("evidence") or []) if isinstance(ev, dict)],
+                      "blocker_evidence_label": _plain(_receipts_label(b))}
                      for b in data.get("blockers", [])],
         # dissents / caveats reflect the SEVERITY FILTER (v1.14 P1): a suppressed
         # tier renders an empty list, and on that filtered render (non-empty
@@ -1661,34 +1699,59 @@ def build_handoff_data(data: dict, run_dir=None, shape: str = "full-handoff",
                 f"{note['severity_note']} — added by "
                 f"{note.get('author', '?')} (amendment)")}
             for note in _severity_notes_for(data, blocker.get("title", ""))]
+    hd["seat_votes"] = []
     for seat in data.get("board", []):
         name = seat.get("seat", "?")
         # Match the round artifact file on the machine id when present (a duplicate/aliased
         # seat writes round-N/<id>.md); fall back to the display label for a default board.
         seat_key = seat.get("id") or name
         rounds = []
+        vote_labels = []
         for round_no, rv in enumerate(seat.get("round_verdicts", []), 1):
             # Per-round pills follow the board-level lens family (the note is for the
             # headline only; a pill is just the short label). No `decision` here — a
             # round_verdict is always a raw ship/caution/block token.
             rv_label, _ = human_label(rv, lens_preset)
-            rounds.append({
-                "round_label": f"Round {round_no}",
-                "round_verdict": _plain(rv_label),
-                "round_verdict_class": _VERDICT_CLASS.get(rv, ""),
-                "round_confidence": "",
-                "round_review": _round_review(run_dir, seat_key, round_no, rv_label),
-            })
+            vote_labels.append((rv_label, rv))
+            review = _round_review(run_dir, seat_key, round_no, rv_label)
+            # A round with no recovered prose renders nothing here — the vote itself
+            # lives in the how-the-board-voted table (v1.18), so an empty round is
+            # dropped rather than shipping a hollow "see round-N/<seat>.md" card.
+            if review.strip():
+                rounds.append({
+                    "round_label": f"Round {round_no}",
+                    "round_verdict": _plain(rv_label),
+                    "round_verdict_class": _VERDICT_CLASS.get(rv, ""),
+                    "round_confidence": "",
+                    "round_review": review,
+                })
         lens = seat.get("lens", "") or ""
-        hd["seats"].append({
-            "seat_name": _plain(name),
-            "seat_lens": _plain(lens.capitalize() + (" lens" if lens else "")),
-            "seat_model": _plain(seat.get("model", "")),
-            "seat_status": "dropped" if seat.get("dropped") else "",
-            "seat_status_class": "dropped" if seat.get("dropped") else "",
-            "seat_highlight": "",
-            "rounds": rounds,
+        dropped = bool(seat.get("dropped"))
+        # The how-the-board-voted table (v1.18): one row per seat, always — the
+        # at-a-glance record the old five near-empty cards failed to be. The final
+        # vote is colored by its verdict class; a dropped seat says so plainly.
+        hd["seat_votes"].append({
+            "vote_seat": _plain(name),
+            "vote_lens": _plain(lens),
+            "vote_model": _plain(seat.get("model", "")),
+            "vote_rounds": _plain(" → ".join(lbl for lbl, _ in vote_labels)
+                                  if vote_labels else "—"),
+            "vote_final_class": _VERDICT_CLASS.get(
+                vote_labels[-1][1] if vote_labels else "", ""),
+            "vote_status": _plain("did not finish" if dropped else ""),
         })
+        # The seat appears in the full-reviews appendix only when at least one round
+        # of real prose came back — a seat with none has nothing to append.
+        if rounds:
+            hd["seats"].append({
+                "seat_name": _plain(name),
+                "seat_lens": _plain(lens.capitalize() + (" lens" if lens else "")),
+                "seat_model": _plain(seat.get("model", "")),
+                "seat_status": "dropped" if dropped else "",
+                "seat_status_class": "dropped" if dropped else "",
+                "seat_highlight": "",
+                "rounds": rounds,
+            })
     hd.update(_delta_handoff_fields(data))
     # The revision redline/patch slots (v1.13 P3). Empty (both sections drop) on
     # any verdict without a sha-coherent revised-draft chain, so a non-revision

@@ -9,8 +9,55 @@ versioned separately and do not replace the skill release version.
 
 ## [Unreleased]
 
+### Fixed
+- **Preflight no longer passes a signed-out CLI as GO.** The claude CLI answers any prompt with `Not logged in · Please run /login` on **stdout** and exits **0**, so every mechanical signal the classifier reads — exit code, non-empty output, clean stderr — looked healthy. A real run took consent, spent three other seats' tokens, and lost the claude seat at round 1 with `InvalidOutput`. Preflight now screens the smoke reply's text for signed-out tells and returns a labelled NO-GO carrying the adapter's auth hint. Scanning stdout is confined to the smoke path (a fixed `SMOKE_PROMPT`, so it cannot be poisoned by material under review) — the round classifiers still read stderr only, and only when no usable review came back.
+
+## [v1.18.0] - 2026-08-07 — A handoff a human can read
+
+The deliverable was written expert-to-expert and rendered as a wall of pills and card
+boxes; the person it was for had to ask what the outcome was. This release makes the
+handoff lead with a plain-language bottom line and redesigns the HTML as an editorial
+document.
+
 ### Added
+- **The write-for-a-human contract** (synthesizer prompt `@3`, mirrored in `SKILL.md`
+  § Final synthesis and `references/prompt-templates.md`): every prose field must read as
+  plain English on the first pass — short sentences, no coined compound labels
+  ("harden-before-relying-on-as-evidence"), no unexplained jargon; a finding's title is a
+  complete sentence naming what can go wrong, and mechanism detail lives in the evidence
+  citations. The contract binds hand-authored verdicts (the degraded-synthesizer path) too.
+- **`summary` — the bottom line** (required of the synthesizer; optional in the schema):
+  3–6 plain sentences saying what was reviewed, what the board decided, why, and what
+  happens next. Leads `final-consensus.md`, both HTML shapes (inside the verdict banner),
+  and the `tldr`/`pr` short formats. `reviewed` (what the material *is*) now feeds the
+  "What was reviewed" block — previously an echo of the run title — and `verdict_note` is
+  required whenever a native `decision` label is set, so a domain verdict always carries
+  its plain-language translation. All type-checked by `board_verdict.py` when present.
+- **"How the board voted"** — a compact per-seat table (seat, lens, model, per-round vote
+  trajectory, dropped status) in the full handoff, replacing five near-empty seat cards as
+  the at-a-glance seat record.
+- **Per-finding receipts in the HTML**: each finding's evidence trail renders as a
+  collapsed `<details>` block ("Receipts — N citations") under its prose, so the
+  `path:line` record is present without drowning the finding.
 - `run_board.py run --effort SEAT=LEVEL` (repeatable): per-seat reasoning-effort override in each CLI's own vocabulary, targeted by seat id exactly like `--model` (unknown ids fail loudly). Wins over `--tier`'s per-provider base; recorded in the recipe like every resolved per-seat value. Closes the gap where the guided intake promised per-seat effort overrides the conductor couldn't deliver.
+
+### Changed
+- **Full-handoff + quick-verdict HTML redesigned as an editorial document**: one colored
+  moment (the verdict banner), typographic section headings, hairline rules, numbered
+  findings as prose instead of card boxes with circle counters, dissent and amendments as
+  set-off prose with a colored edge instead of tinted boxes, a plain-text masthead meta
+  line instead of chip pills, and a text-link footer CTA. Seat prose (when the run dir
+  carries round files) moves to an appendix — "each seat in its own words" — after the
+  consensus record.
+- **Empty sections now whole-drop on every render**: no more hollow "Dissent & minority
+  report" shells, dangling "— " separators after couldn't-verify items, or vacuous
+  "Round 1 verdict: … full review in `round-1/amb.md`" stub cards when round prose isn't
+  available (the vote table is the record; a filter-emptied section is still accounted for
+  by the loud elision line).
+
+### Fixed
+- A `decision`-carrying verdict rendered with no explanation of what the label meant; the
+  synthesizer contract now demands the note, and the banner renders it.
 
 ## [v1.17.0] - 2026-08-07 — Modes, guided intake, and the Fable seat
 

@@ -763,6 +763,30 @@ class TestPreflight(EnvMixin):
         self.assertFalse(pf.go)
         self.assertEqual(pf.smoke_status, "dropped")
 
+    def test_signed_out_cli_is_nogo_despite_exit_zero(self):
+        # The claude CLI answers any prompt with "Not logged in · Please run
+        # /login" on STDOUT and exits 0, so every mechanical health signal looks
+        # fine. Passing that as GO is what let a real run take consent, spend the
+        # other seats' tokens, and lose this seat at round 1.
+        os.environ["MOCK_CLAUDE_MODE"] = "signed_out"
+        results = {r.seat: r for r in rb.run_preflight(_config())}
+        claude = results["claude"]
+        self.assertFalse(claude.go)
+        self.assertEqual(claude.smoke_status, "dropped")
+        self.assertIn("not signed in", claude.auth.lower())
+        self.assertIn(rb.FAILURE_AUTH, claude.detail)
+
+    def test_signed_out_nogo_names_the_fix(self):
+        os.environ["MOCK_CLAUDE_MODE"] = "signed_out"
+        seat = _config().board[0]
+        pf = rb.preflight_seat(seat, network_on=False, smoke_timeout=5)
+        self.assertIn("fix:", pf.detail)          # the auth hint, not just a verdict
+        self.assertNotIn("token", pf.detail.lower())
+
+    def test_healthy_seat_is_not_flagged_signed_out(self):
+        results = {r.seat: r for r in rb.run_preflight(_config())}
+        self.assertTrue(results["claude"].go)
+
     def test_no_token_in_output(self):
         # auth strings must never look like a secret
         for r in rb.run_preflight(_config()):
@@ -6500,8 +6524,9 @@ class TestRenderVerdict(unittest.TestCase):
             self.assertIn("atomic", claude["rounds"][0]["round_review"])
             self.assertIn("`SET NX`", claude["rounds"][0]["round_review"])
             self.assertNotIn("<code>", claude["rounds"][0]["round_review"])
-            # round 2 had no file -> a markdown pointer, never invented prose
-            self.assertIn("round-2/claude.md", claude["rounds"][1]["round_review"])
+            # round 2 had no file -> the round is omitted (the vote lives in the
+            # seat-votes table; v1.18 renders no "see round-2/claude.md" stub)
+            self.assertEqual(len(claude["rounds"]), 1)
             # end-to-end: render_handoff converts it to real HTML exactly once
             html_out = rh.render(hd, open(rh.default_template()).read())
             self.assertIn("<code>SET NX</code>", html_out)
@@ -6634,9 +6659,11 @@ class TestVerdictLabels(unittest.TestCase):
     def test_handoff_round_pills_follow_lens(self):
         hd = rv.build_handoff_data(_verdict("caution", "caution", "ship",
                                             lens_preset="research-paper"))
-        pills = [r["round_verdict"] for s in hd["seats"] for r in s["rounds"]]
-        self.assertIn("Proceed with care", pills)
-        self.assertIn("Go ahead", pills)
+        # v1.18: with no run-dir prose the seats appendix is empty; the per-round
+        # labels live in the how-the-board-voted table instead.
+        votes = " ".join(v["vote_rounds"] for v in hd["seat_votes"])
+        self.assertIn("Proceed with care", votes)
+        self.assertIn("Go ahead", votes)
 
     def test_authored_verdict_note_wins_over_lens_note(self):
         data = self._plain_verdict()
@@ -6799,7 +6826,7 @@ class TestLensAwareFraming(unittest.TestCase):
     software board (and the absent/None default) stays byte-identical."""
 
     # --- the shared module: directive lead / section heading --------------- #
-    # (The "Final verdict" eyebrow is hardcoded in the template, same for every lens;
+    # (The "The board's verdict" eyebrow is hardcoded in the template, same for every lens;
     #  it now also carries an optional confidence pill — see TestConfidencePill.)
 
     def test_lead_software_and_absent_are_none(self):
@@ -6893,7 +6920,7 @@ class TestLensAwareFraming(unittest.TestCase):
 
     def test_html_non_software_banner_and_heading(self):
         html_out = self._html(self._caution())
-        self.assertIn('<p class="label">Final verdict', html_out)       # eyebrow (now carries the conf pill)
+        self.assertIn('<p class="label">The board\'s verdict', html_out)       # eyebrow (now carries the conf pill)
         self.assertIn("Go ahead, with conditions ·", html_out)          # directive headline
         self.assertIn("<h2>What to resolve first</h2>", html_out)       # lens-aware section
         self.assertNotIn("must fix before ship", html_out)
@@ -6904,7 +6931,7 @@ class TestLensAwareFraming(unittest.TestCase):
                         lens_preset="software-architecture",
                         blockers=[{"title": "x", "body": "y"}])
         html_out = self._html(data)
-        self.assertIn('<p class="label">Final verdict', html_out)
+        self.assertIn('<p class="label">The board\'s verdict', html_out)
         self.assertIn("DO NOT SHIP YET — unanimous", html_out)
         self.assertIn("<h2>Consensus blockers — must fix before ship</h2>", html_out)
         self.assertNotIn("What to resolve first", html_out)
@@ -6929,7 +6956,7 @@ class TestLensAwareFraming(unittest.TestCase):
         del data["confidence"]
         html_out = self._html(data)
         self.assertNotIn('<span class="conf-badge">', html_out)
-        self.assertIn('<p class="label">Final verdict</p>', html_out)
+        self.assertIn('<p class="label">The board\'s verdict</p>', html_out)
         self.assertEqual(rv.build_handoff_data(data)["confidence"], "")
 
 
@@ -7034,7 +7061,7 @@ class TestQuickVerdictShape(unittest.TestCase):
         self.assertIn("Runway", out)                             # a blocker title
         self.assertIn("Dissent on the record", out)              # the dissent flag
         self.assertIn("Build 6 months of runway", out)           # an action line
-        self.assertIn('<p class="label">Final verdict', out)      # brand eyebrow (carries the conf pill)
+        self.assertIn('<p class="label">The board\'s verdict', out)      # brand eyebrow (carries the conf pill)
 
     # --- DROPS the heavy full-handoff sections ------------------------------ #
 
@@ -7143,7 +7170,7 @@ class TestQuickVerdictShape(unittest.TestCase):
         del nc["confidence"]
         out = self._qv(nc)
         self.assertNotIn('<span class="conf-badge">', out)
-        self.assertIn('<p class="label">Final verdict</p>', out)
+        self.assertIn('<p class="label">The board\'s verdict</p>', out)
 
     # --- --shape flag ------------------------------------------------------- #
 
@@ -7164,8 +7191,10 @@ class TestQuickVerdictShape(unittest.TestCase):
 
         slim_html = open(slim).read()
         full_html = open(full).read()
-        self.assertNotIn("Board reviews — round by round", slim_html)
-        self.assertIn("Board reviews — round by round", full_html)
+        # v1.18: the per-seat record in the full handoff is the vote table (the
+        # prose appendix appears only with a --run dir carrying round files).
+        self.assertNotIn("How the board voted", slim_html)
+        self.assertIn("How the board voted", full_html)
 
     def test_html_only_writes_no_stray_markdown(self):
         # Rendering just the brief (--html, no -o) must NOT litter a default
@@ -7698,7 +7727,7 @@ class TestSynthesizerPromptShape(unittest.TestCase):
         # Sha is stable.
         self.assertEqual(rb.synthesizer_template_sha(),
                          rb.synthesizer_template_sha())
-        self.assertEqual(rb.SYNTHESIZER_TEMPLATE_VERSION, "advisory-board/synthesizer@2")
+        self.assertEqual(rb.SYNTHESIZER_TEMPLATE_VERSION, "advisory-board/synthesizer@3")
 
     def test_build_skeleton_per_seat_verdicts_come_from_parse(self):
         config = rb.resolve_config(_args(source=SAMPLE, out=tempfile.mkdtemp(prefix="b-")))
@@ -14128,16 +14157,16 @@ class TestFilterHandoffHtml(unittest.TestCase):
         self.assertIn("rollout aggressiveness", html)
         self.assertNotIn("What the board couldn", html)          # emptied shell gone
 
-    def test_unfiltered_bare_verdict_keeps_empty_shells_byte_identical(self):
-        # D5 gate: the shell-drop fires only on a render whose filter-note is
-        # non-empty. A verdict with no dissent/caveat DATA — unfiltered, or
-        # filtered with nothing to drop — keeps today's bytes exactly, i.e. the
-        # pre-existing empty shells stay.
+    def test_bare_verdict_drops_empty_shells_on_every_filter(self):
+        # v1.18: an EMPTY findings section drops WHOLE on every render, filtered
+        # or not — a hollow "<h2>Dissent…</h2>" shell is template residue, not
+        # honesty. (Honesty is preserved separately: a FILTER-dropped section is
+        # always accounted for by the non-empty {{FILTER_NOTE}} line.)
         bare = _verdict("caution", "caution", "caution", blockers=[{"title": "b"}])
         for filt in ("all", "blockers"):
             html = self._html(bare, "full-handoff", filt)
-            self.assertIn("Dissent &amp; minority report", html, filt)
-            self.assertIn("What the board couldn", html, filt)
+            self.assertNotIn("Dissent &amp; minority report", html, filt)
+            self.assertNotIn("What the board couldn", html, filt)
 
 
 class TestFilterRenderVerdictCli(unittest.TestCase):
@@ -18005,6 +18034,83 @@ class TestStakeholderPanelLens(unittest.TestCase):
         from _conductor.constants import LENS_PRESETS
         expected = LENS_PRESETS["stakeholder-panel"]
         self.assertEqual(lenses, expected)
+
+
+class TestPlainProseFields(unittest.TestCase):
+    """v1.18: the write-for-a-human fields — summary (the bottom line), reviewed
+    (what the material is), verdict_note — across validator and every renderer."""
+
+    def _data(self, **extra):
+        return _verdict("block", "block", "block",
+                        title="T", unanimous=True,
+                        blockers=[{"title": "Thing can break", "body": "Why it matters.",
+                                   "evidence": [{"kind": "code", "path": "a.py", "line": 3}]}],
+                        **extra)
+
+    # --- validator ---
+    def test_prose_fields_type_checked(self):
+        bv.validate(self._data(summary="S.", verdict_note="N.", reviewed="R.", subtitle="U."))
+        for key in ("summary", "verdict_note", "reviewed", "subtitle"):
+            with self.assertRaises(SystemExit) as ctx:
+                bv.validate(self._data(**{key: 7}))
+            self.assertEqual(ctx.exception.code, bv.EXIT_SCHEMA)
+
+    # --- markdown ---
+    def test_md_leads_with_summary_and_reviewed(self):
+        md = rv.render_markdown(self._data(summary="The bottom line.", reviewed="A widget."))
+        self.assertIn("The bottom line.", md)
+        self.assertIn("## What was reviewed", md)
+        self.assertIn("A widget.", md)
+        # the summary reads BEFORE the findings
+        self.assertLess(md.index("The bottom line."), md.index("Thing can break"))
+
+    def test_md_without_summary_unchanged(self):
+        md = rv.render_markdown(self._data())
+        self.assertNotIn("## What was reviewed", md)
+
+    # --- handoff data / HTML ---
+    def test_handoff_data_carries_summary_and_reviewed(self):
+        hd = rv.build_handoff_data(self._data(summary="The bottom line.", reviewed="A widget."))
+        self.assertEqual(hd["summary"], "The bottom line.")
+        self.assertEqual(hd["plan"], "A widget.")
+
+    def test_html_bottom_line_and_plan_render_and_drop(self):
+        import render_handoff as rh
+        template = open(rh.default_template()).read()
+        with_fields = rh.render(rv.build_handoff_data(
+            self._data(summary="The bottom line.", reviewed="A widget.")), template)
+        self.assertIn('<p class="bottom-line">The bottom line.</p>', with_fields)
+        self.assertIn("What was reviewed", with_fields)
+        without = rh.render(rv.build_handoff_data(self._data()), template)
+        self.assertNotIn("bottom-line", without.split("</style>")[1])
+        self.assertNotIn("What was reviewed", without.split("</style>")[1])
+
+    def test_html_vote_table_and_receipts(self):
+        import render_handoff as rh
+        template = open(rh.default_template()).read()
+        html_out = rh.render(rv.build_handoff_data(self._data()), template)
+        body = html_out.split("</style>")[1]
+        self.assertIn("How the board voted", body)
+        self.assertIn("Receipts — 1 citation</summary>", body)
+        # no seat prose -> no appendix, and never a "full review in" stub
+        self.assertNotIn("appendix-reviews", body)
+        self.assertNotIn("Full review in", body)
+
+    def test_html_receiptless_finding_drops_details(self):
+        import render_handoff as rh
+        template = open(rh.default_template()).read()
+        data = self._data()
+        data["blockers"] = [{"title": "No receipt", "body": "b"}]
+        body = rh.render(rv.build_handoff_data(data), template).split("</style>")[1]
+        self.assertNotIn("<details", body)
+
+    # --- short formats ---
+    def test_tldr_and_pr_lead_with_summary(self):
+        data = self._data(summary="The bottom line.")
+        self.assertIn("The bottom line.", fo.as_tldr(data))
+        pr = fo.as_pr(data)
+        self.assertIn("The bottom line.", pr)
+        self.assertLess(pr.index("The bottom line."), pr.index("Thing can break"))
 
 
 if __name__ == "__main__":
