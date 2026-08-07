@@ -5,7 +5,7 @@
     "url": "https://github.com/timharris707"
   },
   "metadata": {
-    "description": "Portable skills for AI agents: a multi-model advisory board for hard decisions, a ten-skill team-workflow pack for tracked, multi-session, agent-assisted development, a media-ingest skill that turns recordings and URLs into evidence, and a reference skill for writing documents agents consume."
+    "description": "Portable skills for AI agents: a multi-model advisory board for hard decisions, an eleven-skill team-workflow pack for tracked, multi-session, agent-assisted development, a media-ingest skill that turns recordings and URLs into evidence, and a reference skill for writing documents agents consume."
   },
   "plugins": [
     {
@@ -23,8 +23,8 @@
       "name": "team-workflow",
       "source": "./",
       "strict": false,
-      "version": "1.2.0",
-      "description": "Ten skills that ship as one pack — a portable discipline for tracked, multi-session, agent-assisted development: a router entry point, a once-per-repo setup interview, relentless grilling, decision maps, throwaway prototypes, autonomous research lanes, ticket filing, human-step wizards, session handoffs, and an orchestration protocol for parallel lanes. Versioned together (team-workflow/vX.Y.Z); this version mirrors the latest pack tag.",
+      "version": "1.3.0",
+      "description": "Eleven skills that ship as one pack — a portable discipline for tracked, multi-session, agent-assisted development: a router entry point, a once-per-repo setup interview, relentless grilling, decision maps, throwaway prototypes, autonomous research lanes, ticket filing, human-step wizards, session handoffs, an orchestration protocol for parallel lanes, and an adversarial review that breaks changes before they ship. Versioned together (team-workflow/vX.Y.Z); this version mirrors the latest pack tag.",
       "license": "MIT",
       "skills": [
         "./skills/orient/router",
@@ -36,7 +36,8 @@
         "./skills/run/to-tickets",
         "./skills/run/wizard",
         "./skills/run/handoff",
-        "./skills/run/orchestrate"
+        "./skills/run/orchestrate",
+        "./skills/run/adversarial-review"
       ]
     },
     {

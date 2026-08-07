@@ -31,7 +31,8 @@ export const PLOT: Record<string, { x: number; y: number; anchor?: "start" | "en
   "to-tickets": { x: 655, y: 290 },
   wizard: { x: 655, y: 415 },
   orchestrate: { x: 830, y: 190 },
-  handoff: { x: 830, y: 320 },
+  "adversarial-review": { x: 830, y: 320, anchor: "end" },
+  handoff: { x: 830, y: 430 },
   "writing-for-agents": { x: 940, y: 490, anchor: "end" },
 };
 
@@ -60,6 +61,7 @@ export const BEARINGS: Array<{ from: string; to: string; note: string }> = [
   { from: "prototype", to: "to-tickets", note: "the verdict" },
   { from: "to-tickets", to: "orchestrate", note: "into lanes" },
   { from: "wizard", to: "orchestrate", note: "human-only steps" },
+  { from: "orchestrate", to: "adversarial-review", note: "lane close-out" },
   { from: "orchestrate", to: "handoff", note: "context fills" },
 ];
 

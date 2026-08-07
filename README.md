@@ -20,9 +20,10 @@
 | [wizard](./skills/run/wizard/SKILL.md) | Generate an interactive bash wizard for the steps only a human can take — vendor dashboards, DNS panels, credentials that must not enter an agent's context. | team-workflow pack |
 | [handoff](./skills/run/handoff/SKILL.md) | Write a structured session handoff — at wrap-up or when context fills — so a fresh session resumes losslessly. | team-workflow pack |
 | [orchestrate](./skills/run/orchestrate/SKILL.md) | Run one session as the orchestrator of parallel working lanes: route tracked items, audit results, own integration — never implement. | team-workflow pack |
+| [adversarial-review](./skills/run/adversarial-review/SKILL.md) | Break the change before it ships: isolated finders, a skeptic pass that kills unproven findings, and a gate only confirmed blockers may hold — run before external reviewers see it. | team-workflow pack |
 | [writing-for-agents](./skills/author/writing-for-agents/SKILL.md) | Write and prune documents an agent consumes — context pointers, the two loads, the information hierarchy, leading words, and the no-op test. | Standalone plugin |
 
-The ten **team-workflow** skills ship and version together as one pack — install them as a set and they cover the full loop of tracked, multi-session, agent-assisted development. **advisory-board** stands alone and works anywhere a hard decision does; **ingest** stands alone and turns media into evidence wherever it lands; **writing-for-agents** stands alone as the standard the rest of this catalog is written against.
+The eleven **team-workflow** skills ship and version together as one pack — install them as a set and they cover the full loop of tracked, multi-session, agent-assisted development. **advisory-board** stands alone and works anywhere a hard decision does; **ingest** stands alone and turns media into evidence wherever it lands; **writing-for-agents** stands alone as the standard the rest of this catalog is written against.
 
 ## Install
 
@@ -33,7 +34,7 @@ Add the marketplace once, then install whichever plugins you want.
 ```text
 /plugin marketplace add timharris707/skills
 /plugin install advisory-board@skills      # the multi-model advisory board
-/plugin install team-workflow@skills       # all ten pack skills as one plugin
+/plugin install team-workflow@skills       # all eleven pack skills as one plugin
 /plugin install ingest@skills              # media → evidence packet + routing
 /plugin install writing-for-agents@skills  # the skill-authoring reference
 ```

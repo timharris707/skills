@@ -5,7 +5,7 @@ description: Entry point for the team-workflow pack — names every pack skill a
 
 # Team-workflow router
 
-One entry point for the **team-workflow** pack: a portable discipline for running tracked, multi-session, agent-assisted development — pressure-testing and decision-making before building, throwaway prototyping, autonomous research, filing the work that comes out of it, wizards for the steps only a human can take, session handoffs, orchestration of parallel lanes, and tracker hygiene that keeps parallel sessions from colliding. Everything repo-specific lives in one binding doc seeded by the setup skill; every skill defers decisions to **the decider**, the role that doc names.
+One entry point for the **team-workflow** pack: a portable discipline for running tracked, multi-session, agent-assisted development — pressure-testing and decision-making before building, throwaway prototyping, autonomous research, filing the work that comes out of it, wizards for the steps only a human can take, adversarial review before changes ship, session handoffs, orchestration of parallel lanes, and tracker hygiene that keeps parallel sessions from colliding. Everything repo-specific lives in one binding doc seeded by the setup skill; every skill defers decisions to **the decider**, the role that doc names.
 
 **First run in a repo? Run `setup` before anything else.** The other skills read the bindings it seeds.
 
@@ -22,6 +22,7 @@ One entry point for the **team-workflow** pack: a portable discipline for runnin
 | [wizard](../../run/wizard/SKILL.md) | The next step is one only a human can take — a vendor dashboard, a registrar's DNS panel, a credential that must not enter an agent's context. Generates an interactive bash wizard that opens each URL, says what to click, captures the values, verifies what it can, and reports what still needs doing by hand. |
 | [handoff](../../run/handoff/SKILL.md) | Context is filling (around half the window), the session is wrapping up, or someone says "checkpoint" / "save state". Writes the structured session handoff — overwrite-don't-append, pointer-not-transcript, NEXT points at the tracker query — so a fresh session resumes losslessly. |
 | [orchestrate](../../run/orchestrate/SKILL.md) | One session should coordinate several — routing tracked items into parallel working lanes, auditing results, owning integration — instead of implementing. Principles plus per-repo binding slots; the single-orchestrator rule applies. |
+| [adversarial-review](../../run/adversarial-review/SKILL.md) | A substantial change is about to be committed, a lane is at close-out, or someone asks to break a diff before it ships. Three isolated finders (correctness, a fitting lens, a spec axis), a skeptic pass that kills unproven findings, a gate only confirmed blockers may hold — run before external reviewers see the change. |
 
 ## Not skills, but in the pack
 
@@ -30,6 +31,6 @@ One entry point for the **team-workflow** pack: a portable discipline for runnin
 
 ## Review discipline: the meta-rule
 
-The pack ships no review checklist, on purpose. The rule that travels: **derive your own defect classes from your own defect history, and admit a class to the checklist only via a live reproduction** — a checklist imported from someone else's war record checks for their bugs, not yours. Start the repo's own list the first time a real defect escapes, and grow it only from evidence.
+The pack ships a review **protocol** — the [adversarial-review](../../run/adversarial-review/SKILL.md) skill — but still no review checklist, on purpose. The rule that travels: **derive your own defect classes from your own defect history, and admit a class to the checklist only via a live reproduction** — a checklist imported from someone else's war record checks for their bugs, not yours. That rule now lives as the skill's defect-class binding slot: each repo's checklist starts empty (or adopts the repo's existing review-standards document) and grows only from evidence.
 
 A sibling of the same meta-rule: **institutional review memory** — review verdicts recorded as per-repo decision entries that later reviews (human and automated) consult before commenting, so settled decisions reopen on new evidence, not on repetition. Repos that already run such a system — a review-response skill with a decision wiki — have the review-RESPONSE stage covered, and this pack deliberately stays out of it: planning, research, prototyping, handoff, and orchestration are the pack's territory; review response belongs to the resident system, and pack outputs should cite that repo's precedent store rather than create a second one.
