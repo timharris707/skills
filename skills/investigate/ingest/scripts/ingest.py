@@ -464,7 +464,15 @@ def srt_to_segments(srt_text: str):
     return segs
 
 
-_SRT_END_RE = re.compile(r"-->\s*(\d+):(\d\d):(\d\d)[,.](\d+)")
+# A structurally valid SRT timing LINE — both timestamps, anchored to the line,
+# minutes/seconds 00-59. Cue TEXT that merely resembles a timestamp, and a
+# malformed end like 00:99:99, must not move the coverage measurement: a
+# fabricated end past true_duration_s would make the gap negative and let a
+# malformed transcript read as complete.
+_SRT_TIMING_RE = re.compile(
+    r"^\s*\d+:[0-5]\d:[0-5]\d[,.]\d+\s*-->\s*(\d+):([0-5]\d):([0-5]\d)[,.](\d+)\s*$",
+    re.MULTILINE,
+)
 
 
 def srt_last_end(srt_text: str):
@@ -474,7 +482,7 @@ def srt_last_end(srt_text: str):
     uncovered. None when nothing parses."""
     ends = [
         int(h) * 3600 + int(m) * 60 + int(s) + int(ms.ljust(3, "0")[:3]) / 1000
-        for h, m, s, ms in _SRT_END_RE.findall(srt_text)
+        for h, m, s, ms in _SRT_TIMING_RE.findall(srt_text)
     ]
     return max(ends) if ends else None
 

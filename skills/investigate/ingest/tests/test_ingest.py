@@ -272,6 +272,35 @@ class TestPacketValidation(unittest.TestCase):
         m.finish("transcribe", [srt])
         self.assertEqual(ing.validate_packet(m, self.dir), [])
 
+    def test_malformed_end_timestamp_does_not_count_as_coverage(self):
+        # 00:99:99 is not a valid SRT time; a cue carrying it must not move the
+        # coverage end (a fabricated end past true duration would make the gap
+        # negative and pass a malformed transcript as complete).
+        m = ing.Manifest(self.dir, identity_hash="abc")
+        srt = self.dir / "transcript.srt"
+        srt.write_text(
+            "1\n00:00:00,000 --> 00:00:05,000\nhello\n"
+            "\n2\n00:00:05,000 --> 00:99:99,000\nbroken\n"
+        )
+        m.finish("probe", [], info={"true_duration_s": 3600})
+        m.finish("transcribe", [srt])
+        problems = ing.validate_packet(m, self.dir)
+        self.assertTrue(any("uncovered" in p for p in problems), problems)
+
+    def test_timestamp_shaped_cue_text_does_not_count_as_coverage(self):
+        # A speaker QUOTING a timing line ("... --> 00:59:00,000") is cue text,
+        # not a cue; only structurally valid timing LINES may move the end.
+        m = ing.Manifest(self.dir, identity_hash="abc")
+        srt = self.dir / "transcript.srt"
+        srt.write_text(
+            "1\n00:00:00,000 --> 00:00:05,000\n"
+            "the cue said 00:00:00,000 --> 00:59:00,000 on screen\n"
+        )
+        m.finish("probe", [], info={"true_duration_s": 3600})
+        m.finish("transcribe", [srt])
+        problems = ing.validate_packet(m, self.dir)
+        self.assertTrue(any("uncovered" in p for p in problems), problems)
+
     def test_srt_with_bytes_but_no_cues_is_a_problem(self):
         m = ing.Manifest(self.dir, identity_hash="abc")
         srt = self.dir / "transcript.srt"
