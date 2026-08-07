@@ -4,6 +4,8 @@ A seat's lens is a **role assignment, not a model**. Any provider can sit in any
 
 Every seat still answers the full brief. The lens reduces blind spots; it doesn't narrow responsibility.
 
+Two seats may share a lens **when they sit on different providers** — that's a cross-model comparison on one axis, and often the point of a bigger board. The same provider carrying the same lens twice adds nothing; give each duplicate-provider seat its own lens.
+
 ## How to use
 
 1. Choose the preset closest to the material (default: `software-architecture`), or compose your own lenses.
@@ -50,6 +52,13 @@ Running via `run_board.py`, the board preset is `--lens <preset>` (it sets the v
 - **Clarity & style** — concision, flow, precision, tone for the audience.
 - **Audience & impact** — does it land, what is missing, what a skeptic seizes on.
 - **Adversarial editor** — test the argument against hostile readings and synthesize the strongest revision.
+
+### `red-team`
+Every seat is hostile by assignment — the preset for stress-testing an artifact (a skill, spec, plan, or document) before you stake something on it. Pair with `--repo` when the artifact lives in a codebase so attacks cite `path:line`.
+- **Correctness attacker** — find the input, state, or sequence that makes it wrong; construct the failing case, don't gesture at it.
+- **Ambiguity attacker** — read it the way a reasonable executor would get it wrong: instructions two readers would follow differently, contradictions, undefined edge behavior.
+- **Security & data-handling attacker** — what leaks, what escalates, what a malicious input or poisoned dependency reaches; secrets, PII, and consent paths first.
+- **Unimagined-failure hunter** — the failure class the author's framing excludes: wrong assumptions about the environment, scale, users, or time.
 
 ### `stakeholder-panel`
 "The room this decision would face" — three distinct stakeholder archetypes, one per seat, in a fixed **seat-order binding**:

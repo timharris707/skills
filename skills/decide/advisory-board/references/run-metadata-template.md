@@ -14,7 +14,7 @@ Tier: <only when --tier was given — the tier name plus the base values it set;
 
 | Seat   | Lens          | Model requested | Model that answered | Reasoning/effort | Auth mode    | Status            |
 | ------ | ------------- | --------------- | ------------------- | ---------------- | ------------ | ----------------- |
-| Claude | architecture  | opus            | <id returned>       | max              | subscription | ran               |
+| Claude | architecture  | fable           | <id returned>       | max              | subscription | ran               |
 | Codex  | impl/testing  | auto            | <id returned>       | xhigh            | subscription | ran               |
 | Gemini | product/ops   | pro             | <id returned>       | HIGH             | subscription | dropped @ round 2 |
 | Grok   | challenger    | grok-4.5        | <id returned>       | high             | subscription | ran               |

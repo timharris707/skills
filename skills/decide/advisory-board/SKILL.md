@@ -1,11 +1,11 @@
 ---
 name: advisory-board
-description: Convene a multi-model advisory board (a round table) where subscription-backed Claude, Codex, Gemini, and Grok CLIs each review the same material independently, debate across rounds by reading one another's findings, and converge on a single working handoff. Use when the user asks for an advisory board, round table, or panel; a multi-model or multi-provider review; a skilled debate among models; an adversarial review of a plan, design, architecture, document, decision, or strategy; an Anthropic/OpenAI/Google/xAI cross-check; or a consensus handoff from several frontier models.
+description: Convene a multi-model advisory board where subscription-backed Claude, Codex, Gemini, and Grok CLIs review the same material in one of three modes — Formal Board Review (independent first round, rebuttal, structured verdict), Roundtable (collaborative judgment and synthesis), or Competitive (rival proposals, critique, and voting) — opening with a mandatory guided intake that settles mode, seats, lenses, and effort with the user before anything runs. Use when the user asks for an advisory board, round table, panel, or idea tournament; a multi-model or multi-provider review; a skilled debate among models; an adversarial review or red-team of a plan, design, architecture, skill, document, decision, or strategy; an Anthropic/OpenAI/Google/xAI cross-check; or a consensus handoff from several frontier models.
 ---
 
 # Advisory Board
 
-Bring an idea, problem, plan, or architecture to a board of frontier models sitting in different roles. Each reviews it independently, then they read and challenge each other across one or more rounds, and you leave with the strongest conclusion the board can reach together and a clean takeaway — not three disconnected opinions.
+Bring an idea, problem, plan, or architecture to a board of frontier models sitting in different roles. The board runs in one of three **modes** — the interaction topology chosen with the user at intake (`references/modes.md`): **Formal Board Review** (the default: independent first round, rebuttal, structured verdict — the protocol this document defines), **Roundtable** (collaborative, shared transcript, optional moderator), or **Competitive** (pitch → critique → blind vote). Whatever the mode, you leave with the strongest conclusion the board can reach together and a clean takeaway — not disconnected opinions.
 
 ## Must Not
 
@@ -17,6 +17,7 @@ Hard rules, collected here so they are never missed (each is elaborated in conte
 - **Never skip the data-handling disclosure** for non-public material — not even when the user says "use defaults." Disclose what leaves the machine and to whom, and get a go-ahead, before any external seat runs (`references/data-handling.md`).
 - **Never present a degraded or dropped seat as a full board** — label it on the seat card and in `verdict.json` (`dropped: true`); a board needs at least two seats that actually ran.
 - **Never print or store secrets** — keys, tokens, cookies, or private environment values — in prompts, packets, artifacts, logs, or metadata.
+- **Never launch a run the user hasn't confirmed.** The guided intake (`references/intake-interview.md`) is mandatory: mode, seats, lenses, effort, rounds, and output are the user's choices, made on the record. "Use defaults" collapses the intake to a single confirm-summary card — never to zero questions.
 
 ## Core Defaults
 
@@ -27,30 +28,33 @@ Hard rules, collected here so they are never missed (each is elaborated in conte
 - Writing artifacts into the reviewed project is itself a write, even on a read-only review: do that only when the user asks or agrees, prefer a dedicated `advisory-board/<timestamp>/` (or `docs/advisory-board/<timestamp>/`) folder, and never write into a tracked git tree without naming the location first.
 - One flag sets the whole cost/depth posture: **`--tier quick|standard|deep`**. `quick` — 1 round, `summaries` cross-reading, reduced per-seat reasoning (claude `high`, codex/grok `medium`; model selectors never change, and seats without an effort knob are untouched). `standard` — today's defaults, a deliberate no-op. `deep` — 3 rounds, `full` cross-reading at the registry's max-tier reasoning (codex stays at `xhigh`; grok stays `high`). The tier is a **base**: explicit flags (`--rounds`, `--cross-reading`) always override it, and `run-recipe.yaml` records the resolved selectors and effort values. Provider-maintained aliases/defaults deliberately re-resolve on a later run; `--model seat=id` is the exact-pin escape hatch. Four frontier models at high reasoning across several rounds can take minutes and meaningful tokens — flag a large run before launching it; `run_board.py run … --dry-run` prints a best-effort estimate. After the run, `run-metadata.md` records what each seat CLI actually reported, where known.
 
-## Upfront Choices
+## Modes
 
-Optionally open with the intake interview (`references/intake-interview.md`) — a short structured Q&A, using the `grilling` or `grill-with-docs` skills as the engine when available — to settle the run. Otherwise ask only for whatever the user hasn't already given:
+The three topologies, their mechanics, hand-runnable protocols for the two the conductor doesn't drive yet, and the intent→mode recommendation table live in `references/modes.md`. In brief: **Formal Board Review** is this document's Round Protocol and everything the conductor, verdict chain, and gate support — the default. **Roundtable** and **Competitive** run by hand via the portable fallback, produce their own artifact sets, and never feed `verdict.json` or a gate. The mode is settled at intake, with the user.
 
-1. Source material: file(s), repo, URL, or goal to review.
-2. Rounds: `1`, `2`, `3`, or `auto` (default `2`; `auto` adapts — see Round Protocol).
-3. Cross-reading: `none`, `summaries`, or `full` (default `summaries`).
-4. Output: `quick verdict`, `full handoff`, or `implementation sequence` (default `full handoff`).
-5. Lens preset: the seat lineup's focus, from `references/lens-presets.md` (default: inferred from the material, falling back to `software-architecture`).
-6. Sensitivity: can the material go to external providers? (`references/data-handling.md` — may force a local-only board.)
-7. Board: seats and size, from `references/board-composition.md` (default: four seats — Claude, Codex, Gemini, Grok).
+## Guided Intake (mandatory)
 
-If the user says "use defaults", stop asking the *optional* setup questions and run with the defaults — with one exception. The data-handling check (choice 6) is mandatory: if the material isn't clearly public, still disclose which providers will receive it and get an explicit go-ahead before launching any external seat (`references/data-handling.md`). "Use defaults" settles the optional choices; it never waives that consent.
+Every run opens with the wizard in `references/intake-interview.md` — presented as selection cards like the `grilling` skill's rounds, recommendation first. The sequence, in order:
+
+1. **Doctor first** — probe every registered seat (`run_board.py doctor`); report per-seat GO/NO-GO in plain terms; for each broken seat offer fix-now (installs/updates only with an explicit yes; auth is always the user's hands), continue-without, or abort. Never offer a seat you haven't confirmed.
+2. **Goal → mode** — hear the goal in the user's words, recommend a mode (and lens preset) from `references/modes.md` §Choosing a mode, and let the user pick from all three.
+3. **Seats** — any 2–10 of the GO providers ("latest frontier of each" is the shortcut); show the seat→provider→lens table before launch; warn on cost for big or deep boards.
+4. **Reasoning depth** — Highest available (default) / Standard / Quick via `--tier`; per-seat overrides on request.
+5. **Rounds and output** — with defaults marked.
+6. **Confirm-summary** — the resolved plan as one card; nothing launches without this yes.
+
+"Use defaults" jumps straight to step 6 with everything resolved to defaults — it never skips the confirmation, and it never waives data-handling consent: if the material isn't clearly public, still disclose which providers will receive it and get an explicit go-ahead before launching any external seat (`references/data-handling.md`).
 
 ## Model Lineup
 
 Target the strongest reasoning model each provider offers **at run time**. Defaults use provider-maintained selectors so new frontier releases do not require a skill edit; explicit `--model seat=id` overrides pin exact IDs.
 
-- Claude seat: Anthropic's maintained `opus` alias (latest Opus) at `--effort max`.
+- Claude seat: Anthropic's maintained `fable` alias (Fable 5 — the Mythos-class tier above Opus, the strongest generally available Anthropic model) at `--effort max`. Where `fable` doesn't resolve (older CLI or account), preflight proposes the `opus` fallback — never applies it silently.
 - Codex seat: the Codex CLI's recommended model (no exact model pin) with `model_reasoning_effort="xhigh"`.
 - Gemini seat: Google's maintained `pro` alias (latest highest-reasoning Pro model) with the CLI's highest available thinking level.
 - Grok seat: `grok-4.5` through the official `grok` CLI at `--effort high`, the highest Grok 4.5 level. xAI retired the `grok-build` alias; `grok models` lists `grok-4.5` alone (verified on CLI 0.2.117, 2026-08-05).
 
-The selector (`opus`, `pro`, `grok-4.5`, or Codex `auto`) and the model that actually answered are separate provenance fields. If a CLI cannot report the resolved ID, record `unknown` rather than pretending. Use an exact `--model` override for an eval or replay that must not float.
+The selector (`fable`, `pro`, `grok-4.5`, or Codex `auto`) and the model that actually answered are separate provenance fields. If a CLI cannot report the resolved ID, record `unknown` rather than pretending. Use an exact `--model` override for an eval or replay that must not float.
 
 Preflight — run `references/preflight.md` before launching: for each seat, check the CLI is present, auth is active (subscription-backed where possible), the requested model resolves, and a one-token smoke ping returns. Proceed only with at least two seats GO; label any degraded or dropped seat in the handoff. In summary:
 
@@ -65,7 +69,7 @@ Preflight — run `references/preflight.md` before launching: for each seat, che
 
 ## Seats
 
-Give each seat a distinct lens so the board covers more ground than any single reviewer, and match the lenses to the subject. Pick a ready-made lens set from `references/lens-presets.md` — `software-architecture` (default), `product-strategy`, `research-paper`, `legal-contract`, `business-decision`, `writing-editing`, `stakeholder-panel` (convene "the room this decision would face") — or compose your own. For software and technical work, the default split:
+Give each seat its own angle so the board covers more ground than any single reviewer, and match the lenses to the subject. Pick a ready-made lens set from `references/lens-presets.md` — `software-architecture` (default), `product-strategy`, `research-paper`, `legal-contract`, `business-decision`, `writing-editing`, `red-team` (every seat hostile — the stress-test preset), `stakeholder-panel` (convene "the room this decision would face") — or compose your own. The same lens on two different providers is a valid cross-model pairing; only same-provider-same-lens wastes a seat. For software and technical work, the default split:
 
 - Claude: architecture, systems, and adversarial design review.
 - Codex: repo-grounded implementation, migration, testing, and execution.
@@ -76,7 +80,7 @@ For non-software subjects (strategy, research, writing, business, policy), assig
 
 Every seat still answers the full brief; the lens reduces blind spots, it doesn't narrow responsibility.
 
-The board defaults to four seats but isn't fixed at four — for sizing (2–5), the same provider in multiple seats (`--board claude,claude,codex` auto-numbers, or `--board econ=claude,risk=claude` aliases — each seat takes its own lens via a repeated `--lens id=…`), a human or local-model seat, an **Antigravity** seat, and minimal "works with what you have" lineups, see `references/board-composition.md`.
+The board defaults to four seats but isn't fixed at four — for sizing (2–10), the same provider in multiple seats (`--board claude,claude,codex` auto-numbers, or `--board econ=claude,risk=claude` aliases — each seat takes its own lens via a repeated `--lens id=…`), a human or local-model seat, an **Antigravity** seat, and minimal "works with what you have" lineups, see `references/board-composition.md`.
 
 ## Data Handling
 
@@ -93,6 +97,8 @@ In **gate mode** (`--repo` on a gate-bearing run), the safety policy is **read X
 **Caveat — what "verified against the repo" does and doesn't mean (§9).** A `verified` stamp means the **receipt resolves** — the cited `path:line` exists and the quoted text is there — **not** that the inference drawn from it is sound. The gate catches fabrication, not grounded-but-wrong reasoning. Two limits follow and must be stated honestly: (1) a **poisoned repo** can make a wrong claim cite a real line, so `verified` on an attacker-controlled tree is not trust; and (2) because the snapshot is **cleaned up after the run**, later re-verification points `--source` at the **live repo**, so a citation that was real at approval can refute later if the tree drifted — `verified` is a statement about the snapshot at approval time, not a standing guarantee. This system also does **not** physically confine a seat's reads to the snapshot — codex's read-only sandbox can read files outside its working directory (R9) — so the snapshot bounds what is **consented to / hashed / verified against**, not what a seat can read; exfil is blocked by D4's network isolation, not by read-confinement.
 
 ## Round Protocol
+
+This section defines **Formal Board Review** — the default mode and the only one the conductor drives end-to-end. Roundtable and Competitive replace it with their own phase structures (`references/modes.md`).
 
 **Rubric-first scoring (`--rubric`, optional — v1.15).** Before round 1, the board can agree its own weighted criteria and then score every round against them, so the verdict is backed by a comparable number as well as prose. Two mechanically-checked passes run first:
 
@@ -177,7 +183,7 @@ Prefer read-only modes. Confirm every flag against the installed CLI (`<cli> --h
 Claude seat:
 
 ```
-claude -p "<seat prompt>" --model opus --effort max --permission-mode plan
+claude -p "<seat prompt>" --model fable --effort max --permission-mode plan
 ```
 
 `-p` runs non-interactively; `--permission-mode plan` keeps it read-only. `--effort max` requests the deepest reasoning the installed build exposes. On long analytic prompts, plan mode can make the seat return a plan-style *summary* (and even claim it wrote a file) instead of the full review — so append the `{{CLAUDE_OUTPUT_OVERRIDE}}` block from `references/prompt-templates.md` verbatim to the Claude seat's prompt, and treat a short or plan-shaped artifact as a degraded seat to re-run.

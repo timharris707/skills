@@ -115,11 +115,12 @@ class TestRegistry(unittest.TestCase):
                          {"claude", "codex", "gemini", "grok", "antigravity", "ollama"})
 
     def test_claude_seat_model_lineup(self):
-        # `opus` is Anthropic's provider-maintained latest-Opus alias.
+        # `fable` is Anthropic's maintained alias for Fable 5 (Mythos tier,
+        # above Opus); `opus` is the ordered fallback preflight proposes.
         a = rb.REGISTRY["claude"]
-        self.assertEqual(a.default_model, "opus")
+        self.assertEqual(a.default_model, "fable")
         self.assertEqual(a.default_reasoning, "max")
-        self.assertEqual(a.fallback_models, ())
+        self.assertEqual(a.fallback_models, ("opus",))
 
     def test_antigravity_flags(self):
         a = rb.REGISTRY["antigravity"]
@@ -146,13 +147,13 @@ class TestRegistry(unittest.TestCase):
         self.assertNotIn("--bare", argv)  # --bare would break subscription auth
 
     def test_claude_default_model_and_max_effort(self):
-        # The Claude seat runs the latest-Opus alias at max effort.
+        # The Claude seat runs the Fable alias at max effort.
         a = rb.REGISTRY["claude"]
-        self.assertEqual(a.default_model, "opus")
+        self.assertEqual(a.default_model, "fable")
         self.assertEqual(a.default_reasoning, "max")
         argv = a.build_argv(a.default_model, "PROMPT", reasoning=a.default_reasoning, network=False)
         self.assertEqual(argv[argv.index("--effort") + 1], "max")
-        self.assertIn("opus", argv)
+        self.assertIn("fable", argv)
 
     def test_claude_advisory_allows_network(self):
         a = rb.REGISTRY["claude"]
@@ -331,7 +332,7 @@ class TestConfig(EnvMixin):
         c = _config(model=["codex=gpt-5.6"])
         models = {s.name: s.model for s in c.board}
         self.assertEqual(models["codex"], "gpt-5.6")
-        self.assertEqual(models["claude"], "opus")
+        self.assertEqual(models["claude"], "fable")
 
     def test_board_subset(self):
         c = _config(board="claude,gemini")
@@ -862,7 +863,7 @@ class TestRunFlow(EnvMixin):
             raw = fh.read()
         self.assertIn("packet-hash", raw)
         self.assertIn("source-hash", raw)
-        self.assertIn("model-answered  : opus", raw)
+        self.assertIn("model-answered  : fable", raw)
 
     def test_preflight_gates_before_egress(self):
         # Two seats down -> NO-GO -> must stop BEFORE writing any egress manifest,
@@ -2218,7 +2219,7 @@ class TestRound1FanOut(EnvMixin):
         self.assertTrue(all(r.usable for r in results))
         self.assertTrue(all(r.attempts == 1 for r in results))
         answered = {r.seat: r.model_answered for r in results}
-        self.assertEqual(answered["claude"], "opus")
+        self.assertEqual(answered["claude"], "fable")
         self.assertIsNone(answered["codex"])
         self.assertEqual(answered["gemini"], "pro")
 
