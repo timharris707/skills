@@ -131,8 +131,21 @@ jobs:
             skill="${tag%/*}"
             version="${tag##*/}"
             git tag -a "$tag" -m "$skill $version (auto-release on merge)" "$GITHUB_SHA"
-            git push origin "refs/tags/$tag"
-            echo "::notice::cut $tag at $GITHUB_SHA"
+            if git push origin "refs/tags/$tag"; then
+              echo "::notice::cut $tag at $GITHUB_SHA"
+              continue
+            fi
+            # A manual push can create the remote tag between our existence
+            # check and this push. Adopt the winner (release-core validates
+            # its annotation and main ancestry); any other push failure is
+            # still fatal.
+            if git fetch --force origin "refs/tags/$tag:refs/tags/$tag" &&
+               git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+              echo "::notice::$tag was pushed concurrently; leaving it in place"
+              continue
+            fi
+            echo "::error::failed to push $tag" >&2
+            exit 1
           done
 
   release:
