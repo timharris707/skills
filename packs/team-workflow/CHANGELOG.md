@@ -14,8 +14,32 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [v1.3.0] - 2026-08-07 — adversarial-review joins the pack
+
 ### Added
 
+- **adversarial-review** — the eleventh pack skill: reviewers whose job is to break a change
+  before it ships, run before external reviewers ever see it. Two layers bound per repo (the
+  floor — the implementing session reviews its own substantial change before committing — and
+  the orchestrator close-out layer, where the implementer never has the last word on its own
+  work). Three isolated finders: a correctness finder, a fitting lens picked from a shipped
+  menu (security, compatibility/migration, money/ledger, concurrency, performance,
+  UI/accessibility), and a spec axis that checks the diff against the originating ticket and
+  reports a missing spec as a finding rather than inventing requirements. Finders read code
+  and run proofs but modify nothing. Every finding above a NIT passes an independent skeptic
+  trying to kill it; BLOCKER rank requires a skeptic-confirmed runnable reproduction. Reports
+  land on the driving ticket/PR with ranked cited findings, the stated composition, and a
+  clean bill of what was checked and found correct; axes are never blended into one verdict.
+  Confirmed blockers gate the commit/merge and only the decider may waive one, on the record.
+  Binding slots: the defect-class file (grown only via live reproduction, proposed in the
+  fixing PR, removed only by extinction sweep), layers, mandatory lenses, live-probe policy,
+  and substantiality rules. Spec axis, finder isolation, and the no-blended-verdict rule
+  adapted from [mattpocock/skills](https://github.com/mattpocock/skills) (MIT).
+- **setup: defect-class checklist template** (`references/templates/defect-classes.md`),
+  seeded only where the repo has no equivalent — a repo with an existing review-standards
+  document adopts it as the binding unchanged. The binding-doc template gains an optional
+  Adversarial review section carrying the skill's binding slots, and the interview offers
+  them as an optional binding.
 - **grilling:** a presentation split for asking a round. Choice-shaped questions go to the
   harness's structured question tool (`AskUserQuestion` in Claude Code) as selectable cards with
   the recommendation marked; open questions keep the ❓/➡️ text block. A frontier wider than the
@@ -25,10 +49,32 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- **router:** the review meta-rule section now points at the adversarial-review skill — the
+  pack ships a review *protocol* but still no review checklist; derive-your-own-classes-via-
+  live-repro lives on as the skill's defect-class binding slot.
+- **orchestrate:** close-outs gain an explicit step — where the repo binds the
+  adversarial-review close-out layer, the review runs against the lane's branch before merge.
 - **grilling, to-tickets:** added Attribution sections naming [mattpocock/skills](https://github.com/mattpocock/skills)
   (MIT) as the source, matching what `wizard` and `writing-for-agents` already carried. Both were
   adapted from it and neither said so. `grilling` follows its original closely enough that the
   section states which parts are his.
+- Marketplace plugin version mirrors the pack tag (1.3.0); the plugin now carries eleven skills.
+
+## [v1.2.0] - 2026-08-05 — grilling, to-tickets, wizard join the pack
+
+_Recorded retroactively: the 1.2.0 plugin-version bump shipped in PR #97 without a matching
+changelog section or pack tag; the tag was cut after the fact on the #97 merge commit._
+
+### Added
+
+- **grilling** — the eighth pack skill: interview the decider relentlessly over a design tree,
+  in rounds, until nothing load-bearing is still assumed. The frontier is every decision whose
+  prerequisites are settled; facts are the agent's job, decisions are the decider's.
+- **to-tickets** — the ninth pack skill: turn a plan, a closed decision map, or a
+  pressure-tested conversation into tracer-bullet work items — issue-as-spec bodies filed in
+  one pass, blocking edges wired in a second. Files and labels; never claims, never decides.
+- **wizard** — the tenth pack skill: generate an interactive bash wizard for procedures only a
+  human can perform — third-party dashboards, credentials, DNS records, CI secrets.
 
 ## [v1.1.0] - 2026-08-01 — handoff + orchestrate siblings
 

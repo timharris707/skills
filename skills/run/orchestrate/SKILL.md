@@ -39,9 +39,10 @@ The human's messages arrive **between turns**. An orchestrator grinding through 
 ## 5. Close-outs (one lane at a time — never two merges racing)
 
 1. **Audit the lane's summary against its verification contract, and never trust self-reported greens.** Re-run the verification in the lane's workspace — directly or through a delegated verifier (**a binding slot**), but re-run it. Require per-command exit codes with zero skipped checks; piped or filtered output is not evidence (a pipeline reports the last command's status, so `<cmd> | tail` reads green whenever `tail` does). Spot-check the verifier's load-bearing claims yourself before merging.
-2. **Surface open adjudications to the decider before merge**, never after. A lane's deviation from a recorded decision goes back to the decider, not silently into the merged result.
-3. Merge per the repo's **merge-flow binding slot** (branch → PR → checks → integrate, or the repo's equivalent), then post the close-out on the tracker item.
-4. **Prune the lane afterward**: workspace, branch, and any per-lane resources the repo provisions. Verify the lane's processes are actually dead yourself before tearing down shared resources — a "servers down" claim from a report is not evidence; a still-live process tree can hold resources and make the teardown fail or, worse, half-succeed.
+2. **Where the repo binds the [adversarial-review skill's](../adversarial-review/SKILL.md) close-out layer, run it here** — against the lane's branch, before merge. The implementer never has the last word on its own work; a confirmed blocker gates the merge and only the decider may waive it.
+3. **Surface open adjudications to the decider before merge**, never after. A lane's deviation from a recorded decision goes back to the decider, not silently into the merged result.
+4. Merge per the repo's **merge-flow binding slot** (branch → PR → checks → integrate, or the repo's equivalent), then post the close-out on the tracker item.
+5. **Prune the lane afterward**: workspace, branch, and any per-lane resources the repo provisions. Verify the lane's processes are actually dead yourself before tearing down shared resources — a "servers down" claim from a report is not evidence; a still-live process tree can hold resources and make the teardown fail or, worse, half-succeed.
 
 ## 6. Wrap-up and succession
 

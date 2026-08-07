@@ -64,6 +64,17 @@ How the pack composes with this repo's resident rule systems. Resident rules win
 - **Ignore entry**: <seeded in `.gitignore` | already present | declined — the entry that keeps the handoff file untracked>
 - **Session-start auto-load hook**: <seeded in `<settings file>` (created fresh if the repo had none) | pending as a snippet with the settings owner (sync-managed settings) | declined>
 
+## Adversarial review (optional — repos running the adversarial-review skill)
+
+<!-- The adversarial-review skill's binding slots. Omit this section if the repo has not
+     bound the skill; the floor layer plus an empty defect-class file is the minimal binding. -->
+
+- **Defect-class file**: <path — seeded from the pack template | adopted: the repo's existing review-standards doc, unchanged>
+- **Layers**: <floor only | floor + orchestrator close-out>
+- **Mandatory lenses**: <path patterns that pin a lens, e.g. "`payments/` always runs the money lens" — or none>
+- **Live-probe policy**: <where proofs may/must touch real services or seeded data, and what is off-limits — or "no live probes">
+- **Substantiality rules**: <changes that are always substantial regardless of implementer judgment — or none pinned>
+
 ## Orchestration (optional — repos running an orchestrator)
 
 <!-- The orchestrate skill's binding slots. Omit this section if no session orchestrates. -->
