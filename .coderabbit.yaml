@@ -1,0 +1,121 @@
+# CodeRabbit configuration — skills catalog (2026-08-07), ported from
+# insight-chat's Aug-2026-schema config and adapted to what this repo is:
+# agent-consumed behavior documents (SKILL.md), their helper scripts, the CI
+# invariant checkers, and the clickai.dev site generated from them.
+#
+# Role: independent second reader at PR time. Posture: NON-BLOCKING — no check
+# runs, no commit status, no Request Changes, never in required checks. Its
+# findings are read and dispositioned by whoever merges; they never gate.
+language: "en-US"
+tone_instructions: "Terse, engineering-grade. Flag only likely defects or violations of the repo invariants below. No style nits, no praise, no restating the diff."
+reviews:
+  profile: "chill"
+  request_changes_workflow: false
+  # All three status surfaces off so CodeRabbit never appears in `gh pr checks`
+  # — non-blocking is structural, not habit (see insight-chat's config for the
+  # schema note: review_progress is the canonical surface and defaults true).
+  review_progress: false
+  commit_status: false
+  fail_commit_status: false
+  high_level_summary: true
+  poem: false
+  path_filters:
+    # Lockfile churn is noise; design/*.md are historical working docs that
+    # deliberately carry pre-restructure paths — flagging them is a known
+    # false positive, not a catch.
+    - "!site/package-lock.json"
+    - "!design/**"
+  auto_review:
+    enabled: true
+    # Docs-only PRs merge in minutes; skip them rather than produce post-merge
+    # commentary. CodeRabbit matches the keyword ANYWHERE in the title
+    # (case-insensitive), so keep the substring "docs:" out of code-PR titles.
+    # The skip-review label is the manual lever when a title can't carry it.
+    ignore_title_keywords:
+      - "docs:"
+    labels:
+      - "!skip-review"
+  finishing_touches:
+    # Suggestions only — no unreviewed bot commits on PRs.
+    autofix:
+      enabled: false
+    fix_ci:
+      enabled: false
+    resolve_merge_conflict:
+      enabled: false
+  path_instructions:
+    - path: "skills/**/SKILL.md"
+      instructions: |
+        These are behavior documents consumed by AI agents (Claude Code and
+        Codex), not prose for humans — wording defects are functional defects.
+        The house standard is skills/author/writing-for-agents/SKILL.md.
+        Flag as likely defects:
+        - An instruction two reasonable readers would execute differently, or
+          two sections that contradict each other (an agent follows whichever
+          it read last).
+        - A "Done when" line that cannot be mechanically evaluated as done or
+          not-done, or a step with no completion criterion at all.
+        - A bare prohibition with no positive target beside it, unless it is
+          a hard guardrail that cannot be phrased positively.
+        - Relative links that do not resolve under the bucket layout
+          (same bucket: ../<name>/SKILL.md; cross-bucket:
+          ../../<bucket>/<name>/SKILL.md).
+        - The frontmatter description missing either half of its contract:
+          what the skill does, then "Use when" trigger branches.
+        - The same rule or meaning stated in two places (in one file or
+          across SKILL.md and its references/) — behavior edits must be
+          one-place edits.
+        - Anything a skill asks the USER to supply that the agent could find
+          itself (file contents, config values, tool versions).
+    - path: "skills/**/scripts/**"
+      instructions: |
+        Helper scripts shipped inside skills. Two catalog invariants:
+        (1) Python standard library ONLY — any third-party import is a defect;
+        shelling out to external binaries (ffmpeg, yt-dlp, gh) is fine when the
+        skill's doctor/preflight checks for them and prints install commands.
+        (2) The skill must still work with scripts/ absent — a SKILL.md step
+        that cannot be performed by hand from the documented fallback is a
+        defect in whichever file lost the fallback.
+        Also flag: silent exception swallowing (failures must be loud),
+        subprocess calls without timeouts, state files written non-atomically
+        where a crash corrupts a resumable run, and secrets or tokens printed
+        or persisted.
+    - path: "scripts/*.py"
+      instructions: |
+        Repo-level CI checkers (freshness, disclosure). Python stdlib only.
+        These run on every PR: flag anything that could make them pass
+        vacuously (a glob that matches nothing, a check that returns OK on an
+        empty input set, an early return that skips enforcement) — a checker
+        that silently checks nothing is worse than no checker.
+        For check_site_disclosure.py specifically: the denylist is salted
+        digests on purpose; flag any change that would put a forbidden term in
+        plaintext anywhere in the repo, including in test fixtures.
+    - path: ".claude-plugin/**"
+      instructions: |
+        Claude marketplace manifest. Flag: a skills path claimed by two
+        plugins, a version bump missing from a PR that changes a plugin's
+        contents, and a plugin description whose skill count or contents no
+        longer match what it claims.
+    - path: ".codex-plugin/**"
+      instructions: |
+        Codex plugin manifest. The skills array must list exactly the set the
+        Claude marketplace claims — CI enforces it, but flag it early. Every
+        listed skill needs agents/openai.yaml with display_name and
+        short_description.
+    - path: "site/src/**"
+      instructions: |
+        Next.js site generated from skills/*/SKILL.md and the manifests. Flag
+        as likely defects:
+        - A hand-maintained list of skills, buckets, or install commands —
+          the site derives these from buckets.json and the marketplace, and a
+          second copy WILL drift. (PLOT/BEARINGS in catalog.ts are the
+          deliberate exception, guarded by a build assertion.)
+        - Content or claims that assert numbers (counts, dates, statistics)
+          inline rather than deriving them — this site corrects itself
+          publicly when wrong, so an unverifiable claim is a liability.
+        - Email addresses anywhere in site source.
+        - CSS custom properties given two-declaration fallbacks for
+          light-dark() — a custom property accepts any token sequence, so the
+          fallback line always wins; the floor lives in @supports not (...).
+chat:
+  auto_reply: true
