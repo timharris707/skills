@@ -58,6 +58,30 @@ export default async function LegendTerm({ params }: Params) {
           </>
         ) : null}
 
+        {entry.sources?.length ? (
+          <>
+            {/* An entry banded "established" says a primary source exists. This
+                is where it has to actually be, or the band is just a font. */}
+            <h3>Sources</h3>
+            <ul>
+              {entry.sources.map((source) => (
+                <li key={source.url}>
+                  {/* `.aside ul li a` drops the underline, which is right for a
+                      list of internal cross-links and wrong here: a citation
+                      nobody can tell is clickable does not get checked. */}
+                  <a
+                    href={source.url}
+                    rel="nofollow noopener"
+                    style={{ textDecoration: "underline" }}
+                  >
+                    {source.label}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </>
+        ) : null}
+
         {related.length > 0 ? (
           <>
             <h3>See also</h3>
