@@ -1,0 +1,127 @@
+name: release-core
+
+# The single implementation of "publish a GitHub release from a skill-scoped
+# version tag". Called from two places:
+#   - release.yml      — a human (or session) pushes <skill>/vX.Y.Z manually
+#   - auto-release.yml — a version bump lands on main and the tag was cut there
+# Tags pushed with GITHUB_TOKEN never fire tag-push workflows, which is why the
+# auto path must call this core directly instead of relying on release.yml.
+#
+# Tag format:  <skill>/vX.Y.Z   e.g.  advisory-board/v0.5.0
+# Release body: that skill's mandatory CHANGELOG.md section for the version,
+#               found at skills/<bucket>/<skill>/CHANGELOG.md or, for a pack,
+#               packs/<pack>/CHANGELOG.md — resolved, not hard-coded, so moving
+#               a skill between buckets never breaks its release.
+# A missing or empty section fails the release. See RELEASING.md.
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: "The skill-scoped version tag to release, e.g. ingest/v1.1.0"
+        required: true
+        type: string
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+
+      # Derive + VALIDATE skill/version from the tag. The tag arrives as a
+      # workflow_call input (safe); downstream steps read these via env, never
+      # via ${{ }} inside a run block, so a crafted tag name can't inject into
+      # the shell.
+      - name: Resolve tag, skill, and version
+        id: meta
+        env:
+          REF_NAME: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          tag="$REF_NAME"
+          skill="${tag%/*}"        # advisory-board/v0.5.0 -> advisory-board
+          version="${tag##*/}"     # advisory-board/v0.5.0 -> v0.5.0
+          if ! printf '%s' "$skill" | grep -Eq '^[a-z0-9][a-z0-9._-]*$'; then
+            echo "::error::tag '$tag' has an unexpected skill segment '$skill'" >&2
+            exit 1
+          fi
+          if ! printf '%s' "$version" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::tag '$tag' is not <skill>/vMAJOR.MINOR.PATCH" >&2
+            exit 1
+          fi
+          # The auto path pushes the tag moments before calling this workflow,
+          # so a fetch-depth:0 checkout may still predate it. Fetch explicitly.
+          git fetch --force origin "refs/tags/$tag:refs/tags/$tag"
+          if [ "$(git cat-file -t "$tag")" != "tag" ]; then
+            echo "::error::$tag must be an annotated tag" >&2
+            exit 1
+          fi
+          git fetch --no-tags origin main:refs/remotes/origin/main
+          if ! git merge-base --is-ancestor "$tag^{commit}" origin/main; then
+            echo "::error::$tag does not point to a commit on origin/main" >&2
+            exit 1
+          fi
+          {
+            echo "tag=$tag"
+            echo "skill=$skill"
+            echo "version=$version"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Extract release notes from the changelog
+        id: notes
+        env:
+          SKILL: ${{ steps.meta.outputs.skill }}
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          set -euo pipefail
+          # Resolution (exactly one changelog, section present exactly once,
+          # non-empty) lives in the shared script — the same code the
+          # auto-release detect job validates with before any tag is cut.
+          python3 scripts/changelog_section.py "$SKILL" "$VERSION" > notes.md
+
+      - name: Publish release from changelog
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.meta.outputs.tag }}
+          SKILL: ${{ steps.meta.outputs.skill }}
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          set -euo pipefail
+          verify_existing_release() {
+            EXPECTED_NAME="$SKILL $VERSION" python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          release = json.loads(Path("existing-release.json").read_text())
+          expected_name = os.environ["EXPECTED_NAME"]
+          expected_body = Path("notes.md").read_text()
+          if release.get("name") != expected_name:
+              raise SystemExit(
+                  f"existing release title mismatch: {release.get('name')!r} != {expected_name!r}"
+              )
+          if release.get("body") != expected_body:
+              raise SystemExit("existing release body does not match the changelog section")
+          PY
+          }
+
+          if gh release view "$TAG" --json name,body > existing-release.json 2>/dev/null; then
+            verify_existing_release
+            echo "::notice::release $TAG already exists with the expected title and notes"
+            exit 0
+          fi
+
+          if gh release create "$TAG" \
+              --title "$SKILL $VERSION" \
+              --notes-file notes.md \
+              --verify-tag; then
+            exit 0
+          fi
+
+          # A duplicated tag event can race between the initial existence check
+          # and creation. Accept that race only when the winning release is exact.
+          gh release view "$TAG" --json name,body > existing-release.json
+          verify_existing_release
+          echo "::notice::a concurrent run created $TAG with the expected title and notes"

@@ -1,0 +1,150 @@
+name: auto-release
+
+# Releasing used to be a manual tag push after merge, and it kept getting
+# missed — four unreleased versions were found on 2026-08-07 alone (#115).
+# This workflow makes the version bump itself the release decision: whenever
+# a push to main touches the marketplace manifest (or the workflow is
+# dispatched by hand to reconcile), every plugin whose `<name>/v<version>`
+# tag or release is missing gets an annotated tag cut at that commit (if
+# needed) and a GitHub release published from its changelog section, via the
+# same release-core.yml the manual tag-push path uses.
+#
+# Ordering matters: detect VALIDATES every needed changelog section (via
+# scripts/changelog_section.py, the same code release-core publishes with)
+# before any tag is cut. A bumped version with a missing/empty section fails
+# the run red on main with nothing tagged — so fixing the changelog and
+# re-triggering (dispatch, or the re-run button) retries cleanly instead of
+# leaving an orphaned tag the next scan would skip forever.
+#
+# Tags created here use GITHUB_TOKEN, whose pushes deliberately fire no
+# tag-push workflows (no recursion); that is why the release job calls
+# release-core.yml directly instead of relying on release.yml.
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".claude-plugin/marketplace.json"
+  workflow_dispatch:
+
+concurrency:
+  group: auto-release
+  cancel-in-progress: false
+
+jobs:
+  detect:
+    # The branches filter only applies to push; gate dispatches off-main too.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      work: ${{ steps.scan.outputs.work }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+
+      - name: Scan marketplace versions against tags and releases
+        id: scan
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git fetch --force --tags origin
+          gh release list --limit 1000 --json tagName --jq '.[].tagName' > released.txt
+          python3 - <<'PY' > work.json
+          import json
+          import re
+          import subprocess
+          import sys
+
+          plugins = json.load(open(".claude-plugin/marketplace.json"))["plugins"]
+          released = set(open("released.txt").read().split())
+          work = []
+          bad = []
+          for p in plugins:
+              name, version = p["name"], p["version"]
+              # Same shape release-core validates; refuse to tag anything else.
+              if not re.fullmatch(r"[a-z0-9][a-z0-9._-]*", name):
+                  raise SystemExit(f"plugin name {name!r} is not tag-safe")
+              if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version):
+                  raise SystemExit(f"plugin {name} version {version!r} is not MAJOR.MINOR.PATCH")
+              tag = f"{name}/v{version}"
+              tag_exists = subprocess.run(
+                  ["git", "rev-parse", "-q", "--verify", f"refs/tags/{tag}"],
+                  capture_output=True,
+              ).returncode == 0
+              if tag_exists and tag in released:
+                  continue
+              # Validate the changelog section NOW, before anything is tagged:
+              # a red run with nothing tagged retries cleanly; a pushed tag
+              # with no publishable notes would be skipped by every future
+              # scan. Same script release-core publishes with.
+              check = subprocess.run(
+                  ["python3", "scripts/changelog_section.py", name, f"v{version}"],
+                  capture_output=True,
+                  text=True,
+              )
+              if check.returncode != 0:
+                  bad.append(check.stderr.strip() or f"{tag}: changelog validation failed")
+                  continue
+              work.append(tag)
+          if bad:
+              for line in bad:
+                  print(f"::error::{line}", file=sys.stderr)
+              raise SystemExit("refusing to tag: fix the changelog section(s) and re-run")
+          print(json.dumps(work))
+          PY
+          echo "work=$(cat work.json)" >> "$GITHUB_OUTPUT"
+          echo "Tags/releases to reconcile: $(cat work.json)"
+
+  tag:
+    needs: detect
+    if: needs.detect.outputs.work != '[]'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+
+      - name: Cut missing annotated tags at this commit
+        env:
+          WORK: ${{ needs.detect.outputs.work }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch --force --tags origin
+          printf '%s' "$WORK" | python3 -c 'import json,sys; print("\n".join(json.load(sys.stdin)))' |
+          while IFS= read -r tag; do
+            [ -n "$tag" ] || continue
+            # Reconciliation entries (tag exists, release missing) and races
+            # with a concurrent manual push both land here; skip, don't fail.
+            if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+              echo "::notice::$tag already exists; leaving it in place"
+              continue
+            fi
+            skill="${tag%/*}"
+            version="${tag##*/}"
+            git tag -a "$tag" -m "$skill $version (auto-release on merge)" "$GITHUB_SHA"
+            git push origin "refs/tags/$tag"
+            echo "::notice::cut $tag at $GITHUB_SHA"
+          done
+
+  release:
+    needs: [detect, tag]
+    if: needs.detect.outputs.work != '[]'
+    permissions:
+      contents: write
+    strategy:
+      matrix:
+        tag: ${{ fromJSON(needs.detect.outputs.work) }}
+      fail-fast: false
+      max-parallel: 1
+    uses: ./.github/workflows/release-core.yml
+    with:
+      tag: ${{ matrix.tag }}
