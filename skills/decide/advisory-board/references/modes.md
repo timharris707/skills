@@ -41,7 +41,7 @@ Everyone sees everything; the value is accumulation, not independence.
 
 Three fixed phases; the output is a ranked field of ideas, not a consensus.
 
-**Minimum three seats.** With two, each voter has exactly one eligible pitch (its own is excluded), so every tally is 1–1 by construction. The intake refuses a two-seat Competitive run and offers a third seat or Formal Board Review instead.
+**Minimum three seats — through the pitch phase.** With two pitches, each voter has exactly one eligible pitch (its own is excluded), so every tally is 1–1 by construction. The intake refuses a two-seat Competitive run and offers a third seat or Formal Board Review instead; and if drops leave fewer than three pitches in the field at the end of the pitch phase, stop and report rather than vote. A seat that drops *after* pitching leaves its pitch votable, so the run continues — its missing critique and vote are stated in `results.md`.
 
 **Mechanics.**
 
