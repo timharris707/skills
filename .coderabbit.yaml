@@ -18,6 +18,10 @@ reviews:
   commit_status: false
   fail_commit_status: false
   high_level_summary: true
+  # Without this, the summary is appended to the PR DESCRIPTION — an edit to
+  # the PR body, which breaks the comments-only posture. In the walkthrough
+  # comment it stays a comment. CodeRabbit itself flagged this on PR #103.
+  high_level_summary_in_walkthrough: true
   poem: false
   path_filters:
     # Lockfile churn is noise; design/*.md are historical working docs that
