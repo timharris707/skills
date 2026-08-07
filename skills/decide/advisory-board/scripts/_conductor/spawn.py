@@ -34,6 +34,7 @@ __all__ = [
     "RETRYABLE_FAILURES",
     "_AUTH_FAILURE_SIGNALS",
     "auth_failed",
+    "smoke_auth_failed",
     "classify_round1",
     "classify_ask",
 ]
@@ -183,6 +184,30 @@ _AUTH_FAILURE_SIGNALS = (
 def auth_failed(stderr: str) -> bool:
     blob = stderr.lower()
     return any(sig in blob for sig in _AUTH_FAILURE_SIGNALS)
+
+
+# A CLI that is installed but SIGNED OUT may answer on stdout and exit 0 — the
+# claude CLI replies to any prompt with "Not logged in · Please run /login",
+# rc 0, empty stderr. Every health signal the classifier reads therefore looks
+# fine, so preflight reports GO, consent is taken, the other seats spend their
+# tokens, and the seat dies at round 1. Only the text gives it away.
+_SIGNED_OUT_SIGNALS = _AUTH_FAILURE_SIGNALS + (
+    "not logged in", "please run /login", "log in to continue",
+    "run `claude` and sign in", "you are not signed in",
+)
+
+
+def smoke_auth_failed(result: SpawnResult) -> bool:
+    """Signed-out screen for the PREFLIGHT SMOKE PATH ONLY.
+
+    Scans stdout as well as stderr, which is safe *here and nowhere else*: the
+    smoke ping answers a fixed SMOKE_PROMPT, so its stdout cannot be poisoned by
+    material under review (the same exception `model_not_found(include_stdout=
+    True)` takes). Never call this on a round's output — a review of an auth
+    system would trip it.
+    """
+    blob = (result.stdout + "\n" + result.stderr).lower()
+    return any(sig in blob for sig in _SIGNED_OUT_SIGNALS)
 
 
 def classify_round1(result: SpawnResult, adapter: SeatAdapter) -> tuple:
