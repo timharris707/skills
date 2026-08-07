@@ -44,7 +44,7 @@ Findings from a finder are hypotheses, not evidence. **Every finding above a NIT
 
 The report lands **on the driving ticket or PR** (session output only when no tracked item exists) and carries:
 
-- Findings ranked **BLOCKER / MAJOR / MINOR / NIT**, each with a citation — file:line and the failing scenario, plus the repro for blockers. A finding without a citation does not count.
+- Findings ranked **BLOCKER / MAJOR / MINOR / NIT**, each with a citation — file:line and the failing scenario, plus the repro for blockers — and its skeptic outcome (confirmed, or surviving-unproven for a downgraded would-be blocker). A finding without a citation does not count.
 - The finder composition: which lens ran and why, and whether the spec axis had a spec.
 - **The clean bill** — what was specifically checked and found correct. A clean bill on a named hazard is as durable as a finding: it prevents the next reviewer from re-litigating settled ground.
 

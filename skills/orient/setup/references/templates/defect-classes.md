@@ -4,14 +4,8 @@
      Every finder loads this file. It records defect classes PROVEN IN THIS REPO —
      nothing imported, nothing hypothetical. -->
 
-The rules that keep this file honest (from the adversarial-review skill):
-
-1. A class is admitted **only via a live reproduction** — a defect that actually
-   occurred, reproduced, in this repo.
-2. The fixing session proposes the class **in the same PR that fixes the defect**,
-   so the class lands with its proof and rides normal review.
-3. A class is removed **only by an extinction sweep** — evidence the pattern is gone
-   from the codebase, never "we haven't seen it lately."
+The admission and removal rules live in one place — the adversarial-review skill
+(§ The defect-class checklist) — and are not restated here. This file is data only.
 
 An empty list is the correct starting state: it fills at the speed real defects
 escape.
