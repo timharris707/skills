@@ -27,8 +27,10 @@ yt-dlp --no-playlist -f 'bv*[height<=1080]+ba/b' -o 'media/source.%(ext)s' "<url
 **3. True duration.** Decode; never trust the container:
 
 ```bash
-ffmpeg -nostdin -i media/<file> -f null -    # real duration = the final time= on stderr
+ffmpeg -nostdin -i media/<file> -f null - ; echo "exit=$?"   # duration = final time= on stderr
 ```
+
+**Check that exit code.** A truncated file still prints timestamps up to the point it broke, so a non-zero exit with a plausible-looking `time=` is exactly how a corrupt recording becomes a confident wrong duration that every later stage inherits. Non-zero means stop, not "use the last number".
 
 **4. Audio.** `ffmpeg -nostdin -y -i media/<file> -vn -ar 16000 -ac 1 audio.wav`
 
@@ -59,7 +61,7 @@ Merged from four `video-review` runs (loanmeld) and the first `playtest-review` 
 
 - **Zoom containers lie about duration** — 36 hours reported for a 20-minute file. The decode-to-null number is authoritative; treat a >5% disagreement as the container lying, not the decode failing.
 - **Whisper batching mislabels outputs.** One media file per invocation, proven the hard way. This is also why TXT derives from the SRT — a second transcription is a second chance to diverge.
-- **Whisper hallucinates loops over silence** — the same sentence repeated for minutes of quiet. Collapse ≥3 consecutive identical segments into one plus a `[silence/no speech MM:SS–MM:SS]` note.
+- **Whisper hallucinates loops over silence** — the same sentence repeated for minutes of quiet. Collapse such a run **only in the derived reading copy**, and only when it both repeats ≥3 times and spans ≥20s: three quick "yes"es are speech, the same line held for half a minute is the model looping. Label it as a collapsed repeat pointing at the SRT, never as `[silence]` — the audio was never checked, and asserting silence puts a claim in the transcript that nothing verified. `transcript.srt` keeps the raw output and is the record for exact wording.
 - **Scene-change scoring misfires on screen shares.** Scroll bursts read as scene changes and flood the output. The useful boundary on a screen share is a *freeze ending* — the screen changed after sitting still — which `freezedetect` catches and scene scoring drowns.
 - **Provider captions garble proper names** — "Matt PCO" for Matt Pocock, "clot code" for Claude Code, "codeex" for Codex. Preview and triage only; every quotation comes from whisper.
 - **TCC hides files from `test -e` too.** A path that "doesn't exist" under a protected folder may stage fine through Finder — try before concluding the file is gone.

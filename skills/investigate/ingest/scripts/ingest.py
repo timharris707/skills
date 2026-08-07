@@ -6,18 +6,24 @@ timestamped frames with a manifest, true duration, and (for URLs) an instant
 caption preview. Python 3 standard library only; shells out to ffmpeg/ffprobe,
 yt-dlp, and uvx (mlx-whisper).
 
-Stages are resumable: each writes its output and records completion in
-manifest.json, and a re-run with the same --out skips what already finished.
-A 90-minute video that fails at transcription never re-downloads.
+Stages are resumable, but resume is bound to IDENTITY: the run's input,
+intent, and processing options are fingerprinted, and a re-run whose
+fingerprint differs is refused rather than allowed to mix two sources'
+evidence in one packet. A 90-minute video that fails at transcription never
+re-downloads; a *different* video pointed at the same --out never inherits
+the first one's transcript.
 
 Hard-won rules encoded here so no agent re-derives them:
   * Container duration lies (Zoom reports 36h for a 20-min file) — the real
-    number comes from decoding the stream, never from metadata.
+    number comes from decoding the stream, never from metadata. A decode
+    that exits non-zero is a failure, not a duration.
   * Whisper runs once per media file, on one file per invocation. Batching
     mislabels outputs. One transcription produces the SRT; TXT is derived
     from it rather than transcribed a second time.
-  * Whisper hallucinates loops over silence — repeated identical segments
-    are collapsed into a single [silence/no speech] note.
+  * Whisper hallucinates loops over silence — long runs of identical
+    segments are collapsed in the DERIVED reading copy only, labelled as
+    collapsed repeats (never asserted as silence). transcript.srt keeps the
+    raw model output and is the record for exact wording.
   * Scene-change scoring misfires on screen shares (scroll bursts). Coverage
     comes from a fixed 10s ladder; extras come from transcript signals and
     freeze-boundary detection, not scene scores.
@@ -29,13 +35,15 @@ Hard-won rules encoded here so no agent re-derives them:
 Usage:
   ingest.py doctor
   ingest.py preview --url URL --out DIR
-  ingest.py run --input PATH_OR_URL --intent INTENT --out DIR
+  ingest.py run --input PATH_OR_URL --intent INTENT --goal "why" --out DIR
                 [--no-frames] [--keep-media] [--ladder SECONDS]
 
 Exit codes: 0 ok · 1 stage failed · 2 bad arguments · 3 missing tools
+             4 identity mismatch (refused to mix sources in one packet)
 """
 
 import argparse
+import hashlib
 import json
 import re
 import shutil
@@ -45,6 +53,7 @@ import time
 import urllib.parse
 from pathlib import Path
 
+SCRIPT_VERSION = 2
 WHISPER_MODEL = "mlx-community/whisper-large-v3-turbo"
 INTENTS = ("call", "playtest", "demo", "memo", "triage", "reference")
 # memo is audio-thinking aloud: frames are noise. Everything else gets them
@@ -58,6 +67,12 @@ SIGNAL_RE = re.compile(
     re.IGNORECASE,
 )
 MAX_EXTRA_FRAMES = 240
+# A repeated-line run is only treated as a transcription loop when it also
+# spans real time. Three quick "yes"es are speech; the same line held for
+# half a minute is the model looping over silence.
+MIN_LOOP_REPEATS = 3
+MIN_LOOP_SPAN_S = 20
+EXIT_IDENTITY_MISMATCH = 4
 
 
 def log(msg: str) -> None:
@@ -112,10 +127,17 @@ def doctor(quiet: bool = False) -> bool:
 
 
 class Manifest:
-    """Run state: stage completion, artifacts, provenance. One JSON file."""
+    """Run state: stage completion, artifacts, provenance. One JSON file.
 
-    def __init__(self, out_dir: Path):
+    Completion is DECLARED, never inferred: a stage carries an explicit
+    status (ok | skipped) plus the identity fingerprint it ran under. An
+    empty artifact list therefore means "this stage produced no files",
+    not "this stage is vacuously finished".
+    """
+
+    def __init__(self, out_dir: Path, identity_hash: str | None = None):
         self.path = out_dir / "manifest.json"
+        self.identity_hash = identity_hash
         self.data = {}
         if self.path.exists():
             try:
@@ -136,16 +158,81 @@ class Manifest:
         rec = self.data["stages"].get(stage)
         if not rec:
             return False
-        # A stage is only done if every artifact it recorded still exists.
+        # Legacy records (written before stage status existed) are never
+        # reused — an unlabelled stage cannot prove what it ran against.
+        if rec.get("status") not in ("ok", "skipped"):
+            return False
+        # A stage may only be reused by a run with the same identity.
+        if self.identity_hash and rec.get("identity") != self.identity_hash:
+            return False
         return all(Path(p).exists() for p in rec.get("artifacts", []))
 
-    def finish(self, stage: str, artifacts=(), **extra) -> None:
+    def artifacts(self, stage: str) -> list:
+        rec = self.data["stages"].get(stage) or {}
+        return [Path(p) for p in rec.get("artifacts", [])]
+
+    def finish(self, stage: str, artifacts=(), status: str = "ok", **extra) -> None:
         self.data["stages"][stage] = {
+            "status": status,
+            "identity": self.identity_hash,
             "artifacts": [str(a) for a in artifacts],
             "at": time.strftime("%Y-%m-%dT%H:%M:%S"),
             **extra,
         }
         self.save()
+
+
+# -------------------------------------------------------------- identity ---
+
+
+def run_identity(args) -> dict:
+    """What this packet is evidence OF, plus how it was processed. Any change
+    here invalidates every stage — the alternative is a packet whose transcript
+    and frames came from a different source than its manifest claims."""
+    ident = {
+        "input": args.input,
+        "intent": args.intent,
+        "ladder_s": args.ladder,
+        "frames": not args.no_frames,
+        "whisper_model": WHISPER_MODEL,
+        "script_version": SCRIPT_VERSION,
+    }
+    if not is_url(args.input):
+        # Local files can be edited or swapped under a stable name; size and
+        # mtime catch that without hashing gigabytes. A TCC-hidden file simply
+        # contributes no stat fields — staging still verifies it downstream.
+        try:
+            st = Path(args.input).expanduser().stat()
+            ident["source_size"] = st.st_size
+            ident["source_mtime_ns"] = st.st_mtime_ns
+        except OSError:
+            pass
+    return ident
+
+
+def identity_hash(ident: dict) -> str:
+    blob = json.dumps(ident, sort_keys=True).encode()
+    return hashlib.sha256(blob).hexdigest()[:16]
+
+
+def claim_out_dir(out_dir: Path) -> None:
+    """A run directory is tool-owned. Adopting a directory this script did not
+    create is refused — retention deletes files inside it later, and a stray
+    --out must never put a user's own folder in that path."""
+    marker = out_dir / ".ingest-run"
+    if out_dir.exists() and any(out_dir.iterdir()) and not marker.exists():
+        die(
+            f"{out_dir} is not empty and was not created by ingest.\n"
+            "Refusing to adopt it: this tool deletes files under its own run "
+            "directory. Point --out at a new directory.",
+            2,
+        )
+    out_dir.mkdir(parents=True, exist_ok=True)
+    if not marker.exists():
+        marker.write_text(
+            f"created by ingest.py v{SCRIPT_VERSION} at "
+            f"{time.strftime('%Y-%m-%dT%H:%M:%S')}\n"
+        )
 
 
 # --------------------------------------------------------------- staging ---
@@ -155,23 +242,31 @@ def is_url(s: str) -> bool:
     return urllib.parse.urlparse(s).scheme in ("http", "https")
 
 
-def stage_local(src: Path, out_dir: Path) -> Path:
+def applescript_str(p) -> str:
+    """Escape a path for interpolation into an AppleScript string literal.
+    A quote or backslash in a filename would otherwise end the literal and
+    let the rest of the name be read as script."""
+    return str(p).replace("\\", "\\\\").replace('"', '\\"')
+
+
+def stage_local(src: Path, out_dir: Path, manifest: Manifest) -> Path:
     """Copy a local file into the run dir. TCC-protected paths (Dropbox,
     Documents, Downloads) refuse plain reads even unsandboxed; the working
     route is asking Finder to do the copy."""
+    if manifest.done("stage"):
+        return manifest.artifacts("stage")[0]
     dest = out_dir / "media" / src.name
     dest.parent.mkdir(parents=True, exist_ok=True)
-    if dest.exists() and dest.stat().st_size > 0:
-        return dest
     try:
         shutil.copy2(src, dest)
+        manifest.finish("stage", [dest], source=str(src))
         return dest
     except (PermissionError, OSError) as e:
         log(f"plain copy refused ({e.__class__.__name__}) — trying Finder")
     script = (
         'tell application "Finder" to duplicate '
-        f'(POSIX file "{src}" as alias) to '
-        f'(POSIX file "{dest.parent}" as alias) with replacing'
+        f'(POSIX file "{applescript_str(src)}" as alias) to '
+        f'(POSIX file "{applescript_str(dest.parent)}" as alias) with replacing'
     )
     r = run_cmd(["osascript", "-e", script], timeout=600)
     if r.returncode != 0 or not dest.exists():
@@ -182,6 +277,7 @@ def stage_local(src: Path, out_dir: Path) -> Path:
             "(not online-only), and that the folder name uses ':' where "
             "Finder displays '/'."
         )
+    manifest.finish("stage", [dest], source=str(src), via="finder")
     return dest
 
 
@@ -189,13 +285,10 @@ def fetch_url(url: str, out_dir: Path, manifest: Manifest) -> Path:
     """Download a URL's media via yt-dlp, capped at 1080p to keep it fast."""
     media_dir = out_dir / "media"
     media_dir.mkdir(parents=True, exist_ok=True)
-    existing = [
-        p
-        for p in media_dir.iterdir()
-        if p.suffix in (".mp4", ".mkv", ".webm", ".m4a", ".mp3", ".wav", ".opus")
-    ]
-    if manifest.done("fetch") and existing:
-        return existing[0]
+    # Reuse only the file this run's manifest actually recorded — never
+    # "whatever media file happens to sit in the directory".
+    if manifest.done("fetch"):
+        return manifest.artifacts("fetch")[0]
     log(f"downloading {url}")
     r = run_cmd(
         [
@@ -304,6 +397,15 @@ def probe(media: Path, out_dir: Path, manifest: Manifest) -> dict:
         ["ffmpeg", "-nostdin", "-i", str(media), "-f", "null", "-"],
         timeout=7200,
     )
+    # A non-zero decode still prints timestamps up to the point it broke, so
+    # trusting the last one would turn a truncated file into a confident wrong
+    # duration — and every downstream stage would inherit it.
+    if d.returncode != 0:
+        die(
+            "media did not decode completely — the duration cannot be trusted "
+            f"(ffmpeg exit {d.returncode}). The file is likely truncated or "
+            f"corrupt.\n{d.stderr.strip()[-1500:]}"
+        )
     times = re.findall(r"time=(\d+):(\d\d):(\d\d(?:\.\d+)?)", d.stderr)
     if not times:
         die("could not decode media for duration — file may be corrupt")
@@ -319,7 +421,6 @@ def probe(media: Path, out_dir: Path, manifest: Manifest) -> dict:
         "container_duration_s": round(container_dur, 2),
         "has_video": has_video,
     }
-    manifest.data["stages"]["probe"] = {"artifacts": [], "info": info}
     manifest.finish("probe", [], info=info)
     return info
 
@@ -363,27 +464,34 @@ def srt_to_segments(srt_text: str):
     return segs
 
 
-def collapse_hallucinations(segs):
-    """Whisper loops the same line over silence. Three or more consecutive
-    identical texts collapse into one segment plus a silence note."""
-    out, i = [], 0
+def collapse_repeats(segs):
+    """Whisper loops one line over silence. Collapse such a run in the DERIVED
+    reading copy — but only when it repeats enough AND spans enough time to be
+    a loop rather than real repetition, and label it as a collapsed repeat.
+    Asserting "silence" would put a claim in the transcript that the audio was
+    never checked for; genuine repeated speech is a normal thing to say."""
+    out, i, collapsed = [], 0, 0
     while i < len(segs):
         j = i
         while j + 1 < len(segs) and segs[j + 1][1] == segs[i][1]:
             j += 1
-        if j - i >= 2:
+        span = segs[j][0] - segs[i][0]
+        if (j - i + 1) >= MIN_LOOP_REPEATS and span >= MIN_LOOP_SPAN_S:
             out.append(segs[i])
             out.append(
                 (
                     segs[i + 1][0],
-                    f"[silence/no speech {segs[i+1][0]//60}:{segs[i+1][0]%60:02d}"
-                    f"–{segs[j][0]//60}:{segs[j][0]%60:02d}]",
+                    f"[same line repeated {j - i + 1}× to "
+                    f"{segs[j][0]//60}:{segs[j][0]%60:02d} — collapsed; "
+                    f"likely a transcription loop over silence, "
+                    f"verify in transcript.srt]",
                 )
             )
+            collapsed += 1
         else:
             out.extend(segs[i : j + 1])
         i = j + 1
-    return out
+    return out, collapsed
 
 
 def transcribe(wav: Path, out_dir: Path, manifest: Manifest) -> tuple:
@@ -409,13 +517,41 @@ def transcribe(wav: Path, out_dir: Path, manifest: Manifest) -> tuple:
         die(f"whisper failed:\n{(r.stderr or r.stdout).strip()[-2000:]}")
     produced.replace(srt)
 
-    segs = collapse_hallucinations(srt_to_segments(srt.read_text()))
+    raw = srt_to_segments(srt.read_text())
+    segs, collapsed = collapse_repeats(raw)
+    header = (
+        "# Reading copy — DERIVED from transcript.srt (raw whisper output).\n"
+        "# transcript.srt is the record for exact wording; repeated-line runs\n"
+        "# are collapsed here and marked inline.\n\n"
+    )
+    if not raw:
+        # A silent recording is legitimate; a silently-empty transcript that
+        # still reports success is not. Say so in the file and the manifest.
+        log("WARNING: whisper returned no speech segments — recording the "
+            "packet as no-speech rather than reporting a transcript")
+        note = "[no speech detected in this recording]"
+        txt.write_text(note + "\n")
+        reading.write_text(header + note + "\n")
+        manifest.finish(
+            "transcribe", [srt, txt, reading], segments=0, no_speech=True
+        )
+        return srt, txt, reading
+
     txt.write_text("\n".join(t for _, t in segs))
     reading.write_text(
-        "\n".join(f"[{ts//60}:{ts%60:02d}] {t}" for ts, t in segs)
+        header + "\n".join(f"[{ts//60}:{ts%60:02d}] {t}" for ts, t in segs)
     )
-    manifest.finish("transcribe", [srt, txt, reading], segments=len(segs))
-    log(f"transcript ready: {len(segs)} segments")
+    manifest.finish(
+        "transcribe",
+        [srt, txt, reading],
+        segments=len(segs),
+        raw_segments=len(raw),
+        collapsed_runs=collapsed,
+    )
+    log(
+        f"transcript ready: {len(segs)} segments"
+        + (f" ({collapsed} repeated run(s) collapsed)" if collapsed else "")
+    )
     return srt, txt, reading
 
 
@@ -486,17 +622,24 @@ def extract_frames(media, out_dir, manifest, duration, srt, ladder=10):
     if len(extras) > MAX_EXTRA_FRAMES:
         log(f"capping extras at {MAX_EXTRA_FRAMES} (had {len(extras)})")
         extras = extras[:MAX_EXTRA_FRAMES]
+    written = 0
     for ts, why in extras:
         name = f"extra_{int(ts):06d}.jpg"
-        run_cmd(
+        r = run_cmd(
             [
                 "ffmpeg", "-nostdin", "-y", "-ss", str(ts), "-i", str(media),
                 "-frames:v", "1", str(frames_dir / name),
             ],
             timeout=120,
         )
-        if (frames_dir / name).exists():
+        # Count what landed on disk, not what was scheduled: a failed grab
+        # that still inflates the manifest makes coverage look better than
+        # it is, and the manifest is what the reader trusts.
+        if r.returncode == 0 and (frames_dir / name).exists():
             frames.append({"file": f"frames/{name}", "ts": ts, "why": why})
+            written += 1
+        else:
+            log(f"note: could not grab extra frame at {ts:.0f}s — skipped")
 
     frames.sort(key=lambda f: f["ts"])
     manifest.data["frames"] = frames
@@ -504,9 +647,10 @@ def extract_frames(media, out_dir, manifest, duration, srt, ladder=10):
         "frames",
         [frames_dir / Path(f["file"]).name for f in frames],
         ladder_s=ladder,
-        extras=len(extras),
+        extras_scheduled=len(extras),
+        extras_written=written,
     )
-    log(f"frames ready: {len(frames)} total ({len(extras)} extras)")
+    log(f"frames ready: {len(frames)} total ({written} extras)")
 
 
 # ------------------------------------------------------------------- run ---
@@ -526,16 +670,88 @@ def tool_versions() -> dict:
     return out
 
 
+def discard_media(out_dir: Path, manifest: Manifest, wav: Path) -> None:
+    """Delete only the media files THIS run recorded creating. The run
+    directory belongs to the tool, but a blanket rmtree of media/ would still
+    take anything else that landed there — deletion is by ledger, not by
+    directory name."""
+    removed = 0
+    for stage in ("fetch", "stage"):
+        for path in manifest.artifacts(stage):
+            if path.exists() and path.is_file():
+                path.unlink()
+                removed += 1
+    if wav.exists():
+        wav.unlink()
+        removed += 1
+    media_dir = out_dir / "media"
+    if media_dir.is_dir() and not any(media_dir.iterdir()):
+        media_dir.rmdir()
+    elif media_dir.is_dir():
+        log(f"note: {media_dir} still holds files this run did not create — left alone")
+    manifest.data["media_discarded"] = True
+    manifest.save()
+    log(f"re-fetchable source: {removed} media file(s) discarded "
+        "(transcript + frames kept)")
+
+
+def validate_packet(manifest: Manifest, out_dir: Path) -> list:
+    """Re-derive completion instead of trusting the control flow that produced
+    it. Returns the problems found; an empty list is what 'complete' means."""
+    problems = []
+    discarded = manifest.data.get("media_discarded")
+    for stage, rec in manifest.data["stages"].items():
+        if rec.get("status") not in ("ok", "skipped"):
+            problems.append(f"{stage}: no recorded status")
+            continue
+        if discarded and stage in ("fetch", "stage", "audio"):
+            continue          # deliberately removed by the retention rule
+        for path in (Path(p) for p in rec.get("artifacts", [])):
+            if not path.exists():
+                problems.append(f"{stage}: missing artifact {path.name}")
+            elif path.stat().st_size == 0:
+                problems.append(f"{stage}: empty artifact {path.name}")
+    for frame in manifest.data.get("frames", []):
+        if not (out_dir / frame["file"]).exists():
+            problems.append(f"frames: manifest lists missing {frame['file']}")
+            break
+    return problems
+
+
 def cmd_run(args) -> None:
     if not doctor(quiet=True):
         die("missing tools — run `ingest.py doctor` for install commands", 3)
     out_dir = Path(args.out).expanduser()
-    out_dir.mkdir(parents=True, exist_ok=True)
-    manifest = Manifest(out_dir)
+    claim_out_dir(out_dir)
+
+    ident = run_identity(args)
+    ihash = identity_hash(ident)
+    manifest = Manifest(out_dir, identity_hash=ihash)
+    prior = manifest.data.get("identity_hash")
+    if prior and prior != ihash:
+        # The packet already stands for something else. Overwriting its
+        # identity while its stages survive is how one packet ends up
+        # presenting source A's transcript as evidence about source B.
+        was = manifest.data.get("identity", {})
+        changed = [
+            k for k in set(was) | set(ident) if was.get(k) != ident.get(k)
+        ]
+        die(
+            f"{out_dir} is already the packet for a different run "
+            f"(changed: {', '.join(sorted(changed))}).\n"
+            "Refusing to reuse it — the finished stages belong to the other "
+            "source, and mixing them would make this packet lie about where "
+            "its evidence came from. Use a fresh --out.",
+            EXIT_IDENTITY_MISMATCH,
+        )
+
     manifest.data.update(
         {
             "input": args.input,
             "intent": args.intent,
+            "goal": args.goal,
+            "identity": ident,
+            "identity_hash": ihash,
             "refetchable": is_url(args.input),
             "tools": manifest.data.get("tools") or tool_versions(),
         }
@@ -550,7 +766,7 @@ def cmd_run(args) -> None:
         if not src.exists():
             # TCC can hide a file from exists() too — let staging try anyway
             log(f"note: {src} not directly visible; attempting staged copy")
-        media = stage_local(src, out_dir)
+        media = stage_local(src, out_dir, manifest)
 
     info = probe(media, out_dir, manifest)
     wav = extract_audio(media, out_dir, manifest)
@@ -567,16 +783,25 @@ def cmd_run(args) -> None:
             ladder=args.ladder,
         )
     else:
-        manifest.finish("frames", [], skipped=True)
+        manifest.finish("frames", [], status="skipped",
+                        reason="no video stream" if not info["has_video"]
+                        else f"intent {args.intent}" if args.intent in FRAMELESS_INTENTS
+                        else "--no-frames")
 
     # Retention: what can be re-fetched is not archived. A local recording
-    # is irreplaceable, so its staged copy stays.
+    # is irreplaceable, so its staged copy stays. Note that a URL is not a
+    # guarantee of re-fetchability (signed, expiring, and private links all
+    # look the same) — pass --keep-media when the source may not survive.
     if manifest.data["refetchable"] and not args.keep_media:
-        media_dir = out_dir / "media"
-        if media_dir.exists():
-            shutil.rmtree(media_dir)
-        wav.unlink(missing_ok=True)
-        log("re-fetchable source: media discarded (transcript + frames kept)")
+        discard_media(out_dir, manifest, wav)
+
+    problems = validate_packet(manifest, out_dir)
+    if problems:
+        manifest.finish("run", [manifest.path], status="ok", problems=problems)
+        die(
+            "packet INCOMPLETE — refusing to report success:\n  "
+            + "\n  ".join(problems)
+        )
     manifest.finish("run", [manifest.path])
     log(f"packet complete: {out_dir}")
     log(f"  read first : {reading.name}")
@@ -595,6 +820,10 @@ def main(argv=None) -> None:
     rn = sub.add_parser("run", help="full pipeline, resumable")
     rn.add_argument("--input", required=True, help="local path or URL")
     rn.add_argument("--intent", required=True, choices=INTENTS)
+    rn.add_argument("--goal", required=True,
+                    help="why this media is being processed, in the user's own "
+                         "words — recorded in the manifest so the packet says "
+                         "what it was made to answer")
     rn.add_argument("--out", required=True, help="run directory (the packet)")
     rn.add_argument("--no-frames", action="store_true")
     rn.add_argument("--keep-media", action="store_true",
