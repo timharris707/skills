@@ -65,6 +65,17 @@ via `scripts/render_handoff.py`. It drives tooling — most usefully a **CI / la
   `SHIP` / `SHIP WITH CHANGES` / `DO NOT SHIP YET` labels; every other preset (and any unknown
   one) renders plain language — `Go ahead` / `Proceed with care` / `Stop and rethink` — plus a
   one-line "what this means" note. An explicit `decision` overrides all of this.
+- `summary` (optional string, **required of the synthesizer** since v1.18) — the bottom line:
+  3–6 sentences of plain prose a non-specialist reads once and knows the outcome — what was
+  reviewed, what the board decided, why, and what should happen next. Every renderer leads
+  with it. Like all prose fields it is never gated on.
+- `verdict_note` (optional string) — one plain sentence under the verdict headline saying what
+  the call means in practice. The synthesizer must supply it whenever it sets a `decision`
+  (a domain label needs a translation); an authored note always wins over the lens-derived one.
+- `reviewed` (optional string) — 1–3 plain sentences describing what the material under review
+  actually *is* (not the run title). Feeds the handoff's "What was reviewed" block; when
+  absent, that block drops rather than echoing the title.
+- `subtitle` (optional string) — a one-line masthead description; defaults to a neutral line.
 - `confidence` — `low` | `medium` | `high`. A self-reported number; informational. **The gate
   never reads it** — a gameable confidence must not move a gate.
 - `unanimous` — did every seat land on `verdict` in the final round.

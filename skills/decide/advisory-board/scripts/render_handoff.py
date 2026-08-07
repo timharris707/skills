@@ -80,7 +80,11 @@ from _md import md_to_html  # noqa: E402  seat reviews are Markdown -> rendered 
 BLOCK_KEYS = {
     "SEAT CARD": "seats",
     "ROUND": "rounds",
+    # the how-the-board-voted table (v1.18): one row per seat, always
+    "SEAT VOTE": "seat_votes",
     "BLOCKER": "blockers",
+    # per-finding evidence receipts, nested in a blocker (v1.18)
+    "BLOCKER EVIDENCE": "blocker_evidence",
     "DISSENT": "dissents",
     "DISSENT BRIEF": "dissents_brief",
     "CAVEAT": "caveats",
@@ -116,7 +120,9 @@ BLOCK_KEYS = {
 
 # Tokens whose values are authored HTML fragments and pass through unescaped.
 RAW_TOKENS = {
-    "SUBTITLE", "BOARD", "VERDICT_NOTE", "DISCLAIMER", "PLAN", "METADATA",
+    "SUBTITLE", "BOARD", "VERDICT_NOTE", "SUMMARY", "DISCLAIMER", "PLAN", "METADATA",
+    # per-finding receipts (v1.18): pre-escaped evidence-trail fragments with <code> spans
+    "BLOCKER_EVIDENCE_LINE",
     "SEAT_HIGHLIGHT", "ROUND_REVIEW", "BLOCKER_BODY", "DISSENT_BODY",
     "CAVEAT_CLAIM", "CAVEAT_IMPACT", "QUESTION", "ACTION",
     "SEQ_ACTION", "SEQ_BLOCKER_BODY", "SEQ_EVIDENCE_LINE",
@@ -184,27 +190,66 @@ def drop_empty_optionals(out: str) -> str:
     out = re.sub(
         r'\s*(?:<!--(?:(?!-->).)*?-->\s*)?<p class="echo-pill[^"]*">\s*</p>',
         "", out, flags=re.DOTALL)
-    # On a FILTERED render — and only there — an emptied full-handoff dissent /
-    # couldn't-verify section drops WHOLE (divider comment, authoring comment,
-    # heading, shell): a hollow "<h2>Dissent…</h2>" beside a filter-note saying
-    # dissent was removed would contradict the note. The gate is a NON-empty
-    # filter-note in this render: unfiltered pages — and filtered pages where
-    # nothing was actually dropped — keep today's bytes exactly (D5), including
-    # the pre-existing empty shell on a verdict with no dissent/caveat data.
-    # Both rules match only EMPTY sections (populated ones are no-ops) and are
-    # scoped to the full-handoff markup (no-ops for qv-*/seq-* templates).
-    if re.search(r'<p class="filter-note">\s*[^<\s]', out):
-        out = re.sub(
-            r'\s*(?:<!--(?:(?!-->).)*?-->\s*)*<section>\s*'
-            r'<h2>Dissent &amp; minority report</h2>\s*'
-            r'<div class="dissent">\s*<span class="d-flag">\s*</span>\s*'
-            r'</div>\s*</section>',
-            "", out, flags=re.DOTALL)
-        out = re.sub(
-            r"\s*(?:<!--(?:(?!-->).)*?-->\s*)*<section>\s*"
-            r"<h2>What the board couldn't verify</h2>\s*"
-            r'<div class="caveats">\s*<ul>\s*</ul>\s*</div>\s*</section>',
-            "", out, flags=re.DOTALL)
+    # v1.18: an EMPTY findings/prose section drops WHOLE, unconditionally — a
+    # hollow "<h2>Dissent…</h2>" shell (or a dangling empty list) is exactly the
+    # template residue a reader parses as sloppiness. Each rule matches only the
+    # EMPTY form (populated sections are no-ops) and eats the preceding authoring
+    # comments so the drop leaves no blank-line residue. A FILTER-emptied section
+    # drops by the same rules — the non-empty {{FILTER_NOTE}} line still states
+    # what was hidden and how much, so nothing is ever silently truncated.
+    # The bottom-line paragraph (empty on an older verdict.json with no summary):
+    out = re.sub(r'\s*(?:<!--(?:(?!-->).)*?-->\s*)?<p class="bottom-line">\s*</p>',
+                 "", out, flags=re.DOTALL)
+    # An empty verdict note line:
+    out = re.sub(r'\s*<p class="note">\s*</p>', "", out)
+    # A dateless masthead meta line: drop the leading empty <b></b> and its dot.
+    out = re.sub(r'(<p class="masthead-meta">)<b>\s*</b>\s*·\s*', r"\1", out)
+    # What-was-reviewed: drops when the verdict carries no authored `reviewed`
+    # description (the slot is never backfilled with the title).
+    out = re.sub(
+        r'\s*(?:<!--(?:(?!-->).)*?-->\s*)?<section class="plan-sec">\s*'
+        r'<h2>[^<]*</h2>\s*<div class="plan">\s*</div>\s*</section>',
+        "", out, flags=re.DOTALL)
+    # How-the-board-voted: drops only when there are no seat rows at all.
+    out = re.sub(
+        r'\s*(?:<!--(?:(?!-->).)*?-->\s*)?<section class="votes-sec">\s*'
+        r'<h2>[^<]*</h2>\s*<table class="votes">.*?<tbody>\s*</tbody>\s*'
+        r'</table>\s*</section>',
+        "", out, flags=re.DOTALL)
+    # A finding's receipts <details> drops when the finding cites nothing
+    # (empty summary label — the evidence list is empty in the same case).
+    out = re.sub(
+        r'\s*(?:<!--(?:(?!-->).)*?-->\s*)?<details class="receipts">\s*'
+        r'<summary>\s*</summary>\s*<ul>\s*</ul>\s*</details>',
+        "", out, flags=re.DOTALL)
+    # Dissent & minority report:
+    out = re.sub(
+        r'\s*(?:<!--(?:(?!-->).)*?-->\s*)*<section class="dissent-sec">\s*'
+        r'<h2>Dissent &amp; minority report</h2>\s*'
+        r'<div class="dissent">\s*<span class="d-flag">\s*</span>\s*'
+        r'</div>\s*</section>',
+        "", out, flags=re.DOTALL)
+    # What the board couldn't verify:
+    out = re.sub(
+        r"\s*(?:<!--(?:(?!-->).)*?-->\s*)*<section class=\"caveats-sec\">\s*"
+        r"<h2>What the board couldn't verify</h2>\s*"
+        r'<div class="caveats">\s*<ul>\s*</ul>\s*</div>\s*</section>',
+        "", out, flags=re.DOTALL)
+    # Open questions / next actions: empty lists drop with their section.
+    out = re.sub(
+        r'\s*(?:<!--(?:(?!-->).)*?-->\s*)?<section class="questions-sec">\s*'
+        r'<h2>[^<]*</h2>\s*<ul class="plain">\s*</ul>\s*</section>',
+        "", out, flags=re.DOTALL)
+    out = re.sub(
+        r'\s*(?:<!--(?:(?!-->).)*?-->\s*)?<section class="actions-sec">\s*'
+        r'<h2>[^<]*</h2>\s*<div class="actions">\s*<ol>\s*</ol>\s*</div>\s*</section>',
+        "", out, flags=re.DOTALL)
+    # Appendix — full seat reviews: drops when no seat carried recovered prose
+    # (the vote table above is then the seat record).
+    out = re.sub(
+        r'\s*(?:<!--(?:(?!-->).)*?-->\s*)*<section class="appendix-reviews">\s*'
+        r'<h2>[^<]*</h2>\s*</section>',
+        "", out, flags=re.DOTALL)
     # Drop the verdict-banner confidence pill when there's no confidence. Shared by both
     # the full handoff and the brief (same banner markup); no-op when the pill is filled.
     out = re.sub(r'<span class="conf-badge">\s*</span>', "", out)
@@ -359,15 +404,23 @@ def render(data: dict, template: str) -> str:
     data.setdefault("scorecard_contradiction", "")
     for key in ("sc_criteria", "sc_seats", "sc_notes"):
         data.setdefault(key, [])
+    # v1.18 backfills: an older handoff-data.json has no bottom line, vote table,
+    # or per-finding receipts — default them so the new slots drop cleanly.
+    data.setdefault("summary", "")
+    data.setdefault("seat_votes", [])
     if isinstance(data.get("blockers"), list):
-        # Copy each blocker row before defaulting its nested list, so an old
+        # Copy each blocker row before defaulting its nested lists, so an old
         # handoff-data.json passed in by the caller is never mutated.
         data["blockers"] = [
-            {"blocker_severity_notes": [], **b} if isinstance(b, dict) else b
+            {"blocker_severity_notes": [], "blocker_evidence": [],
+             "blocker_evidence_label": "", **b} if isinstance(b, dict) else b
             for b in data["blockers"]]
     out = render_item(template, data, BLOCK_KEYS, RAW_TOKENS)
     out = drop_empty_optionals(out)
     out = strip_comments(out)
+    # Stripped comments and empty inline tokens leave trailing spaces; scrub them
+    # so a committed render passes the repo's tracked-whitespace check.
+    out = re.sub(r"[ \t]+\n", "\n", out)
     out = re.sub(r"\n{3,}", "\n\n", out)
     assert_fully_resolved(out)
     return out

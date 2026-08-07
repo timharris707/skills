@@ -7,12 +7,16 @@
   "verdict": "DO NOT SHIP YET — unanimous",
   "verdict_class": "block",
   "verdict_note": "",
+  "summary": "",
   "confidence": "high confidence",
   "blockers_heading": "Consensus blockers — must fix before ship",
   "disclaimer": "",
-  "plan": "Payments API idempotency keys",
+  "plan": "",
   "metadata": "Board: Claude · Codex · Gemini · 2 rounds · 2026-06-25",
   "dissent_flag": "Dissent on the record",
+  "filter_note": "",
+  "echo_pill": "",
+  "echo_class": "",
   "seats": [
     {
       "seat_name": "Claude",
@@ -91,37 +95,92 @@
     {
       "blocker_title": "Concurrency window → double charge (no atomic reserve-before-charge)",
       "blocker_body": "Storing the response only after the charge completes leaves a race: two same-key requests arriving concurrently (retry storm, double-click, client-timeout-and-retry) both miss the cache and both charge. Atomically reserve the key (durable INSERT … ON CONFLICT, or SET NX) BEFORE the side effect; the loser blocks-and-polls for the original result. All three seats raised this independently.",
-      "blocker_summary": "Storing the response only after the charge completes leaves a race: two same-key requests arriving concurrently (retry storm, double-click, client-timeout-and-retry) both miss the…"
+      "blocker_summary": "Storing the response only after the charge completes leaves a race: two same-key requests arriving concurrently (retry storm, double-click, client-timeout-and-retry) both miss the…",
+      "blocker_evidence": [
+        {
+          "blocker_evidence_line": "plan.md — “on a duplicate key it returns the cached response” (source) — verified"
+        },
+        {
+          "blocker_evidence_line": "judgment — the plan specifies no reservation/lock step, so the concurrency window is unhandled — inferred from the absence, not stated"
+        }
+      ],
+      "blocker_evidence_label": "Receipts — 2 citations",
+      "blocker_severity_notes": []
     },
     {
       "blocker_title": "No key→payload binding (same key, different body served stale)",
       "blocker_body": "Nothing binds the key to the request. A client reusing a key with a different amount/recipient/currency gets the prior cached response — a silent under-charge or a replay of an unrelated charge. Bind the key to a hash of the canonicalized request body; same-key/different-payload must return 409/422, never a cached success.",
-      "blocker_summary": "Nothing binds the key to the request. A client reusing a key with a different amount/recipient/currency gets the prior cached response — a silent under-charge or a replay of an…"
+      "blocker_summary": "Nothing binds the key to the request. A client reusing a key with a different amount/recipient/currency gets the prior cached response — a silent under-charge or a replay of an…",
+      "blocker_evidence": [
+        {
+          "blocker_evidence_line": "plan.md — “on a duplicate key it returns the cached response” (source) — verified"
+        }
+      ],
+      "blocker_evidence_label": "Receipts — 1 citation",
+      "blocker_severity_notes": []
     },
     {
       "blocker_title": "No per-tenant scoping → cross-tenant response leak",
       "blocker_body": "Keys are client-supplied strings with no stated namespace. Enabling a single shared keyspace for all clients means Client B sending a key Client A already used receives Client A&#x27;s cached charge response — a cross-tenant data leak. The lookup key must be (account_id, idempotency_key), never the raw header.",
-      "blocker_summary": "Keys are client-supplied strings with no stated namespace. Enabling a single shared keyspace for all clients means Client B sending a key Client A already used receives Client A's…"
+      "blocker_summary": "Keys are client-supplied strings with no stated namespace. Enabling a single shared keyspace for all clients means Client B sending a key Client A already used receives Client A's…",
+      "blocker_evidence": [
+        {
+          "blocker_evidence_line": "plan.md — “Clients may send an Idempotency-Key header on POST /charges” (source) — verified"
+        },
+        {
+          "blocker_evidence_line": "plan.md — “We will enable it for all clients at once next sprint” (source) — verified"
+        }
+      ],
+      "blocker_evidence_label": "Receipts — 2 citations",
+      "blocker_severity_notes": []
     },
     {
       "blocker_title": "Redis as sole system of record → non-durable idempotency",
       "blocker_body": "Redis is not durable by default; failover, restart without AOF, or maxmemory eviction can drop idempotency records early, after which a retry re-charges. The durable transactional DB must be the system of record; Redis, if used, is a fast-path cache in front of it. (Gemini&#x27;s noeviction does not make Redis durable — it trades the double-charge for a write-availability cliff.)",
-      "blocker_summary": "Redis is not durable by default; failover, restart without AOF, or maxmemory eviction can drop idempotency records early, after which a retry re-charges. The durable transactional…"
+      "blocker_summary": "Redis is not durable by default; failover, restart without AOF, or maxmemory eviction can drop idempotency records early, after which a retry re-charges. The durable transactional…",
+      "blocker_evidence": [
+        {
+          "blocker_evidence_line": "plan.md — “The server stores the key-to-response mapping in Redis wi...” (source) — verified"
+        }
+      ],
+      "blocker_evidence_label": "Receipts — 1 citation",
+      "blocker_severity_notes": []
     },
     {
       "blocker_title": "Indeterminate downstream outcome + non-idempotent processor",
       "blocker_body": "API-layer idempotency cannot make a non-idempotent money movement exactly-once. A processor timeout leaves the charge state unknown; on retry you must neither replay a fabricated success nor blind-recharge — you must propagate the key to the processor and reconcile by it. Claude elevated this above the concurrency window as the requirement the plan is furthest from.",
-      "blocker_summary": "API-layer idempotency cannot make a non-idempotent money movement exactly-once. A processor timeout leaves the charge state unknown; on retry you must neither replay a fabricated…"
+      "blocker_summary": "API-layer idempotency cannot make a non-idempotent money movement exactly-once. A processor timeout leaves the charge state unknown; on retry you must neither replay a fabricated…",
+      "blocker_evidence": [
+        {
+          "blocker_evidence_line": "judgment — the plan is silent on the downstream payment processor and on partial-failure/reconciliation — a gap inferred from omission, with no source line to quote"
+        }
+      ],
+      "blocker_evidence_label": "Receipts — 1 citation",
+      "blocker_severity_notes": []
     },
     {
       "blocker_title": "Caching of transient / indeterminate failures",
       "blocker_body": "An unqualified &#x27;cached response&#x27; pins every retry to a cached 5xx/timeout for 24h, turning a brief downstream glitch into a prolonged checkout outage — and caching an indeterminate result as terminal is unsafe. Cache only KNOWN-terminal outcomes; never cache in-flight or indeterminate-failure states (deterministic pre-side-effect validation errors are a documented exception).",
-      "blocker_summary": "An unqualified 'cached response' pins every retry to a cached 5xx/timeout for 24h, turning a brief downstream glitch into a prolonged checkout outage — and caching an…"
+      "blocker_summary": "An unqualified 'cached response' pins every retry to a cached 5xx/timeout for 24h, turning a brief downstream glitch into a prolonged checkout outage — and caching an…",
+      "blocker_evidence": [
+        {
+          "blocker_evidence_line": "plan.md — “on a duplicate key it returns the cached response” (source) — verified"
+        }
+      ],
+      "blocker_evidence_label": "Receipts — 1 citation",
+      "blocker_severity_notes": []
     },
     {
       "blocker_title": "Big-bang rollout on the money path (no shadow/canary/kill switch)",
       "blocker_body": "Flipping a correctness-critical charge-path interceptor on for everyone at once is volatile: existing clients sending static/placeholder keys would have their checkout funnels break on enforcement. Ship staged — shadow → canary → percentage ramp behind a kill switch — with hit/miss/payload-mismatch/conflict/Redis-latency metrics wired up before the canary.",
-      "blocker_summary": "Flipping a correctness-critical charge-path interceptor on for everyone at once is volatile: existing clients sending static/placeholder keys would have their checkout funnels…"
+      "blocker_summary": "Flipping a correctness-critical charge-path interceptor on for everyone at once is volatile: existing clients sending static/placeholder keys would have their checkout funnels…",
+      "blocker_evidence": [
+        {
+          "blocker_evidence_line": "plan.md — “We will enable it for all clients at once next sprint” (source) — verified"
+        }
+      ],
+      "blocker_evidence_label": "Receipts — 1 citation",
+      "blocker_severity_notes": []
     }
   ],
   "dissents": [
@@ -208,5 +267,146 @@
       "action": "Reserve-then-process: atomic durable insert of in_flight BEFORE charging; loser polls for the terminal result or returns a deterministic conflict."
     }
   ],
-  "actions_more": "…3 more in the full handoff"
+  "actions_more": "…3 more in the full handoff",
+  "sequence": [
+    {
+      "seq_action": "Write the contract first: scope (account_id, key); key format/length; what 24h expiry means to clients; same-key/different-payload behavior; Redis-down policy; which outcomes are cached.",
+      "seq_owner": ""
+    },
+    {
+      "seq_action": "Add a durable idempotency record in the primary DB — unique on (account_id, endpoint, key) — storing request fingerprint, state (in_flight|completed|failed_terminal), and the response.",
+      "seq_owner": ""
+    },
+    {
+      "seq_action": "Reserve-then-process: atomic durable insert of in_flight BEFORE charging; loser polls for the terminal result or returns a deterministic conflict.",
+      "seq_owner": ""
+    },
+    {
+      "seq_action": "Propagate the key to the processor; on an indeterminate outcome, reconcile by the key — never finalize as success or re-charge blindly.",
+      "seq_owner": ""
+    },
+    {
+      "seq_action": "Wire observability + a reconciliation job + a standing duplicate-charge-per-key detector before any enforcement.",
+      "seq_owner": ""
+    },
+    {
+      "seq_action": "Roll out shadow → canary → ramp behind a kill switch, then re-review.",
+      "seq_owner": ""
+    }
+  ],
+  "seq_blockers": [
+    {
+      "seq_blocker_title": "Concurrency window → double charge (no atomic reserve-before-charge)",
+      "seq_blocker_body": "Storing the response only after the charge completes leaves a race: two same-key requests arriving concurrently (retry storm, double-click, client-timeout-and-retry) both miss the cache and both charge. Atomically reserve the key (durable INSERT … ON CONFLICT, or SET NX) BEFORE the side effect; the loser blocks-and-polls for the original result. All three seats raised this independently.",
+      "seq_evidence": [
+        {
+          "seq_evidence_line": "plan.md — “on a duplicate key it returns the cached response” (source) — verified"
+        },
+        {
+          "seq_evidence_line": "judgment — the plan specifies no reservation/lock step, so the concurrency window is unhandled — inferred from the absence, not stated"
+        }
+      ]
+    },
+    {
+      "seq_blocker_title": "No key→payload binding (same key, different body served stale)",
+      "seq_blocker_body": "Nothing binds the key to the request. A client reusing a key with a different amount/recipient/currency gets the prior cached response — a silent under-charge or a replay of an unrelated charge. Bind the key to a hash of the canonicalized request body; same-key/different-payload must return 409/422, never a cached success.",
+      "seq_evidence": [
+        {
+          "seq_evidence_line": "plan.md — “on a duplicate key it returns the cached response” (source) — verified"
+        }
+      ]
+    },
+    {
+      "seq_blocker_title": "No per-tenant scoping → cross-tenant response leak",
+      "seq_blocker_body": "Keys are client-supplied strings with no stated namespace. Enabling a single shared keyspace for all clients means Client B sending a key Client A already used receives Client A&#x27;s cached charge response — a cross-tenant data leak. The lookup key must be (account_id, idempotency_key), never the raw header.",
+      "seq_evidence": [
+        {
+          "seq_evidence_line": "plan.md — “Clients may send an Idempotency-Key header on POST /charges” (source) — verified"
+        },
+        {
+          "seq_evidence_line": "plan.md — “We will enable it for all clients at once next sprint” (source) — verified"
+        }
+      ]
+    },
+    {
+      "seq_blocker_title": "Redis as sole system of record → non-durable idempotency",
+      "seq_blocker_body": "Redis is not durable by default; failover, restart without AOF, or maxmemory eviction can drop idempotency records early, after which a retry re-charges. The durable transactional DB must be the system of record; Redis, if used, is a fast-path cache in front of it. (Gemini&#x27;s noeviction does not make Redis durable — it trades the double-charge for a write-availability cliff.)",
+      "seq_evidence": [
+        {
+          "seq_evidence_line": "plan.md — “The server stores the key-to-response mapping in Redis wi...” (source) — verified"
+        }
+      ]
+    },
+    {
+      "seq_blocker_title": "Indeterminate downstream outcome + non-idempotent processor",
+      "seq_blocker_body": "API-layer idempotency cannot make a non-idempotent money movement exactly-once. A processor timeout leaves the charge state unknown; on retry you must neither replay a fabricated success nor blind-recharge — you must propagate the key to the processor and reconcile by it. Claude elevated this above the concurrency window as the requirement the plan is furthest from.",
+      "seq_evidence": [
+        {
+          "seq_evidence_line": "judgment — the plan is silent on the downstream payment processor and on partial-failure/reconciliation — a gap inferred from omission, with no source line to quote"
+        }
+      ]
+    },
+    {
+      "seq_blocker_title": "Caching of transient / indeterminate failures",
+      "seq_blocker_body": "An unqualified &#x27;cached response&#x27; pins every retry to a cached 5xx/timeout for 24h, turning a brief downstream glitch into a prolonged checkout outage — and caching an indeterminate result as terminal is unsafe. Cache only KNOWN-terminal outcomes; never cache in-flight or indeterminate-failure states (deterministic pre-side-effect validation errors are a documented exception).",
+      "seq_evidence": [
+        {
+          "seq_evidence_line": "plan.md — “on a duplicate key it returns the cached response” (source) — verified"
+        }
+      ]
+    },
+    {
+      "seq_blocker_title": "Big-bang rollout on the money path (no shadow/canary/kill switch)",
+      "seq_blocker_body": "Flipping a correctness-critical charge-path interceptor on for everyone at once is volatile: existing clients sending static/placeholder keys would have their checkout funnels break on enforcement. Ship staged — shadow → canary → percentage ramp behind a kill switch — with hit/miss/payload-mismatch/conflict/Redis-latency metrics wired up before the canary.",
+      "seq_evidence": [
+        {
+          "seq_evidence_line": "plan.md — “We will enable it for all clients at once next sprint” (source) — verified"
+        }
+      ]
+    }
+  ],
+  "amendments": [],
+  "seat_votes": [
+    {
+      "vote_seat": "Claude",
+      "vote_lens": "architecture",
+      "vote_model": "claude-opus-4-8",
+      "vote_rounds": "DO NOT SHIP YET → DO NOT SHIP YET",
+      "vote_final_class": "block",
+      "vote_status": ""
+    },
+    {
+      "vote_seat": "Codex",
+      "vote_lens": "implementation/testing",
+      "vote_model": "gpt-5.5",
+      "vote_rounds": "SHIP WITH CHANGES → DO NOT SHIP YET",
+      "vote_final_class": "block",
+      "vote_status": ""
+    },
+    {
+      "vote_seat": "Gemini",
+      "vote_lens": "product/ops",
+      "vote_model": "gemini-3.5-flash",
+      "vote_rounds": "DO NOT SHIP YET → DO NOT SHIP YET",
+      "vote_final_class": "block",
+      "vote_status": ""
+    }
+  ],
+  "delta_revises": "",
+  "delta_trajectory": "",
+  "delta_note": "",
+  "delta_cleared": [],
+  "delta_open": [],
+  "delta_new": [],
+  "redline_source_name": "",
+  "redline_rows": [],
+  "redline_note": "",
+  "patch_pre": "",
+  "patch_note": "",
+  "endorsement_summary": "",
+  "scorecard_intro": "",
+  "scorecard_contradiction": "",
+  "sc_criteria": [],
+  "sc_seats": [],
+  "sc_notes": []
 }

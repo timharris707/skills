@@ -153,7 +153,19 @@ Source material:
 Board outputs:
 {all_round_outputs}
 
+Write for a human who was not in the room. Every prose field — the summary, the
+notes, each finding's title and body — must read as plain English a smart
+non-specialist understands on the first pass: short sentences, one claim per
+sentence, no invented compound labels ("harden-before-relying-on-as-evidence"),
+no unexplained jargon. A finding's title is a complete plain sentence naming what
+can go wrong; its body says what was found and why it matters in the reader's
+terms. Function names, flags, and line-level mechanics belong in the evidence
+citations, not the prose.
+
 Create a working document with:
+0. The bottom line: 3–6 sentences of plain prose — what was reviewed, what the
+   board decided, why, and what should happen next — so a reader who reads
+   nothing else still knows the outcome (`summary` in verdict.json).
 1. Executive verdict, with the board's confidence (low / medium / high).
 2. Consensus plan.
 3. Key dissent and why it matters — if the board was unanimous, include the minority report (the strongest case against the verdict).
