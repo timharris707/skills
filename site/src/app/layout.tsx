@@ -45,12 +45,11 @@ export const metadata: Metadata = {
 };
 
 /* So the browser's own chrome — address bar, scrollbars — is lit the same way
-   as the page it frames. */
+   as the page it frames. One value, not a media pair: the page itself no longer
+   follows the operating system, so chrome that did would disagree with it. The
+   pre-paint script and the lamp correct this when night is pinned. */
 export const viewport: Viewport = {
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#edf1f1" },
-    { media: "(prefers-color-scheme: dark)", color: "#0a1c22" },
-  ],
+  themeColor: "#edf1f1",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -67,12 +66,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/*
           Runs before the first paint. A pinned theme has to be on <html> in
           the opening frame; resolved any later and the page visibly flashes
-          the other lamp. Unset means the operating system decides, which CSS
-          already handles on its own.
+          the other lamp. Unset means daylight, which CSS already gives for
+          free — so this only has work to do when a reader has chosen night,
+          and it moves the browser chrome to match in the same frame.
         */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `try{var t=localStorage.getItem("theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch(e){}`,
+            __html: `try{var t=localStorage.getItem("theme");if(t==="light"||t==="dark"){document.documentElement.dataset.theme=t;if(t==="dark"){var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute("content","#0a1c22")}}}catch(e){}`,
           }}
         />
 
