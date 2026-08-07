@@ -124,7 +124,24 @@ NOT include any of these conductor-owned keys — {protected_keys} — the condu
 will fill those from authoritative state and MERGE your fields in. Any of those
 keys you emit will be dropped.
 
+WRITE FOR A HUMAN WHO WAS NOT IN THE ROOM. Every prose field below — the summary,
+the notes, every title and body — must read as plain English a smart non-specialist
+understands on the first pass:
+- Short sentences. One claim per sentence — never three claims chained with dashes.
+- No invented compound labels (never "harden-before-relying-on-as-evidence"-style
+  slugs); when the board's call needs a name, say it as a plain sentence.
+- Name things in the reader's terms, not the code's: "re-running into the same
+  output folder can mix up two videos' evidence", not "resume is not source- or
+  config-bound". Function names, flags, and line-level mechanics belong in
+  `evidence`, not in the prose.
+- Each finding's `title` is a complete plain sentence naming what can go wrong.
+  Its `body` is 2–4 sentences: what the board found, then why it matters.
+
 Required content fields:
+- `summary` (string): the bottom line, 3–6 sentences of plain prose (no lists, no
+  headings). Say what was reviewed, what the board decided, the main reasons, and
+  what should happen next — so a reader who reads nothing else still knows the
+  outcome. Ground it ONLY in the reviews; add no new claims.
 - `verdict` (string): one of `ship` | `caution` | `block`. Choose the verdict the
   board's final-round tokens collectively support. If all seats agree, use that
   token. If they disagree, weight toward the more cautious token (block > caution
@@ -138,7 +155,17 @@ Optional content fields (include each only when the reviews support it):
   reads oddly — e.g. `invest` / `hold` / `wind-down` for a business decision, `accept`
   / `revise` / `reject` for a paper. It becomes the human-facing label verbatim; the
   machine `verdict` stays the gate axis. Set it only when the board's domain has a
-  natural word the reviews used; a software-shipping board needs none.
+  natural word the reviews used; a software-shipping board needs none. A `decision`
+  must be a real word or short phrase a reader already knows — never a coined slug —
+  and whenever you set one, also set `verdict_note`.
+- `verdict_note` (string): one plain sentence directly under the verdict headline
+  explaining what the call means in practice ("Fix the five findings below before
+  treating this tool's output as evidence."). Required whenever `decision` is set;
+  welcome otherwise.
+- `reviewed` (string): 1–3 plain sentences describing WHAT was reviewed — the
+  material itself, not the run title ("The ingest skill: a script and its
+  instructions that turn a video or recording into a transcript-and-frames
+  packet other sessions rely on.").
 - `blockers` (array of objects): a deduplicated list of the load-bearing objections
   the board raised in the final round. Each object: `title` (short), `body`
   (the seat-grounded reasoning), `evidence` (array — see below).
@@ -181,8 +208,11 @@ Reply with the ```json``` fence and nothing else.
 # Bump when the template shape (or its escape semantics) changes. The sha covers
 # the exact bytes, so any edit changes the recorded sha even without a bump. @1 is
 # the v1.3.0 first-cut of the M2 synthesizer prompt; @2 adds the optional `decision`
-# field guidance (the plain-language / lens-aware verdict label, v1.6.0).
-SYNTHESIZER_TEMPLATE_VERSION = "advisory-board/synthesizer@2"
+# field guidance (the plain-language / lens-aware verdict label, v1.6.0); @3 adds
+# the write-for-a-human contract and the plain-prose fields (`summary` required;
+# `verdict_note` / `reviewed` optional) so the handoff leads with a bottom line a
+# non-specialist can read (v1.18.0).
+SYNTHESIZER_TEMPLATE_VERSION = "advisory-board/synthesizer@3"
 
 
 def synthesizer_template_sha() -> str:

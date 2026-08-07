@@ -83,13 +83,21 @@ def as_tldr(data: dict, filt: str = DEFAULT_FILTER) -> str:
     tail = f" Top blockers: {tops}." if blockers else ""
     disclaimer = _disclaimer(data)
     note = f" ({disclaimer})" if disclaimer else ""
-    return f"{title}: {verdict_line(data)}.{tail}{note}"
+    # The authored bottom line (v1.18) leads when present — it already answers the
+    # reader's question in plain prose; the verdict line + blockers back it up.
+    summary = str(data.get("summary") or "").strip()
+    lead = f" {summary}" if summary else ""
+    return f"{title}: {verdict_line(data)}.{lead}{tail}{note}"
 
 
 def as_pr(data: dict, filt: str = DEFAULT_FILTER) -> str:
     out = [f"## Advisory board: {verdict_line(data)}", ""]
     if data.get("title"):
         out += [f"_{data['title']}_", ""]
+    # The authored bottom line (v1.18) leads when present.
+    summary = str(data.get("summary") or "").strip()
+    if summary:
+        out += [summary, ""]
     blockers = data.get("blockers", [])
     if blockers:
         out.append("### Blockers")
