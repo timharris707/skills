@@ -118,6 +118,9 @@ class SeatAdapter:
     flags_verified_version: str = ""     # CLI version build_argv's flags were last grounded against
     fallback_models: tuple = ()          # ordered ids to PROBE + PROPOSE if a selector/pin 404s
                                          # (never auto-applied to an explicit user pin)
+    has_effort_knob: bool = True         # False when build_argv ignores `reasoning` (no CLI flag);
+                                         # an explicit --effort on such a seat is REFUSED loudly
+                                         # rather than silently ignored (config.resolve_board)
 
 
 def _model_answered_none(stdout: str, stderr: str) -> Optional[str]:
@@ -591,6 +594,7 @@ REGISTRY: dict = {
         default_model="pro",
         provider="Google",
         default_reasoning="HIGH",
+        has_effort_knob=False,   # gemini_argv ignores `reasoning` — thinking level lives in CLI settings
         build_argv=gemini_argv,
         version_argv=gemini_version,
         prompt_on_stdin=False,
@@ -647,6 +651,7 @@ REGISTRY: dict = {
         default_model="Gemini 3.5 Flash (High)",
         provider="Google",
         default_reasoning="High",   # effort is part of the model name, not a flag
+        has_effort_knob=False,
         build_argv=antigravity_argv,
         version_argv=antigravity_version,
         prompt_on_stdin=False,
@@ -676,6 +681,7 @@ REGISTRY: dict = {
         default_model="llama3.3",
         provider="local",          # NOT external egress — the privacy lever (data-handling.md)
         default_reasoning="default",   # local models have no reasoning-effort knob
+        has_effort_knob=False,
         build_argv=ollama_argv,
         version_argv=ollama_version,
         prompt_on_stdin=True,      # `ollama run <model>` reads the prompt on stdin (like claude)

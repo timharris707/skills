@@ -373,6 +373,14 @@ def resolve_board(seat_specs: list, lens_preset: str, model_overrides: dict,
         adapter = REGISTRY.get(provider)
         if adapter is None:
             die(f"unknown seat {provider!r}; known seats: {', '.join(sorted(REGISTRY))}")
+        # An effort override on a seat whose CLI has no reasoning knob would be
+        # silently ignored by its argv builder — refuse it loudly instead. The
+        # adapter's own default is exempt so a --from-recipe replay (which restores
+        # every seat's recorded reasoning through this same dict) stays valid.
+        if (not adapter.has_effort_knob
+                and reasoning_overrides.get(sid) not in (None, adapter.default_reasoning)):
+            die(f"--effort targets seat {sid!r} ({provider}), whose CLI exposes no "
+                f"reasoning-effort knob — the override would be silently ignored")
         # Lens: an explicit per-seat override (by id) wins; else the preset's positional
         # default (slot i → lens i; seats past the trio reuse the last focus).
         lens = lens_overrides.get(sid) or (lenses[index] if index < len(lenses) else lenses[-1])
