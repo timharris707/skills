@@ -13,6 +13,7 @@
 | [setup](./skills/orient/setup/SKILL.md) | Once-per-repo interview that binds the pack to your project — tracker, verify commands, who decides — and seeds the binding doc and templates. | team-workflow pack |
 | [grilling](./skills/decide/grilling/SKILL.md) | Interview the decider relentlessly over a design tree, in rounds, until nothing load-bearing is still assumed. Facts are the agent's job; decisions are the decider's. | team-workflow pack |
 | [decision-map](./skills/decide/decision-map/SKILL.md) | Chart genuinely foggy work — where open questions gate each other — as a decision map before anyone writes a build spec. | team-workflow pack |
+| [ingest](./skills/investigate/ingest/SKILL.md) | Turn a video, recording, voice memo, or media URL into an evidence packet — authoritative transcript, timestamped frames, manifest — plus a routing recommendation. Every run states its purpose. | Standalone plugin |
 | [prototype](./skills/investigate/prototype/SKILL.md) | Throwaway prototype code that answers a design question you can't settle by discussion; the verdict is the deliverable, and the winner gets rebuilt properly. | team-workflow pack |
 | [research](./skills/investigate/research/SKILL.md) | Fire-and-report investigation against primary sources, ending in a cited findings file — and a questionnaire when the missing facts are human-held. | team-workflow pack |
 | [to-tickets](./skills/run/to-tickets/SKILL.md) | Turn a plan, a closed map, or a pressure-tested conversation into tracer-bullet work items with their blocking edges wired. Files and labels; never claims, never decides. | team-workflow pack |
@@ -21,7 +22,7 @@
 | [orchestrate](./skills/run/orchestrate/SKILL.md) | Run one session as the orchestrator of parallel working lanes: route tracked items, audit results, own integration — never implement. | team-workflow pack |
 | [writing-for-agents](./skills/author/writing-for-agents/SKILL.md) | Write and prune documents an agent consumes — context pointers, the two loads, the information hierarchy, leading words, and the no-op test. | Standalone plugin |
 
-The ten **team-workflow** skills ship and version together as one pack — install them as a set and they cover the full loop of tracked, multi-session, agent-assisted development. **advisory-board** stands alone and works anywhere a hard decision does; **writing-for-agents** stands alone as the standard the rest of this catalog is written against.
+The ten **team-workflow** skills ship and version together as one pack — install them as a set and they cover the full loop of tracked, multi-session, agent-assisted development. **advisory-board** stands alone and works anywhere a hard decision does; **ingest** stands alone and turns media into evidence wherever it lands; **writing-for-agents** stands alone as the standard the rest of this catalog is written against.
 
 ## Install
 
@@ -33,13 +34,14 @@ Add the marketplace once, then install whichever plugins you want.
 /plugin marketplace add timharris707/skills
 /plugin install advisory-board@skills      # the multi-model advisory board
 /plugin install team-workflow@skills       # all ten pack skills as one plugin
+/plugin install ingest@skills              # media → evidence packet + routing
 /plugin install writing-for-agents@skills  # the skill-authoring reference
 ```
 
 ### Codex
 
-The same twelve skills, native. Codex allows one plugin per repository root, so the
-whole catalog arrives as a single plugin rather than three:
+The same thirteen skills, native. Codex allows one plugin per repository root, so the
+whole catalog arrives as a single plugin rather than four:
 
 ```bash
 codex plugin marketplace add timharris707/skills

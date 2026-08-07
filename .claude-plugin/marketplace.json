@@ -5,7 +5,7 @@
     "url": "https://github.com/timharris707"
   },
   "metadata": {
-    "description": "Portable skills for AI agents: a multi-model advisory board for hard decisions, a ten-skill team-workflow pack for tracked, multi-session, agent-assisted development, and a reference skill for writing documents agents consume."
+    "description": "Portable skills for AI agents: a multi-model advisory board for hard decisions, a ten-skill team-workflow pack for tracked, multi-session, agent-assisted development, a media-ingest skill that turns recordings and URLs into evidence, and a reference skill for writing documents agents consume."
   },
   "plugins": [
     {
@@ -37,6 +37,17 @@
         "./skills/run/wizard",
         "./skills/run/handoff",
         "./skills/run/orchestrate"
+      ]
+    },
+    {
+      "name": "ingest",
+      "source": "./",
+      "strict": false,
+      "version": "1.0.0",
+      "description": "Turn a video, recording, voice memo, or media URL into an evidence packet — authoritative whisper transcript, timestamped frames, manifest — plus a routing recommendation. Six intents behind a mandatory purpose gate; the pipeline script is resumable and encodes the hard-won gotchas.",
+      "license": "MIT",
+      "skills": [
+        "./skills/investigate/ingest"
       ]
     },
     {
