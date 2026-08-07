@@ -12,8 +12,13 @@
    * Day and night are the same drawing under a different lamp, so every token
    * carries both values in one place — `light-dark()` keeps the palette a
    * single readable table instead of two that drift apart.
+   *
+   * `light` alone, not `light dark`: a chart is drawn to be read in daylight,
+   * so daylight is what a first-time visitor gets regardless of how their
+   * operating system is set. Night is a choice the reader makes with the lamp,
+   * and `[data-theme="dark"]` below is what honours it.
    */
-  color-scheme: light dark;
+  color-scheme: light;
 
   --paper: light-dark(#edf1f1, #0a1c22);      /* chart ground — cool, not cream */
   --beacon: light-dark(#f7f9f9, #0f262d);     /* raised surfaces */
@@ -298,15 +303,10 @@ pre {
   display: none;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .lamp__day {
-    display: none;
-  }
-
-  :root:not([data-theme="light"]) .lamp__night {
-    display: block;
-  }
-}
+/* No `prefers-color-scheme` rule here any more. The operating system no longer
+   decides which lamp is lit, so a glyph chosen from it would contradict the
+   page — a dark-OS reader on the daylight chart would be offered the moon they
+   are already looking at. Only an explicit pin flips the glyph now. */
 
 :root[data-theme="dark"] .lamp__day {
   display: none;

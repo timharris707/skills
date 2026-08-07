@@ -12,13 +12,16 @@
 export default function ThemeToggle() {
   function toggle() {
     const root = document.documentElement;
-    const pinned = root.dataset.theme;
-    const lit =
-      pinned === "dark" ||
-      (pinned !== "light" && window.matchMedia("(prefers-color-scheme: dark)").matches);
-    const next = lit ? "light" : "dark";
+    // Unset means daylight now, so the operating system is no longer consulted:
+    // only an explicit pin can mean dark, which makes this a plain flip.
+    const next = root.dataset.theme === "dark" ? "light" : "dark";
 
     root.dataset.theme = next;
+    // Browser chrome is lit from the same switch. The meta tag ships with the
+    // daylight value, so it only needs correcting when night is chosen.
+    document
+      .querySelector('meta[name="theme-color"]')
+      ?.setAttribute("content", next === "dark" ? "#0a1c22" : "#edf1f1");
     try {
       localStorage.setItem("theme", next);
     } catch {
