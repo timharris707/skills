@@ -28,7 +28,7 @@ Rules:
 
 ## Decision records
 
-One file per decision in the decisions directory (e.g. `docs/decisions/`), sequentially numbered `NNNN-slug.md` — scan for the highest number and increment. Parallel sessions can race that scan; a collision surfaces at merge and is renumbered there (lane close-outs being excluded as write moments keeps the window narrow):
+One file per decision in the decisions directory (e.g. `docs/decisions/`), sequentially numbered `NNNN-slug.md` — scan for the highest number and increment. Parallel sessions can race that scan; a collision surfaces at merge and is resolved there as a checkable step: renumber the **younger** colliding record (it typically has no inbound references yet), rewrite every reference to or from the renumbered file — supersedes lines and forward markers included — and only then complete the merge. Lane close-outs being excluded as write moments keeps the window narrow:
 
 ```md
 # 0007 — Postgres for the write model

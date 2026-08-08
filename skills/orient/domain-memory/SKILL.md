@@ -28,6 +28,8 @@ Memory is written at exactly three moments, each one a moment where a decision h
 
 Lane close-outs are deliberately **not** a write moment: a lane executes a decision already recorded upstream, and recording every close-out buries the load-bearing records in noise.
 
+These three are the **routine** writes. The store has exactly two **maintenance** writes beside them — an approved consolidation pass (§4) and accepted backfill drafts (§5) — and each happens only under an explicit decider disposition: never skipped once the decider has given one, never performed without one.
+
 ## 3. Read moments
 
 1. **Session start** — the orchestrator's startup checklist reads the glossary and skims recent decision records; any other session reaches the store through the binding doc's memory-home pointer.
@@ -35,9 +37,11 @@ Lane close-outs are deliberately **not** a write moment: a lane executes a decis
 3. **Lane briefs** — briefs point at the memory home, so a lane starts on the repo's terms and settled decisions instead of rediscovering them.
 4. **Review layers** — finders and skeptics consult the decision records, so a review reads the why before contesting the what.
 
+At every read moment, follow the supersession chain: only the latest unsuperseded record is **active** — a superseded decision or rejection is history, never authority.
+
 ## 4. Evolution: supersede, never edit
 
-A decision record is **superseded, never edited**: a change of mind gets a new record carrying a "supersedes" link to the old one, and the old record gains a superseded marker pointing forward — the marker is the only edit a record ever receives. History stays readable: you can watch a decision change and see each reason standing at its own date. The glossary is the opposite case and updates in place — it says what a term means now, and its history is git's job.
+A decision record is **superseded, never edited**: a change of mind gets a new record carrying a "supersedes" link to the old one, and the old record gains a superseded marker pointing forward — adding that Superseded-by marker is the one edit a record ever receives outside an approved consolidation pass ([references/formats.md](references/formats.md) states the two supersession steps). History stays readable: you can watch a decision change and see each reason standing at its own date. The glossary is the opposite case and updates in place — it says what a term means now, and its history is git's job.
 
 Past the **size bound** the binding names, the skill offers a **consolidation pass** — merge superseded chains, retire records whose subject no longer exists, tighten the glossary — presented to the decider for disposition like any other proposal. The store shrinks only on the decider's yes, never on a session's tidying instinct.
 
@@ -55,7 +59,7 @@ An existing repo starts empty and grows forward; that is the default, and it is 
 
 - Every settled decision from the triggering write moment — grilling close, review disposition, decider correction — is a record at the memory home carrying title, date, decision, the load-bearing reason, and links where a ticket or PR exists (a decider-correction record often has neither), or was declined by the decider; none is silently skipped.
 - New or sharpened terms from the moment are in the glossary: canonical form, avoid-list, no implementation detail.
-- No existing record was edited outside an approved consolidation pass — changes of mind are new records with supersedes links, and each superseded record carries its forward marker.
+- No existing record was edited outside an approved consolidation pass, save adding a Superseded-by forward marker per formats.md's supersession steps — changes of mind are new records with supersedes links, and each superseded record carries its marker.
 - The read moment in play actually read: session start, pre-round, lane brief, or review layer consulted the store, and nothing re-asked or re-raised a recorded decision without new evidence.
 - A store past its size bound has the consolidation offer on the decider's table, and nothing was consolidated without disposition.
 - Backfill drafts, where the lane ran, were each dispositioned card by card; nothing entered the store without a yes.

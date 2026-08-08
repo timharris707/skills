@@ -15,11 +15,17 @@ The repository doubles as a Claude Code plugin marketplace, but nothing is locke
 | [advisory-board](./advisory-board) | Convene a board of frontier AI models — Claude, Codex, Gemini, and Grok — that each review the same decision independently, debate across rounds, and hand back one clear recommendation. | Standalone plugin |
 | [router](https://github.com/timharris707/skills/blob/main/skills/orient/router/SKILL.md) | The team-workflow pack's entry point: names every pack skill and when to reach for it. | team-workflow pack |
 | [setup](https://github.com/timharris707/skills/blob/main/skills/orient/setup/SKILL.md) | Once-per-repo interview that binds the pack to your project — tracker, verify commands, who decides — and seeds the binding doc and templates. | team-workflow pack |
+| [domain-memory](https://github.com/timharris707/skills/blob/main/skills/orient/domain-memory/SKILL.md) | Per-repo institutional memory — a small domain glossary plus lightweight decision records — written as side effects of grillings, reviews, and decider corrections. | team-workflow pack |
+| [grilling](https://github.com/timharris707/skills/blob/main/skills/decide/grilling/SKILL.md) | Interview the decider relentlessly over a design tree, in rounds, until nothing load-bearing is still assumed. | team-workflow pack |
 | [decision-map](https://github.com/timharris707/skills/blob/main/skills/decide/decision-map/SKILL.md) | Chart genuinely foggy work — where open questions gate each other — as a decision map before anyone writes a build spec. | team-workflow pack |
 | [prototype](https://github.com/timharris707/skills/blob/main/skills/investigate/prototype/SKILL.md) | Throwaway prototype code that answers a design question you can't settle by discussion; the verdict is the deliverable. | team-workflow pack |
 | [research](https://github.com/timharris707/skills/blob/main/skills/investigate/research/SKILL.md) | Fire-and-report investigation against primary sources, ending in a cited findings file. | team-workflow pack |
+| [codebase-review](https://github.com/timharris707/skills/blob/main/skills/investigate/codebase-review/SKILL.md) | State review of the codebase itself: lens-named finders, a skeptic that kills unproven candidates, and a decider disposition loop. | team-workflow pack |
+| [to-tickets](https://github.com/timharris707/skills/blob/main/skills/run/to-tickets/SKILL.md) | Turn a plan, a closed map, or a pressure-tested conversation into tracer-bullet work items with their blocking edges wired. | team-workflow pack |
+| [wizard](https://github.com/timharris707/skills/blob/main/skills/run/wizard/SKILL.md) | Generate an interactive bash wizard for the steps only a human can take — vendor dashboards, DNS panels, credentials. | team-workflow pack |
 | [handoff](https://github.com/timharris707/skills/blob/main/skills/run/handoff/SKILL.md) | Write a structured session handoff — at wrap-up or when context fills — so a fresh session resumes losslessly. | team-workflow pack |
 | [orchestrate](https://github.com/timharris707/skills/blob/main/skills/run/orchestrate/SKILL.md) | Run one session as the orchestrator of parallel working lanes: route tracked items, audit results, own integration. | team-workflow pack |
+| [adversarial-review](https://github.com/timharris707/skills/blob/main/skills/run/adversarial-review/SKILL.md) | Break the change before it ships: isolated finders, a skeptic pass, and a gate only confirmed blockers may hold. | team-workflow pack |
 
 ## Advisory Board
 
