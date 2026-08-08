@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Archivo, Newsreader, JetBrains_Mono } from "next/font/google";
 import Link from "next/link";
+import { FlipProvider, FlipToggle, FlipView } from "@/components/AgentFlip";
 import Runtimes from "@/components/Runtimes";
 import ThemeToggle from "@/components/ThemeToggle";
 import "./globals.css";
@@ -81,28 +82,37 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           }}
         />
 
-        <header className="masthead">
-          <div className="shell masthead__inner">
-            <Link href="/" className="wordmark">
-              <span className="wordmark__fix" aria-hidden="true" />
-              clickai.dev
-            </Link>
-            {/* Five items, and GitHub is not one of them — it lives in the
-                colophon as "source". Six turns a hairline masthead into a
-                menu. The nav takes its own row below 620px rather than
-                competing with the wordmark for space. */}
-            <nav>
-              <Link href="/skills">Catalog</Link>
-              <Link href="/install">Install</Link>
-              <Link href="/legend">Legend</Link>
-              <Link href="/notes">Notes</Link>
-              <Link href="/work">Work</Link>
-            </nav>
-            <ThemeToggle />
-          </div>
-        </header>
+        {/* The human ⇄ agent flip spans two landmarks — its control sits in
+            the masthead, its rendering replaces the page — so the provider
+            has to stand over both. Everything inside is still server-rendered;
+            the provider only passes it through. */}
+        <FlipProvider>
+          <header className="masthead">
+            <div className="shell masthead__inner">
+              <Link href="/" className="wordmark">
+                <span className="wordmark__fix" aria-hidden="true" />
+                clickai.dev
+              </Link>
+              {/* Five items, and GitHub is not one of them — it lives in the
+                  colophon as "source". Six turns a hairline masthead into a
+                  menu. The nav takes its own row below 620px rather than
+                  competing with the wordmark for space. */}
+              <nav>
+                <Link href="/skills">Catalog</Link>
+                <Link href="/install">Install</Link>
+                <Link href="/legend">Legend</Link>
+                <Link href="/notes">Notes</Link>
+                <Link href="/work">Work</Link>
+              </nav>
+              <FlipToggle />
+              <ThemeToggle />
+            </div>
+          </header>
 
-        <main>{children}</main>
+          <main>
+            <FlipView>{children}</FlipView>
+          </main>
+        </FlipProvider>
 
         <footer className="colophon">
           <div className="shell colophon__inner">
