@@ -14,6 +14,24 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- **orchestrate: session titling is now protocol, not folklore** (#118). The startup
+  checklist titles the session (after the existing-sessions check, so a session that must
+  stand down never wears the title) — default `Orchestrator — <repo>`; every
+  picker-visible lane session is titled with its item at launch — default
+  `#<N> — <short item name>`, in the repo's own item notation, carrying the item id the
+  claim and workspace already carry; role changes retitle, and a retiring orchestrator
+  sheds the title at succession so the picker shows exactly one live orchestrator. The
+  formats are defaults a repo binding may refine; the titling *mechanism and actor*
+  (self-title where the harness allows, launcher/orchestrator where sessions cannot
+  self-rename, launch-report-only where no titling surface exists) live in the
+  lane-launch binding slot — that titling happens is protocol, and the slot never opts a
+  repo out. In-process subagent lanes have no picker entry; the launch report carries the
+  name. Generalizes a rule LoanMeld pioneered locally (its stricter orchestrator-owned
+  variant remains a compliant refinement) and other repos ran on habit; the binding-doc
+  template's lane-launch line is reworded to match.
+
 ## [v1.3.0] - 2026-08-07 — adversarial-review joins the pack
 
 ### Added
