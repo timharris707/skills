@@ -19,11 +19,19 @@ Three tests, all of which must pass:
 2. **PR-sized.** One session, one branch, one review. An item nobody can finish in a sitting is a plan wearing a ticket's clothes.
 3. **Ordered by what it unblocks**, not by architectural tidiness. The first bullet should retire the most risk.
 
+## The wide-refactor exception
+
+One slice shape legitimately fails the tracer-bullet tests: a **wide refactor** — a single mechanical change (rename a column, retype a shared symbol) whose blast radius fans across the whole codebase, so no vertical slice can land green alone. Sequence it as **expand–contract** instead of forcing it into a bullet: an *expand* item adds the new form beside the old so nothing breaks; *migrate* items move the call sites over in batches sized by blast radius (per package, per directory), each blocked by the expand, CI staying green batch to batch because the old form still exists; a *contract* item deletes the old form once no caller remains, blocked by every migrate batch. When even the batches cannot stay green alone, keep the sequence but give them a shared integration branch that all block a final integrate-and-verify item — green is promised only there, and the contract item adds that item to its blockers: the old form never comes out before the combined verification completes.
+
+## The sign-off gate
+
+Before Pass 1 files anything, put the slice list in front of the decider: each item's title, what it delivers end to end, and what blocks it — plain English, no bodies yet. Ask whether the granularity is right, whether every edge is a real gate, and what should merge or split; iterate until they approve. The approval is recorded, not remembered: post the exact approved list as a comment on the plan-source or driving item before Pass 1, so what gets filed can be checked against what was approved. Filing first and asking after is the wrong order — a batch on the board is already colliding with other lanes' frontier queries while it is being argued about.
+
 ## The two passes
 
 Items need ids before they can reference each other, so filing is always two passes. Doing it in one produces edges pointing at numbers that do not exist yet.
 
-**Pass 1 — file the bodies.** Each item's body IS the spec, per the [work-item spec template](../../orient/setup/references/templates/issue-slice-spec.md) that setup seeds: destination, plan source, acceptance criteria, verification, out of scope. The **plan source** line is not optional — it links the primary source (the decision-map entry, the grilling verdict, the research findings) so review never relitigates a settled question.
+**Pass 1 — file the bodies** (the approved list, nothing else). Each item's body IS the spec, per the [work-item spec template](../../orient/setup/references/templates/issue-slice-spec.md) that setup seeds: destination, plan source, acceptance criteria, verification, out of scope. The **plan source** line is not optional — it links the primary source (the decision-map entry, the grilling verdict, the research findings) so review never relitigates a settled question.
 
 **Pass 2 — wire the edges.** Add native dependency edges for every blocker that is itself a tracker item, using the recipe's database-id form:
 
@@ -48,7 +56,8 @@ Confirm the labels exist on the tracker before filing. A frontier query against 
 
 ## Done when (checkable — verify each line before reporting complete)
 
-- Every filed item passes all three tracer-bullet tests: verifiable alone, PR-sized, ordered by what it unblocks.
+- Every filed item passes all three tracer-bullet tests (or rides an expand–contract sequence under the wide-refactor exception): verifiable alone, PR-sized, ordered by what it unblocks.
+- The decider approved the slice list before anything was filed, and Pass 1 matches the approved list recorded on the plan-source or driving item.
 - Every item body carries destination, plan source link, checkable acceptance criteria, named verification, and out-of-scope.
 - Pass 2 ran: every ticket-blocker is a native edge, every non-ticket blocker is the `blocked` label, and no item carries both.
 - Every item is labeled, and every ready-labeled item could be handed to a stranger as-is.
@@ -57,4 +66,4 @@ Confirm the labels exist on the tracker before filing. A frontier query against 
 
 ## Attribution
 
-The slicing model here — tracer-bullet vertical slices, each declaring the blocking edges that gate it — is adapted from Matt Pocock's [`to-tickets`](https://github.com/mattpocock/skills/tree/main/skills/engineering/to-tickets) (MIT). The vocabulary is his; the two-pass filing order, the coupling to the binding doc and tracker discipline, the readiness bar, and the refusals in "What this skill does not do" are this repo's.
+The slicing model here — tracer-bullet vertical slices, each declaring the blocking edges that gate it — the expand–contract exception for wide refactors, and the pre-filing approval round are adapted from Matt Pocock's [`to-tickets`](https://github.com/mattpocock/skills/tree/main/skills/engineering/to-tickets) (MIT); the two-pass filing order (bodies first, edges once ids exist) is his too, from [`wayfinder`](https://github.com/mattpocock/skills/tree/main/skills/engineering/wayfinder). The coupling to the binding doc and tracker discipline, the issue-as-spec body, the readiness bar, and the refusals in "What this skill does not do" are this repo's.

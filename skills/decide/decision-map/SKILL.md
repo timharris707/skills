@@ -33,3 +33,9 @@ A decision map exists to turn fog into recorded decisions. It produces decisions
 
 - Sessions brief decisions; the decider decides. On reaching a decision point, record the recommendation and stop there — the round brief is the deliverable, never the answer.
 - Deviations from a recorded decision go back to the decider; carry them as questions in the next round brief, never as reinterpretations inside a build brief.
+
+## Attribution
+
+This skill and its [protocol](references/protocol.md) are adapted from Matt Pocock's [`wayfinder`](https://github.com/mattpocock/skills/tree/main/skills/engineering/wayfinder) (MIT), and follow it closely. The core model is his: the destination named before anything is surveyed, the map as an index whose decisions live on their tickets, decision tickets that produce decisions rather than deliverables, the four ticket types, the fog of war with the Not-yet-specified and Out-of-scope ledgers, the fog-or-ticket test, refer-by-name, the no-fog early exit, native blocking edges rendering the frontier, one ticket per session, and create-then-wire filing.
+
+What this repo adds: the weight choice by fog density (deep child tickets vs single-sitting shallow adjudication), the coupling to the binding doc and the named decider, the `gate-decision` label riding the pack's tracker discipline, the edge-vs-`blocked`-label division of labor, and the map-done condition checked against both ledgers.

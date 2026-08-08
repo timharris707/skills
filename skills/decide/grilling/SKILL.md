@@ -5,7 +5,7 @@ description: Interview the decider relentlessly to turn a half-formed plan, desi
 
 # Grilling
 
-A grilling session converts a half-formed idea into **shared understanding** by interviewing the decider until nothing load-bearing is still assumed. It is the pack's live, single-session instrument: no tickets, no map doc, no branch — the deliverable is agreement, and agreement is reached out loud.
+A grilling session converts a half-formed idea into **shared understanding** by interviewing the decider until nothing load-bearing is still assumed. It is the pack's live, single-session instrument: no tickets, no map doc, no branch — the deliverable is agreement, reached out loud and then written down (see the closing record below).
 
 Map the work as a **design tree**: every decision branches into the decisions that hang off it. You do not know the tree in advance; each answer grows it.
 
@@ -52,17 +52,22 @@ The **decisions** are the decider's. Put each one to them and wait. A grilling a
 - **Beside prototype and research.** When a question turns out to be "I need to see it in action," that is a [prototype](../../investigate/prototype/SKILL.md); when it is "somebody documented this already," that is [research](../../investigate/research/SKILL.md). Hand off and keep grilling the rest of the frontier.
 - **Not the advisory board.** [advisory-board](../advisory-board/SKILL.md) puts a finished artifact in front of several models for independent review. Grilling is one agent interviewing one human about something that is not finished yet. Grill to reach a position; convene the board to test one you already hold.
 
+## Close with a record
+
+Agreement that lives only in the transcript evaporates with the session. Once the decider confirms shared understanding, write it down somewhere durable: a comment on the driving ticket where one exists, otherwise a dated summary in the repo's docs home (the binding doc names it). The record is short and it is not the interview: it enumerates the settled decisions — the design tree as visited — and marks each recommendation accepted or overridden. It is what a later spec or ticket names as its plan source, so [to-tickets](../../run/to-tickets/SKILL.md) links a citable decision instead of a conversation nobody can reopen.
+
 ## Done when (checkable — verify each line before reporting complete)
 
-- The frontier is empty: every branch of the design tree visited, nothing load-bearing left assumed.
+- The frontier is empty, and the closing record enumerates the settled decisions — the visited tree is readable from the record, with nothing load-bearing left assumed.
 - Every question that needed a fact got one you found, not a fact the decider was asked to supply.
-- Every recommendation you made was either accepted or overridden on the record — none left silently unanswered.
+- Every recommendation you made is marked accepted or overridden in the closing record — none left silently unanswered.
 - The decider has explicitly confirmed shared understanding. Their last answer is not the confirmation; ask for it.
+- The confirmed understanding is written to its durable record — ticket comment or dated summary — not left in the transcript.
 - Anything that surfaced as a prototype, research, or map-sized question is named as such, with the skill that owns it.
 
 ## Hard guardrails
 
-- **Do not act on the understanding.** Grilling produces agreement, not changes. Building, speccing, or filing tickets off the session happens after the decider confirms, as its own move.
+- **Do not act on the understanding.** Grilling produces agreement, not changes: no code, no specs, no new tickets filed off the session. The one write is the closing record — an existing driving ticket may, and per the closing step should, receive it as a comment. Building, speccing, and filing happen after the decider confirms, as their own moves.
 - **One round at a time.** Asking the next round before the current one is answered collapses the tree into a questionnaire and loses the reshaping that makes the rounds worth running. Splitting a single frontier across consecutive structured-question calls is still one round; asking anything whose prerequisite is unanswered is not, however it is presented.
 - **Relentless means relentless.** Stopping at the first coherent answer is the failure mode this skill exists to prevent. An unasked question is a decision made silently, by you.
 
@@ -70,4 +75,4 @@ The **decisions** are the decider's. Put each one to them and wait. A grilling a
 
 This skill is adapted from Matt Pocock's [`grilling`](https://github.com/mattpocock/skills/tree/main/skills/productivity/grilling) (MIT), and follows it closely. The core model is his: the design tree, working it in rounds, the frontier as the set of decisions whose prerequisites are settled, deferring dependent questions to a later round, the ❓/➡️ question format, finding facts yourself while leaving decisions to the human, and not acting until shared understanding is confirmed.
 
-What this repo adds: the presentation split between structured questions and text, the placement against the rest of the pack, the checkable Done-when list, the hard guardrails, and the argument for why a recommendation is mandatory.
+What this repo adds: the presentation split between structured questions and text, the placement against the rest of the pack, the durable closing record, the checkable Done-when list, the hard guardrails, and the argument for why a recommendation is mandatory.

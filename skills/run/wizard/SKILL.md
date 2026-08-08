@@ -53,6 +53,7 @@ Hold the bar the template sets:
 - `chmod +x <script>`.
 - **Do not run it end to end yourself** — it opens browsers and blocks on human input. Trace it statically: every value from step 1 is captured and lands where step 1 said, and every `set_secret` name matches a `secrets.*` reference in CI exactly.
 - Tell the human how to run it, and what they will need open before they start (accounts, logins, a payment method).
+- **Where a tracker item drives this procedure, its pending manual steps block it.** Until the human has run the wizard and cleared the closing summary, apply the `blocked` label to the driving item — pending human steps are exactly the non-ticket blocker the pack's tracker discipline expresses with that label — with a comment naming the wizard and the steps. When the human reports the run complete (or the `check`s confirm it), recompute the item's remaining non-ticket blockers — the wizard's pending steps are one contributor, not necessarily the only one — and remove the label only when none remain.
 
 ## Done when (checkable — verify each line before reporting complete)
 
@@ -62,6 +63,7 @@ Hold the bar the template sets:
 - Every stage that has an observable result carries a `check`; everything the script cannot do carries a `manual`.
 - `TOTAL_STAGES` equals the number of `stage` calls, and `TOTAL_MINUTES` is an honest sum.
 - No invented UI paths: every menu path is either verified against primary sources or flagged in the script as unverified.
+- Where a tracker item drives the procedure, it carries the `blocked` label with a comment naming the wizard and its pending steps — or the run is confirmed complete and the label came off only after the remaining-blockers recompute.
 
 ## Attribution
 

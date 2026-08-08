@@ -28,6 +28,7 @@ Three reviewers, run as parallel subagents that **never see each other's reasoni
    - **concurrency** — races, ordering, retries, partial failure; anything with two writers or a queue.
    - **performance** — hot paths, N+1, unbounded growth; anything multiplied by scale.
    - **UI / accessibility** — states the pixels can lie about, spoken output, keyboard paths; anything a person operates.
+   - **conventions / standards** — the diff against the repo's *own* documented standards: style guides, ADRs, contribution rules, naming and layout conventions the repo wrote down. Available only where such documents exist — the finder reads the repo's documents, never an imported checklist — and it joins the menu as one more fitting lens beside the adversarial ones, never in place of the correctness finder or the spec axis.
 
    The invoker picks and **states the pick in the report**; the repo binding may pin mandatory lenses for named paths (a money lens on payment code is not optional there). A change fitting no lens well still gets its best fit — a second pair of eyes with a stated angle beats a second correctness pass.
 3. **The spec axis** — checks the diff against the originating ticket/spec: requirements missing, half-done, or wrongly done, and scope the spec never asked for. **No ticket or spec? The gap itself is a line in the report** — in a repo with tracker discipline, untracked substantial work is worth flagging — and the other two finders proceed normally. The spec axis never invents requirements to check against.
@@ -82,4 +83,4 @@ A new repo starts with an empty checklist and that is correct: it fills at the s
 
 ## Attribution
 
-The spec axis, finder isolation, and the refusal to blend axes into one verdict are adapted from Matt Pocock's [`/code-review`](https://github.com/mattpocock/skills) (MIT). The skeptic pass, the repro-or-it's-not-a-blocker bar, the clean bill, and the defect-class checklist rules are distilled from review practice that predates this skill — protocols proven in production repos where every one of those rules exists because its absence shipped a defect.
+The spec axis, finder isolation, and the refusal to blend axes into one verdict are adapted from Matt Pocock's [`/code-review`](https://github.com/mattpocock/skills) (MIT); the conventions lens derives from its Standards axis, narrowed to repos that document their own standards. The skeptic pass, the repro-or-it's-not-a-blocker bar, the clean bill, and the defect-class checklist rules are distilled from review practice that predates this skill — protocols proven in production repos where every one of those rules exists because its absence shipped a defect.
