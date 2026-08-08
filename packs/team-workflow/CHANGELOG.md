@@ -232,7 +232,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   runner inventory and the decider's preference policy — the available runners (Claude,
   Codex, human), the launch mechanism for each, and who is preferred for what (e.g.
   "prefer Codex for implementation lanes") — and the orchestrator launches on the runner
-  policy names, never on habit. A failed lane launch is a launch defect first: diagnose
+  that policy names, never on habit. A failed lane launch is a launch defect first: diagnose
   per the repo's launch tooling and retry before reaching for another runner; falling back
   is permitted after that but never silent — the launch report AND the tracker item carry
   `runner fallback: X→Y, reason`, and silent runner substitution is a protocol violation.
