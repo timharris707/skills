@@ -12,4 +12,4 @@ Answer "does this state model / logic feel right" by pushing a candidate machine
 
 ## After validation
 
-The validated reducer/machine lifts into the repo's domain layer **through a normal change**, where real tests and the repo's invariant discipline pin it (the prototype's terminal runs are design evidence, not test coverage). The prototype branch stays as the reference for that work. Then return to [SKILL.md](../SKILL.md) "Done when".
+The validated reducer/machine lifts into the repo's domain layer **through a normal change**, where real tests and the repo's invariant discipline pin it (the prototype's runs are design evidence, not test coverage). The prototype branch stays as the reference for that work. Then return to [SKILL.md](../SKILL.md) "Done when".

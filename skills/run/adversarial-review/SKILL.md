@@ -83,4 +83,4 @@ A new repo starts with an empty checklist and that is correct: it fills at the s
 
 ## Attribution
 
-The spec axis, finder isolation, and the refusal to blend axes into one verdict are adapted from Matt Pocock's [`/code-review`](https://github.com/mattpocock/skills) (MIT). The skeptic pass, the repro-or-it's-not-a-blocker bar, the clean bill, and the defect-class checklist rules are distilled from review practice that predates this skill — protocols proven in production repos where every one of those rules exists because its absence shipped a defect.
+The spec axis, finder isolation, and the refusal to blend axes into one verdict are adapted from Matt Pocock's [`/code-review`](https://github.com/mattpocock/skills) (MIT); the conventions lens derives from its Standards axis, narrowed to repos that document their own standards. The skeptic pass, the repro-or-it's-not-a-blocker bar, the clean bill, and the defect-class checklist rules are distilled from review practice that predates this skill — protocols proven in production repos where every one of those rules exists because its absence shipped a defect.
