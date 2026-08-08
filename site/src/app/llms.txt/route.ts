@@ -17,7 +17,7 @@ export function GET() {
   const codex = getCodexPlugin();
 
   const lines = [
-    "# Click AI — portable skills for AI agents",
+    "# Click AI — the method that let a non-coder ship four products",
     "",
     "> Self-contained playbooks any AI agent can read. Each skill is a SKILL.md plus the",
     "> templates and scripts it needs. Source: https://github.com/timharris707/skills (MIT).",

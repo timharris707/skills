@@ -32,11 +32,11 @@ const mono = JetBrains_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL("https://clickai.dev"),
   title: {
-    default: "Click AI — portable skills for AI agents",
+    default: "Click AI — the method that let a non-coder ship four products",
     template: "%s — Click AI",
   },
   description:
-    "Self-contained playbooks any AI agent can read. Install once, invoke by name: grilling, decision maps, prototypes, research lanes, orchestration, and a multi-model advisory board.",
+    "Workflows written down once, as skills any agent can read. Install once, invoke by name: grilling, decision maps, prototypes, research lanes, orchestration, and a multi-model advisory board.",
   openGraph: {
     type: "website",
     siteName: "Click AI",
