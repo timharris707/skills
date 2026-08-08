@@ -6,6 +6,8 @@ const SHIPS_AS: Record<string, string> = {
   "team-workflow": "pack",
   "advisory-board": "standalone",
   "writing-for-agents": "standalone",
+  "writing-for-humans": "standalone",
+  "ingest": "standalone",
 };
 
 export default function Regions({ regions }: { regions: Region[] }) {

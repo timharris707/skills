@@ -5,7 +5,7 @@
     "url": "https://github.com/timharris707"
   },
   "metadata": {
-    "description": "Portable skills for AI agents: a multi-model advisory board for hard decisions, a fifteen-skill team-workflow pack for tracked, multi-session, agent-assisted development, a media-ingest skill that turns recordings and URLs into evidence, and a reference skill for writing documents agents consume."
+    "description": "Portable skills for AI agents: a multi-model advisory board for hard decisions, a fifteen-skill team-workflow pack for tracked, multi-session, agent-assisted development, a media-ingest skill that turns recordings and URLs into evidence, and a pair of writing references — one for documents agents consume, one for pages humans read."
   },
   "plugins": [
     {
@@ -64,6 +64,17 @@
       "license": "MIT",
       "skills": [
         "./skills/author/writing-for-agents"
+      ]
+    },
+    {
+      "name": "writing-for-humans",
+      "source": "./",
+      "strict": false,
+      "version": "1.0.0",
+      "description": "Write copy a human reads — a landing page, a README's front half, a launch post. Guide structure over catalog structure, the warmth moves, three named failure modes, standing voice rules, and a last-mile AI-tell scrub.",
+      "license": "MIT",
+      "skills": [
+        "./skills/author/writing-for-humans"
       ]
     }
   ]
