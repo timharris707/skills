@@ -41,11 +41,11 @@ function trigger(description: string): string | null {
  */
 const SUBJECT_CLAIMS: Record<string, string> = {
   router:
-    "router is a skill that gives a session one entry point to the team-workflow pack — it names every skill and when to reach for each.",
+    "router is a skill that gives a session one entry point to the team-workflow pack: it names every skill and when to reach for each.",
   setup:
     "setup is a skill that binds the team-workflow pack to a repo through a one-time interview: how you test, where work is tracked, who has the final say.",
   "domain-memory":
-    "domain-memory is a skill that keeps a repo's institutional memory — what its words mean and why its settled decisions went the way they did — written as a side effect of ordinary work.",
+    "domain-memory is a skill that keeps a repo's institutional memory as a side effect of ordinary work: what its words mean, and why its settled decisions went the way they did.",
   grilling:
     "grilling is a skill that has the agent interview you, round after round, until nothing load-bearing in a plan is still assumed.",
   "advisory-board":
@@ -53,31 +53,31 @@ const SUBJECT_CLAIMS: Record<string, string> = {
   "decision-map":
     "decision-map is a skill that charts genuinely foggy work as a map of gated decisions and works it until nothing gating is undecided.",
   ingest:
-    "ingest is a skill that turns a video, recording, or voice memo into an evidence packet — transcript, timestamped frames, manifest — plus a recommendation for where it enters the work.",
+    "ingest is a skill that turns a video, recording, or voice memo into an evidence packet (transcript, timestamped frames, manifest) plus a recommendation for where it enters the work.",
   research:
     "research is a skill that runs an autonomous investigation against primary sources and ends in a cited findings file linked from the ticket that asked.",
   prototype:
     "prototype is a skill that builds throwaway code to answer a design question that discussion and static artifacts cannot settle.",
   "codebase-review":
-    "codebase-review is a skill that reviews the state of the codebase between changes — the counterpart to adversarial-review's review of a single change.",
+    "codebase-review is a skill that reviews the state of the codebase between changes, the counterpart to adversarial-review's review of a single change.",
   diagnose:
     "diagnose is a skill that holds bug-fixing to a disciplined loop: no fix ships without a cause the fixer can state in one plain sentence, with evidence.",
   implement:
-    "implement is a skill that disciplines how a working session builds an item — test-first, thin slices that go end to end, a green checkpoint after each.",
+    "implement is a skill that disciplines how a working session builds an item, test-first and in thin slices that go end to end, with a green checkpoint after each.",
   "to-tickets":
     "to-tickets is a skill that turns a decided plan into tracker items a stranger could pick up cold, with their blocking edges wired.",
   wizard:
-    "wizard is a skill that generates an interactive walkthrough for the steps only a human can perform — third-party dashboards, credentials, DNS records.",
+    "wizard is a skill that generates an interactive walkthrough for the steps only a human can perform, from third-party dashboards to credentials to DNS records.",
   orchestrate:
-    "orchestrate is a skill that turns one session into the coordinator of many — routing tracked work to parallel sessions, auditing what comes back, owning integration.",
+    "orchestrate is a skill that turns one session into the coordinator of many, routing tracked work to parallel sessions, auditing what comes back, and owning integration.",
   "adversarial-review":
-    "adversarial-review is a skill that tries to break a change before it ships — isolated finders attack it, a skeptic pass kills unproven findings, and confirmed blockers gate the merge.",
+    "adversarial-review is a skill that tries to break a change before it ships: isolated finders attack it, a skeptic pass kills unproven findings, and confirmed blockers gate the merge.",
   handoff:
     "handoff is a skill that writes where the work stands into one small file, so a fresh session resumes without re-explanation.",
   "writing-for-agents":
-    "writing-for-agents is a skill that writes and prunes the documents agents consume — SKILL.md files, standing instructions, reference files.",
+    "writing-for-agents is a skill that writes and prunes the documents agents consume: SKILL.md files, standing instructions, reference files.",
   "writing-for-humans":
-    "writing-for-humans is a skill that makes public-facing prose worth a stranger's next minute — guide shape, observable warmth, and a last-mile scrub for AI tells.",
+    "writing-for-humans is a skill that makes public-facing prose worth a stranger's next minute through guide shape, observable warmth, and a last-mile scrub for AI tells.",
 };
 
 /**

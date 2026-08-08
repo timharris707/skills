@@ -34,7 +34,7 @@ export default function Home() {
         <h1>Stop re-explaining your workflow every session.</h1>
         <p className="lede">
           You finally got a session working the way you work. It knew the plan, the standards,
-          the things it must never touch — and then it ended, and this morning&apos;s agent knows
+          the things it must never touch. Then it ended, and this morning&apos;s agent knows
           none of it. Every skill here is a workflow I got tired of re-teaching, written down
           once, so any agent can pick it up by name.
         </p>
@@ -50,7 +50,7 @@ export default function Home() {
           <Terminal
             lines={[
               { command: "/plugin marketplace add timharris707/skills" },
-              { command: "/plugin install team-workflow@skills", comment: "the pack — start here" },
+              { command: "/plugin install team-workflow@skills", comment: "the pack, start here" },
             ]}
           />
           <h3 className="runtime-head">
@@ -65,7 +65,7 @@ export default function Home() {
           />
           <p>
             That&apos;s the install. Open a session in a real repo and you can ask for any skill
-            by name. The same {skills.length} skills ship to both runtimes — neither is a port,
+            by name. The same {skills.length} skills ship to both runtimes. Neither is a port,
             and CI fails the build if they would ever differ. Standalone skills and other
             runtimes: <Link href="/install">every install option →</Link>
           </p>
@@ -92,36 +92,36 @@ export default function Home() {
             You described the feature, the agent agreed instantly, and hours later you are
             reviewing a polished implementation of something you never meant. Nobody
             pressure-tested the plan, so the agent filled every gap with a guess, and the cost
-            lands at review time — the most expensive place to find out.{" "}
+            lands at review time, the most expensive place to find out.{" "}
             <Link href="/skills/grilling">grilling</Link> inverts the ritual: the agent
             interviews you, round after round, and it is done when no question on the table is
             still open and the settled decisions are written down. It will not make the calls
-            for you — you decide everything; it just refuses to let a question slide by
+            for you. You decide everything; it just refuses to let a question slide by
             unanswered.
           </p>
 
           <h3>&ldquo;One model&apos;s opinion.&rdquo;</h3>
           <p>
-            A hard call — an architecture, a migration, a contract — decided by whichever model
+            An architecture, a migration, a contract: a hard call, decided by whichever model
             you happened to ask, in one pass, with nobody pushing back. When that call is
             wrong, you rebuild. <Link href="/skills/advisory-board">advisory-board</Link>{" "}
             convenes Claude, Codex, Gemini, and Grok on the same material, has them answer
             independently and then read each other, and is done when you hold one verdict with
             the dissent preserved and a list of what the board could not verify. The board
-            never edits your files, and it is still models arguing with models — the final
+            never edits your files, and it is still models arguing with models. The final
             call stays yours.
           </p>
 
           <h3>&ldquo;The session died and took the state with it.&rdquo;</h3>
           <p>
             Yesterday&apos;s session knew the plan, the constraints, and the half-finished
-            thread. Then it hit its limit, and today&apos;s opens blank — so you spend the
+            thread. Then it hit its limit, and today&apos;s opens blank, so you spend the
             start of every session rebuilding the end of the last one.{" "}
             <Link href="/skills/handoff">handoff</Link> is done when one small file lets a
             fresh session resume mid-stride with nothing re-explained, and{" "}
             <Link href="/skills/domain-memory">domain-memory</Link> keeps the permanent layer:
             what your repo&apos;s words mean, and why its settled decisions went the way they
-            did. A handoff is a pointer, not a transcript — it records where things stand and
+            did. A handoff is a pointer, not a transcript. It records where things stand and
             where the durable records live, never the whole conversation.
           </p>
 
@@ -162,7 +162,7 @@ export default function Home() {
                 session.
               </strong>{" "}
               It reads one small file and resumes mid-stride; deep history stays in the records
-              that file points to. This is where the catalog earns its keep — the re-explaining
+              that file points to. This is where the catalog earns its keep: the re-explaining
               just stops.
             </li>
             <li>
@@ -171,7 +171,7 @@ export default function Home() {
                 <Link href="/skills/advisory-board">advisory-board</Link>.
               </strong>{" "}
               Four vendors&apos; frontier models on one question beats one model&apos;s first
-              answer. Expect it to take longer than asking once — deliberation is the point.
+              answer. Expect it to take longer than asking once. Deliberation is the point.
             </li>
             <li>
               <strong>
