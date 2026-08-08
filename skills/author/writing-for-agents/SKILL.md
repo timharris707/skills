@@ -7,7 +7,7 @@ description: Write and prune documents an agent consumes — a SKILL.md, an AGEN
 
 Every document an agent reads is a **behavior lever**, not prose. The packaging differs — a skill, a standing instruction file, a reference reached by a pointer — but the writing does not: the same levers make each one predictable. Predictable means the agent takes the same *process* every run. It does not mean the agent produces the same output.
 
-This skill is reference, not a sequence: consult the rung that matches what you're writing. For frontmatter, invocation modes, and this repo's catalog invariants, read [references/skill-mechanics.md](references/skill-mechanics.md).
+This skill is reference, not a sequence: consult the rung that matches what you're writing. For frontmatter, invocation modes, and this repo's catalog invariants, read [references/skill-mechanics.md](references/skill-mechanics.md). When the reader is a human — a landing page, a README's front half, a launch post — these levers read cold; use [writing-for-humans](../writing-for-humans/SKILL.md) instead.
 
 ## Context pointers
 

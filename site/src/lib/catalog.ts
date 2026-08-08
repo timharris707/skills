@@ -5,14 +5,58 @@ import { getBuckets, getSkills, type Bucket, type Skill } from "./skills";
  * and blurb all come from `skills/buckets.json`, so a skill's category is the
  * directory it sits in and there is no second list to keep in step.
  *
- * What stays hand-maintained here is the one thing a directory cannot express:
- * where each skill plots on the hero chart, and which handoffs to draw between
- * them. `assertComplete` fails the build when a skill has no plot position —
- * the same enforcement `scripts/check_router_freshness.py` applies to the
- * marketplace and the router.
+ * What stays hand-maintained here is what a directory cannot express: where
+ * each skill plots on the hero chart, which handoffs to draw between them, and
+ * who invokes each skill. `assertComplete` fails the build when a skill has no
+ * plot position or no invocation entry — the same enforcement
+ * `scripts/check_router_freshness.py` applies to the marketplace and the
+ * router, and `scripts/check_invocation_freshness.py` applies to INVOCATION.
  */
 
-export type Region = Bucket & { entries: Skill[] };
+/**
+ * Who triggers a skill. `agent` — the agent recognizes the situation and
+ * invokes it (the default; no frontmatter flag). `user` — it fires only when
+ * the user names it (`disable-model-invocation: true` in its frontmatter).
+ * `either` — an agent-invoked reference skill that also ships a thin
+ * user-invoked alias. `command` carries the slash command for the user path
+ * (e.g. "/team-workflow:grilling"); it is null for purely agent-invoked skills.
+ */
+export type InvokedBy = "user" | "agent" | "either";
+export type Invocation = { invokedBy: InvokedBy; command: string | null };
+
+/** A catalog entry: the generated Skill plus its hand-asserted invocation. */
+export type CatalogSkill = Skill & Invocation;
+
+export type Region = Bucket & { entries: CatalogSkill[] };
+
+/**
+ * Per-skill invocation, keyed by slug. Hand-maintained here like PLOT, but not
+ * hand-trusted: `scripts/check_invocation_freshness.py` derives the expected
+ * values from each SKILL.md's frontmatter and fails CI when this map disagrees,
+ * so the site and the skills can never drift apart. Keep each entry on one
+ * line — the checker parses this block.
+ */
+export const INVOCATION: Record<string, Invocation> = {
+  router: { invokedBy: "agent", command: null },
+  setup: { invokedBy: "agent", command: null },
+  "domain-memory": { invokedBy: "agent", command: null },
+  grilling: { invokedBy: "agent", command: null },
+  "advisory-board": { invokedBy: "agent", command: null },
+  "decision-map": { invokedBy: "agent", command: null },
+  ingest: { invokedBy: "agent", command: null },
+  research: { invokedBy: "agent", command: null },
+  "codebase-review": { invokedBy: "agent", command: null },
+  prototype: { invokedBy: "agent", command: null },
+  diagnose: { invokedBy: "agent", command: null },
+  implement: { invokedBy: "agent", command: null },
+  "to-tickets": { invokedBy: "agent", command: null },
+  wizard: { invokedBy: "agent", command: null },
+  orchestrate: { invokedBy: "agent", command: null },
+  "adversarial-review": { invokedBy: "agent", command: null },
+  handoff: { invokedBy: "agent", command: null },
+  "writing-for-agents": { invokedBy: "agent", command: null },
+  "writing-for-humans": { invokedBy: "agent", command: null },
+};
 
 /**
  * Plotted positions on the hero chart, in a 1000×520 viewBox. Left to right is
@@ -38,6 +82,7 @@ export const PLOT: Record<string, { x: number; y: number; anchor?: "start" | "en
   "adversarial-review": { x: 830, y: 320, anchor: "end" },
   handoff: { x: 830, y: 430 },
   "writing-for-agents": { x: 940, y: 490, anchor: "end" },
+  "writing-for-humans": { x: 940, y: 380, anchor: "end" },
 };
 
 /**
@@ -78,9 +123,10 @@ export const BEARINGS: Array<{ from: string; to: string; note: string }> = [
   { from: "orchestrate", to: "codebase-review", note: "state review" },
   { from: "codebase-review", to: "to-tickets", note: "adopted survivors" },
   { from: "orchestrate", to: "handoff", note: "context fills" },
+  { from: "writing-for-agents", to: "writing-for-humans", note: "human readers" },
 ];
 
-export type PlacedSkill = Skill & { region: Region };
+export type PlacedSkill = CatalogSkill & { region: Region };
 
 /**
  * A skill's region is settled by its directory, so the only thing left to check
@@ -106,6 +152,22 @@ function assertComplete(skills: Skill[]) {
     );
   }
 
+  const uninvoked = skills.filter((s) => !INVOCATION[s.slug]).map((s) => s.slug);
+  if (uninvoked.length) {
+    throw new Error(
+      `catalog.ts: ${uninvoked.join(", ")} ${uninvoked.length === 1 ? "has" : "have"} no ` +
+        "INVOCATION entry. Add one in src/lib/catalog.ts.",
+    );
+  }
+
+  const phantom = Object.keys(INVOCATION).filter((slug) => !known.has(slug));
+  if (phantom.length) {
+    throw new Error(
+      `catalog.ts: ${phantom.join(", ")} in INVOCATION but not in any promoted bucket — ` +
+        "remove the entry, or promote the skill.",
+    );
+  }
+
   const plotted = new Set(known);
   const dangling = BEARINGS.filter((b) => !plotted.has(b.from) || !plotted.has(b.to));
   if (dangling.length) {
@@ -117,8 +179,9 @@ function assertComplete(skills: Skill[]) {
 }
 
 export function getCatalog(): { regions: Region[]; skills: PlacedSkill[] } {
-  const skills = getSkills();
-  assertComplete(skills);
+  const bare = getSkills();
+  assertComplete(bare);
+  const skills: CatalogSkill[] = bare.map((s) => ({ ...s, ...INVOCATION[s.slug] }));
 
   const regions = getBuckets()
     .filter((b) => b.promoted)

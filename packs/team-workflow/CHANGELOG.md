@@ -14,6 +14,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [v1.4.0] - 2026-08-08
+
 ### Added
 
 - **codebase-review** — the twelfth pack skill (#120): a state review of the codebase, the
@@ -227,6 +229,47 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   close-out order, since it fires at merge time); in-process subagent lanes have nothing to
   archive; a retired orchestrator's session is archived by the human, never automatically
   and never by the orchestrator.
+- **orchestrate, setup: runner policy is a binding, launch fallbacks are loud, and the
+  runner-parity reference lands** (#134). The lane-launch slot now records the repo's
+  runner inventory and the decider's preference policy — the available runners (Claude,
+  Codex, human), the launch mechanism for each, and who is preferred for what (e.g.
+  "prefer Codex for implementation lanes") — and the orchestrator launches on the runner
+  that policy names, never on habit. A failed lane launch is a launch defect first: diagnose
+  per the repo's launch tooling and retry before reaching for another runner; falling back
+  is permitted after that but never silent — the launch report AND the tracker item carry
+  `runner fallback: X→Y, reason`, and silent runner substitution is a protocol violation.
+  A new `references/runner-parity.md` (guidance, not machinery — repos build their own
+  launcher scripts against it; the pack ships none) names what a conforming lane launcher
+  owes any runner: the launch chain in order (eligibility gates → claim preview→apply with
+  proof → conforming workspace and branch → environment → generated prompt with the claim
+  authority baked in), the claim stamped on the tracker, the session titled by the
+  launcher, an issue-as-spec brief with no harness-specific assumptions, the
+  environment/sandbox provisioned — with the sandbox rule proven in practice: diagnose a
+  sandbox violation to its mechanism and fix the runner invocation first (macOS counts
+  sockets as network, so an internal IPC socket fails "network" for checks that touch no
+  network); relax last and surgically — preflight of the lane's verification commands
+  before handover, every launcher failure mode loud with its fix printed, and an in-repo
+  recipe doc so the launcher knowledge stops living in session memory. Setup's binding-doc
+  template gains the matching runner inventory + policy fields, and the lane-brief
+  template gains the runner-agnostic note: spec cited by issue reference beside the
+  verbatim paste, no harness-specific assumptions.
+- **setup: audit mode — detect binding drift in consuming repos** (#133). A setup re-run
+  can now run as an audit that checks a consuming repo's bindings against reality and
+  reports drift, instead of assuming absence. Exactly three checks: binding-doc currency —
+  the claimed pack version vs the installed one, sections missing for skills added since
+  the doc was seeded, and (where the repo runs an orchestrator) the runner-policy
+  binding's currency, including that the launcher recipe doc still exists and matches the
+  launcher it describes; local forks — repo-side overrides shadowing pack skills, reported
+  where fork and pack now disagree (report only, the fork's authority stays the repo's
+  recorded choice); and recorded grants and rules present in the repo's canonical doc.
+  Hook-target existence is deliberately not checked. Triggers: after each pack release and
+  on demand, no calendar floor. Execution follows the house pattern — a lane per consuming
+  repo produces the drift report, and the orchestrator presents each finding as a
+  disposition card (update the binding / accept the drift as a recorded choice / defer);
+  accepted drifts are recorded in the binding doc's new Accepted drift section, or as
+  domain-memory decision records where bound, so the next audit does not re-flag them.
+  The binding-doc template gains the matching Accepted drift section. Closes the last
+  open item on the #121 gap map.
 
 ## [v1.3.0] - 2026-08-07 — adversarial-review joins the pack
 
