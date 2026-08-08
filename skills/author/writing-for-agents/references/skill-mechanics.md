@@ -21,18 +21,18 @@ The `Use when` clause is where the branches live. One trigger per branch; a run 
 
 Optional fields, used sparingly:
 
-- `disable-model-invocation: true` — the skill fires only when a human names it. Correct for skills whose whole value is a deliberate human act (a live interview, a wrap-up). Wrong for skills the agent should notice it needs.
-- `argument-hint` — the placeholder shown after the skill name for human-invoked skills.
+- `disable-model-invocation: true` — the skill fires only when the user names it. Correct for skills whose whole value is a deliberate human act (a live interview, a wrap-up). Wrong for skills the agent should notice it needs.
+- `argument-hint` — the placeholder shown after the skill name for user-invoked skills.
 
 ## Choosing the invocation mode
 
 | The skill should fire… | Mode |
 | --- | --- |
-| whenever the agent recognizes the situation | model-invocable (default) — spend the description on branch triggers |
-| only when a human decides it is time | `disable-model-invocation: true` — the description is a menu entry, and can be short |
-| both, through a thin human-facing alias | two skills: the reference skill model-invocable, plus a one-line invoker |
+| whenever the agent recognizes the situation | agent-invoked (default) — spend the description on branch triggers |
+| only when the user decides it is time | user-invoked (`disable-model-invocation: true`) — the description is a menu entry, and can be short |
+| both, through a thin user-facing alias | two skills: the reference skill agent-invoked, plus a one-line invoker |
 
-The third row is a real pattern, not a workaround: a reference skill holds the process and a short human-invoked skill exists purely so a person can name it. Keep the process in exactly one of them — the alias points, it does not restate.
+The third row is a real pattern, not a workaround: an agent-invoked reference skill holds the process and a short user-invoked skill exists purely so a person can name it. Keep the process in exactly one of them — the alias points, it does not restate. That pointing link is also how the catalog reads the pattern: a SKILL.md link from a user-invoked skill to another promoted skill's SKILL.md is an alias claim (the target classifies as invocable either way), so a user-invoked skill that merely wants to mention a sibling links to its directory or names it in plain text, not its SKILL.md.
 
 ## Buckets
 
