@@ -18,7 +18,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - **orchestrate** — announce model and effort at lane launch and at review hand-off, read
   from a recorded source, never guessed (#156). Every launch announcement now carries the
-  model and reasoning-effort level beside the runner and workspace §4 already required, and
+  reasoning-effort level beside the runner and model §4 already required, and
   the close-out hand-off (§5) repeats that line and adds what is reviewing the work.
   Announced values come only from a recorded source (the runner-policy table, the launch
   manifest or config, an explicitly set value); "session-inherited" is an honest answer,
