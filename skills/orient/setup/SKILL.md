@@ -1,6 +1,6 @@
 ---
 name: setup
-description: Once-per-repo binding interview for the team-workflow pack — scan the repo, confirm the mandatory bindings (tracker, verify commands, decider, binding-doc home), seed the anchor binding doc, templates, and the session-start handoff hook, and refresh idempotently on re-run. Use when installing the pack into a repo or updating an existing installation.
+description: Once-per-repo binding interview for the team-workflow pack — scan the repo, confirm the mandatory bindings (tracker, verify commands, decider, binding-doc home), seed the anchor binding doc, templates, and the session-start handoff hook, and refresh idempotently on re-run. Use when installing the pack into a repo, updating an existing installation, or auditing a consuming repo's bindings for drift after a pack release (audit mode).
 ---
 
 # Setup
@@ -48,7 +48,21 @@ Part of the initial scan is detecting whether the repo's agent settings file (e.
 
 Re-running setup **re-scans the repo, diffs against the existing binding doc, and proposes changes for confirmation** — never a blind overwrite, never a one-shot refusal. Bindings that still match are left untouched; drift (a changed verify command, a new tracker, a moved docs home) is presented as a diff for the human to accept or reject, one binding at a time. Recorded absences are first-class drift candidates: a `none yet` tracker or verify binding is exactly what a re-run exists to upgrade once the repo has grown the real thing, so the re-scan checks each one against what now exists.
 
+## Audit mode: report drift, don't assume absence
+
+A re-run can instead run as an **audit** — it audits a consuming repo's bindings against reality and reports drift, rather than interviewing toward a refreshed binding. Run it after each pack release, and on demand; there is no calendar floor. Three checks, exactly:
+
+1. **Binding-doc currency.** The pack version the doc claims against the pack version actually installed, and — the common gap — sections missing for skills added since the doc was seeded: a repo bound before a release has no section to fill for the skills that release added, and nothing downstream ever creates one. Where the repo runs an orchestrator, currency includes the runner-policy binding: the orchestration section carries the runner inventory and runner-policy lines, the policy still names the runners the repo actually launches with, and the launcher recipe doc the inventory names still exists and still matches the launcher it describes (the check the [runner-parity reference](../../run/orchestrate/references/runner-parity.md) assigns to setup re-runs).
+2. **Local forks.** Overrides in the repo's own skills directory (e.g. `.claude/skills/`) that shadow pack skills: report where the fork and the pack now disagree. Report only — the fork's authority stays the repo's recorded choice, and the audit never rewrites or retires one.
+3. **Recorded grants and rules.** The grants, precedence rules, and exemptions the pack skills assume are actually present in the repo's canonical doc — nothing running on the memory of a confirmation the doc never recorded.
+
+Deliberately not checked: hook-target existence — whether the files a seeded hook points at still exist stays the repo's own concern.
+
+Execution follows the house pattern: a lane per consuming repo produces the drift report; the orchestrator presents each finding to the decider as a disposition card — **update the binding** (a normal re-run confirms the change), **accept the drift** as a recorded choice, or **defer**. Accepted drifts are recorded — in the binding doc's Accepted drift section, or as a decision record where the repo binds domain-memory (with a pointer from the Accepted drift section so the audit knows where to read) — and the next audit reads the record and does not re-flag them.
+
 ## Done when (checkable)
+
+All bullets except the last govern install and refresh runs; an audit run satisfies the audit bullet alone.
 
 - The binding doc exists at the confirmed home with all four mandatory bindings filled and the precedence/exemptions section present. **A recorded explicit absence counts as filled** — `none yet` for the tracker or verify commands is a satisfiable answer on a brand-new repo, provided the doc carries the revisit-at-re-run note; a blank or guessed value is not.
 - On a freshly bound tracker, the pack's label vocabulary exists (created by setup) or its creation instruction is recorded in the binding doc — the frontier query has labels to match.
@@ -56,6 +70,7 @@ Re-running setup **re-scans the repo, diffs against the existing binding doc, an
 - The handoff hook is seeded (non-sync-managed settings — creating the conventional settings file if none existed), or recorded as a pending snippet with the settings owner (sync-managed), or recorded as declined; the handoff-file ignore entry is seeded (or recorded as already-satisfied or declined).
 - The human confirmed every binding — including the inferred ones — and answered decider + home directly.
 - Where the domain-memory binding repoints an existing rejection-memory path at the memory home: the old records were moved into the store (as decision records, provenance noted) or the old path is recorded as read-until-migrated — the binding is accepted only when the old store is empty or its path is recorded.
+- On an audit run: all three checks ran against the repo, every drift finding was dispositioned by the decider — updated, accepted, or deferred — and accepted drifts are recorded where the next audit reads them. Zero drift is an explicit "bindings current" verdict in the report, never a silent finish.
 
 ## Attribution
 
