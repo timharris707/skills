@@ -115,7 +115,7 @@ How the pack composes with this repo's resident rule systems. Resident rules win
      Repos bound to domain-memory may keep acceptances as decision records at the memory
      home instead — record the pointer here so the audit knows where to read. -->
 
-- <date> — <the drift, one line> — accepted: <the load-bearing reason>
+- <date> · pack <version at acceptance> — <the drift, one line> — accepted: <the load-bearing reason>
 
 ## Friction log (optional)
 

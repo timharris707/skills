@@ -62,13 +62,15 @@ Execution follows the house pattern: a lane per consuming repo produces the drif
 
 ## Done when (checkable)
 
+All bullets except the last govern install and refresh runs; an audit run satisfies the audit bullet alone.
+
 - The binding doc exists at the confirmed home with all four mandatory bindings filled and the precedence/exemptions section present. **A recorded explicit absence counts as filled** — `none yet` for the tracker or verify commands is a satisfiable answer on a brand-new repo, provided the doc carries the revisit-at-re-run note; a blank or guessed value is not.
 - On a freshly bound tracker, the pack's label vocabulary exists (created by setup) or its creation instruction is recorded in the binding doc — the frontier query has labels to match.
 - Confirmed templates are seeded at their confirmed locations; declined ones are recorded as declined in the binding doc (so a re-run doesn't re-ask from scratch).
 - The handoff hook is seeded (non-sync-managed settings — creating the conventional settings file if none existed), or recorded as a pending snippet with the settings owner (sync-managed), or recorded as declined; the handoff-file ignore entry is seeded (or recorded as already-satisfied or declined).
 - The human confirmed every binding — including the inferred ones — and answered decider + home directly.
-- On an audit run: all three checks ran against the repo's binding doc, every drift finding was dispositioned by the decider — updated, accepted, or deferred — and accepted drifts are recorded where the next audit reads them. Zero drift is an explicit "bindings current" verdict in the report, never a silent finish.
 - Where the domain-memory binding repoints an existing rejection-memory path at the memory home: the old records were moved into the store (as decision records, provenance noted) or the old path is recorded as read-until-migrated — the binding is accepted only when the old store is empty or its path is recorded.
+- On an audit run: all three checks ran against the repo, every drift finding was dispositioned by the decider — updated, accepted, or deferred — and accepted drifts are recorded where the next audit reads them. Zero drift is an explicit "bindings current" verdict in the report, never a silent finish.
 
 ## Attribution
 
