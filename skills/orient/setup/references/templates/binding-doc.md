@@ -81,7 +81,7 @@ How the pack composes with this repo's resident rule systems. Resident rules win
      bound the skill. Rejection memory must survive across runs: reruns read it before
      proposing, so a rejected candidate reopens on new evidence, never on repetition. -->
 
-- **Report destination**: <the tracker item or query where run reports and close-outs land>
+- **Report destination**: <the tracker item each run posts its report to and closes — a standing item, or the rule that creates one per run; must be writable and closable, never a read-only query>
 - **Lane-count threshold (N)**: <merged lanes since the last review that trigger a run>
 - **Rejection memory**: <where rejected candidates and their load-bearing reasons live>
 - **Executor mechanics**: <how the read-only review lane is launched, claimed, and tracked — in orchestrated repos, usually the lane-launch machinery below>
