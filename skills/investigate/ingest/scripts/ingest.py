@@ -37,8 +37,12 @@ Usage:
   ingest.py preview --url URL --out DIR
   ingest.py run --input PATH_OR_URL --intent INTENT --goal "why" --out DIR
                 [--no-frames] [--keep-media] [--ladder SECONDS]
+  ingest.py link --out DIR --item OWNER/REPO#N [--item ...]
+  ingest.py sweep --home DIR [--check-cmd CMD] [--delete PACKET_DIR ...]
 
-Exit codes: 0 ok · 1 stage failed · 2 bad arguments · 3 missing tools
+Exit codes: 0 ok · 1 stage failed (or sweep --delete refused: unresolved)
+             2 bad arguments (or a directory ingest does not own)
+             3 missing tools
              4 identity mismatch (refused to mix sources in one packet)
 """
 
@@ -73,6 +77,11 @@ MAX_EXTRA_FRAMES = 240
 MIN_LOOP_REPEATS = 3
 MIN_LOOP_SPAN_S = 20
 EXIT_IDENTITY_MISMATCH = 4
+RUN_MARKER = ".ingest-run"
+# A GitHub-shaped derived-item id: owner/repo#number. Anything else belongs
+# to another tracker and resolves only through a binding-doc command — the
+# sweep never guesses what an id it cannot read means.
+GH_ITEM_RE = re.compile(r"^([\w.-]+/[\w.-]+)#(\d+)$")
 
 
 def log(msg: str) -> None:
@@ -148,6 +157,7 @@ class Manifest:
                 self.path.rename(self.path.with_suffix(".json.corrupt"))
         self.data.setdefault("stages", {})
         self.data.setdefault("frames", [])
+        self.data.setdefault("derived_items", [])
 
     def save(self) -> None:
         tmp = self.path.with_suffix(".json.tmp")
@@ -219,7 +229,7 @@ def claim_out_dir(out_dir: Path) -> None:
     """A run directory is tool-owned. Adopting a directory this script did not
     create is refused — retention deletes files inside it later, and a stray
     --out must never put a user's own folder in that path."""
-    marker = out_dir / ".ingest-run"
+    marker = out_dir / RUN_MARKER
     if out_dir.exists() and any(out_dir.iterdir()) and not marker.exists():
         die(
             f"{out_dir} is not empty and was not created by ingest.\n"
@@ -795,6 +805,235 @@ def transcript_coverage_problems(manifest: Manifest) -> list:
     return []
 
 
+# -------------------------------------------------- derived items & sweep ---
+#
+# A packet lives as long as the work it spawned. The filing session records
+# what that work IS (link, at filing time — written at creation, never
+# reconstructed); the sweep later checks whether it has all resolved and
+# OFFERS deletion. Nothing here deletes unasked: the report is the offer, and
+# --delete is the decider taking it.
+
+
+def require_packet(out_dir: Path) -> Path:
+    """A link or sweep target must be a directory ingest created — the same
+    ownership rule the run itself enforces, because both end in deletion."""
+    if not out_dir.is_dir():
+        die(f"{out_dir} is not a directory", 2)
+    if not (out_dir / RUN_MARKER).exists():
+        die(
+            f"{out_dir} was not created by ingest (no {RUN_MARKER} marker).\n"
+            "Refusing to touch it: retention only ever operates on the tool's "
+            "own run directories.",
+            2,
+        )
+    return out_dir
+
+
+def cmd_link(args) -> None:
+    """Append derived work items to the packet's manifest. Idempotent: an id
+    already recorded is kept with its original date, not duplicated."""
+    out_dir = require_packet(Path(args.out).expanduser())
+    manifest = Manifest(out_dir)
+    known = {d.get("id") for d in manifest.data["derived_items"]}
+    today = time.strftime("%Y-%m-%d")
+    added = 0
+    for item in args.item:
+        item = item.strip()
+        if not item:
+            continue
+        if item in known:
+            log(f"already recorded: {item}")
+            continue
+        if not GH_ITEM_RE.match(item):
+            # Not fatal — other trackers are legitimate — but say what it
+            # means: this id will need a binding-doc command to resolve.
+            log(
+                f"note: {item} is not owner/repo#number — the sweep will "
+                "need the binding doc's resolution command (--check-cmd) "
+                "to resolve it"
+            )
+        manifest.data["derived_items"].append({"id": item, "added": today})
+        known.add(item)
+        added += 1
+    manifest.save()
+    log(
+        f"derived items recorded: {added} new, "
+        f"{len(manifest.data['derived_items'])} total in {manifest.path}"
+    )
+
+
+def check_item_resolution(item_id: str, check_cmd: str | None = None) -> tuple:
+    """One derived item's terminal state: ('resolved'|'open'|'unknown', why).
+
+    GitHub-first: owner/repo#number resolves via gh — the issues endpoint
+    covers PRs too, and resolution means state == closed. Any other id runs
+    the binding doc's resolution command (exit 0 resolved, 1 open); with no
+    binding the answer is unknown, and unknown is the decider's to settle —
+    never guessed.
+    """
+    m = GH_ITEM_RE.match(item_id)
+    if m:
+        r = run_cmd(
+            ["gh", "api", f"repos/{m.group(1)}/issues/{m.group(2)}",
+             "--jq", ".state"],
+            timeout=60,
+        )
+        if r.returncode != 0:
+            reason = (r.stderr or "").strip().splitlines()
+            return ("unknown", f"gh failed: {reason[-1] if reason else f'exit {r.returncode}'}")
+        state = r.stdout.strip()
+        return ("resolved", state) if state == "closed" else ("open", state)
+    if check_cmd:
+        r = run_cmd(["/bin/sh", "-c", check_cmd.replace("{id}", item_id)],
+                    timeout=120)
+        if r.returncode == 0:
+            return ("resolved", "binding-doc check: exit 0")
+        if r.returncode == 1:
+            return ("open", "binding-doc check: exit 1")
+        return ("unknown", f"binding-doc check failed: exit {r.returncode}")
+    return ("unknown", "no binding for this tracker — ask the decider")
+
+
+def sweep_packet(out_dir: Path, check_cmd: str | None = None) -> dict:
+    """One packet's report. Verdicts:
+      resolved — every derived item terminal: deletion may be OFFERED
+      open     — work still live: the packet stays, no question to ask
+      unknown  — at least one id the sweep cannot read: the decider's call
+      unlinked — nothing recorded: nothing proves a terminal state, so the
+                 sweep lists it rather than inventing one
+    """
+    manifest_path = out_dir / "manifest.json"
+    report = {"dir": out_dir, "items": [], "verdict": "unknown"}
+    try:
+        data = json.loads(manifest_path.read_text())
+    except (OSError, json.JSONDecodeError):
+        report["note"] = "manifest missing or unreadable"
+        return report
+    items = data.get("derived_items") or []
+    if not items:
+        report["verdict"] = "unlinked"
+        return report
+    states = []
+    for rec in items:
+        state, why = check_item_resolution(rec.get("id", ""), check_cmd)
+        states.append(state)
+        report["items"].append(
+            {"id": rec.get("id"), "added": rec.get("added"),
+             "state": state, "why": why}
+        )
+    if "open" in states:
+        report["verdict"] = "open"
+    elif "unknown" in states:
+        report["verdict"] = "unknown"
+    else:
+        report["verdict"] = "resolved"
+    return report
+
+
+def find_packets(home: Path) -> list:
+    """Ingest-created run dirs under the output home — the marker decides
+    membership, never the directory name. A home that is itself a packet
+    (someone pointed --home at a run dir) sweeps as that one packet."""
+    if (home / RUN_MARKER).exists():
+        return [home]
+    return sorted(
+        p for p in home.iterdir()
+        if p.is_dir() and (p / RUN_MARKER).exists()
+    )
+
+
+def delete_packet(out_dir: Path, check_cmd: str | None = None) -> None:
+    """The decider took the offer. Resolution is RE-CHECKED here — an offer
+    can go stale between the sweep and the yes — and deletion follows the
+    ledger: manifest-recorded artifacts, listed frames, and ingest's own
+    bookkeeping files, each path refused unless it resolves inside the
+    packet. Anything else stays, and a non-empty directory is kept."""
+    out_dir = require_packet(out_dir)
+    report = sweep_packet(out_dir, check_cmd)
+    if report["verdict"] != "resolved":
+        detail = "; ".join(
+            f"{i['id']}: {i['state']}" for i in report["items"]
+        ) or report.get("note", "no derived items recorded")
+        die(
+            f"{out_dir}: derived work is not fully resolved "
+            f"(verdict: {report['verdict']} — {detail}).\n"
+            "Refusing to delete: a packet lives as long as the work it "
+            "spawned.",
+            1,
+        )
+    data = json.loads((out_dir / "manifest.json").read_text())
+    ledgered = set()
+    for rec in data.get("stages", {}).values():
+        ledgered.update(str(a) for a in rec.get("artifacts", []))
+    for frame in data.get("frames", []):
+        ledgered.add(str(out_dir / frame["file"]))
+    for own in ("manifest.json", "manifest.json.tmp", "manifest.json.corrupt",
+                RUN_MARKER):
+        ledgered.add(str(out_dir / own))
+    packet_root = out_dir.resolve()
+    removed = 0
+    for path in (Path(p) for p in sorted(ledgered)):
+        try:
+            resolved = path.resolve()
+            resolved.relative_to(packet_root)
+        except (OSError, ValueError):
+            log(f"note: ledger lists {path} outside the packet — not deleting")
+            continue
+        if resolved.is_file():
+            resolved.unlink()
+            removed += 1
+    # Prune the directories the deletions emptied, deepest first; a directory
+    # still holding anything was holding something ingest did not create.
+    for d in sorted((p for p in out_dir.rglob("*") if p.is_dir()),
+                    reverse=True):
+        if not any(d.iterdir()):
+            d.rmdir()
+    leftovers = [p for p in out_dir.rglob("*") if p.is_file()]
+    if leftovers:
+        log(
+            f"{out_dir}: removed {removed} ledgered file(s), but "
+            f"{len(leftovers)} file(s) ingest did not create remain — "
+            "directory kept"
+        )
+    else:
+        out_dir.rmdir()
+        log(f"packet deleted: {out_dir} ({removed} files)")
+
+
+def cmd_sweep(args) -> None:
+    home = Path(args.home).expanduser()
+    if args.delete:
+        for target in args.delete:
+            delete_packet(Path(target).expanduser(), args.check_cmd)
+        return
+    if not home.is_dir():
+        die(f"{home} is not a directory", 2)
+    packets = find_packets(home)
+    if not packets:
+        log(f"no ingest packets under {home}")
+        return
+    offers, ask = [], []
+    for packet in packets:
+        report = sweep_packet(packet, args.check_cmd)
+        log(f"packet {packet.name} — verdict: {report['verdict']}"
+            + (f" ({report['note']})" if report.get("note") else ""))
+        for item in report["items"]:
+            log(f"  {item['state']:8s} {item['id']} ({item['why']})")
+        if report["verdict"] == "resolved":
+            offers.append(packet)
+        elif report["verdict"] in ("unknown", "unlinked"):
+            ask.append((packet, report["verdict"]))
+    if offers:
+        log("OFFER — derived work fully resolved; the decider may take or "
+            "decline (nothing is deleted unasked):")
+        for packet in offers:
+            log(f"  ingest.py sweep --home {home} --delete {packet}")
+    if ask:
+        log("NEEDS THE DECIDER — the sweep does not guess:")
+        for packet, verdict in ask:
+            log(f"  {packet} ({'no derived items recorded' if verdict == 'unlinked' else 'unresolvable item(s) — no tracker binding or check failed'})")
+
+
 def cmd_run(args) -> None:
     if not doctor(quiet=True):
         die("missing tools — run `ingest.py doctor` for install commands", 3)
@@ -908,6 +1147,30 @@ def main(argv=None) -> None:
     rn.add_argument("--ladder", type=int, default=10,
                     help="ladder interval in seconds (default 10)")
 
+    lk = sub.add_parser(
+        "link",
+        help="record the work items filed from a packet, at filing time",
+    )
+    lk.add_argument("--out", required=True, help="the packet (run directory)")
+    lk.add_argument("--item", required=True, action="append",
+                    help="derived work item id — owner/repo#number for "
+                         "GitHub, the tracker's own id otherwise (repeatable)")
+
+    sw = sub.add_parser(
+        "sweep",
+        help="check derived-item resolution across packets; OFFER cleanup",
+    )
+    sw.add_argument("--home", required=True,
+                    help="the output home holding packets (or one packet dir)")
+    sw.add_argument("--check-cmd",
+                    help="resolution-check command from the repo's binding "
+                         "doc, for non-GitHub items; run via /bin/sh with "
+                         "{id} substituted; exit 0 = resolved, 1 = open")
+    sw.add_argument("--delete", action="append", default=[],
+                    help="delete this fully-resolved packet — the decider "
+                         "taking the offer, never the default (repeatable; "
+                         "resolution is re-checked first)")
+
     args = p.parse_args(argv)
     if args.cmd == "doctor":
         sys.exit(0 if doctor() else 3)
@@ -918,6 +1181,10 @@ def main(argv=None) -> None:
         sys.exit(0 if got else 1)
     elif args.cmd == "run":
         cmd_run(args)
+    elif args.cmd == "link":
+        cmd_link(args)
+    elif args.cmd == "sweep":
+        cmd_sweep(args)
 
 
 if __name__ == "__main__":

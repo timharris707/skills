@@ -15,8 +15,26 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   optionally trash. Cleanup is only ever *offered*; the decider accepts or
   declines, and deletion stays within the v1.1.0 ownership rules
   (ingest-created files only, adopted directories refused). The manifest
-  derived-items link and the cleanup pass (issue #116 items 2–3) are out of
-  scope pending a grilling.
+  derived-items link and the cleanup sweep that make the offer executable
+  landed separately (below), after the items 2–3 grilling.
+- **Derived-items links and the cleanup sweep** (designed with Tim, 2026-08-08,
+  issue #116 items 2–3): the manifest gains a `derived_items` list, appended
+  at filing time by whoever files tickets from the packet (`ingest.py link
+  --out DIR --item owner/repo#N` — written at creation, never reconstructed),
+  and `ingest.py sweep --home DIR` checks each packet's derived work for
+  resolution and *offers* deletion of fully-resolved packets, as the closing
+  step of any run and on demand. Resolution is GitHub-first (`gh`: issue/PR
+  closed); other trackers resolve via the binding doc's resolution-check
+  command (`--check-cmd`, exit 0 resolved / 1 open); with no binding the sweep
+  lists the packet for the decider instead of guessing, and a packet with no
+  recorded derived items is never treated as resolved. Deletion happens only
+  when the decider takes the offer (`--delete`), re-checks resolution, and
+  follows the v1.1.0 ownership rules: by manifest ledger, ingest-created files
+  only, foreign files left in place, unmarked directories refused. SKILL.md's
+  Retention paragraph now describes the mechanism as real rather than pending.
+- **25 new tests** (60 total) covering link idempotence and ownership, resolution states
+  (gh mocked — the suite still never touches the network), sweep verdicts,
+  and offer-only ledger deletion.
 
 ## [v1.1.0] - 2026-08-07 — Packets that cannot lie about their source
 

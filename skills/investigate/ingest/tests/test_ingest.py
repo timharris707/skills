@@ -386,5 +386,270 @@ class TestManifestDurability(unittest.TestCase):
             )
 
 
+class FakeProc:
+    """A subprocess.CompletedProcess stand-in for mocked run_cmd calls."""
+
+    def __init__(self, returncode=0, stdout="", stderr=""):
+        self.returncode = returncode
+        self.stdout = stdout
+        self.stderr = stderr
+
+
+class SweepBase(unittest.TestCase):
+    """Shared plumbing: a temp home, packet builders, and a run_cmd mock that
+    guarantees no test ever reaches gh or the network."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.home = Path(self.tmp.name)
+        self.addCleanup(self.tmp.cleanup)
+        self.calls = []
+        self._responder = lambda argv: FakeProc(
+            returncode=127, stderr="unexpected subprocess call in test"
+        )
+        original = ing.run_cmd
+
+        def fake_run(argv, timeout=None, **kw):
+            self.calls.append(argv)
+            return self._responder(argv)
+
+        ing.run_cmd = fake_run
+        self.addCleanup(lambda: setattr(ing, "run_cmd", original))
+
+    def respond(self, fn):
+        self._responder = fn
+
+    def make_packet(self, name, items=(), extra_files=()):
+        d = self.home / name
+        d.mkdir()
+        (d / ".ingest-run").write_text("created by ingest.py in test\n")
+        m = ing.Manifest(d, identity_hash="abc")
+        srt = d / "transcript.srt"
+        srt.write_text("1\n00:00:00,000 --> 00:00:01,000\nhi\n")
+        m.finish("transcribe", [srt])
+        for item in items:
+            m.data["derived_items"].append({"id": item, "added": "2026-08-08"})
+        m.save()
+        for rel in extra_files:
+            p = d / rel
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text("x")
+        return d
+
+
+class TestDerivedItemsLink(SweepBase):
+    """Filing time is when the link is written — and only into our own dirs."""
+
+    def test_link_appends_id_and_date(self):
+        d = self.make_packet("p")
+        ing.main(["link", "--out", str(d), "--item", "owner/repo#12"])
+        items = json.loads((d / "manifest.json").read_text())["derived_items"]
+        self.assertEqual([i["id"] for i in items], ["owner/repo#12"])
+        self.assertRegex(items[0]["added"], r"^\d{4}-\d{2}-\d{2}$")
+
+    def test_link_is_idempotent(self):
+        d = self.make_packet("p")
+        ing.main(["link", "--out", str(d), "--item", "owner/repo#12"])
+        ing.main(["link", "--out", str(d),
+                  "--item", "owner/repo#12", "--item", "owner/repo#13"])
+        items = json.loads((d / "manifest.json").read_text())["derived_items"]
+        self.assertEqual(
+            [i["id"] for i in items], ["owner/repo#12", "owner/repo#13"]
+        )
+
+    def test_link_refuses_a_directory_ingest_did_not_create(self):
+        foreign = self.home / "documents"
+        foreign.mkdir()
+        with self.assertRaises(SystemExit) as cm:
+            ing.main(["link", "--out", str(foreign), "--item", "o/r#1"])
+        self.assertEqual(cm.exception.code, 2)
+
+    def test_manifest_defaults_derived_items(self):
+        m = ing.Manifest(self.home, identity_hash="abc")
+        self.assertEqual(m.data["derived_items"], [])
+
+
+class TestItemResolution(SweepBase):
+    """GitHub-first via gh; binding-doc command otherwise; never a guess."""
+
+    def test_closed_github_issue_is_resolved(self):
+        self.respond(lambda argv: FakeProc(stdout="closed\n"))
+        state, _ = ing.check_item_resolution("owner/repo#7")
+        self.assertEqual(state, "resolved")
+        self.assertEqual(
+            self.calls[0][:3], ["gh", "api", "repos/owner/repo/issues/7"]
+        )
+
+    def test_open_github_issue_is_open(self):
+        self.respond(lambda argv: FakeProc(stdout="open\n"))
+        self.assertEqual(ing.check_item_resolution("owner/repo#7")[0], "open")
+
+    def test_gh_failure_is_unknown_not_resolved(self):
+        self.respond(lambda argv: FakeProc(returncode=1, stderr="HTTP 404"))
+        state, why = ing.check_item_resolution("owner/repo#7")
+        self.assertEqual(state, "unknown")
+        self.assertIn("404", why)
+
+    def test_non_github_id_without_binding_asks_the_decider(self):
+        state, why = ing.check_item_resolution("JIRA-42")
+        self.assertEqual(state, "unknown")
+        self.assertIn("decider", why)
+        self.assertEqual(self.calls, [], "must not shell out with no binding")
+
+    def test_binding_doc_command_resolves_other_trackers(self):
+        self.respond(lambda argv: FakeProc(returncode=0))
+        state, _ = ing.check_item_resolution(
+            "JIRA-42", check_cmd="check-resolved {id}"
+        )
+        self.assertEqual(state, "resolved")
+        self.assertEqual(self.calls[0][-1], "check-resolved JIRA-42")
+
+    def test_binding_doc_exit_1_is_open_and_other_exits_are_unknown(self):
+        self.respond(lambda argv: FakeProc(returncode=1))
+        self.assertEqual(
+            ing.check_item_resolution("JIRA-42", check_cmd="c {id}")[0], "open"
+        )
+        self.respond(lambda argv: FakeProc(returncode=3))
+        self.assertEqual(
+            ing.check_item_resolution("JIRA-42", check_cmd="c {id}")[0],
+            "unknown",
+        )
+
+
+class TestSweepVerdicts(SweepBase):
+    """The verdict is what the offer hangs on: resolved may be offered,
+    open stays, unknown/unlinked go to the decider."""
+
+    def gh_states(self, mapping):
+        def responder(argv):
+            key = argv[2] if argv[0] == "gh" else None
+            state = mapping.get(key, "open")
+            return FakeProc(stdout=state + "\n")
+        self.respond(responder)
+
+    def test_all_items_closed_is_resolved(self):
+        d = self.make_packet("p", items=["o/r#1", "o/r#2"])
+        self.gh_states({"repos/o/r/issues/1": "closed",
+                        "repos/o/r/issues/2": "closed"})
+        self.assertEqual(ing.sweep_packet(d)["verdict"], "resolved")
+
+    def test_one_open_item_keeps_the_packet(self):
+        d = self.make_packet("p", items=["o/r#1", "o/r#2"])
+        self.gh_states({"repos/o/r/issues/1": "closed",
+                        "repos/o/r/issues/2": "open"})
+        self.assertEqual(ing.sweep_packet(d)["verdict"], "open")
+
+    def test_open_beats_unknown(self):
+        # A live item settles the question — no need to bother the decider
+        # about an unresolvable one in the same packet.
+        d = self.make_packet("p", items=["o/r#1", "JIRA-9"])
+        self.gh_states({"repos/o/r/issues/1": "open"})
+        self.assertEqual(ing.sweep_packet(d)["verdict"], "open")
+
+    def test_unresolvable_item_is_unknown(self):
+        d = self.make_packet("p", items=["o/r#1", "JIRA-9"])
+        self.gh_states({"repos/o/r/issues/1": "closed"})
+        self.assertEqual(ing.sweep_packet(d)["verdict"], "unknown")
+
+    def test_no_derived_items_is_unlinked_not_resolved(self):
+        d = self.make_packet("p")
+        report = ing.sweep_packet(d)
+        self.assertEqual(report["verdict"], "unlinked")
+        self.assertEqual(self.calls, [], "nothing to check, nothing called")
+
+    def test_unreadable_manifest_is_unknown(self):
+        d = self.make_packet("p")
+        (d / "manifest.json").write_text("{ torn")
+        self.assertEqual(ing.sweep_packet(d)["verdict"], "unknown")
+
+    def test_find_packets_goes_by_marker_not_name(self):
+        ours = self.make_packet("demo-run")
+        lookalike = self.home / "demo-run-2"
+        lookalike.mkdir()
+        (lookalike / "manifest.json").write_text("{}")
+        self.assertEqual(ing.find_packets(self.home), [ours])
+
+    def test_a_home_that_is_itself_a_packet_sweeps_as_one(self):
+        d = self.make_packet("p")
+        self.assertEqual(ing.find_packets(d), [d])
+
+
+class TestSweepDeletion(SweepBase):
+    """Offer-only, re-checked, and by ledger — the v1.1.0 ownership rules."""
+
+    def all_closed(self):
+        self.respond(lambda argv: FakeProc(stdout="closed\n"))
+
+    def test_refuses_a_directory_ingest_did_not_create(self):
+        foreign = self.home / "documents"
+        foreign.mkdir()
+        (foreign / "taxes.pdf").write_text("important")
+        with self.assertRaises(SystemExit) as cm:
+            ing.delete_packet(foreign)
+        self.assertEqual(cm.exception.code, 2)
+        self.assertTrue((foreign / "taxes.pdf").exists())
+
+    def test_refuses_while_derived_work_is_open(self):
+        d = self.make_packet("p", items=["o/r#1"])
+        self.respond(lambda argv: FakeProc(stdout="open\n"))
+        with self.assertRaises(SystemExit) as cm:
+            ing.delete_packet(d)
+        self.assertEqual(cm.exception.code, 1)
+        self.assertTrue((d / "transcript.srt").exists())
+
+    def test_refuses_an_unlinked_packet(self):
+        # No recorded derived work proves no terminal state — deletion is
+        # never offered off silence.
+        d = self.make_packet("p")
+        with self.assertRaises(SystemExit) as cm:
+            ing.delete_packet(d)
+        self.assertEqual(cm.exception.code, 1)
+        self.assertTrue(d.exists())
+
+    def test_deletes_a_resolved_packet_by_ledger(self):
+        d = self.make_packet("p", items=["o/r#1"])
+        m = ing.Manifest(d, identity_hash="abc")
+        frames = d / "frames"
+        frames.mkdir()
+        (frames / "ladder_00001.jpg").write_text("jpg")
+        m.data["frames"] = [{"file": "frames/ladder_00001.jpg", "ts": 0}]
+        m.finish("frames", [frames / "ladder_00001.jpg"])
+        self.all_closed()
+        ing.delete_packet(d)
+        self.assertFalse(d.exists(), "a fully-ledgered packet is removed")
+
+    def test_a_foreign_file_survives_and_keeps_the_directory(self):
+        d = self.make_packet("p", items=["o/r#1"],
+                             extra_files=["notes/my-own-notes.md"])
+        self.all_closed()
+        ing.delete_packet(d)
+        self.assertTrue((d / "notes" / "my-own-notes.md").exists())
+        self.assertTrue(d.exists(), "a dir still holding foreign files stays")
+        self.assertFalse((d / "transcript.srt").exists())
+
+    def test_a_ledger_path_outside_the_packet_is_refused(self):
+        d = self.make_packet("p", items=["o/r#1"])
+        outsider = self.home / "not-the-packet.mp4"
+        outsider.write_text("someone else's file")
+        m = ing.Manifest(d, identity_hash="abc")
+        m.finish("fetch", [outsider])
+        self.all_closed()
+        ing.delete_packet(d)
+        self.assertTrue(outsider.exists())
+
+    def test_sweep_report_never_deletes(self):
+        d = self.make_packet("p", items=["o/r#1"])
+        self.all_closed()
+
+        class A:
+            home = str(self.home)
+            check_cmd = None
+            delete = []
+
+        ing.cmd_sweep(A())
+        self.assertTrue(d.exists())
+        self.assertTrue((d / "transcript.srt").exists())
+
+
 if __name__ == "__main__":
     unittest.main()

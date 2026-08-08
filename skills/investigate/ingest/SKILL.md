@@ -60,7 +60,26 @@ The run dir is the archive, and the rule is what can't be re-fetched stays: a lo
 
 **A URL is not a promise.** Signed, expiring, private, and geo-limited links all look like ordinary URLs, and the discard is irreversible — pass `--keep-media` whenever the source might not still be there tomorrow.
 
-**A packet lives as long as the work it spawned.** A packet is neither permanent evidence nor throwaway scratch: its usual product is work items — tickets filed from what the recording showed — and it stays reviewable until every item derived from it is resolved, because that is the span over which someone may need to hold a claim against the evidence. Once the derived work is closed, the packet is optionally trash: the skill may *offer* cleanup, and the decider takes or declines the offer — nothing is deleted unasked, and any deletion follows the same ownership rules as the run itself (only ingest-created files, never an adopted directory). This is the standing policy, not yet a step the skill can execute: offering cleanup requires knowing which work items derive from the packet and when they resolved, and no manifest field records that yet — until that mechanism ships, cleanup happens only when the decider initiates it. This lifetime rule governs the packet's files after a completed run; it is separate from the automatic discard of downloaded URL media above, which happens at run time under its own flag.
+**A packet lives as long as the work it spawned.** A packet is neither permanent evidence nor throwaway scratch: its usual product is work items — tickets filed from what the recording showed — and it stays reviewable until every item derived from it is resolved, because that is the span over which someone may need to hold a claim against the evidence. Once the derived work is closed, the packet is optionally trash: the skill may *offer* cleanup, and the decider takes or declines the offer — nothing is deleted unasked, and any deletion follows the same ownership rules as the run itself (only ingest-created files, never an adopted directory). The mechanism is the manifest's `derived_items` list plus the sweep below: the filing session records what the packet spawned, and the sweep checks resolution and makes the offer. This lifetime rule governs the packet's files after a completed run; it is separate from the automatic discard of downloaded URL media above, which happens at run time under its own flag.
+
+### Derived items and the cleanup sweep
+
+The link is written at filing time, never reconstructed: whoever files tickets from the packet — the invoking session, when [to-tickets](../../run/to-tickets/SKILL.md) runs off the recommendation — appends each filed item to the packet's manifest the moment it exists:
+
+```bash
+python3 scripts/ingest.py link --out <run-dir> --item owner/repo#123 [--item ...]
+```
+
+The sweep reads those links back and checks whether the work has resolved — as the closing step of any run (after the routing recommendation, sweep the output home and relay any offers to the decider) and on demand, whenever the decider asks what can go:
+
+```bash
+python3 scripts/ingest.py sweep --home <output-home>          # report + offers, deletes nothing
+python3 scripts/ingest.py sweep --home <output-home> --delete <packet-dir>   # the decider took the offer
+```
+
+Resolution is GitHub-first: an `owner/repo#number` item is resolved when `gh` reports the issue or PR closed. Any other tracker resolves only through the resolution-check command named in the repo's binding doc, passed as `--check-cmd` (exit 0 resolved, exit 1 open). Where no binding exists the sweep does not guess — it lists those packets, and packets with no recorded derived items, as the decider's to settle.
+
+The sweep's report **is** the offer: fully-resolved packets are named as eligible, and nothing is deleted until the decider takes the offer and `--delete` is run — which re-checks resolution and then deletes by ledger under the run's own ownership rules (manifest-recorded files only, foreign files left in place, a directory without the `.ingest-run` marker refused outright).
 
 ## Done when (checkable — verify each line before reporting complete)
 
@@ -70,6 +89,7 @@ The run dir is the archive, and the rule is what can't be re-fetched stays: a lo
 - The whole transcript was read, and a frame was opened at every reaction and every load-bearing claim.
 - Every takeaway in the recommendation carries a route and, where the transcript supports it, a timestamp.
 - Anything quoted came from the whisper transcript, with the caption preview used for triage only.
+- The closing sweep ran over the output home; any cleanup offers were relayed to the decider, and nothing was deleted without the decider taking one.
 - Nothing was filed, claimed, or built, and nothing from the run dir was committed.
 
 ## Hard guardrails
