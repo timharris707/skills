@@ -22,6 +22,7 @@ the decider, never silently into the work).
 
 ## Required reading (load before writing code)
 - <the repo's domain/context docs, per the binding doc>
+- <the domain-memory home — glossary + recent decision records — where the repo binds it>
 - <the team-workflow binding doc itself>
 
 ## Standing constraints (every lane)

@@ -18,7 +18,7 @@ Read the team-workflow binding doc first. The review runs **before external revi
 
 ## 2. Composition: three finders, isolated
 
-Three reviewers, run as parallel subagents that **never see each other's reasoning** — isolation is what makes agreement between finders meaningful. Each loads the diff, the repo's defect-class checklist (§5), and nothing of the others' output.
+Three reviewers, run as parallel subagents that **never see each other's reasoning** — isolation is what makes agreement between finders meaningful. Each loads the diff, the repo's defect-class checklist (§5), the repo's decision records where [domain-memory](../../orient/domain-memory/SKILL.md) is bound, and nothing of the others' output.
 
 1. **The correctness finder** — logic, edge cases, error paths, invariants; the defect-class checklist is its opening moves, not its limit.
 2. **The fitting lens** — one perspective chosen to match the change, from the menu:
@@ -80,6 +80,7 @@ A new repo starts with an empty checklist and that is correct: it fills at the s
 - The report — findings, composition, clean bill — is posted on the driving ticket/PR, or delivered in-session when none exists.
 - Confirmed blockers are fixed, or waived by the decider on the record. Lesser findings are each dispositioned.
 - Any new defect class earned by this review is queued for the fixing PR, with its repro.
+- Where domain-memory is bound: finders loaded the decision records, and every declined finding landed there as a record with its reason.
 
 ## Attribution
 

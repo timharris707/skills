@@ -11,7 +11,7 @@ Read the team-workflow binding doc first — its domain-memory section names the
 
 ## 1. One store, two artifacts
 
-- **The glossary** — one small, opinionated file of domain terms: each entry a canonical term, a one-or-two-sentence definition, and the synonyms to avoid. Project-specific concepts only, no implementation detail. It updates **in place** — a term means one thing now, and the file says what.
+- **The glossary** — one small, opinionated file of domain terms: each entry a canonical term, a tight definition, and the synonyms to avoid (the rules live in [references/formats.md](references/formats.md)). It updates **in place** — a term means one thing now, and the file says what.
 - **Decision records** — one small file per settled decision: title, date, the decision, the **load-bearing reason**, and links to the ticket or PR that carried it. A record costs under a minute to write, in plain English a non-engineer decider reads without translation. The reason is the record's value: a future session needs to know *why*, so it can tell new evidence from re-litigation.
 
 Formats for both live in [references/formats.md](references/formats.md). Files are created lazily — the glossary when the first term settles, the decisions directory when the first record lands; an empty store on day one is the correct starting state.
@@ -30,7 +30,7 @@ Lane close-outs are deliberately **not** a write moment: a lane executes a decis
 
 ## 3. Read moments
 
-1. **Session start** — the binding doc names the memory home; startup reads the glossary and skims recent decision records, the same way it reads the handoff.
+1. **Session start** — the orchestrator's startup checklist reads the glossary and skims recent decision records; any other session reaches the store through the binding doc's memory-home pointer.
 2. **Grilling pre-round** — the griller reads the relevant records before asking, so a settled question is never re-asked; it reopens on new evidence, never on repetition.
 3. **Lane briefs** — briefs point at the memory home, so a lane starts on the repo's terms and settled decisions instead of rediscovering them.
 4. **Review layers** — finders and skeptics consult the decision records, so a review reads the why before contesting the what.
@@ -53,15 +53,15 @@ An existing repo starts empty and grows forward; that is the default, and it is 
 
 ## Done when (checkable)
 
-- Every settled decision from the triggering write moment — grilling close, review disposition, decider correction — is a record at the memory home carrying title, date, decision, load-bearing reason, and links, or was declined by the decider; none is silently skipped.
+- Every settled decision from the triggering write moment — grilling close, review disposition, decider correction — is a record at the memory home carrying title, date, decision, the load-bearing reason, and links where a ticket or PR exists (a decider-correction record often has neither), or was declined by the decider; none is silently skipped.
 - New or sharpened terms from the moment are in the glossary: canonical form, avoid-list, no implementation detail.
-- No existing record was edited — changes of mind are new records with supersedes links, and each superseded record carries its forward marker.
+- No existing record was edited outside an approved consolidation pass — changes of mind are new records with supersedes links, and each superseded record carries its forward marker.
 - The read moment in play actually read: session start, pre-round, lane brief, or review layer consulted the store, and nothing re-asked or re-raised a recorded decision without new evidence.
 - A store past its size bound has the consolidation offer on the decider's table, and nothing was consolidated without disposition.
 - Backfill drafts, where the lane ran, were each dispositioned card by card; nothing entered the store without a yes.
 
 ## Attribution
 
-Adapted from Matt Pocock's [`domain-modeling`](https://github.com/mattpocock/skills/tree/main/skills/engineering/domain-modeling) (MIT). The mechanism is his: a repo glossary plus lightweight decision records (his `CONTEXT.md` and ADRs) as the two artifacts, written the moment a term or decision crystallises — a side effect of design work, not a documentation chore — files created lazily when the first entry exists, the glossary rules his [`CONTEXT-FORMAT.md`](https://github.com/mattpocock/skills/blob/main/skills/engineering/domain-modeling/CONTEXT-FORMAT.md) states (opinionated canonical terms with avoid-lists, tight definitions, project-specific concepts only, no implementation detail), and the record-can-be-a-paragraph bar of his [`ADR-FORMAT.md`](https://github.com/mattpocock/skills/blob/main/skills/engineering/domain-modeling/ADR-FORMAT.md) — the value is recording *that* and *why*, not filling out sections.
+Adapted from Matt Pocock's [`domain-modeling`](https://github.com/mattpocock/skills/tree/main/skills/engineering/domain-modeling) (MIT). The mechanism is his: a repo glossary plus lightweight decision records (his `CONTEXT.md` and ADRs) as the two artifacts, written the moment a term or decision crystallises — a side effect of design work, not a documentation chore — files created lazily when the first entry exists, the glossary rules his [`CONTEXT-FORMAT.md`](https://github.com/mattpocock/skills/blob/main/skills/engineering/domain-modeling/CONTEXT-FORMAT.md) states (opinionated canonical terms with avoid-lists, tight definitions, project-specific concepts only) plus his SKILL.md's rule that the glossary stays devoid of implementation detail, and the record-can-be-a-paragraph bar of his [`ADR-FORMAT.md`](https://github.com/mattpocock/skills/blob/main/skills/engineering/domain-modeling/ADR-FORMAT.md) — the value is recording *that* and *why*, not filling out sections.
 
 What this repo changes: the write/read moment matrix wired into the pack (grilling close-records, review dispositions, and decider corrections in; session start, grilling pre-round, lane briefs, and review layers out), supersede-never-edit in place of editable ADR statuses, the consolidation pass offered past a size bound and dispositioned by the decider, the backfill-by-disposition lane, the unified store with codebase-review's rejection memory, the plain-English-for-the-decider bar, and the binding slots.

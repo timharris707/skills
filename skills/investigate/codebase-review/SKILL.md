@@ -23,7 +23,7 @@ The review runs when one of three gates opens, never on a schedule — a schedul
 
 The review runs as a **delegated lane**, claimed and tracked like any work item — how it is launched and tracked is the executor binding slot. Its contract is read-only: it changes no code and files no tickets; its deliverable is the report, and ticket filing belongs to the disposition loop (§5).
 
-**Before any finder runs, the lane reads the repo's rejection memory** (binding slot): a candidate the decider rejected reopens on new evidence, never on repetition. A rerun that re-proposes a recorded rejection without new evidence has ignored the decider once and the memory twice.
+**Before any finder runs, the lane reads the repo's rejection memory** (binding slot) — where the slot points at the domain-memory home, that means reading the decision records, since a rejection carries its nature in the record's own text, not in a separate ledger. A candidate the decider rejected reopens on new evidence, never on repetition. A rerun that re-proposes a recorded rejection without new evidence has ignored the decider once and the memory twice.
 
 Finder agents run as parallel subagents that never see each other's output — isolation is what makes two lenses landing on the same code a signal instead of an echo. Each holds **one named lens** from the menu, stated in the report. All five lenses run by default; a scoped run may drop a lens its scope cannot reach, naming the drop and the reason in the report:
 

@@ -29,7 +29,7 @@ The repository doubles as a Claude Code plugin marketplace, but nothing is locke
 
 ## Team-Workflow Pack
 
-**A workflow for teams building with agents — without the collisions.** Seven skills that ship and version together: decide before you build (decision-map), prototype what discussion can't settle (prototype), investigate what sources can answer (research), hand sessions off losslessly (handoff), coordinate parallel lanes from one seat (orchestrate), bind it all to your repo once (setup), and orient any session with the router. Everything repo-specific lives in one binding doc; every skill defers judgment calls to **the decider** — the role your repo names, not a person the pack assumes.
+**A workflow for teams building with agents — without the collisions.** Thirteen skills that ship and version together: decide before you build (decision-map), prototype what discussion can't settle (prototype), investigate what sources can answer (research), hand sessions off losslessly (handoff), coordinate parallel lanes from one seat (orchestrate), bind it all to your repo once (setup), and orient any session with the router. Everything repo-specific lives in one binding doc; every skill defers judgment calls to **the decider** — the role your repo names, not a person the pack assumes.
 
 Start with the [router](https://github.com/timharris707/skills/blob/main/skills/orient/router/SKILL.md) to see the whole pack at a glance.
 

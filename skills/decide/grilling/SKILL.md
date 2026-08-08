@@ -11,7 +11,7 @@ Map the work as a **design tree**: every decision branches into the decisions th
 
 ## Rounds and the frontier
 
-The **frontier** is every decision whose prerequisites are already settled — the questions askable *now* without guessing at answers you have not heard. Ask the whole frontier in one round, then wait.
+The **frontier** is every decision whose prerequisites are already settled — the questions askable *now* without guessing at answers you have not heard. Ask the whole frontier in one round, then wait. Where the repo binds [domain-memory](../../orient/domain-memory/SKILL.md), read the relevant decision records before composing the first round — a recorded decision is settled, not frontier, and reopens on new evidence, never on repetition.
 
 The word means the same thing here as it does on the tracker — the edge of what is takeable — where [decision-map](../decision-map/SKILL.md) works a frontier of gated tickets. A question whose answer depends on another question still open in this round belongs to a *later* round. Putting it in this round forces the decider to answer twice — once on a guess, once for real.
 
@@ -64,10 +64,11 @@ Agreement that lives only in the transcript evaporates with the session. Once th
 - The decider has explicitly confirmed shared understanding. Their last answer is not the confirmation; ask for it.
 - The confirmed understanding is written to its durable record — ticket comment or dated summary — not left in the transcript.
 - Anything that surfaced as a prototype, research, or map-sized question is named as such, with the skill that owns it.
+- Where the repo binds domain-memory: the relevant decision records were read before the first round, and the close-record's settled decisions and new terms are minted into the store.
 
 ## Hard guardrails
 
-- **Do not act on the understanding.** Grilling produces agreement, not changes: no code, no specs, no new tickets filed off the session. The one write is the closing record — an existing driving ticket may, and per the closing step should, receive it as a comment. Building, speccing, and filing happen after the decider confirms, as their own moves.
+- **Do not act on the understanding.** Grilling produces agreement, not changes: no code, no specs, no new tickets filed off the session. The writes are the closing record — an existing driving ticket may, and per the closing step should, receive it as a comment — and, where the repo binds domain-memory, the records that closing mints. Building, speccing, and filing happen after the decider confirms, as their own moves.
 - **One round at a time.** Asking the next round before the current one is answered collapses the tree into a questionnaire and loses the reshaping that makes the rounds worth running. Splitting a single frontier across consecutive structured-question calls is still one round; asking anything whose prerequisite is unanswered is not, however it is presented.
 - **Relentless means relentless.** Stopping at the first coherent answer is the failure mode this skill exists to prevent. An unasked question is a decision made silently, by you.
 

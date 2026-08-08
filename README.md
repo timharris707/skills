@@ -127,7 +127,7 @@ The promoted buckets are also the site's regions, read straight from `buckets.js
 
 ## Acknowledgements
 
-Seven skills here are adapted from [mattpocock/skills](https://github.com/mattpocock/skills) (MIT) — [grilling](./skills/decide/grilling/SKILL.md), [to-tickets](./skills/run/to-tickets/SKILL.md), [wizard](./skills/run/wizard/SKILL.md), [adversarial-review](./skills/run/adversarial-review/SKILL.md), [codebase-review](./skills/investigate/codebase-review/SKILL.md), [domain-memory](./skills/orient/domain-memory/SKILL.md), and [writing-for-agents](./skills/author/writing-for-agents/SKILL.md). Each names what it took and what it added in its own Attribution section; `grilling` follows its original most closely.
+Much of this catalog is adapted from [mattpocock/skills](https://github.com/mattpocock/skills) (MIT). Every adapted skill names what it took and what it added in its own Attribution section — that section, not any list here, is the record; [grilling](./skills/decide/grilling/SKILL.md) and [writing-for-agents](./skills/author/writing-for-agents/SKILL.md) follow their originals most closely.
 
 ## License
 
