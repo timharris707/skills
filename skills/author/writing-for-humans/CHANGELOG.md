@@ -16,7 +16,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   copy dashes are the exception, roughly a handful per page, each one earning
   its place. The only fix is restructuring (split the sentence, subordinate
   with a comma, or cut the aside); a mechanical in-place swap of a dash for
-  any other mark, comma, semicolon, colon, or parentheses, is named as the
+  any other mark (comma, semicolon, colon, or parentheses) is named as the
   anti-pattern because it preserves the AI rhythm the rule exists to break.
   New standing voice rule and done-when line in SKILL.md.
 - The last-mile scrub now treats em-dash density as a primary tell: a new

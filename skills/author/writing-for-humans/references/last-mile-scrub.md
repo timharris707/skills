@@ -34,7 +34,7 @@ Condensed from the patterns Wikipedia's "Signs of AI writing" documents and blad
 | Chatbot artifacts | "Certainly!", "I hope this helps", "Let's dive in" |
 | Formatting litter | Bold terms scattered mid-prose, headers for two-sentence sections, emoji bullets |
 
-Em-dash density is a primary tell, the one row that fires on frequency alone. blader/humanizer calls the em dash one of the most reliable AI tells and bans em and en dashes from its final rewrites outright, a voice sample that uses them being the sole exception. This pass keeps [SKILL.md](../SKILL.md)'s budget instead of the ban: roughly a handful per page, each one earning its place. When the row fires, restructure. Split the sentence, subordinate the aside with a comma, or cut it. A mechanical dash-to-comma or dash-to-semicolon swap preserves the exact rhythm the budget exists to break, which is the anti-pattern the guardrail above ("rewrite sentences, not words") already names.
+Em-dash density is a primary tell, the one row that fires on frequency alone. blader/humanizer calls the em dash one of the most reliable AI tells and bans em and en dashes from its final rewrites outright, a voice sample that uses them being the sole exception. This pass keeps [SKILL.md](../SKILL.md)'s budget instead of the ban: roughly a handful per page, each one earning its place. When the row fires, restructure. Split the sentence, subordinate the aside with a comma, or cut it. A mechanical in-place swap of a dash for any other mark (comma, semicolon, colon, or parentheses) preserves the exact rhythm the budget exists to break, which is the anti-pattern the guardrail above ("rewrite sentences, not words") already names.
 
 ## Done when
 
