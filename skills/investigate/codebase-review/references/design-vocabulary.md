@@ -20,4 +20,4 @@ The shared language every codebase-review finder and the skeptic speak. Use thes
 
 ## Attribution
 
-Adapted from Matt Pocock's [`codebase-design`](https://github.com/mattpocock/skills) (MIT), which defines this vocabulary in full — including depth-as-leverage in place of Ousterhout's line-count ratio, and the one-adapter/two-adapter seam rule. This doc trims it to what codebase-review's finders need and adds the mapping onto the skill's lenses (the deletion test doing double duty for shallow modules and dead code, test-pain as an interface-shape signal).
+Adapted from Matt Pocock's [`codebase-design`](https://github.com/mattpocock/skills/tree/main/skills/engineering/codebase-design) (MIT), which defines this vocabulary in full — including depth-as-leverage in place of Ousterhout's line-count ratio, and the one-adapter/two-adapter seam rule. This doc trims it to what codebase-review's finders need and adds the mapping onto the skill's lenses (the deletion test doing double duty for shallow modules and dead code, test-pain as an interface-shape signal).

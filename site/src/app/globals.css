@@ -569,6 +569,10 @@ h2 {
   fill: var(--ink);
   transition: fill 160ms ease;
   dominant-baseline: middle;
+  paint-order: stroke fill;
+  stroke: var(--beacon);
+  stroke-width: 4px;
+  stroke-linejoin: round;
 }
 
 .fix:hover .fix__ring,

@@ -84,7 +84,7 @@ How the pack composes with this repo's resident rule systems. Resident rules win
 - **Report destination**: <the tracker item or query where run reports and close-outs land>
 - **Lane-count threshold (N)**: <merged lanes since the last review that trigger a run>
 - **Rejection memory**: <where rejected candidates and their load-bearing reasons live>
-- **Executor**: <how the read-only review lane is launched, claimed, and tracked — in orchestrated repos, usually the lane-launch machinery below>
+- **Executor mechanics**: <how the read-only review lane is launched, claimed, and tracked — in orchestrated repos, usually the lane-launch machinery below>
 
 ## Orchestration (optional — repos running an orchestrator)
 

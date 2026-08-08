@@ -42,7 +42,7 @@ Add the marketplace once, then install whichever plugins you want.
 
 ### Codex
 
-The same thirteen skills, native. Codex allows one plugin per repository root, so the
+The same fifteen skills, native. Codex allows one plugin per repository root, so the
 whole catalog arrives as a single plugin rather than four:
 
 ```bash
@@ -126,7 +126,7 @@ The promoted buckets are also the site's regions, read straight from `buckets.js
 
 ## Acknowledgements
 
-Four skills here are adapted from [mattpocock/skills](https://github.com/mattpocock/skills) (MIT) — [grilling](./skills/decide/grilling/SKILL.md), [to-tickets](./skills/run/to-tickets/SKILL.md), [wizard](./skills/run/wizard/SKILL.md), and [writing-for-agents](./skills/author/writing-for-agents/SKILL.md). Each names what it took and what it added in its own Attribution section; `grilling` follows its original most closely.
+Six skills here are adapted from [mattpocock/skills](https://github.com/mattpocock/skills) (MIT) — [grilling](./skills/decide/grilling/SKILL.md), [to-tickets](./skills/run/to-tickets/SKILL.md), [wizard](./skills/run/wizard/SKILL.md), [adversarial-review](./skills/run/adversarial-review/SKILL.md), [codebase-review](./skills/investigate/codebase-review/SKILL.md), and [writing-for-agents](./skills/author/writing-for-agents/SKILL.md). Each names what it took and what it added in its own Attribution section; `grilling` follows its original most closely.
 
 ## License
 
