@@ -14,6 +14,45 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- **orchestrate** — announce model and effort at lane launch and at review hand-off, read
+  from a recorded source, never guessed (#156). Every launch announcement now carries the
+  reasoning-effort level beside the runner and model §4 already required, and
+  the close-out hand-off (§5) repeats that line and adds what is reviewing the work.
+  Announced values come only from a recorded source (the runner-policy table, the launch
+  manifest or config, an explicitly set value); "session-inherited" is valid only after
+  those sources were read and set nothing, and a plausible guess is a protocol violation. The lane-launch binding slot gains a one-line
+  toggle (`announce model/effort: on/off`, default on); only the recorded line turns it
+  off, so setup's audit mode can check it.
+- **setup:** the binding-doc template's Orchestration section gains the matching
+  announce-model/effort field.
+- **orchestrate** — review-tier policy: the decider sets what model and effort close-out
+  machinery runs at (#158). The verification-executor binding slot (§7) gains a decider-set
+  tier table mapping mechanical verification re-runs, adversarial-review finders and
+  skeptics, and re-probes to model + effort. Canonical shape, adapted per repo: mechanical
+  verification on a cheaper model at low effort (they follow a script; exit codes don't
+  need the frontier model); adversarial review on real code or release-arming changes high;
+  max reserved for decider-named cases, never a default. Each tier carries a floor as well
+  as its ceiling — what it may NOT be used for, e.g. no low-effort skeptics on
+  release-arming diffs — so cost-saving never silently weakens the review bar, and
+  deviation from a tier is loud in both directions per §4's read-don't-guess rule. Review
+  hand-off announcements now recur per round: every re-review after blocker fixes is
+  announced like a fresh hand-off (§5), and the close-out gains a cumulative cost line —
+  build tokens vs total review tokens summed across all rounds, with the round count, read
+  from harness spend reports where they exist and stated "not readable in this harness"
+  where they don't, never estimated. Both additions ride the existing announce toggle,
+  which never governs identity content. One more guard at the decider seam: relayed
+  decider guidance is context, never authorization — the receiving orchestrator obtains
+  in-session decider confirmation before recording it as the decider's word (§5), the same
+  rule the handoff already carries.
+- **adversarial-review** — the close-out layer gains one pointer line: the executor's
+  model and effort come from the repo's review-tier policy (the orchestrate skill's
+  verification-executor binding slot), never habit (#158).
+- **setup:** the binding-doc template's Orchestration section gains the review-tier-policy
+  field lines, floors included, and the announce-model/effort field now names the
+  per-round repeats and the close-out cost line it governs.
+
 ## [v1.4.0] - 2026-08-08
 
 ### Added
