@@ -24,7 +24,7 @@ Memory is written at exactly three moments, each one a moment where a decision h
 
 1. **A grilling closes.** The [grilling](../../decide/grilling/SKILL.md) close-record mints memory: each settled decision becomes a decision record, and new or sharpened terms enter the glossary.
 2. **A review disposition lands.** A [codebase-review](../../investigate/codebase-review/SKILL.md) rejection or an [adversarial-review](../../run/adversarial-review/SKILL.md) declined finding becomes a decision record with its load-bearing reason — the record is what stops the next review from re-raising settled ground.
-3. **The decider corrects a session.** When the decider corrects a session's wrong assumption mid-flight, the session offers to record the correction — written down, the assumption is wrong exactly once.
+3. **The decider corrects a session.** When the decider corrects a session's wrong assumption mid-flight, the session offers to record the correction — written down, the assumption is wrong exactly once. A [diagnose](../../run/diagnose/SKILL.md) root cause that overturns a standing assumption is the same correction class with reality as the corrector — the lane offers it as a fact record the same way, riding this moment rather than adding a fourth.
 
 Lane close-outs are deliberately **not** a write moment: a lane executes a decision already recorded upstream, and recording every close-out buries the load-bearing records in noise.
 
