@@ -103,9 +103,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   on their own time; the orchestrator never calls an archive surface, so an unanswered
   notification gates nothing. Archive, never delete; only the closed-out lane's own session
   is ever named; native auto-archive-on-PR-close is the zero-touch path where the harness
-  offers it (recorded in the lane-launch slot); in-process subagent lanes have nothing to
-  archive; a retired orchestrator's session is archived by the human or successor, never
-  automatically.
+  offers it (recorded in the lane-launch slot — `yes` only where it cannot preempt the
+  close-out order, since it fires at merge time); in-process subagent lanes have nothing to
+  archive; a retired orchestrator's session is archived by the human, never automatically
+  and never by the orchestrator.
 
 ## [v1.3.0] - 2026-08-07 — adversarial-review joins the pack
 
