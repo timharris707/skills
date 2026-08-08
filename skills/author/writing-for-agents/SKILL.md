@@ -55,6 +55,13 @@ Every step ends on a **completion criterion** — the condition telling the agen
 
 The strongest criteria are both checkable and exhaustive. In this catalog they surface as the **`## Done when (checkable)`** section every skill carries.
 
+## When to split
+
+Splitting one document into two spends one of the two budgets, so split only when the cut earns it:
+
+- **By sequence** — split a run of steps where the visible later steps tempt the agent to rush the one in front of it. Keeping them out of view drives more digging on the current task. Beware the reverse: merging sequences exposes each step to what follows it, inviting premature completion.
+- **By invocation** — skill-specific: when different triggers should reach different material, each invocation path becomes its own skill. The mechanics live in [references/skill-mechanics.md](references/skill-mechanics.md).
+
 ## Leading words
 
 A **leading word** is a compact concept already living in the model's pretraining that the agent thinks with while running the document — *frontier*, *fog*, *tracer bullet*, *lane*. Repeated as a token and never as a sentence, it accumulates a distributed definition and anchors a whole region of behavior in the fewest tokens, by recruiting priors the model already holds.
@@ -83,4 +90,4 @@ Coining your own works if you define it clearly, but a made-up word recruits no 
 
 ## Attribution
 
-The vocabulary in this skill — *context pointer*, the two loads, *leading words*, the information hierarchy — is adapted from Matt Pocock's [`writing-for-agents`](https://github.com/mattpocock/skills/tree/main/skills/productivity/writing-for-agents) (MIT). The framing is his; the mechanics reference and the catalog invariants are this repo's.
+This skill is a lightly edited adaptation of Matt Pocock's [`writing-for-agents`](https://github.com/mattpocock/skills/tree/main/skills/productivity/writing-for-agents) (MIT) — not just the vocabulary but the body: context pointers, the two budgets, the information hierarchy, completion criteria, when to split, leading words, and pruning follow his text section by section, much of it near-verbatim. What this repo adds: the checkable Done-when list, and the mechanics reference with its catalog invariants.

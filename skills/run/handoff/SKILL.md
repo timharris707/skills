@@ -25,10 +25,11 @@ In repos with an approval-before-edit guardrail: invoking this skill **is** the 
 2. **Pointer, not transcript.** Two to four sentences of state, links into the durable records (the tracker, the plan doc, the changed files) — never pasted code blocks, never a recap of the conversation. If the repo has a living plan or status doc, that stays the durable record; the handoff is the short "resume here" pointer into it.
 3. **The stale-NEXT rule.** NEXT points at the tracker query, never enumerates work items. The queue lives on the tracker; a handoff that lists item numbers goes stale the moment any other session claims one, and a session starting from that stale list collides with the claimer. Corollary: **reading a handoff never authorizes starting an item** — the claim recipe always runs first.
 4. **GOTCHAS carry the expensive lessons.** Traps, dead ends already ruled out, environment facts that look wrong but aren't — the things a fresh session would otherwise re-pay for.
+5. **No secrets, ever.** The session-start hook replays the handoff into every fresh session, so a captured credential replays forever — into every future session's context. Name where a secret lives (the env var, the secret-store path, the wizard stage that produces it), never its value; before saving, re-read the file for anything that looks like a token, key, or password and replace it with its pointer.
 
 ## Steps
 
 1. Resolve the target path from the binding doc (default `.claude/handoff.md`; create the directory if needed).
 2. Fill the [reference template](references/template.md) — STATE / DONE / NEXT / GOTCHAS — overwriting any existing handoff.
-3. Keep it tight and high-signal; apply the four rules above.
+3. Keep it tight and high-signal; apply the five rules above.
 4. Tell the user it's saved and that a fresh session (or a context reset) is now safe.

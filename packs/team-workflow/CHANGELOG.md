@@ -44,6 +44,35 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - **router:** roster and intro now cover codebase-review — where adversarial-review breaks
   the change, codebase-review reviews the codebase the changes accumulate in.
+- **Fidelity audit follow-up: attribution squared with the record, plus the upstream rules
+  worth keeping** (#122). An audit against [mattpocock/skills](https://github.com/mattpocock/skills)
+  (MIT) — the pack's main upstream — found overdue or inaccurate attributions and a handful of
+  his rules the adaptations had dropped. Attribution: **decision-map** (wayfinder), **research**
+  (research + to-questionnaire, including his phrase "grill the send, not the subject"),
+  **prototype**, and **setup** gain honest Attribution sections in grilling's his-vs-ours style;
+  **writing-for-agents**' attribution now states its body is a lightly edited, largely
+  near-verbatim adaptation, not just shared vocabulary; **to-tickets** stops claiming the
+  two-pass filing order as this repo's (it is wayfinder's); the **router** notes its
+  main-flow-with-on-ramps framing comes from ask-matt. Adopted upstream rules and fixes:
+  **decision-map** takes the fog-or-ticket test (ticket when the question can be stated
+  precisely now) and refer-by-name (names, never bare issue numbers, in anything the human
+  reads); **to-tickets** restores the wide-refactor expand–contract exception and gains a
+  decider sign-off gate on the slice list before Pass 1 files anything;
+  **writing-for-agents** restores the "When to split" section (by sequence / by invocation);
+  **prototype** regains the single-shareable-HTML shape for logic prototypes beside the
+  terminal UI, and its iteration rule now covers lane mode (the driving ticket as the
+  iteration channel when the decider is not in-session). Pack-native strengthening from the
+  same audit: **grilling** closes with a durable record of the confirmed understanding, so
+  to-tickets links a citable plan source instead of a transcript; **handoff** adds a
+  no-secrets rule (the session-start hook replays a captured credential into every future
+  session — point at where a secret lives, never its value); **wizard** mirrors pending
+  manual steps as the driving ticket's `blocked` label until the human clears them;
+  **research** gains claim/title discipline for standalone lanes, a skeptic pass over
+  findings that will drive a build decision (optional otherwise), and the
+  verify-each-line Done-when suffix its siblings carry; **adversarial-review**'s lens menu
+  adds a conventions/standards lens — additive, active only where the repo documents its
+  own standards, reading the repo's documents and never an imported checklist; the
+  **router** table gains the ingest row.
 - **orchestrate: session titling is now protocol, not folklore** (#118). The startup
   checklist titles the session (after the existing-sessions check, so a session that must
   stand down never wears the title) — default `Orchestrator — <repo>`; every

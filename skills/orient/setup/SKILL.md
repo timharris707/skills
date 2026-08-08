@@ -55,3 +55,7 @@ Re-running setup **re-scans the repo, diffs against the existing binding doc, an
 - Confirmed templates are seeded at their confirmed locations; declined ones are recorded as declined in the binding doc (so a re-run doesn't re-ask from scratch).
 - The handoff hook is seeded (non-sync-managed settings — creating the conventional settings file if none existed), or recorded as a pending snippet with the settings owner (sync-managed), or recorded as declined; the handoff-file ignore entry is seeded (or recorded as already-satisfied or declined).
 - The human confirmed every binding — including the inferred ones — and answered decider + home directly.
+
+## Attribution
+
+The interview shape here — scan the repo first, present findings, confirm each answer before writing — and the pattern of recording the tracker and label vocabulary as per-repo bindings the other skills read are adapted from Matt Pocock's [`setup-matt-pocock-skills`](https://github.com/mattpocock/skills/tree/main/skills/engineering/setup-matt-pocock-skills) (MIT). The four mandatory bindings, the empty-repo branches, the sync-managed-settings rules, the seeded templates and handoff hook, and the idempotent re-run are this repo's.

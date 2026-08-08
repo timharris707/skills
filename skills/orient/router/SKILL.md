@@ -9,6 +9,12 @@ One entry point for the **team-workflow** pack: a portable discipline for runnin
 
 **First run in a repo? Run `setup` before anything else.** The other skills read the bindings it seeds.
 
+## The main flow
+
+Most work travels one route: **idea → grill → map → tickets → lanes → review → merge.** An idea is pressure-tested in [grilling](../../decide/grilling/SKILL.md); when real fog surfaces, [decision-map](../../decide/decision-map/SKILL.md) charts and works it until nothing gating is undecided (no fog means skipping the map entirely); [to-tickets](../../run/to-tickets/SKILL.md) turns what was decided into tracer-bullet items; [orchestrate](../../run/orchestrate/SKILL.md) routes those items into parallel lanes; [adversarial-review](../../run/adversarial-review/SKILL.md) tries to break each change before it merges. [prototype](../../investigate/prototype/SKILL.md) and [research](../../investigate/research/SKILL.md) are detours off any point of the route — taken when a question needs seeing or reading rather than deciding — and [handoff](../../run/handoff/SKILL.md) carries state across every session boundary along it.
+
+**On-ramps** merge onto that route rather than starting a new one: [ingest](../../investigate/ingest/SKILL.md) turns a recording or media URL into evidence plus a recommendation for where it enters the flow (tickets, a grilling session, strategy for the decider); [research](../../investigate/research/SKILL.md) findings and returned questionnaires feed the grilling that follows them; [wizard](../../run/wizard/SKILL.md) clears the human-only steps a lane stalls on and hands the flow back.
+
 ## The skills
 
 | Skill | Reach for it when |
@@ -24,6 +30,7 @@ One entry point for the **team-workflow** pack: a portable discipline for runnin
 | [handoff](../../run/handoff/SKILL.md) | Context is filling (around half the window), the session is wrapping up, or someone says "checkpoint" / "save state". Writes the structured session handoff — overwrite-don't-append, pointer-not-transcript, NEXT points at the tracker query — so a fresh session resumes losslessly. |
 | [orchestrate](../../run/orchestrate/SKILL.md) | One session should coordinate several — routing tracked items into parallel working lanes, auditing results, owning integration — instead of implementing. Principles plus per-repo binding slots; the single-orchestrator rule applies. |
 | [adversarial-review](../../run/adversarial-review/SKILL.md) | A substantial change is about to be committed, a lane is at close-out, or someone asks to break a diff before it ships. Three isolated finders (correctness, a fitting lens, a spec axis), a skeptic pass that kills unproven findings, a gate only confirmed blockers may hold — run before external reviewers see the change. |
+| [ingest](../../investigate/ingest/SKILL.md) | A recording, voice memo, or media URL arrives with a goal. Converts it into an evidence packet — transcript, timestamped frames, manifest — and ends with a routing recommendation into the flow: what looks like tickets, what needs a grilling session, what is strategy for the decider. Ships as its own plugin, installed beside the pack. |
 
 ## Not skills, but in the pack
 
@@ -35,3 +42,7 @@ One entry point for the **team-workflow** pack: a portable discipline for runnin
 The pack ships a review **protocol** — the [adversarial-review](../../run/adversarial-review/SKILL.md) skill — but still no review checklist, on purpose. The rule that travels: **derive your own defect classes from your own defect history, and admit a class to the checklist only via a live reproduction** — a checklist imported from someone else's war record checks for their bugs, not yours. That rule now lives as the skill's defect-class binding slot: each repo's checklist starts empty (or adopts the repo's existing review-standards document) and grows only from evidence.
 
 A sibling of the same meta-rule: **institutional review memory** — review verdicts recorded as per-repo decision entries that later reviews (human and automated) consult before commenting, so settled decisions reopen on new evidence, not on repetition. Repos that already run such a system — a review-response skill with a decision wiki — have the review-RESPONSE stage covered, and this pack deliberately stays out of it: planning, research, prototyping, handoff, and orchestration are the pack's territory; review response belongs to the resident system, and pack outputs should cite that repo's precedent store rather than create a second one.
+
+## Attribution
+
+The main-flow-with-on-ramps framing is adapted from Matt Pocock's [`ask-matt`](https://github.com/mattpocock/skills/tree/main/skills/engineering/ask-matt) (MIT); the flow itself, the table, and the meta-rules are this pack's.
