@@ -11,7 +11,7 @@ The final pass over human-facing copy, run from [SKILL.md](../SKILL.md) after st
 
 ## The pass
 
-1. Read the draft aloud (or as if aloud). Mark every passage where two or more tells from the table stack, and every stretch where the dash budget runs over; that tell needs no company.
+1. Read the draft aloud (or as if aloud). Mark every passage where two or more tells from the table stack. Judge the dash count per page; when it runs over budget, mark the stretches carrying the least-earned dashes; that tell needs no company.
 2. Redraft each marked passage whole, keeping its facts and its next-action.
 3. Reread once end-to-end for rhythm: sentence lengths should vary, and no two adjacent paragraphs should open the same way.
 

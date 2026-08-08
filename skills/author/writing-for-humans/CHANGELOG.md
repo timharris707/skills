@@ -26,8 +26,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
-- The skill's own prose obeys the new rule. SKILL.md and the scrub reference
-  were restructured to spend their dash budget: SKILL.md from 30 em dashes to
+- The skill's own prose was brought under the dash budget. SKILL.md and the
+  scrub reference were reworked: SKILL.md from 30 em dashes to
   six (five in the page body, one in the frontmatter description), the scrub
   from eight to one.
 
