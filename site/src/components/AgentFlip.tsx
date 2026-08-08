@@ -68,17 +68,18 @@ export function FlipProvider({ children }: { children: React.ReactNode }) {
   }, [pathname]);
 
   const toggle = useCallback(() => {
-    setView((current) => {
-      const next = current === "human" ? "agent" : "human";
-      const url = new URL(window.location.href);
-      if (next === "agent") url.searchParams.set("view", "agent");
-      else url.searchParams.delete("view");
-      // Native pushState, not a router navigation: the flip is client-side
-      // and instant, and there is nothing new to ask the server for.
-      window.history.pushState(null, "", url);
-      return next;
-    });
-  }, []);
+    // The URL work stays outside the state updater: Strict Mode may invoke
+    // updaters twice in development, which would push duplicate history
+    // entries per click.
+    const next = view === "human" ? "agent" : "human";
+    const url = new URL(window.location.href);
+    if (next === "agent") url.searchParams.set("view", "agent");
+    else url.searchParams.delete("view");
+    // Native pushState, not a router navigation: the flip is client-side
+    // and instant, and there is nothing new to ask the server for.
+    window.history.pushState(null, "", url);
+    setView(next);
+  }, [view]);
 
   return (
     <FlipContext.Provider value={{ view, twin, toggle }}>{children}</FlipContext.Provider>
@@ -118,7 +119,9 @@ export function FlipToggle() {
 /** Wraps the page. Human view is the children untouched; agent view is the twin. */
 export function FlipView({ children }: { children: React.ReactNode }) {
   const { view, twin } = useContext(FlipContext);
-  const [text, setText] = useState<string | null>(null);
+  // The loaded text is tagged with the twin route it came from, so navigating
+  // to another page never briefly renders the previous route's markdown.
+  const [loaded, setLoaded] = useState<{ route: string; body: string } | null>(null);
   // Fetched twins, keyed by route, so flipping back and forth costs one
   // request per page rather than one per flip.
   const cache = useRef(new Map<string, string>());
@@ -127,19 +130,23 @@ export function FlipView({ children }: { children: React.ReactNode }) {
     if (view !== "agent" || !twin) return;
     const cached = cache.current.get(twin);
     if (cached !== undefined) {
-      setText(cached);
+      setLoaded({ route: twin, body: cached });
       return;
     }
     let stale = false;
-    setText(null);
+    setLoaded(null);
     fetch(twin)
-      .then((res) => res.text())
+      .then((res) => {
+        if (!res.ok) throw new Error(`Failed to fetch ${twin}: ${res.status}`);
+        return res.text();
+      })
       .then((body) => {
         cache.current.set(twin, body);
-        if (!stale) setText(body);
+        if (!stale) setLoaded({ route: twin, body });
       })
       .catch(() => {
-        if (!stale) setText(`Could not fetch ${twin} — an agent would retry.`);
+        if (!stale)
+          setLoaded({ route: twin, body: `Could not fetch ${twin} — an agent would retry.` });
       });
     return () => {
       stale = true;
@@ -171,7 +178,7 @@ export function FlipView({ children }: { children: React.ReactNode }) {
           overflowWrap: "anywhere",
         }}
       >
-        {text ?? `Fetching ${twin}…`}
+        {loaded?.route === twin ? loaded.body : `Fetching ${twin}…`}
       </pre>
     </div>
   );
