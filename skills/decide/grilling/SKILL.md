@@ -54,20 +54,20 @@ The **decisions** are the decider's. Put each one to them and wait. A grilling a
 
 ## Close with a record
 
-Agreement that lives only in the transcript evaporates with the session. Once the decider confirms shared understanding, write it down somewhere durable: a comment on the driving ticket where one exists, otherwise a dated summary in the repo's docs home (the binding doc names it). The record is short — the decisions reached and the recommendations overridden, not the interview — and it is what a later spec or ticket names as its plan source, so [to-tickets](../../run/to-tickets/SKILL.md) links a citable decision instead of a conversation nobody can reopen.
+Agreement that lives only in the transcript evaporates with the session. Once the decider confirms shared understanding, write it down somewhere durable: a comment on the driving ticket where one exists, otherwise a dated summary in the repo's docs home (the binding doc names it). The record is short and it is not the interview: it enumerates the settled decisions — the design tree as visited — and marks each recommendation accepted or overridden. It is what a later spec or ticket names as its plan source, so [to-tickets](../../run/to-tickets/SKILL.md) links a citable decision instead of a conversation nobody can reopen.
 
 ## Done when (checkable — verify each line before reporting complete)
 
-- The frontier is empty: every branch of the design tree visited, nothing load-bearing left assumed.
+- The frontier is empty, and the closing record enumerates the settled decisions — the visited tree is readable from the record, with nothing load-bearing left assumed.
 - Every question that needed a fact got one you found, not a fact the decider was asked to supply.
-- Every recommendation you made was either accepted or overridden on the record — none left silently unanswered.
+- Every recommendation you made is marked accepted or overridden in the closing record — none left silently unanswered.
 - The decider has explicitly confirmed shared understanding. Their last answer is not the confirmation; ask for it.
 - The confirmed understanding is written to its durable record — ticket comment or dated summary — not left in the transcript.
 - Anything that surfaced as a prototype, research, or map-sized question is named as such, with the skill that owns it.
 
 ## Hard guardrails
 
-- **Do not act on the understanding.** Grilling produces agreement, not changes. The closing record captures that agreement; building, speccing, or filing tickets off it happens after the decider confirms, as its own move.
+- **Do not act on the understanding.** Grilling produces agreement, not changes: no code, no specs, no new tickets filed off the session. The one write is the closing record — an existing driving ticket may, and per the closing step should, receive it as a comment. Building, speccing, and filing happen after the decider confirms, as their own moves.
 - **One round at a time.** Asking the next round before the current one is answered collapses the tree into a questionnaire and loses the reshaping that makes the rounds worth running. Splitting a single frontier across consecutive structured-question calls is still one round; asking anything whose prerequisite is unanswered is not, however it is presented.
 - **Relentless means relentless.** Stopping at the first coherent answer is the failure mode this skill exists to prevent. An unasked question is a decision made silently, by you.
 

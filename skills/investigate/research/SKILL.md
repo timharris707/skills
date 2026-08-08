@@ -31,8 +31,8 @@ When a research lane hits facts only an external human holds (a vendor contact, 
 
 - The findings file exists at the named location, every claim cited or labeled a hypothesis.
 - The driving ticket links the file and carries the feature-level summary.
-- Standalone lane: the driving ticket was claimed before work began and the session is titled with the item.
-- Findings that will drive a build decision went through the skeptic pass, with its corrections applied; otherwise the ticket summary says the pass was skipped and why that was safe.
+- Standalone lane: the discipline in "Standalone lanes still ride the tracker" held — check the claim and the title on the tracker and picker, not your memory of doing it.
+- The skeptic pass ran or was skipped per its section above, and the call is recorded in the ticket summary.
 - Any human-held gaps are covered by an emitted questionnaire (per the terminal move), not by silent assumptions.
 
 ## Attribution

@@ -10,7 +10,7 @@ Vocabulary and repo bindings come from the consuming repo's team-workflow bindin
 - **Child tickets ride the existing tracker machinery**: a `gate-decision` type label, the repo's claim recipe, one session per ticket. A map invents no parallel tracker.
 - **Adjudication authority is unchanged: sessions brief the decision, the decider decides.** A session that reaches a decision point records its recommendation on the ticket and waits — a grilling ticket is answered by the decider, on the record, before anything downstream builds on it.
 - **A map produces decisions, not deliverables.** When the map's frontier is empty, the scope specs and builds normally; deviations from a recorded decision go back to the decider, never into a build brief.
-- **Refer by name.** In anything the human reads — round briefs, map narration, verdict lines, close-out comments — tickets go by their titles, never bare numbers. A wall of `#42, #43, #44` is illegible; a name reads at a glance. The id and URL ride *inside* the name as its link, never stand in for it.
+- **Refer by name.** In anything the human reads — round briefs, map narration, verdict lines, close-out comments — tickets go by their titles, never bare numbers. A wall of `#42, #43, #44` is illegible; a name reads at a glance. The id and URL ride *inside* the name as its link — canonical form `[<ticket title> (#<id>)](<url>)` — and a bare id outside that form never appears in human-facing text.
 
 ## Charting a map (destination first)
 

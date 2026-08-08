@@ -21,11 +21,11 @@ Three tests, all of which must pass:
 
 ## The wide-refactor exception
 
-One slice shape legitimately fails the tracer-bullet tests: a **wide refactor** — a single mechanical change (rename a column, retype a shared symbol) whose blast radius fans across the whole codebase, so no vertical slice can land green alone. Sequence it as **expand–contract** instead of forcing it into a bullet: an *expand* item adds the new form beside the old so nothing breaks; *migrate* items move the call sites over in batches sized by blast radius (per package, per directory), each blocked by the expand, CI staying green batch to batch because the old form still exists; a *contract* item deletes the old form once no caller remains, blocked by every migrate batch. When even the batches cannot stay green alone, keep the sequence but give them a shared integration branch that all block a final integrate-and-verify item — green is promised only there.
+One slice shape legitimately fails the tracer-bullet tests: a **wide refactor** — a single mechanical change (rename a column, retype a shared symbol) whose blast radius fans across the whole codebase, so no vertical slice can land green alone. Sequence it as **expand–contract** instead of forcing it into a bullet: an *expand* item adds the new form beside the old so nothing breaks; *migrate* items move the call sites over in batches sized by blast radius (per package, per directory), each blocked by the expand, CI staying green batch to batch because the old form still exists; a *contract* item deletes the old form once no caller remains, blocked by every migrate batch. When even the batches cannot stay green alone, keep the sequence but give them a shared integration branch that all block a final integrate-and-verify item — green is promised only there, and the contract item adds that item to its blockers: the old form never comes out before the combined verification completes.
 
 ## The sign-off gate
 
-Before Pass 1 files anything, put the slice list in front of the decider: each item's title, what it delivers end to end, and what blocks it — plain English, no bodies yet. Ask whether the granularity is right, whether every edge is a real gate, and what should merge or split; iterate until they approve. Filing first and asking after is the wrong order — a batch on the board is already colliding with other lanes' frontier queries while it is being argued about.
+Before Pass 1 files anything, put the slice list in front of the decider: each item's title, what it delivers end to end, and what blocks it — plain English, no bodies yet. Ask whether the granularity is right, whether every edge is a real gate, and what should merge or split; iterate until they approve. The approval is recorded, not remembered: post the exact approved list as a comment on the plan-source or driving item before Pass 1, so what gets filed can be checked against what was approved. Filing first and asking after is the wrong order — a batch on the board is already colliding with other lanes' frontier queries while it is being argued about.
 
 ## The two passes
 
@@ -57,7 +57,7 @@ Confirm the labels exist on the tracker before filing. A frontier query against 
 ## Done when (checkable — verify each line before reporting complete)
 
 - Every filed item passes all three tracer-bullet tests (or rides an expand–contract sequence under the wide-refactor exception): verifiable alone, PR-sized, ordered by what it unblocks.
-- The decider approved the slice list before anything was filed, and what was filed matches the approved list.
+- The decider approved the slice list before anything was filed, and Pass 1 matches the approved list recorded on the plan-source or driving item.
 - Every item body carries destination, plan source link, checkable acceptance criteria, named verification, and out-of-scope.
 - Pass 2 ran: every ticket-blocker is a native edge, every non-ticket blocker is the `blocked` label, and no item carries both.
 - Every item is labeled, and every ready-labeled item could be handed to a stranger as-is.

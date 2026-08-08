@@ -59,7 +59,7 @@ The strongest criteria are both checkable and exhaustive. In this catalog they s
 
 Splitting one document into two spends one of the two budgets, so split only when the cut earns it:
 
-- **By sequence** — hide later steps whose visibility tempts the agent to rush the one in front of it, under the preconditions the completion-criteria section already sets: sharpen the bound first, split only when it is irreducibly fuzzy and you observe the rush, and only across a real context boundary. Beware the reverse: merging sequences exposes each step to what follows it, inviting premature completion.
+- **By sequence** — hide later steps whose visibility tempts the agent to rush the one in front of it, only under the completion-criteria conditions above. Beware the reverse: merging sequences exposes each step to what follows it, inviting premature completion.
 - **By invocation** — skill-specific: when different triggers should reach different material, each invocation path becomes its own skill. The mechanics live in [references/skill-mechanics.md](references/skill-mechanics.md).
 
 ## Leading words
