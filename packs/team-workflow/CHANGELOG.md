@@ -90,6 +90,23 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   name. Generalizes a rule LoanMeld pioneered locally (its stricter orchestrator-owned
   variant remains a compliant refinement) and other repos ran on habit; the binding-doc
   template's lane-launch line is reworded to match.
+- **orchestrate: titling's default actor flips to the launcher, and close-out ends by
+  handing the dead lane to the human for archiving** (#123). The titling protocol above now
+  defaults to *whoever launched the session titles it* — normally the orchestrator for
+  lanes — with self-titling the exception, available only where a harness genuinely
+  supports it (in most, a session cannot rename itself); the retirement retitle likewise
+  falls to the successor or the human where self-rename is unsupported, and the existing
+  degrade rules (launch report / handoff carrying identity where no titling surface exists)
+  are unchanged. Close-out gains a final, trailing step: after merge, tracker close-out,
+  and pruning, the orchestrator notifies the human — naming the session verbatim as the
+  picker shows it — that the lane is complete and safe to archive, and the human archives
+  on their own time; the orchestrator never calls an archive surface, so an unanswered
+  notification gates nothing. Archive, never delete; only the closed-out lane's own session
+  is ever named; native auto-archive-on-PR-close is the zero-touch path where the harness
+  offers it (recorded in the lane-launch slot — `yes` only where it cannot preempt the
+  close-out order, since it fires at merge time); in-process subagent lanes have nothing to
+  archive; a retired orchestrator's session is archived by the human, never automatically
+  and never by the orchestrator.
 
 ## [v1.3.0] - 2026-08-07 — adversarial-review joins the pack
 
