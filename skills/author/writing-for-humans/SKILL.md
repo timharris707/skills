@@ -7,7 +7,7 @@ description: Write copy a human reads — a landing page, a README's front half,
 
 A human reads for a different reason than an agent. The sibling skill [writing-for-agents](../writing-for-agents/SKILL.md) makes documents predictable — the same process every run. This skill makes pages worth a stranger's next minute: the reader is free to leave at any sentence, and the page earns each one. The registers are opposites, and the compression that serves an agent reads cold to a human — so when the document you are writing is a SKILL.md, an AGENTS.md, or a reference an agent consumes, use the sibling instead.
 
-Work the sections in order for a full draft; jump straight to [the scrub](#last-mile-scrub) when the content already stands and only the tells remain.
+Work the sections in order for a full draft; jump straight to [the scrub](references/last-mile-scrub.md) when the content already stands and only the tells remain.
 
 ## Guide structure over catalog structure
 
