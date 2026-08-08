@@ -108,6 +108,15 @@ How the pack composes with this repo's resident rule systems. Resident rules win
 - **Verification executor**: <who re-runs a lane's verification at close-out, and how>
 - **Merge flow**: <integration mechanics; who may push what where>
 
+## Accepted drift (written by setup's audit mode)
+
+<!-- Drift findings the decider accepted as this repo's recorded choice instead of updating
+     the binding. The next audit reads this list and does not re-flag an entry here.
+     Repos bound to domain-memory may keep acceptances as decision records at the memory
+     home instead — record the pointer here so the audit knows where to read. -->
+
+- <date> — <the drift, one line> — accepted: <the load-bearing reason>
+
 ## Friction log (optional)
 
 - <where pack friction gets recorded, e.g. a dedicated tracker item>
