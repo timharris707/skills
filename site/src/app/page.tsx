@@ -11,9 +11,10 @@ import { graph, jsonLdProps, PERSON, WEBSITE } from "@/lib/schema";
 /**
  * The homepage is a funnel, not a catalog: hook, install, the problems these
  * skills fix, an explicit first week, and only then the full reference. The
- * reader should know what to do next at every scroll position. The hero chart
- * moved down beside the catalog it plots — its labels speak the catalog's
- * vocabulary, and nothing above the catalog section is allowed to.
+ * reader should know what to do next at every scroll position. The chart
+ * keeps its production seat in the hero (decider call): it makes the catalog
+ * legible at a glance and pulls readers in. The no-jargon-above-the-fold rule
+ * binds body prose only; the chart's own labels and captions are exempt.
  */
 export default function Home() {
   const { regions, skills } = getCatalog();
@@ -29,15 +30,19 @@ export default function Home() {
     <>
       <script {...jsonLdProps(graph(PERSON, WEBSITE))} />
 
-      <div className="shell" style={{ maxWidth: "860px", paddingBlock: "clamp(3rem, 7vw, 5.5rem) 0" }}>
-        <Runtimes lead="Runs natively on" />
-        <h1>Stop re-explaining your workflow every session.</h1>
-        <p className="lede">
-          You finally got a session working the way you work. It knew the plan, the standards,
-          the things it must never touch. Then it ended, and this morning&apos;s agent knows
-          none of it. Every skill here is a workflow I got tired of re-teaching, written down
-          once, so any agent can pick it up by name.
-        </p>
+      <div className="shell hero">
+        <div>
+          <Runtimes lead="Runs natively on" />
+          <h1>Stop re-explaining your workflow every session.</h1>
+          <p className="lede">
+            You finally got a session working the way you work. It knew the plan, the standards,
+            the things it must never touch. Then it ended, and this morning&apos;s agent knows
+            none of it. Every skill here is a workflow I got tired of re-teaching, written down
+            once, so any agent can pick it up by name.
+          </p>
+        </div>
+
+        <Chart skills={plotted} edges={BEARINGS} />
       </div>
 
       <section className="shell" style={{ maxWidth: "860px", paddingBlock: "2.2rem 0" }}>
@@ -193,12 +198,11 @@ export default function Home() {
           <p>
             The full reference: {skills.length} skills in {regions.length} regions, MIT
             licensed, each one a self-contained <code>SKILL.md</code> any agent can read plus
-            the templates and scripts it needs. The chart plots how they hand work to each
-            other; the vocabulary it speaks — fixes, bearings, lanes — is defined in the{" "}
-            <Link href="/legend">legend</Link>.
+            the templates and scripts it needs. The chart at the top of the page plots how
+            they hand work to each other; the vocabulary it speaks — fixes, bearings, lanes —
+            is defined in the <Link href="/legend">legend</Link>.
           </p>
         </div>
-        <Chart skills={plotted} edges={BEARINGS} />
       </section>
 
       <Regions regions={regions} />
