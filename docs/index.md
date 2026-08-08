@@ -27,6 +27,7 @@ The repository doubles as a Claude Code plugin marketplace, but nothing is locke
 | [orchestrate](https://github.com/timharris707/skills/blob/main/skills/run/orchestrate/SKILL.md) | Run one session as the orchestrator of parallel working lanes: route tracked items, audit results, own integration. | team-workflow pack |
 | [adversarial-review](https://github.com/timharris707/skills/blob/main/skills/run/adversarial-review/SKILL.md) | Break the change before it ships: isolated finders, a skeptic pass, and a gate only confirmed blockers may hold. | team-workflow pack |
 | [diagnose](https://github.com/timharris707/skills/blob/main/skills/run/diagnose/SKILL.md) | The disciplined bug-fixing loop — no fix ships without a cause named in one plain sentence, with evidence, plus the regression test. | team-workflow pack |
+| [implement](https://github.com/timharris707/skills/blob/main/skills/run/implement/SKILL.md) | How a lane builds an item: seam-scoped test-first, tracer-first sequencing, green checkpoint commits, and file-don't-fix scope discipline. | team-workflow pack |
 
 ## Advisory Board
 
@@ -36,7 +37,7 @@ The repository doubles as a Claude Code plugin marketplace, but nothing is locke
 
 ## Team-Workflow Pack
 
-**A workflow for teams building with agents — without the collisions.** Fourteen skills that ship and version together: decide before you build (decision-map), prototype what discussion can't settle (prototype), investigate what sources can answer (research), hand sessions off losslessly (handoff), coordinate parallel lanes from one seat (orchestrate), bind it all to your repo once (setup), and orient any session with the router. Everything repo-specific lives in one binding doc; every skill defers judgment calls to **the decider** — the role your repo names, not a person the pack assumes.
+**A workflow for teams building with agents — without the collisions.** Fifteen skills that ship and version together: decide before you build (decision-map), prototype what discussion can't settle (prototype), investigate what sources can answer (research), hand sessions off losslessly (handoff), coordinate parallel lanes from one seat (orchestrate), bind it all to your repo once (setup), and orient any session with the router. Everything repo-specific lives in one binding doc; every skill defers judgment calls to **the decider** — the role your repo names, not a person the pack assumes.
 
 Start with the [router](https://github.com/timharris707/skills/blob/main/skills/orient/router/SKILL.md) to see the whole pack at a glance.
 

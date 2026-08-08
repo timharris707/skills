@@ -24,6 +24,7 @@ the decider, never silently into the work).
 - <the repo's domain/context docs, per the binding doc>
 - <the domain-memory home — glossary + recent decision records — where the repo binds it>
 - <for bug-shaped items: the diagnose skill — no fix ships without a named cause>
+- <for build-shaped items: the implement skill — seam-scoped test-first, tracer-first, file-don't-fix>
 - <the team-workflow binding doc itself>
 
 ## Standing constraints (every lane)

@@ -1,0 +1,3 @@
+interface:
+  display_name: "Implement"
+  short_description: "How a lane builds an item — seam-scoped test-first, tracer-first, file-don't-fix"
