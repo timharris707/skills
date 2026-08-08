@@ -70,7 +70,7 @@
       "name": "writing-for-humans",
       "source": "./",
       "strict": false,
-      "version": "1.0.0",
+      "version": "1.1.0",
       "description": "Write copy a human reads — a landing page, a README's front half, a launch post. Guide structure over catalog structure, the warmth moves, three named failure modes, standing voice rules, and a last-mile AI-tell scrub.",
       "license": "MIT",
       "skills": [
