@@ -44,7 +44,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `unknown` instead of aborting the report; `--check-cmd` without `{id}` is
   refused (a blanket exit 0 would resolve everything); ids are rendered
   escaped in every report line; and `gh` joined `doctor`'s tool roster.
-- **46 new tests** (81 total) covering link idempotence and ownership,
+- **49 new tests** (84 total) covering link idempotence and ownership,
   resolution states, sweep verdicts, offer-only ledger deletion, and a
   regression pin for every review finding — including a real-/bin/sh
   injection test and a subprocess mock that can RAISE, not just fail

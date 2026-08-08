@@ -687,6 +687,19 @@ class TestSweepVerdicts(SweepBase):
         self.gh_states({"repos/o/r/issues/1": "closed"})
         self.assertEqual(ing.sweep_packet(d)["verdict"], "resolved")
 
+    def test_a_non_list_derived_items_is_unknown_not_a_crash(self):
+        # CodeRabbit (PR #135): derived_items: 42 raised TypeError in
+        # sweep_packet — malformed at the container level is unknown too.
+        d = self.make_packet("p")
+        mpath = d / "manifest.json"
+        data = json.loads(mpath.read_text())
+        data["derived_items"] = 42
+        mpath.write_text(json.dumps(data))
+        report = ing.sweep_packet(d)
+        self.assertEqual(report["verdict"], "unknown")
+        self.assertIn("not a list", report["note"])
+        self.assertEqual(self.calls, [], "nothing checkable, nothing called")
+
     def test_a_garbage_derived_item_is_unknown_not_a_crash(self):
         d = self.make_packet("p")
         mpath = d / "manifest.json"
@@ -851,6 +864,31 @@ class TestSweepDeletion(SweepBase):
         self.assertEqual(ing.delete_packet(d), 5)
         self.assertTrue((d / "dangling").is_symlink())
         self.assertTrue((d / ".ingest-run").exists())
+
+    def test_delete_on_a_non_list_derived_items_refuses_not_crashes(self):
+        # CodeRabbit (PR #135): --delete reached sweep_packet unguarded, so a
+        # hand-edited derived_items: 42 ended in a traceback, not a refusal.
+        d = self.make_packet("p")
+        mpath = d / "manifest.json"
+        data = json.loads(mpath.read_text())
+        data["derived_items"] = 42
+        mpath.write_text(json.dumps(data))
+        self.assertEqual(ing.delete_packet(d), 1)
+        self.assertTrue((d / "transcript.srt").exists())
+        self.assertTrue((d / ".ingest-run").exists())
+
+    def test_delete_refuses_when_assessment_itself_raises(self):
+        # Deletion without a verdict would be deletion without the offer.
+        d = self.make_packet("p", items=["o/r#1"])
+        original = ing.sweep_packet
+
+        def boom(out_dir, check_cmd=None):
+            raise RuntimeError("assessment exploded")
+
+        ing.sweep_packet = boom
+        self.addCleanup(lambda: setattr(ing, "sweep_packet", original))
+        self.assertEqual(ing.delete_packet(d), 1)
+        self.assertTrue((d / "transcript.srt").exists())
 
     def test_a_pre_existing_empty_directory_is_not_pruned(self):
         # MINOR 10: only directories the deletion itself emptied are pruned —

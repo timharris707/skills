@@ -35,7 +35,7 @@ Run it in the background — transcription takes minutes. To decide whether a UR
 
 **A run directory holds exactly one source.** The run is fingerprinted by input, intent, and processing options; pointing a *different* run at a finished packet's directory is refused rather than resumed, because the finished stages belong to the other source. Same arguments, same directory resumes — that is what makes a failed transcription cheap to retry. Give each source a fresh `--out`.
 
-The run directory: the team-workflow binding doc's git-ignored reference home when one names it, else `~/.ingest/<slug>-<date>/`. It must be a new or ingest-created directory — the script refuses to adopt a folder it did not make, because retention deletes inside it. With the script unavailable, the same pipeline runs by hand — commands, ordering, and the gotchas the script encodes are in [references/pipeline.md](references/pipeline.md).
+The run directory: the team-workflow binding doc's git-ignored reference home when one names it, else `~/.ingest/<slug>-<date>/`. It must be a new or ingest-created directory — the script refuses to adopt a folder it did not make, because retention deletes inside it. The parent directory that holds run directories — the binding doc's reference home when named, else `~/.ingest/` — is the **output home**: the cleanup sweep's `--home` takes exactly that, and scans one level deep. With the script unavailable, the same pipeline runs by hand — commands, ordering, and the gotchas the script encodes are in [references/pipeline.md](references/pipeline.md).
 
 ## Read, then look
 
@@ -60,7 +60,7 @@ The run dir is the archive, and the rule is what can't be re-fetched stays: a lo
 
 **A URL is not a promise.** Signed, expiring, private, and geo-limited links all look like ordinary URLs, and the discard is irreversible — pass `--keep-media` whenever the source might not still be there tomorrow.
 
-**A packet lives as long as the work it spawned.** A packet is neither permanent evidence nor throwaway scratch: its usual product is work items — tickets filed from what the recording showed — and it stays reviewable until every item derived from it is resolved, because that is the span over which someone may need to hold a claim against the evidence. Once the derived work is closed, the packet is optionally trash: the skill may *offer* cleanup, and the decider takes or declines the offer — nothing is deleted unasked, and any deletion follows the same ownership rules as the run itself (only ingest-created files, never an adopted directory). The mechanism is the manifest's `derived_items` list plus the sweep below: the filing session records what the packet spawned, and the sweep checks resolution and makes the offer. This lifetime rule governs the packet's files after a completed run; it is separate from the automatic discard of downloaded URL media above, which happens at run time under its own flag.
+**A packet lives as long as the work it spawned.** A packet is neither permanent evidence nor throwaway scratch: its usual product is work items — tickets filed from what the recording showed — and it stays reviewable until every item derived from it is resolved, because that is the span over which someone may need to hold a claim against the evidence. Once the derived work is closed, the packet is optionally trash: the skill may *offer* cleanup, and the decider takes or declines it, on the offer-only and ownership terms stated once in the sweep section below. The mechanism is the manifest's `derived_items` list plus that sweep: the filing session records what the packet spawned, and the sweep checks resolution and makes the offer. This lifetime rule governs the packet's files after a completed run; it is separate from the automatic discard of downloaded URL media above, which happens at run time under its own flag.
 
 ### Derived items and the cleanup sweep
 
@@ -77,7 +77,7 @@ python3 scripts/ingest.py sweep --home <output-home>          # report + offers,
 python3 scripts/ingest.py sweep --home <output-home> --delete <packet-dir>   # the decider took the offer
 ```
 
-The sweep looks one level deep under `--home` and recognizes packets by their `.ingest-run` marker, never by name — which also means a packet directory that was moved or copied elsewhere stays sweepable, and any deletion stays bounded to that subtree.
+`--home` is the output home defined under "Run the pipeline"; the sweep looks one level deep beneath it and recognizes packets by their `.ingest-run` marker, never by name — which also means a packet directory that was moved or copied elsewhere stays sweepable, and any deletion stays bounded to that subtree.
 
 Resolution is GitHub-first: an `owner/repo#number` item is resolved when `gh` reports the issue or PR closed. Any other tracker resolves only through the resolution-check command named in the repo's binding doc, passed as `--check-cmd`. The template must contain a literal `{id}` (refused without it — a fixed command would resolve everything); the id is handed to the command as a shell positional argument, never spliced into the command text; exit 0 means resolved, exit 1 means open, and any other exit means unknown. Where no binding exists the sweep does not guess — it lists those packets, and packets with no recorded derived items, as the decider's to settle.
 

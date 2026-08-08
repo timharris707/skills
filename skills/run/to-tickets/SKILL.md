@@ -62,6 +62,7 @@ Confirm the labels exist on the tracker before filing. A frontier query against 
 - Pass 2 ran: every ticket-blocker is a native edge, every non-ticket blocker is the `blocked` label, and no item carries both.
 - Every item is labeled, and every ready-labeled item could be handed to a stranger as-is.
 - The frontier query returns the items you expect to be takeable now — run it and read the result rather than assuming.
+- Every item filed from an [ingest](../../investigate/ingest/SKILL.md) evidence packet is recorded in that packet's `derived_items` — the `link` command from the recommendation ran at filing time.
 - Nothing filed is claimed, and every question that surfaced while slicing is recorded for the decider rather than resolved by you.
 
 ## Attribution

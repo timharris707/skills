@@ -968,7 +968,15 @@ def sweep_packet(out_dir: Path, check_cmd: str | None = None) -> dict:
     except (OSError, json.JSONDecodeError):
         report["note"] = "manifest missing or unreadable"
         return report
-    items = data.get("derived_items") or []
+    items = data.get("derived_items")
+    if items is None:
+        items = []
+    if not isinstance(items, list):
+        # A hand-edited scalar here is damage, not absence: unknown — so a
+        # deletion built on it refuses — never "unlinked", and never a
+        # TypeError that turns --delete into a traceback.
+        report["note"] = "derived_items is not a list — hand-edited?"
+        return report                      # verdict stays "unknown"
     if not items:
         report["verdict"] = "unlinked"
         return report
@@ -1039,7 +1047,14 @@ def delete_packet(out_dir: Path, check_cmd: str | None = None) -> int:
             "marker) — refusing to touch it"
         )
         return 2
-    report = sweep_packet(out_dir, check_cmd)
+    try:
+        report = sweep_packet(out_dir, check_cmd)
+    except Exception as e:
+        # An assessment that cannot complete is a refusal, never a traceback:
+        # deletion without a verdict would be deletion without the offer.
+        log(f"ERROR: {out_dir}: could not assess resolution "
+            f"({e.__class__.__name__}: {e}) — refusing to delete")
+        return 1
     if report["verdict"] != "resolved":
         detail = "; ".join(
             f"{json.dumps(str(i['id']))}: {i['state']}" for i in report["items"]
