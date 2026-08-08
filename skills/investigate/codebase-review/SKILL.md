@@ -15,7 +15,7 @@ The review runs when one of three gates opens, never on a schedule — a schedul
 
 1. **Pre-feature** — a spec is about to land in an area; review that area first, in the spirit of "make the change easy, then make the easy change."
 2. **Lane-count threshold** — N lanes have merged since the last review (N is a per-repo binding slot). Merged work is the pressure that degrades structure; the count measures the pressure.
-3. **Reported friction** — a lane or the orchestrator reports the code fought them: a change that should have been local sprawled, a test that could only be written past an interface.
+3. **Reported friction** — a lane or the orchestrator reports the code fought them: a change that should have been local sprawled, a test that could only be written past an interface. A structural cause surfaced by [diagnose](../../run/diagnose/SKILL.md) — the bug as symptom of a missing seam or a duplicated rule — arrives through this gate: the lane fixed the instance, and the structure is reported here.
 
 **Scope follows the trigger.** Pre-feature reviews the spec's blast radius. Lane-count and friction reviews cover the areas churned since the last review, weighted by git history — recently-changed code is where deepening pays, because it is where the next change lands. Gates are not exclusive — a spec can land just as the lane count crosses N; when more than one is open, the report names them all and the scope is the union of what the open gates set. A full sweep runs only once — a repo's first-ever review, whatever gates opened it; every later run is scoped by its triggers.
 

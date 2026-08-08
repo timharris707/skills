@@ -68,6 +68,34 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   binding slots are this pack's.
 - **setup:** the interview's optional bindings now offer the domain-memory slots, and the
   binding-doc template gains a matching optional Domain memory section.
+- **diagnose** — the fourteenth pack skill (#130): the disciplined bug-fixing loop a
+  working lane follows inline — a fix may not ship without a **named cause**, one plain
+  sentence with evidence a non-engineer decider reads without translation. The named-cause
+  test is the binding trigger on every fix, not just hard bugs: if the cause is already
+  nameable with evidence the loop is satisfied; if not, it runs — the first fix attempt is
+  where the vibes-fix ships. Six steps: reproduce red (a failing automated test written
+  before any fix attempt, kept as the regression test after; where test infra genuinely
+  cannot reach the bug, a documented manual repro with exact steps is the recorded
+  fallback, flagged at close-out), minimize proportionately (until the repro is tight —
+  fast and deterministic enough to iterate against — and no further), hypothesize
+  falsifiably (ranked hypotheses, each stating the prediction that could kill it),
+  instrument before fixing (probes map to predictions, one variable at a time, tagged for
+  one-grep cleanup), fix only against the confirmed hypothesis, and regression-test (the
+  original repro re-run, the test kept, the probes gone). The closing artifact is the
+  named cause plus the regression test, and the orchestrator's close-out audit checks
+  both — an unnamed cause is not done. Structural causes (the bug as symptom of a missing
+  seam or duplicated rule) are fixed at the instance and reported as friction toward
+  codebase-review's entry gate, never as scope expansion on the diagnosing lane; a root
+  cause that overturns a standing assumption is offered to domain-memory as a fact record.
+  Deliberately not hooked into handoff GOTCHAS — the domain-memory record is the durable
+  copy. No binding slots: everything repo-specific arrives in the lane's brief. Adapted
+  from Matt Pocock's
+  [`diagnosing-bugs`](https://github.com/mattpocock/skills/tree/main/skills/engineering/diagnosing-bugs)
+  (MIT) — the six-step spine, tight loops, falsifiable predictions, tagged probes, and the
+  architectural post-mortem handoff are his; the named-cause binding test, the
+  red-test-first bar with its recorded fallback, proportionate minimize, the close-out
+  audit artifacts, the domain-memory feed, and the friction-gate escalation are this
+  pack's.
 
 ### Changed
 
@@ -75,6 +103,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   the change, codebase-review reviews the codebase the changes accumulate in.
 - **router:** roster and intro now cover domain-memory — institutional memory written as a
   side effect of the work.
+- **router:** roster and intro now cover diagnose — the disciplined diagnosis loop for the
+  bugs lanes fix inline.
+- **orchestrate, domain-memory, codebase-review: diagnose hook lines** (#130). Orchestrate's
+  lane briefs point bug-shaped items at diagnose, and its close-out audit checks the two
+  closing artifacts on bug fixes — the named cause and the regression test (or its flagged
+  fallback). Domain-memory's decider-correction write moment also carries a diagnose root
+  cause that overturns a standing assumption — the same correction class with reality as
+  the corrector, riding moment three rather than adding a fourth. Codebase-review's
+  reported-friction gate names diagnose as a feeder: the lane fixes the instance, the
+  structural cause arrives as friction. The lane-brief template gains the matching
+  required-reading line for bug-shaped items.
 - **grilling, adversarial-review, codebase-review, orchestrate: domain-memory hook lines**
   (#128). Grilling's close-record also mints memory where the repo binds domain-memory —
   settled decisions become records, new terms enter the glossary, and the pre-round read
