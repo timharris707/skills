@@ -18,7 +18,7 @@ Read the team-workflow binding doc first. The review runs **before external revi
 
 ## 2. Composition: three finders, isolated
 
-Three reviewers, run as parallel subagents that **never see each other's reasoning** — isolation is what makes agreement between finders meaningful. Each loads the diff, the repo's defect-class checklist (§5), and nothing of the others' output.
+Three reviewers, run as parallel subagents that **never see each other's reasoning** — isolation is what makes agreement between finders meaningful. Each loads the diff, the repo's defect-class checklist (§5), the repo's decision records where [domain-memory](../../orient/domain-memory/SKILL.md) is bound, and nothing of the others' output.
 
 1. **The correctness finder** — logic, edge cases, error paths, invariants; the defect-class checklist is its opening moves, not its limit.
 2. **The fitting lens** — one perspective chosen to match the change, from the menu:
@@ -51,7 +51,7 @@ The report lands **on the driving ticket or PR** (session output only when no tr
 
 Axes are reported separately and **never blended into one verdict** — a passing lens must not soften a failing correctness axis, and there is no overall score to hide behind.
 
-**The gate:** a confirmed BLOCKER must be fixed before the commit (floor layer) or merge (close-out layer). Only **the decider** may waive one, with the reason recorded where the report lives. The implementer never waives its own blocker; the orchestrator surfaces it to the decider, never absorbs it. Everything below BLOCKER advises: the implementer or orchestrator dispositions each finding — fixed, or declined with a reason — at their own judgment.
+**The gate:** a confirmed BLOCKER must be fixed before the commit (floor layer) or merge (close-out layer). Only **the decider** may waive one, with the reason recorded where the report lives. The implementer never waives its own blocker; the orchestrator surfaces it to the decider, never absorbs it. Everything below BLOCKER advises: the implementer or orchestrator dispositions each finding — fixed, or declined with a reason — at their own judgment. Where the repo binds [domain-memory](../../orient/domain-memory/SKILL.md), a declined finding lands as a decision record with its reason — what stops the next review from re-raising settled ground.
 
 **Do not loop the review until "clean."** Re-run after fixing what was found; a review re-run on an unchanged diff generates new plausible-sounding findings indefinitely. Two consecutive runs with nothing new confirmed is a stop signal, not a challenge.
 
@@ -80,6 +80,7 @@ A new repo starts with an empty checklist and that is correct: it fills at the s
 - The report — findings, composition, clean bill — is posted on the driving ticket/PR, or delivered in-session when none exists.
 - Confirmed blockers are fixed, or waived by the decider on the record. Lesser findings are each dispositioned.
 - Any new defect class earned by this review is queued for the fixing PR, with its repro.
+- Where domain-memory is bound: finders loaded the decision records, and every declined finding landed there as a record with its reason.
 
 ## Attribution
 

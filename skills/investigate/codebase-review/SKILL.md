@@ -7,7 +7,7 @@ description: Run a state review of the codebase — the counterpart to adversari
 
 A review of what the codebase **is**, where [adversarial-review](../../run/adversarial-review/SKILL.md) reviews what a diff changes. It hunts **deepening opportunities** — places where structure taxes every change that passes through — and ends only when the decider has dispositioned every surviving candidate. This skill is the portable protocol: an entry gate, a read-only review lane of lens-named finders, a skeptic pass that kills candidates before the report exists, and the disposition loop. Everything repo-specific — where reports land, the trigger threshold, where rejections are remembered, how the lane is run — lives in **binding slots** the team-workflow setup interview fills.
 
-Read the team-workflow binding doc first. Full domain-modeling discipline (CONTEXT.md glossaries, ADR upkeep) is deliberately not part of this skill — it wants a skill of its own.
+Read the team-workflow binding doc first. Full domain-modeling discipline (glossaries, decision records) lives in [domain-memory](../../orient/domain-memory/SKILL.md), deliberately not here.
 
 ## 1. Triggers: an entry gate, never a calendar
 
@@ -23,7 +23,7 @@ The review runs when one of three gates opens, never on a schedule — a schedul
 
 The review runs as a **delegated lane**, claimed and tracked like any work item — how it is launched and tracked is the executor binding slot. Its contract is read-only: it changes no code and files no tickets; its deliverable is the report, and ticket filing belongs to the disposition loop (§5).
 
-**Before any finder runs, the lane reads the repo's rejection memory** (binding slot): a candidate the decider rejected reopens on new evidence, never on repetition. A rerun that re-proposes a recorded rejection without new evidence has ignored the decider once and the memory twice.
+**Before any finder runs, the lane reads the repo's rejection memory** (binding slot) — where the slot points at the domain-memory home, that means reading the decision records, since a rejection carries its nature in the record's own text, not in a separate ledger. A candidate the decider rejected reopens on new evidence, never on repetition. A rerun that re-proposes a recorded rejection without new evidence has ignored the decider once and the memory twice.
 
 Finder agents run as parallel subagents that never see each other's output — isolation is what makes two lenses landing on the same code a signal instead of an echo. Each holds **one named lens** from the menu, stated in the report. All five lenses run by default; a scoped run may drop a lens its scope cannot reach, naming the drop and the reason in the report:
 
@@ -64,7 +64,7 @@ The run's tracker item closes only when nothing is undispositioned.
 
 - **Report destination** — the tracker item each run posts its report to and closes: a standing item, or the rule that creates one per run. It must be writable and closable — §4 posts to it and §5 closes it, so a read-only query cannot fill this slot.
 - **Lane-count threshold (N)** — merged lanes since the last review that open gate 2.
-- **Rejection memory** — where rejected candidates and their load-bearing reasons live.
+- **Rejection memory** — where rejected candidates and their load-bearing reasons live. In repos also bound to [domain-memory](../../orient/domain-memory/SKILL.md), this slot points at its memory home and rejections land as decision records there — one store, never two.
 - **Executor mechanics** — how the review lane is launched, claimed, and tracked (in repos running the [orchestrate](../../run/orchestrate/SKILL.md) skill, its lane-launch machinery is the natural answer).
 
 ## Done when (checkable)

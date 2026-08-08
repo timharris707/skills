@@ -1,7 +1,7 @@
 {
   "name": "clickai-skills",
   "version": "1.0.0",
-  "description": "Portable skills for AI agents — a multi-model advisory board, a twelve-skill team-workflow pack for tracked multi-session development, a media-ingest skill that turns recordings and URLs into evidence, and the reference for writing documents agents consume.",
+  "description": "Portable skills for AI agents — a multi-model advisory board, a thirteen-skill team-workflow pack for tracked multi-session development, a media-ingest skill that turns recordings and URLs into evidence, and the reference for writing documents agents consume.",
   "author": {
     "name": "Tim Harris"
   },
@@ -21,7 +21,7 @@
   "interface": {
     "displayName": "Click AI Skills",
     "shortDescription": "Playbooks for planning, deciding, and shipping with agents",
-    "longDescription": "Self-contained playbooks any agent can read: a multi-model advisory board for hard decisions, relentless grilling to pressure-test a plan, decision maps for foggy work, throwaway prototypes, autonomous research lanes, ticket filing, human-step wizards, session handoffs, an orchestration protocol for parallel lanes, an adversarial review that breaks changes before they ship, and a skeptic-verified state review of the codebase itself.",
+    "longDescription": "Self-contained playbooks any agent can read: a multi-model advisory board for hard decisions, per-repo institutional memory written as side effects of work, relentless grilling to pressure-test a plan, decision maps for foggy work, throwaway prototypes, autonomous research lanes, ticket filing, human-step wizards, session handoffs, an orchestration protocol for parallel lanes, an adversarial review that breaks changes before they ship, and a skeptic-verified state review of the codebase itself.",
     "developerName": "Tim Harris",
     "category": "Engineering",
     "websiteURL": "https://clickai.dev"
@@ -35,6 +35,7 @@
     "./skills/investigate/ingest",
     "./skills/investigate/prototype",
     "./skills/investigate/research",
+    "./skills/orient/domain-memory",
     "./skills/orient/router",
     "./skills/orient/setup",
     "./skills/run/adversarial-review",

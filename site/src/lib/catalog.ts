@@ -22,6 +22,7 @@ export type Region = Bucket & { entries: Skill[] };
 export const PLOT: Record<string, { x: number; y: number; anchor?: "start" | "end" }> = {
   router: { x: 70, y: 90 },
   setup: { x: 70, y: 200 },
+  "domain-memory": { x: 70, y: 365 },
   grilling: { x: 255, y: 145 },
   "advisory-board": { x: 255, y: 320 },
   "decision-map": { x: 445, y: 215 },
@@ -51,6 +52,9 @@ export const BEARINGS: Array<{ from: string; to: string; note: string }> = [
   { from: "setup", to: "grilling", note: "bindings first" },
   { from: "router", to: "grilling", note: "start here" },
   { from: "grilling", to: "decision-map", note: "map-sized" },
+  { from: "grilling", to: "domain-memory", note: "close-record mints memory" },
+  { from: "codebase-review", to: "domain-memory", note: "rejections recorded" },
+  { from: "adversarial-review", to: "domain-memory", note: "declined findings" },
   { from: "grilling", to: "to-tickets", note: "pressure-tested" },
   { from: "ingest", to: "grilling", note: "undecided takeaways" },
   { from: "ingest", to: "to-tickets", note: "ticket-shaped takeaways" },
