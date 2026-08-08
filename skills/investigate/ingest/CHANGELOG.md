@@ -5,6 +5,19 @@ All notable changes to the **ingest** skill. Versioned as a standalone plugin
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+
+- **Packet-lifetime stance recorded in SKILL.md** (decided by Tim, 2026-08-07,
+  issue #116): a packet is durable until the work items derived from it are
+  resolved — that bounds how long integrity matters — and afterwards it is
+  optionally trash. Cleanup is only ever *offered*; the decider accepts or
+  declines, and deletion stays within the v1.1.0 ownership rules
+  (ingest-created files only, adopted directories refused). The manifest
+  derived-items link and the cleanup pass (issue #116 items 2–3) are out of
+  scope pending a grilling.
+
 ## [v1.1.0] - 2026-08-07 — Packets that cannot lie about their source
 
 Every item here fixes a defect found by an advisory-board red-team review of
