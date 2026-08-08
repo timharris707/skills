@@ -36,6 +36,7 @@ Sometimes the named cause says the bug is a **symptom** — a missing seam, a ru
 ## Where it sits in the pack
 
 - **Lane briefs** — [orchestrate](../orchestrate/SKILL.md) points bug-shaped items here, so the discipline arrives with the work.
+- **Mid-build bugs** — [implement](../implement/SKILL.md) routes a bug surfacing mid-build here: the named-cause test binds before the lane resumes building.
 - **Close-out audit** — the orchestrator's audit checks the two closing artifacts on every bug fix; the named cause is what it reads first.
 - **Domain memory** — where the repo binds [domain-memory](../../orient/domain-memory/SKILL.md), a root cause that reveals a **standing fact** (an assumption the repo held that the bug just proved wrong) is offered to it as a fact record: the same correction class as a decider correcting a session, with reality as the corrector.
 - **Deliberately not hooked: handoff GOTCHAS.** The durable copy of a diagnosis's lesson is the domain-memory record; writing it into [handoff](../handoff/SKILL.md) GOTCHAS too would be the same meaning in two places.

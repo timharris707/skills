@@ -19,6 +19,8 @@ Three tests, all of which must pass:
 2. **PR-sized.** One session, one branch, one review. An item nobody can finish in a sitting is a plan wearing a ticket's clothes.
 3. **Ordered by what it unblocks**, not by architectural tidiness. The first bullet should retire the most risk.
 
+The slicing binds downstream: [implement](../implement/SKILL.md) mandates that a lane's first commit prove the thinnest end-to-end slice — tickets sliced tracer-style are built tracer-style — and the seams an item's verification names at filing time are where implement's test-first bar lands.
+
 ## The wide-refactor exception
 
 One slice shape legitimately fails the tracer-bullet tests: a **wide refactor** — a single mechanical change (rename a column, retype a shared symbol) whose blast radius fans across the whole codebase, so no vertical slice can land green alone. Sequence it as **expand–contract** instead of forcing it into a bullet: an *expand* item adds the new form beside the old so nothing breaks; *migrate* items move the call sites over in batches sized by blast radius (per package, per directory), each blocked by the expand, CI staying green batch to batch because the old form still exists; a *contract* item deletes the old form once no caller remains, blocked by every migrate batch. When even the batches cannot stay green alone, keep the sequence but give them a shared integration branch that all block a final integrate-and-verify item — green is promised only there, and the contract item adds that item to its blockers: the old form never comes out before the combined verification completes.

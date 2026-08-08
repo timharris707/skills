@@ -96,6 +96,35 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   red-test-first bar with its recorded fallback, proportionate minimize, the close-out
   audit artifacts, the domain-memory feed, and the friction-gate escalation are this
   pack's.
+- **implement** — the fifteenth pack skill (#131): how a working lane builds an item —
+  seam-scoped test-first, tracer-first sequencing, green checkpoints, and file-don't-fix
+  scope discipline. Testing is seam-scoped: at every seam the item's verification set
+  names (agreed upstream at filing time, not invented mid-lane), red before code — the
+  failing test is written first and stays in the suite; code at no named seam ships WITH
+  its tests in the same commit, not necessarily before. Sequencing is tracer-first,
+  mandated: the first commit proves the thinnest end-to-end slice and widening follows,
+  pairing with to-tickets' tracer-bullet slicing. Cadence is a green checkpoint per
+  slice — each slice commits when green, so a stopped or dead lane's completed work
+  survives at a known-good point, which is exactly what orchestrate's relaunch-fresh rule
+  assumes. Scope is file-don't-fix: adjacent discoveries go to the tracker (a comment on
+  the driving ticket or a suggested new ticket), and the lane never silently expands its
+  brief. Enforcement is artifacts, not forensics: the orchestrator's close-out audit
+  checks that tests exist and pass at every named seam, the tracer slice is identifiable,
+  and the diff contains no out-of-scope files — no commit-by-commit red-before-green
+  reconstruction. Four named interlocks: a bug mid-build routes to diagnose (the
+  named-cause test binds), structure fighting the lane becomes a friction report at
+  close-out (codebase-review's entry gate), spec ambiguity goes back through the
+  orchestrator to the decider (never silently resolved), and human-only steps get a
+  wizard plus the `blocked` label. No binding slots: everything repo-specific arrives in
+  the lane's brief. Adapted from Matt Pocock's
+  [`implement`](https://github.com/mattpocock/skills/tree/main/skills/engineering/implement)
+  and [`tdd`](https://github.com/mattpocock/skills/tree/main/skills/engineering/tdd)
+  (MIT) — the implement-session shape and the red–green loop by vertical slice (red
+  before green, one seam/test/minimal implementation per cycle, tracer-bullet tests,
+  pre-agreed seams, behavior-through-public-interfaces) are his; the seam-scoped bar with
+  its upstream agreement, the tracer-first mandate, the checkpoint cadence, the
+  file-don't-fix rule, the artifact-audit enforcement, and the four interlocks are this
+  pack's.
 
 ### Changed
 
@@ -105,6 +134,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   side effect of the work.
 - **router:** roster and intro now cover diagnose — the disciplined diagnosis loop for the
   bugs lanes fix inline.
+- **router:** roster, intro, and main flow now cover implement — the build discipline of
+  seam-scoped test-first tracer slices the lanes follow.
+- **orchestrate, to-tickets, diagnose, wizard: implement hook lines** (#131). Orchestrate's
+  lane briefs point build-shaped items at implement, and its close-out audit checks
+  implement's three artifacts — seam tests present and passing, an identifiable tracer
+  slice, no out-of-scope files in the diff. To-tickets states the downstream half of its
+  own slicing rule: tickets sliced tracer-style are built tracer-style, and the seams a
+  ticket's verification names are where implement's test-first bar lands. Diagnose names
+  the mid-build route in (implement sends bugs there before the lane resumes building),
+  and wizard names the human-only-step route in (the wizard carries the steps, the
+  `blocked` label carries the wait). The lane-brief template gains the matching
+  required-reading line for build-shaped items.
 - **orchestrate, domain-memory, codebase-review: diagnose hook lines** (#130). Orchestrate's
   lane briefs point bug-shaped items at diagnose, and its close-out audit checks the two
   closing artifacts on bug fixes — the named cause and the regression test (or its flagged

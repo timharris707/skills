@@ -74,7 +74,7 @@ A skill is a `SKILL.md`, and both runtimes read it directly — so the *instruct
 | Per-skill metadata | frontmatter only | frontmatter **plus** `agents/openai.yaml` |
 | Plugins per repo | many | **one per plugin root** |
 
-The **one-plugin-per-root** rule is the only real asymmetry: a Codex plugin root is the directory holding `.codex-plugin/`, and skill paths are relative to it, so a repo root can host exactly one Codex plugin. This catalog therefore ships four Claude plugins (`advisory-board`, `team-workflow`, `ingest`, `writing-for-agents`) and one Codex plugin (`clickai-skills`) containing the same seventeen skills. Different shape, identical contents — and CI enforces the "identical contents" half.
+The **one-plugin-per-root** rule is the only real asymmetry: a Codex plugin root is the directory holding `.codex-plugin/`, and skill paths are relative to it, so a repo root can host exactly one Codex plugin. This catalog therefore ships four Claude plugins (`advisory-board`, `team-workflow`, `ingest`, `writing-for-agents`) and one Codex plugin (`clickai-skills`) containing the same eighteen skills. Different shape, identical contents — and CI enforces the "identical contents" half.
 
 **`skills` in `.codex-plugin/plugin.json` accepts an array of paths, and Codex exposes only those paths.** This is worth stating plainly because the widely-cited constraint says otherwise — that Codex accepts only a single path string and discovers `SKILL.md` recursively beneath it, which would make a curated subset impossible in a bucketed repo. Verified against **Codex CLI 0.146.0** with a control: a scratch plugin containing one promoted and one unpromoted skill, both carrying the same marker string.
 
@@ -114,7 +114,7 @@ The invariants exist because the catalog rots exactly when skills are added, ren
 
 ## Pack membership
 
-Landing a skill in the `team-workflow` pack is a scoping claim: the pack covers **tracked, multi-session, agent-assisted development** — planning, research, prototyping, handoff, orchestration, tracker hygiene. It deliberately ships no review checklist and no build-stage discipline.
+Landing a skill in the `team-workflow` pack is a scoping claim: the pack covers **tracked, multi-session, agent-assisted development** — planning, research, prototyping, handoff, orchestration, tracker hygiene. It deliberately ships no review checklist.
 
 A skill outside that territory ships as its own plugin instead, the way `advisory-board` and `writing-for-agents` do. Independent installability is the test: if someone would sensibly want this skill without the pack, it is its own plugin.
 

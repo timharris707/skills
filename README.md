@@ -24,9 +24,10 @@
 | [orchestrate](./skills/run/orchestrate/SKILL.md) | Run one session as the orchestrator of parallel working lanes: route tracked items, audit results, own integration — never implement. | team-workflow pack |
 | [adversarial-review](./skills/run/adversarial-review/SKILL.md) | Break the change before it ships: isolated finders, a skeptic pass that kills unproven findings, and a gate only confirmed blockers may hold — run before external reviewers see it. | team-workflow pack |
 | [diagnose](./skills/run/diagnose/SKILL.md) | The disciplined bug-fixing loop — reproduce red, minimize, hypothesize falsifiably, instrument, fix, regression-test — where no fix ships without a cause named in one plain sentence, with evidence. | team-workflow pack |
+| [implement](./skills/run/implement/SKILL.md) | How a lane builds an item: seam-scoped test-first, tracer-first sequencing, a green checkpoint commit per slice, and file-don't-fix scope discipline — adjacent discoveries go to the tracker, never into the diff. | team-workflow pack |
 | [writing-for-agents](./skills/author/writing-for-agents/SKILL.md) | Write and prune documents an agent consumes — context pointers, the two loads, the information hierarchy, leading words, and the no-op test. | Standalone plugin |
 
-The fourteen **team-workflow** skills ship and version together as one pack — install them as a set and they cover the full loop of tracked, multi-session, agent-assisted development. **advisory-board** stands alone and works anywhere a hard decision does; **ingest** stands alone and turns media into evidence wherever it lands; **writing-for-agents** stands alone as the standard the rest of this catalog is written against.
+The fifteen **team-workflow** skills ship and version together as one pack — install them as a set and they cover the full loop of tracked, multi-session, agent-assisted development. **advisory-board** stands alone and works anywhere a hard decision does; **ingest** stands alone and turns media into evidence wherever it lands; **writing-for-agents** stands alone as the standard the rest of this catalog is written against.
 
 ## Install
 
@@ -37,14 +38,14 @@ Add the marketplace once, then install whichever plugins you want.
 ```text
 /plugin marketplace add timharris707/skills
 /plugin install advisory-board@skills      # the multi-model advisory board
-/plugin install team-workflow@skills       # all fourteen pack skills as one plugin
+/plugin install team-workflow@skills       # all fifteen pack skills as one plugin
 /plugin install ingest@skills              # media → evidence packet + routing
 /plugin install writing-for-agents@skills  # the skill-authoring reference
 ```
 
 ### Codex
 
-The same seventeen skills, native. Codex allows one plugin per repository root, so the
+The same eighteen skills, native. Codex allows one plugin per repository root, so the
 whole catalog arrives as a single plugin rather than four:
 
 ```bash
@@ -100,7 +101,7 @@ skills/
   orient/            # PROMOTED  router, setup, domain-memory
   decide/            # PROMOTED  grilling, decision-map, advisory-board
   investigate/       # PROMOTED  research, prototype, codebase-review, ingest
-  run/               # PROMOTED  to-tickets, wizard, orchestrate, handoff, adversarial-review, diagnose
+  run/               # PROMOTED  to-tickets, wizard, orchestrate, handoff, adversarial-review, diagnose, implement
   author/            # PROMOTED  writing-for-agents
   in-progress/       # unpromoted: half-built, kept but not shipped
   misc/              # unpromoted: one-offs too repo-specific to publish

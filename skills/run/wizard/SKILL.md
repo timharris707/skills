@@ -7,7 +7,7 @@ description: Generate an interactive bash wizard that walks a human through a pr
 
 A **wizard** is a bash script that walks a human through a manual procedure one step at a time. It opens each URL, says exactly what to click and copy, captures the values, writes them where they belong, verifies what it can, and shows how much is left.
 
-It exists for the class of work that blocks agents outright: a dashboard behind someone's SSO, a registrar's DNS panel, a secret that must never enter an agent's context. The alternative is a wall of numbered prose the human loses their place in on step four.
+It exists for the class of work that blocks agents outright: a dashboard behind someone's SSO, a registrar's DNS panel, a secret that must never enter an agent's context. The alternative is a wall of numbered prose the human loses their place in on step four. A build lane that hits such a step mid-item routes it here per [implement](../implement/SKILL.md)'s interlock — the wizard carries the human steps while the `blocked` label carries the wait.
 
 The UX is already solved by [template.sh](template.sh) — progress with time remaining, confirmation gates, cross-platform URL opening, hidden secret entry, idempotent `.env` upserts, `gh secret` writes, live verification, and a closing summary of what still needs doing by hand. **Your job is to scope the procedure and author its stages.** The library above the `STAGES` marker is identical in every wizard; that consistency is the point.
 
