@@ -31,6 +31,56 @@ function trigger(description: string): string | null {
 }
 
 /**
+ * One subject-claim sentence per skill — "x is a skill that …" — so the page
+ * answers what the thing IS before the "Use when" triggers fire. Site-side on
+ * purpose: SKILL.md descriptions open with an imperative for the agent reading
+ * them, and this page is read by humans. Each sentence paraphrases the skill's
+ * own description and must stay checkable against it. A skill missing here
+ * falls back to its description's first sentence — add a claim when a skill
+ * lands in a promoted bucket.
+ */
+const SUBJECT_CLAIMS: Record<string, string> = {
+  router:
+    "router is a skill that gives a session one entry point to the team-workflow pack — it names every skill and when to reach for each.",
+  setup:
+    "setup is a skill that binds the team-workflow pack to a repo through a one-time interview: how you test, where work is tracked, who has the final say.",
+  "domain-memory":
+    "domain-memory is a skill that keeps a repo's institutional memory — what its words mean and why its settled decisions went the way they did — written as a side effect of ordinary work.",
+  grilling:
+    "grilling is a skill that has the agent interview you, round after round, until nothing load-bearing in a plan is still assumed.",
+  "advisory-board":
+    "advisory-board is a skill that convenes frontier models from four vendors on one question and returns a single verdict with the dissent preserved.",
+  "decision-map":
+    "decision-map is a skill that charts genuinely foggy work as a map of gated decisions and works it until nothing gating is undecided.",
+  ingest:
+    "ingest is a skill that turns a video, recording, or voice memo into an evidence packet — transcript, timestamped frames, manifest — plus a recommendation for where it enters the work.",
+  research:
+    "research is a skill that runs an autonomous investigation against primary sources and ends in a cited findings file linked from the ticket that asked.",
+  prototype:
+    "prototype is a skill that builds throwaway code to answer a design question that discussion and static artifacts cannot settle.",
+  "codebase-review":
+    "codebase-review is a skill that reviews the state of the codebase between changes — the counterpart to adversarial-review's review of a single change.",
+  diagnose:
+    "diagnose is a skill that holds bug-fixing to a disciplined loop: no fix ships without a cause the fixer can state in one plain sentence, with evidence.",
+  implement:
+    "implement is a skill that disciplines how a working session builds an item — test-first, thin slices that go end to end, a green checkpoint after each.",
+  "to-tickets":
+    "to-tickets is a skill that turns a decided plan into tracker items a stranger could pick up cold, with their blocking edges wired.",
+  wizard:
+    "wizard is a skill that generates an interactive walkthrough for the steps only a human can perform — third-party dashboards, credentials, DNS records.",
+  orchestrate:
+    "orchestrate is a skill that turns one session into the coordinator of many — routing tracked work to parallel sessions, auditing what comes back, owning integration.",
+  "adversarial-review":
+    "adversarial-review is a skill that tries to break a change before it ships — isolated finders attack it, a skeptic pass kills unproven findings, and confirmed blockers gate the merge.",
+  handoff:
+    "handoff is a skill that writes where the work stands into one small file, so a fresh session resumes without re-explanation.",
+  "writing-for-agents":
+    "writing-for-agents is a skill that writes and prunes the documents agents consume — SKILL.md files, standing instructions, reference files.",
+  "writing-for-humans":
+    "writing-for-humans is a skill that makes public-facing prose worth a stranger's next minute — guide shape, observable warmth, and a last-mile scrub for AI tells.",
+};
+
+/**
  * SKILL.md links are relative to the skill's own directory, so they only
  * resolve on GitHub. Rewrite them there rather than shipping dead links.
  *
@@ -72,6 +122,9 @@ export default async function SkillPage({ params }: Params) {
           ← Catalog {region ? `/ ${region.name}` : ""}
         </Link>
         <h1 className="detail__title">{skill.name}</h1>
+        <p className="detail__claim" style={{ fontSize: "1.05rem", maxWidth: "var(--measure)", margin: "0.5rem 0 1rem" }}>
+          {SUBJECT_CLAIMS[skill.slug] ?? summarize(skill.description)}
+        </p>
         <p className="detail__trigger">{useWhen ?? summarize(skill.description)}</p>
         <div className="prose" dangerouslySetInnerHTML={{ __html: html }} />
       </article>
