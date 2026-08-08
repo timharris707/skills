@@ -1,17 +1,17 @@
 # The last-mile scrub — an AI-tell pass for finished drafts
 
-The final pass over human-facing copy, run from [SKILL.md](../SKILL.md) after structure and voice are settled. Scrubbing an unfinished draft produces *clean nothing* — do the content work first.
+The final pass over human-facing copy, run from [SKILL.md](../SKILL.md) after structure and voice are settled. Scrubbing an unfinished draft produces *clean nothing*. Do the content work first.
 
 ## Guardrails (read before hunting)
 
-- **Clusters, not isolated tells.** A single em dash means nothing; several tells stacking in one passage is what to fix. Judge passages, never words in isolation. (This rule and the next follow [blader/humanizer](https://github.com/blader/humanizer).)
+- **Clusters, not isolated tells.** A single em dash means nothing; several tells stacking in one passage is what to fix. Judge passages, never words in isolation. (This rule and the next follow [blader/humanizer](https://github.com/blader/humanizer).) One tell is exempt from needing company: em-dash density, where sheer recurrence is itself the cluster (first row of the table below).
 - **A voice sample outranks every rule below.** When the author's real writing uses em dashes, triads, or any listed pattern, match the sample's frequency instead of scrubbing the tell. Matching the author beats scrubbing the tell.
 - **No fabrication.** The scrub rewrites; it never adds facts, names, numbers, or anecdotes the source didn't carry.
 - **Rewrite sentences, not words.** Swapping "leverage" for "use" leaves the AI sentence standing. When a cluster fires, redraft the passage in the piece's voice.
 
 ## The pass
 
-1. Read the draft aloud (or as if aloud). Mark every passage where two or more tells from the table stack.
+1. Read the draft aloud (or as if aloud). Mark every passage where two or more tells from the table stack, and every stretch where the dash budget runs over; that tell needs no company.
 2. Redraft each marked passage whole, keeping its facts and its next-action.
 3. Reread once end-to-end for rhythm: sentence lengths should vary, and no two adjacent paragraphs should open the same way.
 
@@ -21,21 +21,25 @@ Condensed from the patterns Wikipedia's "Signs of AI writing" documents and blad
 
 | Cluster | What it looks like |
 | --- | --- |
-| Significance inflation | "stands as a testament", "plays a vital role", "marks a significant step" — importance asserted, never shown |
-| Promotional gloss | "seamless", "robust", "comprehensive", "cutting-edge" — adjectives doing a claim's job |
+| Em-dash density | Dash-spliced asides recurring sentence after sentence; each dash looks fine alone, and a page of them is a signature |
+| Significance inflation | "stands as a testament", "plays a vital role", "marks a significant step": importance asserted, never shown |
+| Promotional gloss | "seamless", "robust", "comprehensive", "cutting-edge": adjectives doing a claim's job |
 | AI vocabulary | "delve", "leverage", "landscape", "tapestry", "journey", "unlock" |
-| Rule of three | Triads in every list and sentence — "fast, simple, and powerful" — regardless of whether three things exist |
+| Rule of three | Triads in every list and sentence ("fast, simple, and powerful") regardless of whether three things exist |
 | Contrast scaffold | "It's not just X, it's Y", "more than a tool" |
-| Essay endings | "In conclusion", "Ultimately," — a summary paragraph restating what the reader just read |
+| Essay endings | "In conclusion", "Ultimately,": a summary paragraph restating what the reader just read |
 | Empty transitions | "Moreover," "Furthermore," "Additionally," opening consecutive paragraphs |
-| Hedging stacks | "could potentially", "it's important to note that" — two hedges where zero belong |
+| Hedging stacks | "could potentially", "it's important to note that": two hedges where zero belong |
 | Uniform rhythm | Every sentence the same length and shape; no short one anywhere |
 | Chatbot artifacts | "Certainly!", "I hope this helps", "Let's dive in" |
 | Formatting litter | Bold terms scattered mid-prose, headers for two-sentence sections, emoji bullets |
 
+Em-dash density is a primary tell, the one row that fires on frequency alone. blader/humanizer calls the em dash one of the most reliable AI tells and bans em and en dashes from its final rewrites outright, a voice sample that uses them being the sole exception. This pass keeps [SKILL.md](../SKILL.md)'s budget instead of the ban: roughly a handful per page, each one earning its place. When the row fires, restructure. Split the sentence, subordinate the aside with a comma, or cut it. A mechanical dash-to-comma or dash-to-semicolon swap preserves the exact rhythm the budget exists to break, which is the anti-pattern the guardrail above ("rewrite sentences, not words") already names.
+
 ## Done when
 
 - Every passage where tells clustered was redrafted whole, and no new facts entered.
+- The page ends inside its dash budget: a handful at most, none of them made by an in-place swap.
 - The voice sample, when one exists, won every conflict with the table.
 - One read-through end-to-end found varied rhythm and no chatbot artifacts.
 
