@@ -86,6 +86,16 @@ How the pack composes with this repo's resident rule systems. Resident rules win
 - **Rejection memory**: <where rejected candidates and their load-bearing reasons live>
 - **Executor mechanics**: <how the read-only review lane is launched, claimed, and tracked — in orchestrated repos, usually the lane-launch machinery below>
 
+## Domain memory (optional — repos running the domain-memory skill)
+
+<!-- The domain-memory skill's binding slots. Omit this section if the repo has not
+     bound the skill. Where codebase-review is also bound, its rejection-memory slot
+     above points at this memory home — one store, never two. -->
+
+- **Memory home**: <where the store lives, e.g. `docs/decisions/` + `docs/terms.md` — a decisions directory plus a terms file the repo tracks>
+- **Size bound**: <the store size past which sessions offer a consolidation pass, e.g. 30 records — dispositioned by the decider, never run unprompted>
+- **Backfill**: <not requested | requested on <date> — the one-time lane that drafts records from closed PRs/issues/handoffs for card-by-card disposition>
+
 ## Orchestration (optional — repos running an orchestrator)
 
 <!-- The orchestrate skill's binding slots. Omit this section if no session orchestrates. -->

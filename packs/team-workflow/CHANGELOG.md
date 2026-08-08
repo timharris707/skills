@@ -39,11 +39,51 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   destination, lane-count threshold N, rejection-memory location, executor mechanics.
 - **setup:** the interview's optional bindings now offer the codebase-review slots, and the
   binding-doc template gains a matching optional Codebase review section.
+- **domain-memory** — the thirteenth pack skill (#128): per-repo institutional memory of
+  terms and decisions, written as side effects of work, never as a documentation chore —
+  the third orientation instrument beside router and setup. One store, two artifacts: a
+  small, opinionated domain glossary (canonical terms, tight definitions, avoid-lists,
+  updated in place) and lightweight decision records — title, date, the decision, the
+  load-bearing reason, links — each under a minute to write, in plain English a
+  non-engineer decider reads without translation (formats in `references/formats.md`,
+  files created lazily). Storage is repo files at a memory home the binding names (a
+  decisions directory plus a terms file): the tracker holds work in flight, the repo
+  carries the durable why. Exactly three write moments — grilling close-records, review
+  dispositions (codebase-review rejections and adversarial-review declined findings), and
+  decider corrections of a session's wrong assumption — with lane close-outs deliberately
+  excluded as noise. Four read moments: session start via the binding doc, the grilling
+  pre-round (settled questions reopen on new evidence, never repetition), lane briefs, and
+  review layers. Decision records are superseded, never edited — new record links the old,
+  old record gains the forward marker; past a size bound the skill offers a consolidation
+  pass dispositioned by the decider. Existing repos start empty and grow forward; an
+  optional one-time backfill lane drafts records from closed PRs/issues/handoffs for
+  card-by-card disposition — nothing becomes memory without the decider's yes. In repos
+  also bound to codebase-review, that skill's rejection-memory slot points at the memory
+  home — one store, never two. Binding slots: memory home, size bound, backfill requested.
+  Adapted from Matt Pocock's
+  [`domain-modeling`](https://github.com/mattpocock/skills/tree/main/skills/engineering/domain-modeling)
+  (MIT) — the glossary + decision-record mechanism, side-effect writing, and lazy file
+  creation are his; the write/read moment matrix, supersede-never-edit,
+  consolidation-by-disposition, backfill-by-disposition, the unified store, and the
+  binding slots are this pack's.
+- **setup:** the interview's optional bindings now offer the domain-memory slots, and the
+  binding-doc template gains a matching optional Domain memory section.
 
 ### Changed
 
 - **router:** roster and intro now cover codebase-review — where adversarial-review breaks
   the change, codebase-review reviews the codebase the changes accumulate in.
+- **router:** roster and intro now cover domain-memory — institutional memory written as a
+  side effect of the work.
+- **grilling, adversarial-review, codebase-review, orchestrate: domain-memory hook lines**
+  (#128). Grilling's close-record also mints memory where the repo binds domain-memory —
+  settled decisions become records, new terms enter the glossary, and the pre-round read
+  consults the same store. Adversarial-review's declined findings land as decision records
+  with their reasons. Codebase-review's rejection-memory slot points at the memory home
+  where both are bound (one store, never two), and its intro now points at domain-memory
+  as the skill the deferred domain-modeling discipline grew into. Orchestrate's startup
+  reads the glossary and skims recent records beside the handoff, and lane briefs point at
+  the memory home.
 - **Fidelity audit follow-up: attribution squared with the record, plus the upstream rules
   worth keeping** (#122). An audit against [mattpocock/skills](https://github.com/mattpocock/skills)
   (MIT) — the pack's main upstream — found overdue or inaccurate attributions and a handful of

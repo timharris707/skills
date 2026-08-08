@@ -5,7 +5,7 @@
     "url": "https://github.com/timharris707"
   },
   "metadata": {
-    "description": "Portable skills for AI agents: a multi-model advisory board for hard decisions, a twelve-skill team-workflow pack for tracked, multi-session, agent-assisted development, a media-ingest skill that turns recordings and URLs into evidence, and a reference skill for writing documents agents consume."
+    "description": "Portable skills for AI agents: a multi-model advisory board for hard decisions, a thirteen-skill team-workflow pack for tracked, multi-session, agent-assisted development, a media-ingest skill that turns recordings and URLs into evidence, and a reference skill for writing documents agents consume."
   },
   "plugins": [
     {
@@ -24,11 +24,12 @@
       "source": "./",
       "strict": false,
       "version": "1.3.0",
-      "description": "Twelve skills that ship as one pack — a portable discipline for tracked, multi-session, agent-assisted development: a router entry point, a once-per-repo setup interview, relentless grilling, decision maps, throwaway prototypes, autonomous research lanes, ticket filing, human-step wizards, session handoffs, an orchestration protocol for parallel lanes, an adversarial review that breaks changes before they ship, and a skeptic-verified state review of the codebase itself. Versioned together (team-workflow/vX.Y.Z); this version mirrors the latest pack tag.",
+      "description": "Thirteen skills that ship as one pack — a portable discipline for tracked, multi-session, agent-assisted development: a router entry point, a once-per-repo setup interview, per-repo institutional memory written as side effects of work, relentless grilling, decision maps, throwaway prototypes, autonomous research lanes, ticket filing, human-step wizards, session handoffs, an orchestration protocol for parallel lanes, an adversarial review that breaks changes before they ship, and a skeptic-verified state review of the codebase itself. Versioned together (team-workflow/vX.Y.Z); this version mirrors the latest pack tag.",
       "license": "MIT",
       "skills": [
         "./skills/orient/router",
         "./skills/orient/setup",
+        "./skills/orient/domain-memory",
         "./skills/decide/grilling",
         "./skills/decide/decision-map",
         "./skills/investigate/prototype",

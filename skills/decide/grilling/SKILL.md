@@ -54,7 +54,7 @@ The **decisions** are the decider's. Put each one to them and wait. A grilling a
 
 ## Close with a record
 
-Agreement that lives only in the transcript evaporates with the session. Once the decider confirms shared understanding, write it down somewhere durable: a comment on the driving ticket where one exists, otherwise a dated summary in the repo's docs home (the binding doc names it). The record is short and it is not the interview: it enumerates the settled decisions — the design tree as visited — and marks each recommendation accepted or overridden. It is what a later spec or ticket names as its plan source, so [to-tickets](../../run/to-tickets/SKILL.md) links a citable decision instead of a conversation nobody can reopen.
+Agreement that lives only in the transcript evaporates with the session. Once the decider confirms shared understanding, write it down somewhere durable: a comment on the driving ticket where one exists, otherwise a dated summary in the repo's docs home (the binding doc names it). The record is short and it is not the interview: it enumerates the settled decisions — the design tree as visited — and marks each recommendation accepted or overridden. It is what a later spec or ticket names as its plan source, so [to-tickets](../../run/to-tickets/SKILL.md) links a citable decision instead of a conversation nobody can reopen. Where the repo binds [domain-memory](../../orient/domain-memory/SKILL.md), the close-record also mints memory — each settled decision becomes a decision record at the memory home and new terms enter the glossary, the same store the pre-round read consults so a settled question is never re-asked.
 
 ## Done when (checkable — verify each line before reporting complete)
 

@@ -11,6 +11,7 @@
 | [advisory-board](./skills/decide/advisory-board/) | Convene a board of frontier AI models — Claude, Codex, Gemini, and Grok — that each review the same decision independently, debate across rounds, and hand back one clear recommendation. | Standalone plugin |
 | [router](./skills/orient/router/SKILL.md) | The team-workflow pack's entry point: names every pack skill and when to reach for it. Start here to orient a new session or repo. | team-workflow pack |
 | [setup](./skills/orient/setup/SKILL.md) | Once-per-repo interview that binds the pack to your project — tracker, verify commands, who decides — and seeds the binding doc and templates. | team-workflow pack |
+| [domain-memory](./skills/orient/domain-memory/SKILL.md) | Per-repo institutional memory — a small domain glossary plus lightweight decision records — written as side effects of grillings, reviews, and decider corrections, and read at session start. | team-workflow pack |
 | [grilling](./skills/decide/grilling/SKILL.md) | Interview the decider relentlessly over a design tree, in rounds, until nothing load-bearing is still assumed. Facts are the agent's job; decisions are the decider's. | team-workflow pack |
 | [decision-map](./skills/decide/decision-map/SKILL.md) | Chart genuinely foggy work — where open questions gate each other — as a decision map before anyone writes a build spec. | team-workflow pack |
 | [ingest](./skills/investigate/ingest/SKILL.md) | Turn a video, recording, voice memo, or media URL into an evidence packet — authoritative transcript, timestamped frames, manifest — plus a routing recommendation. Every run states its purpose. | Standalone plugin |
@@ -24,7 +25,7 @@
 | [adversarial-review](./skills/run/adversarial-review/SKILL.md) | Break the change before it ships: isolated finders, a skeptic pass that kills unproven findings, and a gate only confirmed blockers may hold — run before external reviewers see it. | team-workflow pack |
 | [writing-for-agents](./skills/author/writing-for-agents/SKILL.md) | Write and prune documents an agent consumes — context pointers, the two loads, the information hierarchy, leading words, and the no-op test. | Standalone plugin |
 
-The twelve **team-workflow** skills ship and version together as one pack — install them as a set and they cover the full loop of tracked, multi-session, agent-assisted development. **advisory-board** stands alone and works anywhere a hard decision does; **ingest** stands alone and turns media into evidence wherever it lands; **writing-for-agents** stands alone as the standard the rest of this catalog is written against.
+The thirteen **team-workflow** skills ship and version together as one pack — install them as a set and they cover the full loop of tracked, multi-session, agent-assisted development. **advisory-board** stands alone and works anywhere a hard decision does; **ingest** stands alone and turns media into evidence wherever it lands; **writing-for-agents** stands alone as the standard the rest of this catalog is written against.
 
 ## Install
 
@@ -35,14 +36,14 @@ Add the marketplace once, then install whichever plugins you want.
 ```text
 /plugin marketplace add timharris707/skills
 /plugin install advisory-board@skills      # the multi-model advisory board
-/plugin install team-workflow@skills       # all twelve pack skills as one plugin
+/plugin install team-workflow@skills       # all thirteen pack skills as one plugin
 /plugin install ingest@skills              # media → evidence packet + routing
 /plugin install writing-for-agents@skills  # the skill-authoring reference
 ```
 
 ### Codex
 
-The same fifteen skills, native. Codex allows one plugin per repository root, so the
+The same sixteen skills, native. Codex allows one plugin per repository root, so the
 whole catalog arrives as a single plugin rather than four:
 
 ```bash
@@ -95,7 +96,7 @@ Every skill lives in a **bucket** — a directory under `skills/` declared in [`
 ```text
 skills/
   buckets.json       # the declaration: id, name, promoted, blurb
-  orient/            # PROMOTED  router, setup
+  orient/            # PROMOTED  router, setup, domain-memory
   decide/            # PROMOTED  grilling, decision-map, advisory-board
   investigate/       # PROMOTED  research, prototype
   run/               # PROMOTED  to-tickets, wizard, orchestrate, handoff
@@ -126,7 +127,7 @@ The promoted buckets are also the site's regions, read straight from `buckets.js
 
 ## Acknowledgements
 
-Six skills here are adapted from [mattpocock/skills](https://github.com/mattpocock/skills) (MIT) — [grilling](./skills/decide/grilling/SKILL.md), [to-tickets](./skills/run/to-tickets/SKILL.md), [wizard](./skills/run/wizard/SKILL.md), [adversarial-review](./skills/run/adversarial-review/SKILL.md), [codebase-review](./skills/investigate/codebase-review/SKILL.md), and [writing-for-agents](./skills/author/writing-for-agents/SKILL.md). Each names what it took and what it added in its own Attribution section; `grilling` follows its original most closely.
+Seven skills here are adapted from [mattpocock/skills](https://github.com/mattpocock/skills) (MIT) — [grilling](./skills/decide/grilling/SKILL.md), [to-tickets](./skills/run/to-tickets/SKILL.md), [wizard](./skills/run/wizard/SKILL.md), [adversarial-review](./skills/run/adversarial-review/SKILL.md), [codebase-review](./skills/investigate/codebase-review/SKILL.md), [domain-memory](./skills/orient/domain-memory/SKILL.md), and [writing-for-agents](./skills/author/writing-for-agents/SKILL.md). Each names what it took and what it added in its own Attribution section; `grilling` follows its original most closely.
 
 ## License
 
