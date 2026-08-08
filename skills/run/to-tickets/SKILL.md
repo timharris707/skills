@@ -31,7 +31,7 @@ Before Pass 1 files anything, put the slice list in front of the decider: each i
 
 Items need ids before they can reference each other, so filing is always two passes. Doing it in one produces edges pointing at numbers that do not exist yet.
 
-**Pass 1 — file the bodies** (the approved list, nothing else). Each item's body IS the spec, per the [work-item spec template](../../orient/setup/references/templates/issue-slice-spec.md) that setup seeds: destination, plan source, acceptance criteria, verification, out of scope. The **plan source** line is not optional — it links the primary source (the decision-map entry, the grilling verdict, the research findings) so review never relitigates a settled question.
+**Pass 1 — file the bodies** (the approved list, nothing else). Each item's body IS the spec, per the [work-item spec template](../../orient/setup/references/templates/issue-slice-spec.md) that setup seeds: destination, plan source, acceptance criteria, verification, out of scope. The **plan source** line is not optional — it links the primary source (the decision-map entry, the grilling verdict, the research findings) so review never relitigates a settled question. When items derive from an [ingest](../../investigate/ingest/SKILL.md) evidence packet, also run the `ingest.py link` command the recommendation handed you for each item as you file it — the packet's retention lifetime is measured by those links.
 
 **Pass 2 — wire the edges.** Add native dependency edges for every blocker that is itself a tracker item, using the recipe's database-id form:
 
@@ -62,6 +62,7 @@ Confirm the labels exist on the tracker before filing. A frontier query against 
 - Pass 2 ran: every ticket-blocker is a native edge, every non-ticket blocker is the `blocked` label, and no item carries both.
 - Every item is labeled, and every ready-labeled item could be handed to a stranger as-is.
 - The frontier query returns the items you expect to be takeable now — run it and read the result rather than assuming.
+- Every item filed from an [ingest](../../investigate/ingest/SKILL.md) evidence packet is recorded in that packet's `derived_items` — the `link` command from the recommendation ran at filing time.
 - Nothing filed is claimed, and every question that surfaced while slicing is recorded for the decider rather than resolved by you.
 
 ## Attribution

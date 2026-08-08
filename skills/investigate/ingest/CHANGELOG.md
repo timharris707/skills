@@ -5,7 +5,7 @@ All notable changes to the **ingest** skill. Versioned as a standalone plugin
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [v1.2.0] - 2026-08-07 — Packets that know their work and offer their own cleanup
 
 ### Added
 
@@ -15,8 +15,40 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   optionally trash. Cleanup is only ever *offered*; the decider accepts or
   declines, and deletion stays within the v1.1.0 ownership rules
   (ingest-created files only, adopted directories refused). The manifest
-  derived-items link and the cleanup pass (issue #116 items 2–3) are out of
-  scope pending a grilling.
+  derived-items link and the cleanup sweep that make the offer executable
+  landed separately (below), after the items 2–3 grilling.
+- **Derived-items links and the cleanup sweep** (designed with Tim, 2026-08-08,
+  issue #116 items 2–3): the manifest gains a `derived_items` list, appended
+  at filing time by whoever files tickets from the packet (`ingest.py link
+  --out DIR --item owner/repo#N` — written at creation, never reconstructed),
+  and `ingest.py sweep --home DIR` checks each packet's derived work for
+  resolution and *offers* deletion of fully-resolved packets, as the closing
+  step of any run and on demand. Resolution is GitHub-first (`gh`: issue/PR
+  closed); other trackers resolve via the binding doc's resolution-check
+  command (`--check-cmd`, exit 0 resolved / 1 open); with no binding the sweep
+  lists the packet for the decider instead of guessing, and a packet with no
+  recorded derived items is never treated as resolved. Deletion happens only
+  when the decider takes the offer (`--delete`), re-checks resolution, and
+  follows the v1.1.0 ownership rules: by manifest ledger, ingest-created files
+  only, foreign files left in place, unmarked directories refused. SKILL.md's
+  Retention paragraph now describes the mechanism as real rather than pending.
+- **Adversarial-review hardening of the sweep**, applied before merge: item
+  ids reach a resolution command as data — a quoted positional argument,
+  never spliced into the shell — and `link` refuses ids carrying whitespace,
+  control characters, or shell metacharacters; a partial deletion (foreign
+  files, a failed unlink, a symlink where the ledger recorded a file) keeps
+  the packet's marker and manifest so it stays sweepable instead of orphaned,
+  under its own exit code (5); `--delete` is bounded to the swept `--home`,
+  processes every target, and exits with the worst outcome; resolution-check
+  crashes, hand-edited manifest entries, and one packet's failure degrade to
+  `unknown` instead of aborting the report; `--check-cmd` without `{id}` is
+  refused (a blanket exit 0 would resolve everything); ids are rendered
+  escaped in every report line; and `gh` joined `doctor`'s tool roster.
+- **49 new tests** (84 total) covering link idempotence and ownership,
+  resolution states, sweep verdicts, offer-only ledger deletion, and a
+  regression pin for every review finding — including a real-/bin/sh
+  injection test and a subprocess mock that can RAISE, not just fail
+  politely. The suite still never touches the network.
 
 ## [v1.1.0] - 2026-08-07 — Packets that cannot lie about their source
 
