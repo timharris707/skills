@@ -77,6 +77,9 @@ def promoted_skills() -> dict:
         for entry in sorted(bucket_dir.iterdir()):
             if entry.is_dir() and (entry / "SKILL.md").is_file():
                 out[entry.name] = entry
+    if not out:
+        print("ERROR: no promoted skills found — an empty check is not a green check")
+        sys.exit(1)
     return out
 
 
@@ -105,7 +108,7 @@ def derive_expected(skills: dict, owners: dict) -> dict:
     aliased = {}  # reference slug -> alias command
     for slug, command in user_invoked.items():
         body = (skills[slug] / "SKILL.md").read_text()
-        for link in re.findall(r"\]\((\.\.?/[^)#\s]+SKILL\.md)(?:#[^)\s]*)?(?:\s+\"[^\"]*\")?\)", body):
+        for link in re.findall(r"\]\((\.\.?/[^)#\s]+SKILL\.md)(?:#[^)\s]*)?(?:\s+(?:\"[^\"]*\"|'[^']*'|\([^)]*\)))?\)", body):
             target = ((skills[slug] / link).resolve())
             for ref_slug, ref_dir in skills.items():
                 if ref_slug != slug and target == (ref_dir / "SKILL.md").resolve():
