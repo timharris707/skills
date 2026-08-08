@@ -114,7 +114,7 @@ The invariants exist because the catalog rots exactly when skills are added, ren
 
 ## Pack membership
 
-Landing a skill in the `team-workflow` pack is a scoping claim: the pack covers **tracked, multi-session, agent-assisted development** — planning, research, prototyping, handoff, orchestration, tracker hygiene. It deliberately ships no review checklist and no build-stage discipline.
+Landing a skill in the `team-workflow` pack is a scoping claim: the pack covers **tracked, multi-session, agent-assisted development** — planning, research, prototyping, handoff, orchestration, tracker hygiene. It deliberately ships no review checklist.
 
 A skill outside that territory ships as its own plugin instead, the way `advisory-board` and `writing-for-agents` do. Independent installability is the test: if someone would sensibly want this skill without the pack, it is its own plugin.
 
