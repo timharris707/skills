@@ -37,7 +37,7 @@ Sometimes the named cause says the bug is a **symptom** — a missing seam, a ru
 
 - **Lane briefs** — [orchestrate](../orchestrate/SKILL.md) points bug-shaped items here, so the discipline arrives with the work.
 - **Close-out audit** — the orchestrator's audit checks the two closing artifacts on every bug fix; the named cause is what it reads first.
-- **Domain memory** — a root cause that reveals a **standing fact** (an assumption the repo held that the bug just proved wrong) is offered to [domain-memory](../../orient/domain-memory/SKILL.md) as a fact record: the same correction class as a decider correcting a session, with reality as the corrector.
+- **Domain memory** — where the repo binds [domain-memory](../../orient/domain-memory/SKILL.md), a root cause that reveals a **standing fact** (an assumption the repo held that the bug just proved wrong) is offered to it as a fact record: the same correction class as a decider correcting a session, with reality as the corrector.
 - **Deliberately not hooked: handoff GOTCHAS.** The durable copy of a diagnosis's lesson is the domain-memory record; writing it into [handoff](../handoff/SKILL.md) GOTCHAS too would be the same meaning in two places.
 
 ## Done when (checkable — verify each line before reporting complete)
@@ -48,10 +48,10 @@ Sometimes the named cause says the bug is a **symptom** — a missing seam, a ru
 - Every hypothesis tested carried a falsifiable prediction, and the fix answers the hypothesis the instrumentation confirmed, not a hunch that survived by making the symptom vanish.
 - The original un-minimized repro no longer reproduces, and a grep of the probe tag comes back empty.
 - A structural cause, where the diagnosis revealed one, is reported as friction toward codebase-review's entry gate, with the instance fixed and the lane's scope unexpanded.
-- A standing fact revealed by the root cause is offered to domain-memory as a fact record, or there was none.
+- Where the repo binds domain-memory: a standing fact revealed by the root cause was offered as a record, or there was none.
 
 ## Attribution
 
-Adapted from Matt Pocock's [`diagnosing-bugs`](https://github.com/mattpocock/skills/tree/main/skills/engineering/diagnosing-bugs) (MIT). The six-step spine is his: build a tight feedback loop and watch it go red, minimize by cutting one element at a time, generate ranked falsifiable hypotheses each stating its prediction (his format, near-verbatim), instrument one variable at a time with tagged probes rather than logging everything, write the regression test before the fix and re-run the original repro after, and state the confirmed cause so the next debugger learns. So are *tight* as the loop's quality bar, the reproduction-rate framing for flaky bugs, and the post-mortem handoff of architectural causes to his `improve-codebase-architecture` — the seed of the friction-gate escalation here.
+Adapted from Matt Pocock's [`diagnosing-bugs`](https://github.com/mattpocock/skills/tree/main/skills/engineering/diagnosing-bugs) (MIT). The six-step spine is his: build a tight feedback loop and watch it go red, minimize by cutting one element at a time, generate ranked falsifiable hypotheses each stating its prediction (his format and several of these phrasings, near-verbatim), instrument one variable at a time with tagged probes rather than logging everything, write the regression test before the fix and re-run the original repro after, and state the confirmed cause so the next debugger learns. So are *tight* as the loop's quality bar, the reproduction-rate framing for flaky bugs, and the post-mortem handoff of architectural causes to his `improve-codebase-architecture` — the seed of the friction-gate escalation here.
 
 What this pack changes: the named-cause test as the binding trigger (any fix shipping without a nameable cause, not hard bugs only), the failing-automated-test-first bar with the documented manual repro as a recorded, flagged fallback, proportionate minimize (tight enough to iterate against is the stopping point, not load-bearing minimality for its own sake), the plain-sentence closing artifact audited at lane close-out, the domain-memory feed for standing facts, and the friction-gate rewiring into codebase-review's entry gate with the diagnosing lane's scope pinned.
