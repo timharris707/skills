@@ -52,6 +52,8 @@ def frontmatter(skill_md: Path) -> dict:
     lines = skill_md.read_text().splitlines()
     if not lines or lines[0].strip() != "---":
         return {}
+    if not any(line.strip() == "---" for line in lines[1:]):
+        return {}  # unclosed frontmatter: treat as none rather than swallow the body
     data = {}
     for line in lines[1:]:
         if line.strip() == "---":
@@ -103,7 +105,7 @@ def derive_expected(skills: dict, owners: dict) -> dict:
     aliased = {}  # reference slug -> alias command
     for slug, command in user_invoked.items():
         body = (skills[slug] / "SKILL.md").read_text()
-        for link in re.findall(r"\]\((\.\.?/[^)#]+SKILL\.md)\)", body):
+        for link in re.findall(r"\]\((\.\.?/[^)#\s]+SKILL\.md)(?:#[^)\s]*)?(?:\s+\"[^\"]*\")?\)", body):
             target = ((skills[slug] / link).resolve())
             for ref_slug, ref_dir in skills.items():
                 if ref_slug != slug and target == (ref_dir / "SKILL.md").resolve():

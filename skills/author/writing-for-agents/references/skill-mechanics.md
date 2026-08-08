@@ -32,7 +32,7 @@ Optional fields, used sparingly:
 | only when the user decides it is time | user-invoked (`disable-model-invocation: true`) — the description is a menu entry, and can be short |
 | both, through a thin user-facing alias | two skills: the reference skill agent-invoked, plus a one-line invoker |
 
-The third row is a real pattern, not a workaround: an agent-invoked reference skill holds the process and a short user-invoked skill exists purely so a person can name it. Keep the process in exactly one of them — the alias points, it does not restate.
+The third row is a real pattern, not a workaround: an agent-invoked reference skill holds the process and a short user-invoked skill exists purely so a person can name it. Keep the process in exactly one of them — the alias points, it does not restate. That pointing link is also how the catalog reads the pattern: a SKILL.md link from a user-invoked skill to another promoted skill's SKILL.md is an alias claim (the target classifies as invocable either way), so a user-invoked skill that merely wants to mention a sibling links to its directory or names it in plain text, not its SKILL.md.
 
 ## Buckets
 
