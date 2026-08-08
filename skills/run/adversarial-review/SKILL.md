@@ -12,7 +12,7 @@ Read the team-workflow binding doc first. The review runs **before external revi
 ## 1. The two layers
 
 1. **The floor — before committing substantial work.** The implementing session reviews its own change before the commit. Every repo bound to the pack has this layer.
-2. **The close-out layer — the orchestrator reviews the lane.** In repos running orchestration, the orchestrator (or its delegated verifier) runs the review against a lane's branch at close-out, per the orchestrate skill's audit rule — the implementer never has the last word on its own work. Bound per repo; a repo without lanes simply has no second layer.
+2. **The close-out layer — the orchestrator reviews the lane.** In repos running orchestration, the orchestrator (or its delegated verifier) runs the review against a lane's branch at close-out, per the orchestrate skill's audit rule — the implementer never has the last word on its own work. The executor's model and effort come from the repo's review-tier policy (the orchestrate skill's verification-executor binding slot), never habit. Bound per repo; a repo without lanes simply has no second layer.
 
 **What counts as substantial:** the implementing session judges, biased toward reviewing when unsure — a skipped review is a silent decision that the change couldn't bite. The repo binding may pin hard rules ("any migration or money-path change is always substantial"); those are never overridable by the implementer's judgment.
 
