@@ -10,6 +10,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- **Terminology: agent-invoked / user-invoked** (#144). The skill-mechanics
+  reference now says who actually triggers a skill: the invocation-mode section
+  and its table say "agent-invoked" and "user-invoked" instead of the old
+  model-/human-centred phrasings. The literal frontmatter key
+  `disable-model-invocation` is the harness's name and stays quoted as-is.
+
 - Cross-link to the new sibling skill **writing-for-humans** (#141): the intro
   now names when the other register applies — a document a human reads goes to
   the counterpart, not through these levers.
