@@ -5,7 +5,7 @@ description: Entry point for the team-workflow pack — names every pack skill a
 
 # Team-workflow router
 
-One entry point for the **team-workflow** pack: a portable discipline for running tracked, multi-session, agent-assisted development — pressure-testing and decision-making before building, throwaway prototyping, autonomous research, filing the work that comes out of it, wizards for the steps only a human can take, adversarial review before changes ship, session handoffs, orchestration of parallel lanes, and tracker hygiene that keeps parallel sessions from colliding. Everything repo-specific lives in one binding doc seeded by the setup skill; every skill defers decisions to **the decider**, the role that doc names.
+One entry point for the **team-workflow** pack: a portable discipline for running tracked, multi-session, agent-assisted development — pressure-testing and decision-making before building, throwaway prototyping, autonomous research, filing the work that comes out of it, wizards for the steps only a human can take, adversarial review before changes ship, state review of the codebase between changes, session handoffs, orchestration of parallel lanes, and tracker hygiene that keeps parallel sessions from colliding. Everything repo-specific lives in one binding doc seeded by the setup skill; every skill defers decisions to **the decider**, the role that doc names.
 
 **First run in a repo? Run `setup` before anything else.** The other skills read the bindings it seeds.
 
@@ -23,6 +23,7 @@ One entry point for the **team-workflow** pack: a portable discipline for runnin
 | [handoff](../../run/handoff/SKILL.md) | Context is filling (around half the window), the session is wrapping up, or someone says "checkpoint" / "save state". Writes the structured session handoff — overwrite-don't-append, pointer-not-transcript, NEXT points at the tracker query — so a fresh session resumes losslessly. |
 | [orchestrate](../../run/orchestrate/SKILL.md) | One session should coordinate several — routing tracked items into parallel working lanes, auditing results, owning integration — instead of implementing. Principles plus per-repo binding slots; the single-orchestrator rule applies. |
 | [adversarial-review](../../run/adversarial-review/SKILL.md) | A substantial change is about to be committed, a lane is at close-out, or someone asks to break a diff before it ships. Three isolated finders (correctness, a fitting lens, a spec axis), a skeptic pass that kills unproven findings, a gate only confirmed blockers may hold — run before external reviewers see the change. |
+| [codebase-review](../../investigate/codebase-review/SKILL.md) | The codebase itself needs review — a spec is about to land in an area, enough lanes have merged since the last look, or lanes report the code fighting them. A read-only lane: lens-named finders, a built-in skeptic that kills unproven candidates, a plain-markdown report on the tracker, and a disposition loop where the decider adopts, rejects into rejection memory, or defers every survivor. Zero survivors is a success verdict, not a failure. |
 
 ## Not skills, but in the pack
 

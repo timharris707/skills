@@ -75,6 +75,17 @@ How the pack composes with this repo's resident rule systems. Resident rules win
 - **Live-probe policy**: <where proofs may/must touch real services or seeded data, and what is off-limits — or "no live probes">
 - **Substantiality rules**: <changes that are always substantial regardless of implementer judgment — or none pinned>
 
+## Codebase review (optional — repos running the codebase-review skill)
+
+<!-- The codebase-review skill's binding slots. Omit this section if the repo has not
+     bound the skill. Rejection memory must survive across runs: reruns read it before
+     proposing, so a rejected candidate reopens on new evidence, never on repetition. -->
+
+- **Report destination**: <the tracker item or query where run reports and close-outs land>
+- **Lane-count threshold (N)**: <merged lanes since the last review that trigger a run>
+- **Rejection memory**: <where rejected candidates and their load-bearing reasons live>
+- **Executor**: <how the read-only review lane is launched, claimed, and tracked — in orchestrated repos, usually the lane-launch machinery below>
+
 ## Orchestration (optional — repos running an orchestrator)
 
 <!-- The orchestrate skill's binding slots. Omit this section if no session orchestrates. -->
