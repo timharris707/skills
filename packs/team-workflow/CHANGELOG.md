@@ -14,6 +14,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [v1.4.0] - 2026-08-08
+
 ### Added
 
 - **codebase-review** — the twelfth pack skill (#120): a state review of the codebase, the
@@ -251,6 +253,23 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   template gains the matching runner inventory + policy fields, and the lane-brief
   template gains the runner-agnostic note: spec cited by issue reference beside the
   verbatim paste, no harness-specific assumptions.
+- **setup: audit mode — detect binding drift in consuming repos** (#133). A setup re-run
+  can now run as an audit that checks a consuming repo's bindings against reality and
+  reports drift, instead of assuming absence. Exactly three checks: binding-doc currency —
+  the claimed pack version vs the installed one, sections missing for skills added since
+  the doc was seeded, and (where the repo runs an orchestrator) the runner-policy
+  binding's currency, including that the launcher recipe doc still exists and matches the
+  launcher it describes; local forks — repo-side overrides shadowing pack skills, reported
+  where fork and pack now disagree (report only, the fork's authority stays the repo's
+  recorded choice); and recorded grants and rules present in the repo's canonical doc.
+  Hook-target existence is deliberately not checked. Triggers: after each pack release and
+  on demand, no calendar floor. Execution follows the house pattern — a lane per consuming
+  repo produces the drift report, and the orchestrator presents each finding as a
+  disposition card (update the binding / accept the drift as a recorded choice / defer);
+  accepted drifts are recorded in the binding doc's new Accepted drift section, or as
+  domain-memory decision records where bound, so the next audit does not re-flag them.
+  The binding-doc template gains the matching Accepted drift section. Closes the last
+  open item on the #121 gap map.
 
 ## [v1.3.0] - 2026-08-07 — adversarial-review joins the pack
 
