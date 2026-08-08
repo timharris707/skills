@@ -14,6 +14,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- **orchestrate** — announce model and effort at lane launch and at review hand-off, read
+  from a recorded source, never guessed (#156). Every launch announcement now carries the
+  reasoning-effort level beside the runner and model §4 already required, and
+  the close-out hand-off (§5) repeats that line and adds what is reviewing the work.
+  Announced values come only from a recorded source (the runner-policy table, the launch
+  manifest or config, an explicitly set value); "session-inherited" is valid only after
+  those sources were read and set nothing, and a plausible guess is a protocol violation. The lane-launch binding slot gains a one-line
+  toggle (`announce model/effort: on/off`, default on); only the recorded line turns it
+  off, so setup's audit mode can check it.
+- **setup:** the binding-doc template's Orchestration section gains the matching
+  announce-model/effort field.
+
 ## [v1.4.0] - 2026-08-08
 
 ### Added
