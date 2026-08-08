@@ -28,7 +28,7 @@ The human's messages arrive **between turns**. An orchestrator grinding through 
 2. Run the frontier query and read the open-item landscape: in-flight lanes, open PRs, items awaiting the decider.
 3. Check for other active sessions (§2).
 4. **Title the session** — the role plus a disambiguator, default `Orchestrator — <repo>`. Sessions label themselves so the picker tells the truth: a bare "Orchestrator" cannot say *which repo's*, and the single-orchestrator check (§2) should work by eye as well as by query. Titling comes **after** the §2 check, so a session that must stand down never wears the title. A repo binding may refine the shape (a date/focus variant, say) so long as the title says *orchestrator* and tells sibling orchestrators apart. Default actor: the session titles itself where the harness allows; where sessions cannot self-rename, whoever launched it titles it — mechanism and actor live in the lane-launch binding slot (§7). A harness with no titling surface at all degrades to the launch report (§4) carrying the name.
-5. Start whatever standing watches the repo uses for open PRs, inbound tracker activity, and lane liveness — **monitoring is a binding slot** (§7); confirm the watch is actually running rather than asserting it. On any event it raises, investigate immediately.
+5. Start whatever standing watches the repo uses for open PRs, inbound tracker activity, and lane liveness — **monitoring is a binding slot** (§7); confirm the watch is actually running rather than asserting it. On any event it raises, investigate immediately — after answering any waiting user message, which §1 puts first.
 
 ## 4. Launching lanes
 
@@ -51,7 +51,7 @@ The human's messages arrive **between turns**. An orchestrator grinding through 
 1. **At roughly half the context window, wrap up** — finish the current step cleanly and start no new large work past the line (the [handoff skill](../handoff/SKILL.md) explains the half-window rule).
 2. Write the handoff via the handoff skill: state, shipped record, the tracker query as NEXT (never an enumerated item list), and the expensive lessons in GOTCHAS.
 3. **Arrange the successor** — however the repo starts sessions (part of the lane-launch binding slot), with a prompt that says "invoke orchestrate and follow its startup checklist" plus only what is unique to this moment. Never restate the protocol in the prompt; this skill carries it.
-4. Once the successor is confirmed live — evidence of its startup checklist completing (its title switching per §3 step 4 is part of that evidence), not merely a first message — stop your own watches, **shed the orchestrator title** (retitle with a retired marker, e.g. `Orchestrator (retired) — <repo>`, so the picker shows exactly one live orchestrator), go quiet, and stay quiet (§2).
+4. Once the successor is confirmed live — evidence of its startup checklist completing (its title switching per §3 step 4 is part of that evidence), not merely a first message — stop your own watches, **shed the orchestrator title** (retitle with a retired marker, e.g. `Orchestrator (retired) — <repo>`, so the picker shows exactly one live orchestrator; where no title surface exists, record the retirement in the handoff and final report instead — the same degrade rule as §3 step 4), go quiet, and stay quiet (§2).
 
 ## 7. Binding slots (the setup interview fills these per-repo)
 
