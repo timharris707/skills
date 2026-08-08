@@ -101,12 +101,16 @@ How the pack composes with this repo's resident rule systems. Resident rules win
 <!-- The orchestrate skill's binding slots. Omit this section if no session orchestrates. -->
 
 - **Lane launch**: <how a working session starts; what gets stamped on the tracker item; the titling mechanism and actor (session-title tool / terminal title / …; launcher titles (default) / orchestrator retitles / self-title only where the harness supports it; or `no titling surface` — launch reports and handoffs carry identity instead) — title content is protocol with per-repo refinement, see the orchestrate skill §3–§4>; native auto-archive on PR close: <yes / no — yes only if it cannot preempt close-out order>
-- **Announce model/effort**: <on (default) / off — whether launch and review hand-off announcements carry the reasoning-effort line and the hand-off repeat, per the orchestrate skill §4–§5 (the launch report's identity list, model included, holds in every state); this recorded line is the only valid off-switch, so audit mode can check it>
+- **Announce model/effort**: <on (default) / off — whether launch and review hand-off announcements carry the reasoning-effort line and the hand-off repeat — the per-round repeats and the close-out cost line included — per the orchestrate skill §4–§5 (the launch report's identity list, model included, holds in every state); this recorded line is the only valid off-switch, so audit mode can check it>
 - **Runner inventory**: <the runners available for lanes (e.g. Claude Code, Codex CLI, human) and the launch mechanism for each — a launcher script/recipe per the orchestrate skill's runner-parity reference, or `manual`; where a launcher recipe doc lives in-repo>
 - **Runner policy**: <the decider's preference policy, e.g. "prefer Codex for implementation lanes" / "orchestrator's choice" — followed at every launch, never habit; launch failures diagnose first, and fallbacks are loud (`runner fallback: X→Y, reason` on the launch report and the tracker item), per the orchestrate skill §4>
 - **Workspace provisioning**: <how a fresh per-lane workspace is created; per-lane resources that must be pruned with it>
 - **Monitoring**: <how the orchestrator watches PRs / tracker activity / lane liveness between turns>
 - **Verification executor**: <who re-runs a lane's verification at close-out, and how>
+- **Review-tier policy** (decider-set — close-out machinery runs at these tiers, never by habit; each tier carries a floor, what it may NOT be used for, so cost-saving never silently weakens the review bar; deviation is loud in both directions per the orchestrate skill §4; canonical shape below, adapted per repo):
+  - Mechanical verification re-runs: <model + effort, e.g. cheaper model, low effort — they follow a script; exit codes don't need the frontier model> · floor: <what this tier may NOT cover, e.g. never the adversarial pass itself>
+  - Adversarial review (finders, skeptics, re-probes): <model + effort — high on real code or release-arming changes> · floor: <e.g. no low-effort skeptics on release-arming diffs>
+  - Max tier: <the decider-named cases that run at max — never a default>
 - **Merge flow**: <integration mechanics; who may push what where>
 
 ## Accepted drift (written by setup's audit mode)
