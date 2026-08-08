@@ -38,6 +38,7 @@ export const PLOT: Record<string, { x: number; y: number; anchor?: "start" | "en
   "adversarial-review": { x: 830, y: 320, anchor: "end" },
   handoff: { x: 830, y: 430 },
   "writing-for-agents": { x: 940, y: 490, anchor: "end" },
+  "writing-for-humans": { x: 940, y: 400, anchor: "end" },
 };
 
 /**
@@ -78,6 +79,7 @@ export const BEARINGS: Array<{ from: string; to: string; note: string }> = [
   { from: "orchestrate", to: "codebase-review", note: "state review" },
   { from: "codebase-review", to: "to-tickets", note: "adopted survivors" },
   { from: "orchestrate", to: "handoff", note: "context fills" },
+  { from: "writing-for-agents", to: "writing-for-humans", note: "human readers" },
 ];
 
 export type PlacedSkill = Skill & { region: Region };

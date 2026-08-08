@@ -10,6 +10,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- Cross-link to the new sibling skill **writing-for-humans** (#141): the intro
+  now names when the other register applies — a document a human reads goes to
+  the counterpart, not through these levers.
+
 - **Fidelity audit follow-up** (#122). The Attribution section now says what is
   actually true: the body is a lightly edited adaptation of Matt Pocock's
   [`writing-for-agents`](https://github.com/mattpocock/skills/tree/main/skills/productivity/writing-for-agents)
