@@ -38,7 +38,7 @@ export const PLOT: Record<string, { x: number; y: number; anchor?: "start" | "en
   "adversarial-review": { x: 830, y: 320, anchor: "end" },
   handoff: { x: 830, y: 430 },
   "writing-for-agents": { x: 940, y: 490, anchor: "end" },
-  "writing-for-humans": { x: 940, y: 400, anchor: "end" },
+  "writing-for-humans": { x: 940, y: 380, anchor: "end" },
 };
 
 /**
