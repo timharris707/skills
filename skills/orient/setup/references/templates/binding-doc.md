@@ -79,7 +79,7 @@ How the pack composes with this repo's resident rule systems. Resident rules win
 
 <!-- The orchestrate skill's binding slots. Omit this section if no session orchestrates. -->
 
-- **Lane launch**: <how a working session starts; what gets stamped on the tracker item; how sessions are titled/surfaced>
+- **Lane launch**: <how a working session starts; what gets stamped on the tracker item; the titling mechanism and actor (session-title tool / terminal title / …; self-title / orchestrator retitles / launcher; or `no titling surface` — launch reports and handoffs carry identity instead) — title content is protocol with per-repo refinement, see the orchestrate skill §3–§4>
 - **Workspace provisioning**: <how a fresh per-lane workspace is created; per-lane resources that must be pruned with it>
 - **Monitoring**: <how the orchestrator watches PRs / tracker activity / lane liveness between turns>
 - **Verification executor**: <who re-runs a lane's verification at close-out, and how>
