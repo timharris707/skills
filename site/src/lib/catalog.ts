@@ -27,6 +27,7 @@ export const PLOT: Record<string, { x: number; y: number; anchor?: "start" | "en
   "decision-map": { x: 445, y: 215 },
   ingest: { x: 445, y: 95 },
   research: { x: 445, y: 375 },
+  "codebase-review": { x: 445, y: 295 },
   prototype: { x: 445, y: 475 },
   "to-tickets": { x: 655, y: 290 },
   wizard: { x: 655, y: 415 },
@@ -62,6 +63,8 @@ export const BEARINGS: Array<{ from: string; to: string; note: string }> = [
   { from: "to-tickets", to: "orchestrate", note: "into lanes" },
   { from: "wizard", to: "orchestrate", note: "human-only steps" },
   { from: "orchestrate", to: "adversarial-review", note: "lane close-out" },
+  { from: "orchestrate", to: "codebase-review", note: "state review" },
+  { from: "codebase-review", to: "to-tickets", note: "adopted survivors" },
   { from: "orchestrate", to: "handoff", note: "context fills" },
 ];
 

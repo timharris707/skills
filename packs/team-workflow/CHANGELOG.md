@@ -14,8 +14,36 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **codebase-review** — the twelfth pack skill (#120): a state review of the codebase, the
+  counterpart to adversarial-review's change review, adapted from Matt Pocock's
+  [`improve-codebase-architecture`](https://github.com/mattpocock/skills) (MIT). Three entry
+  gates and no calendar runs: pre-feature ("make the change easy" against an upcoming spec's
+  blast radius), a lane-count threshold since the last review (N is a per-repo binding), and
+  reported friction from lanes or the orchestrator; scope follows the trigger — churn-weighted
+  areas for lane-count/friction runs, a full sweep only on a repo's first-ever run. Executes as
+  a delegated read-only lane, claimed and tracked like any work item — changes no code, files no
+  tickets. Finder agents each take a named lens (shallow modules/seams, duplicated concepts,
+  dead code, boundaries-vs-reality, test-pain), speak the shared design vocabulary
+  (`references/design-vocabulary.md`, adapted from his `codebase-design`, MIT), and read the
+  repo's rejection memory before proposing anything. A built-in skeptic tries to kill every
+  candidate before the report exists — survival is the only grade, no self-graded strength
+  badges. The report is plain markdown on a tracker item: survivors only, each with claim,
+  file/line evidence, the skeptic's attempted kill and why it failed, cost, and payoff; zero
+  survivors is an explicit "codebase is fine" verdict stated as a success. The run ends in a
+  disposition loop — every survivor presented to the decider as a grilling-style question card:
+  Adopt (tracker ticket, normal lane flow), Reject (into rejection memory with the load-bearing
+  reason), or Defer (carried at the top of the next run's report and named in handoffs) — and
+  the run's tracker item closes only when nothing is undispositioned. Binding slots: report
+  destination, lane-count threshold N, rejection-memory location, executor mechanics.
+- **setup:** the interview's optional bindings now offer the codebase-review slots, and the
+  binding-doc template gains a matching optional Codebase review section.
+
 ### Changed
 
+- **router:** roster and intro now cover codebase-review — where adversarial-review breaks
+  the change, codebase-review reviews the codebase the changes accumulate in.
 - **orchestrate: session titling is now protocol, not folklore** (#118). The startup
   checklist titles the session (after the existing-sessions check, so a session that must
   stand down never wears the title) — default `Orchestrator — <repo>`; every

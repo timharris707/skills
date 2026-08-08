@@ -16,6 +16,7 @@
 | [ingest](./skills/investigate/ingest/SKILL.md) | Turn a video, recording, voice memo, or media URL into an evidence packet — authoritative transcript, timestamped frames, manifest — plus a routing recommendation. Every run states its purpose. | Standalone plugin |
 | [prototype](./skills/investigate/prototype/SKILL.md) | Throwaway prototype code that answers a design question you can't settle by discussion; the verdict is the deliverable, and the winner gets rebuilt properly. | team-workflow pack |
 | [research](./skills/investigate/research/SKILL.md) | Fire-and-report investigation against primary sources, ending in a cited findings file — and a questionnaire when the missing facts are human-held. | team-workflow pack |
+| [codebase-review](./skills/investigate/codebase-review/SKILL.md) | State review of the codebase itself: lens-named finders hunt structural friction, a skeptic kills unproven candidates, and the decider adopts, rejects, or defers every survivor. | team-workflow pack |
 | [to-tickets](./skills/run/to-tickets/SKILL.md) | Turn a plan, a closed map, or a pressure-tested conversation into tracer-bullet work items with their blocking edges wired. Files and labels; never claims, never decides. | team-workflow pack |
 | [wizard](./skills/run/wizard/SKILL.md) | Generate an interactive bash wizard for the steps only a human can take — vendor dashboards, DNS panels, credentials that must not enter an agent's context. | team-workflow pack |
 | [handoff](./skills/run/handoff/SKILL.md) | Write a structured session handoff — at wrap-up or when context fills — so a fresh session resumes losslessly. | team-workflow pack |
@@ -23,7 +24,7 @@
 | [adversarial-review](./skills/run/adversarial-review/SKILL.md) | Break the change before it ships: isolated finders, a skeptic pass that kills unproven findings, and a gate only confirmed blockers may hold — run before external reviewers see it. | team-workflow pack |
 | [writing-for-agents](./skills/author/writing-for-agents/SKILL.md) | Write and prune documents an agent consumes — context pointers, the two loads, the information hierarchy, leading words, and the no-op test. | Standalone plugin |
 
-The eleven **team-workflow** skills ship and version together as one pack — install them as a set and they cover the full loop of tracked, multi-session, agent-assisted development. **advisory-board** stands alone and works anywhere a hard decision does; **ingest** stands alone and turns media into evidence wherever it lands; **writing-for-agents** stands alone as the standard the rest of this catalog is written against.
+The twelve **team-workflow** skills ship and version together as one pack — install them as a set and they cover the full loop of tracked, multi-session, agent-assisted development. **advisory-board** stands alone and works anywhere a hard decision does; **ingest** stands alone and turns media into evidence wherever it lands; **writing-for-agents** stands alone as the standard the rest of this catalog is written against.
 
 ## Install
 
@@ -34,14 +35,14 @@ Add the marketplace once, then install whichever plugins you want.
 ```text
 /plugin marketplace add timharris707/skills
 /plugin install advisory-board@skills      # the multi-model advisory board
-/plugin install team-workflow@skills       # all eleven pack skills as one plugin
+/plugin install team-workflow@skills       # all twelve pack skills as one plugin
 /plugin install ingest@skills              # media → evidence packet + routing
 /plugin install writing-for-agents@skills  # the skill-authoring reference
 ```
 
 ### Codex
 
-The same thirteen skills, native. Codex allows one plugin per repository root, so the
+The same fifteen skills, native. Codex allows one plugin per repository root, so the
 whole catalog arrives as a single plugin rather than four:
 
 ```bash
@@ -125,7 +126,7 @@ The promoted buckets are also the site's regions, read straight from `buckets.js
 
 ## Acknowledgements
 
-Four skills here are adapted from [mattpocock/skills](https://github.com/mattpocock/skills) (MIT) — [grilling](./skills/decide/grilling/SKILL.md), [to-tickets](./skills/run/to-tickets/SKILL.md), [wizard](./skills/run/wizard/SKILL.md), and [writing-for-agents](./skills/author/writing-for-agents/SKILL.md). Each names what it took and what it added in its own Attribution section; `grilling` follows its original most closely.
+Six skills here are adapted from [mattpocock/skills](https://github.com/mattpocock/skills) (MIT) — [grilling](./skills/decide/grilling/SKILL.md), [to-tickets](./skills/run/to-tickets/SKILL.md), [wizard](./skills/run/wizard/SKILL.md), [adversarial-review](./skills/run/adversarial-review/SKILL.md), [codebase-review](./skills/investigate/codebase-review/SKILL.md), and [writing-for-agents](./skills/author/writing-for-agents/SKILL.md). Each names what it took and what it added in its own Attribution section; `grilling` follows its original most closely.
 
 ## License
 
