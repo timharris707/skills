@@ -49,7 +49,7 @@ The packet is evidence; this step is the judgment, and it belongs to the session
 
 End with the takeaways ranked and each one routed — as a recommendation, in the language of the table above:
 
-- **Tracker-shaped** items name the issue they'd update or the item they'd become, with the binding doc's labels. No binding doc bound: say so, and route in prose.
+- **Tracker-shaped** items name the issue they'd update or the item they'd become, with the binding doc's labels. No binding doc bound: say so, and route in prose. Hand the filing session its follow-through in the same breath: the exact `python3 scripts/ingest.py link --out <run-dir> --item owner/repo#N` command to run for each item it files, so the packet's derived-items ledger is written at filing time.
 - **Undecided-shaped** items name the open questions; offer a [grilling](../../decide/grilling/SKILL.md) session rather than answers.
 - **Decider-shaped** items (pricing, partnerships, strategy) are listed for discussion, never resolved.
 - A `call` run whose stated purpose asks for it also drafts the thank-you/recap email — saved to the run dir, put on the clipboard as plain text, never sent.
@@ -77,9 +77,11 @@ python3 scripts/ingest.py sweep --home <output-home>          # report + offers,
 python3 scripts/ingest.py sweep --home <output-home> --delete <packet-dir>   # the decider took the offer
 ```
 
-Resolution is GitHub-first: an `owner/repo#number` item is resolved when `gh` reports the issue or PR closed. Any other tracker resolves only through the resolution-check command named in the repo's binding doc, passed as `--check-cmd` (exit 0 resolved, exit 1 open). Where no binding exists the sweep does not guess — it lists those packets, and packets with no recorded derived items, as the decider's to settle.
+The sweep looks one level deep under `--home` and recognizes packets by their `.ingest-run` marker, never by name — which also means a packet directory that was moved or copied elsewhere stays sweepable, and any deletion stays bounded to that subtree.
 
-The sweep's report **is** the offer: fully-resolved packets are named as eligible, and nothing is deleted until the decider takes the offer and `--delete` is run — which re-checks resolution and then deletes by ledger under the run's own ownership rules (manifest-recorded files only, foreign files left in place, a directory without the `.ingest-run` marker refused outright).
+Resolution is GitHub-first: an `owner/repo#number` item is resolved when `gh` reports the issue or PR closed. Any other tracker resolves only through the resolution-check command named in the repo's binding doc, passed as `--check-cmd`. The template must contain a literal `{id}` (refused without it — a fixed command would resolve everything); the id is handed to the command as a shell positional argument, never spliced into the command text; exit 0 means resolved, exit 1 means open, and any other exit means unknown. Where no binding exists the sweep does not guess — it lists those packets, and packets with no recorded derived items, as the decider's to settle.
+
+The sweep's report **is** the offer: fully-resolved packets are named as eligible, and nothing is deleted until the decider takes the offer and `--delete` is run — which re-checks resolution and then deletes by ledger under the run's own ownership rules (manifest-recorded files only, foreign files left in place, a directory without the `.ingest-run` marker refused outright). A packet that cannot be fully removed — a saved recap email, anything ingest did not create — keeps its marker and manifest, so it remains visible to the next sweep instead of becoming an orphan.
 
 ## Done when (checkable — verify each line before reporting complete)
 
@@ -87,7 +89,7 @@ The sweep's report **is** the offer: fully-resolved packets are named as eligibl
 - The run reported `packet complete`: every stage carries a status of `ok` or `skipped` and every artifact it claims exists and is non-empty. (The script re-checks this from disk before saying so, and refuses to say it otherwise.)
 - The transcript covers the recording: the run's validation compares its last timestamp against the probed duration and fails the packet on an unexplained gap, so a clean `packet complete` is the check. Trailing silence and a declared `no_speech` packet are legitimate and pass.
 - The whole transcript was read, and a frame was opened at every reaction and every load-bearing claim.
-- Every takeaway in the recommendation carries a route and, where the transcript supports it, a timestamp.
+- Every takeaway in the recommendation carries a route and, where the transcript supports it, a timestamp — and every tracker-shaped one carries the `link` command for the filing session to run at filing time.
 - Anything quoted came from the whisper transcript, with the caption preview used for triage only.
 - The closing sweep ran over the output home; any cleanup offers were relayed to the decider, and nothing was deleted without the decider taking one.
 - Nothing was filed, claimed, or built, and nothing from the run dir was committed.

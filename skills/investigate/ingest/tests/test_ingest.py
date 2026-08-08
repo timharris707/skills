@@ -6,6 +6,7 @@ invariants are testable without ever invoking ffmpeg or whisper.
 
 Run:  python3 -m unittest discover -s tests -t tests
 """
+import contextlib
 import io
 import json
 import sys
@@ -397,7 +398,9 @@ class FakeProc:
 
 class SweepBase(unittest.TestCase):
     """Shared plumbing: a temp home, packet builders, and a run_cmd mock that
-    guarantees no test ever reaches gh or the network."""
+    guarantees no test ever reaches gh or the network. The responder is any
+    callable — including one that RAISES, because a subprocess layer that can
+    only fail politely hides the crash family entirely."""
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -447,15 +450,53 @@ class TestDerivedItemsLink(SweepBase):
         self.assertEqual([i["id"] for i in items], ["owner/repo#12"])
         self.assertRegex(items[0]["added"], r"^\d{4}-\d{2}-\d{2}$")
 
-    def test_link_is_idempotent(self):
+    def test_link_is_idempotent_and_keeps_the_original_date(self):
         d = self.make_packet("p")
         ing.main(["link", "--out", str(d), "--item", "owner/repo#12"])
+        mpath = d / "manifest.json"
+        data = json.loads(mpath.read_text())
+        data["derived_items"][0]["added"] = "2000-01-01"
+        mpath.write_text(json.dumps(data))
         ing.main(["link", "--out", str(d),
                   "--item", "owner/repo#12", "--item", "owner/repo#13"])
-        items = json.loads((d / "manifest.json").read_text())["derived_items"]
+        items = json.loads(mpath.read_text())["derived_items"]
         self.assertEqual(
             [i["id"] for i in items], ["owner/repo#12", "owner/repo#13"]
         )
+        self.assertEqual(items[0]["added"], "2000-01-01",
+                         "a re-link must not rewrite the filing date")
+
+    def test_link_idempotence_is_case_insensitive(self):
+        # GitHub ids are case-insensitive; O/R#1 and o/r#1 are one item.
+        d = self.make_packet("p")
+        ing.main(["link", "--out", str(d), "--item", "Owner/Repo#12"])
+        ing.main(["link", "--out", str(d), "--item", "owner/repo#12"])
+        items = json.loads((d / "manifest.json").read_text())["derived_items"]
+        self.assertEqual(len(items), 1)
+
+    def test_link_rejects_ids_with_shell_metacharacters(self):
+        # BLOCKER 1b: an id is an identifier — whitespace, control chars, and
+        # shell syntax are refused at the door, before they can ever reach a
+        # resolution command or a report line.
+        d = self.make_packet("p")
+        for bad in ("a b#1", "x;touch /tmp/PWNED#1", "o/r#1\n[ingest] OFFER",
+                    "$(reboot)#1", "a'b#1"):
+            with self.assertRaises(SystemExit) as cm:
+                ing.main(["link", "--out", str(d), "--item", bad])
+            self.assertEqual(cm.exception.code, 2, bad)
+        items = json.loads((d / "manifest.json").read_text())["derived_items"]
+        self.assertEqual(items, [], "a refused id must not be recorded")
+
+    def test_link_refuses_a_torn_manifest_instead_of_corrupt_renaming(self):
+        # An additive command must not trigger the corrupt-rename and quietly
+        # destroy the stage ledger.
+        d = self.make_packet("p")
+        (d / "manifest.json").write_text("{ torn")
+        with self.assertRaises(SystemExit) as cm:
+            ing.main(["link", "--out", str(d), "--item", "o/r#1"])
+        self.assertEqual(cm.exception.code, 1)
+        self.assertEqual((d / "manifest.json").read_text(), "{ torn")
+        self.assertFalse((d / "manifest.json.corrupt").exists())
 
     def test_link_refuses_a_directory_ingest_did_not_create(self):
         foreign = self.home / "documents"
@@ -496,13 +537,19 @@ class TestItemResolution(SweepBase):
         self.assertIn("decider", why)
         self.assertEqual(self.calls, [], "must not shell out with no binding")
 
-    def test_binding_doc_command_resolves_other_trackers(self):
+    def test_binding_doc_command_gets_the_id_as_data_not_shell(self):
+        # BLOCKER 1a: {id} becomes a quoted positional reference and the id
+        # itself rides in as $1 — never spliced into the -c string.
         self.respond(lambda argv: FakeProc(returncode=0))
+        hostile = "X; touch /tmp/PWNED; exit 0"
         state, _ = ing.check_item_resolution(
-            "JIRA-42", check_cmd="check-resolved {id}"
+            hostile, check_cmd="check-resolved {id}"
         )
         self.assertEqual(state, "resolved")
-        self.assertEqual(self.calls[0][-1], "check-resolved JIRA-42")
+        self.assertEqual(
+            self.calls[0],
+            ["/bin/sh", "-c", 'check-resolved "$1"', "sh", hostile],
+        )
 
     def test_binding_doc_exit_1_is_open_and_other_exits_are_unknown(self):
         self.respond(lambda argv: FakeProc(returncode=1))
@@ -514,6 +561,62 @@ class TestItemResolution(SweepBase):
             ing.check_item_resolution("JIRA-42", check_cmd="c {id}")[0],
             "unknown",
         )
+
+    def test_check_cmd_without_the_placeholder_is_refused(self):
+        # MAJOR 4: `--check-cmd true` would resolve everything — fail closed.
+        with self.assertRaises(SystemExit) as cm:
+            ing.check_item_resolution("JIRA-42", check_cmd="true")
+        self.assertEqual(cm.exception.code, 2)
+        self.assertEqual(self.calls, [], "must die before running anything")
+
+    def test_a_raising_run_cmd_is_unknown_not_a_crash(self):
+        # MAJOR 3: gh missing (OSError) or hanging (TimeoutExpired) is a fact
+        # about the machine, not the item — and never aborts the sweep.
+        def boom(argv):
+            raise OSError("No such file or directory: 'gh'")
+        self.respond(boom)
+        state, why = ing.check_item_resolution("o/r#1")
+        self.assertEqual(state, "unknown")
+        self.assertIn("gh", why)
+
+        def hang(argv):
+            raise ing.subprocess.TimeoutExpired(argv, 120)
+        self.respond(hang)
+        state, _ = ing.check_item_resolution("JIRA-42", check_cmd="c {id}")
+        self.assertEqual(state, "unknown")
+
+    def test_dot_segments_are_not_github_shaped(self):
+        # NIT: '../..#1' must not ride into the gh API path as traversal.
+        for tricky in ("../..#1", "./x#1", "a/..#2"):
+            state, _ = ing.check_item_resolution(tricky)
+            self.assertEqual(state, "unknown", tricky)
+        self.assertEqual(self.calls, [], "no gh call for a non-GitHub shape")
+
+
+class TestInjectionRealShell(unittest.TestCase):
+    """BLOCKER 1 pinned against a real /bin/sh (no mock, no network): the
+    reproduced exploit — a hostile id forging 'resolved' AND executing — must
+    stay dead at the subprocess boundary itself."""
+
+    def test_hostile_id_cannot_execute_or_forge_resolution(self):
+        with tempfile.TemporaryDirectory() as t:
+            pwned = Path(t) / "PWNED"
+            hostile = f"X; touch {pwned}; exit 0"
+            state, _ = ing.check_item_resolution(
+                hostile, check_cmd="false {id}"
+            )
+            self.assertEqual(state, "open", "false must stay exit 1")
+            self.assertFalse(pwned.exists(), "the id executed as shell")
+
+    def test_the_id_arrives_as_the_first_positional_argument(self):
+        state, _ = ing.check_item_resolution(
+            "safe-id", check_cmd='test {id} = "safe-id"'
+        )
+        self.assertEqual(state, "resolved")
+        state, _ = ing.check_item_resolution(
+            "other", check_cmd='test {id} = "safe-id"'
+        )
+        self.assertEqual(state, "open")
 
 
 class TestSweepVerdicts(SweepBase):
@@ -573,6 +676,82 @@ class TestSweepVerdicts(SweepBase):
         d = self.make_packet("p")
         self.assertEqual(ing.find_packets(d), [d])
 
+    def test_a_bare_string_derived_item_is_coerced_not_a_crash(self):
+        # MAJOR 3: a hand-edited manifest may hold "o/r#1" instead of the
+        # {"id": ..., "added": ...} shape — coerce it, don't AttributeError.
+        d = self.make_packet("p")
+        mpath = d / "manifest.json"
+        data = json.loads(mpath.read_text())
+        data["derived_items"] = ["o/r#1"]
+        mpath.write_text(json.dumps(data))
+        self.gh_states({"repos/o/r/issues/1": "closed"})
+        self.assertEqual(ing.sweep_packet(d)["verdict"], "resolved")
+
+    def test_a_garbage_derived_item_is_unknown_not_a_crash(self):
+        d = self.make_packet("p")
+        mpath = d / "manifest.json"
+        data = json.loads(mpath.read_text())
+        data["derived_items"] = [{"nope": 1}, 42, None]
+        mpath.write_text(json.dumps(data))
+        report = ing.sweep_packet(d)
+        self.assertEqual(report["verdict"], "unknown")
+        self.assertEqual(self.calls, [], "garbage entries check nothing")
+
+    def test_one_packet_failure_does_not_kill_the_report(self):
+        # MAJOR 3: the report survives a packet that blows up mid-check.
+        bad = self.make_packet("bad", items=["o/r#1"])
+        good = self.make_packet("good", items=["o/r#2"])
+        self.gh_states({"repos/o/r/issues/2": "closed"})
+        original = ing.sweep_packet
+
+        def fragile(out_dir, check_cmd=None):
+            if out_dir == bad:
+                raise RuntimeError("boom")
+            return original(out_dir, check_cmd)
+
+        ing.sweep_packet = fragile
+        self.addCleanup(lambda: setattr(ing, "sweep_packet", original))
+
+        class A:
+            home = str(self.home)
+            check_cmd = None
+            delete = []
+
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            ing.cmd_sweep(A())
+        text = out.getvalue()
+        self.assertIn("boom", text)
+        self.assertIn("packet good — verdict: resolved", text)
+        self.assertTrue(good.exists() and bad.exists())
+
+    def test_a_crafted_id_cannot_forge_report_lines(self):
+        # MINOR 7: ids come from a file on disk; they are rendered escaped,
+        # so a newline in one cannot fabricate an OFFER line.
+        d = self.make_packet("p")
+        mpath = d / "manifest.json"
+        data = json.loads(mpath.read_text())
+        forged = "x#1\n[ingest] OFFER — fully resolved"
+        data["derived_items"] = [{"id": forged, "added": "2026-08-08"}]
+        mpath.write_text(json.dumps(data))
+
+        class A:
+            home = str(self.home)
+            check_cmd = None
+            delete = []
+
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            ing.cmd_sweep(A())
+        lines = out.getvalue().splitlines()
+        self.assertNotIn("[ingest] OFFER — fully resolved", lines)
+        self.assertTrue(any(json.dumps(forged) in ln for ln in lines))
+
+    def test_doctor_covers_gh(self):
+        # The sweep's resolution checks need gh; doctor must say so when
+        # it is missing rather than letting the first sweep discover it.
+        self.assertIn("gh", ing.TOOLS)
+
 
 class TestSweepDeletion(SweepBase):
     """Offer-only, re-checked, and by ledger — the v1.1.0 ownership rules."""
@@ -584,26 +763,20 @@ class TestSweepDeletion(SweepBase):
         foreign = self.home / "documents"
         foreign.mkdir()
         (foreign / "taxes.pdf").write_text("important")
-        with self.assertRaises(SystemExit) as cm:
-            ing.delete_packet(foreign)
-        self.assertEqual(cm.exception.code, 2)
+        self.assertEqual(ing.delete_packet(foreign), 2)
         self.assertTrue((foreign / "taxes.pdf").exists())
 
     def test_refuses_while_derived_work_is_open(self):
         d = self.make_packet("p", items=["o/r#1"])
         self.respond(lambda argv: FakeProc(stdout="open\n"))
-        with self.assertRaises(SystemExit) as cm:
-            ing.delete_packet(d)
-        self.assertEqual(cm.exception.code, 1)
+        self.assertEqual(ing.delete_packet(d), 1)
         self.assertTrue((d / "transcript.srt").exists())
 
     def test_refuses_an_unlinked_packet(self):
         # No recorded derived work proves no terminal state — deletion is
         # never offered off silence.
         d = self.make_packet("p")
-        with self.assertRaises(SystemExit) as cm:
-            ing.delete_packet(d)
-        self.assertEqual(cm.exception.code, 1)
+        self.assertEqual(ing.delete_packet(d), 1)
         self.assertTrue(d.exists())
 
     def test_deletes_a_resolved_packet_by_ledger(self):
@@ -615,17 +788,25 @@ class TestSweepDeletion(SweepBase):
         m.data["frames"] = [{"file": "frames/ladder_00001.jpg", "ts": 0}]
         m.finish("frames", [frames / "ladder_00001.jpg"])
         self.all_closed()
-        ing.delete_packet(d)
+        self.assertEqual(ing.delete_packet(d), 0)
         self.assertFalse(d.exists(), "a fully-ledgered packet is removed")
 
-    def test_a_foreign_file_survives_and_keeps_the_directory(self):
+    def test_partial_deletion_keeps_the_packet_sweepable(self):
+        # BLOCKER 2: the kept directory (foreign files — e.g. a call run's
+        # saved recap email) keeps its marker and manifest, stays visible to
+        # find_packets, and is distinguishable from a refusal by exit code.
         d = self.make_packet("p", items=["o/r#1"],
-                             extra_files=["notes/my-own-notes.md"])
+                             extra_files=["notes/recap-email.md"])
         self.all_closed()
-        ing.delete_packet(d)
-        self.assertTrue((d / "notes" / "my-own-notes.md").exists())
-        self.assertTrue(d.exists(), "a dir still holding foreign files stays")
+        self.assertEqual(ing.delete_packet(d), 5)
+        self.assertTrue((d / "notes" / "recap-email.md").exists())
         self.assertFalse((d / "transcript.srt").exists())
+        self.assertTrue((d / ".ingest-run").exists(),
+                        "the marker is sweepability — never removed first")
+        self.assertTrue((d / "manifest.json").exists())
+        self.assertIn(d, ing.find_packets(self.home))
+        self.assertEqual(ing.sweep_packet(d)["verdict"], "resolved",
+                         "the kept packet can still be swept and re-offered")
 
     def test_a_ledger_path_outside_the_packet_is_refused(self):
         d = self.make_packet("p", items=["o/r#1"])
@@ -636,6 +817,50 @@ class TestSweepDeletion(SweepBase):
         self.all_closed()
         ing.delete_packet(d)
         self.assertTrue(outsider.exists())
+
+    def test_a_ledgered_path_that_became_a_symlink_is_left_alone(self):
+        # MAJOR 6: the ledger recorded a file; a link in its place is not
+        # that file, and deletion never reaches through it.
+        d = self.make_packet("p", items=["o/r#1"])
+        precious = self.home / "precious.txt"
+        precious.write_text("irreplaceable")
+        srt = d / "transcript.srt"
+        srt.unlink()
+        srt.symlink_to(precious)
+        self.all_closed()
+        self.assertEqual(ing.delete_packet(d), 5)
+        self.assertTrue(precious.exists())
+        self.assertTrue(srt.is_symlink(), "the link itself is a leftover")
+        self.assertTrue((d / ".ingest-run").exists())
+
+    def test_symlink_to_a_directory_does_not_crash_deletion(self):
+        d = self.make_packet("p", items=["o/r#1"])
+        target = self.home / "real-dir"
+        target.mkdir()
+        (target / "keep.txt").write_text("keep")
+        (d / "linked").symlink_to(target)
+        self.all_closed()
+        self.assertEqual(ing.delete_packet(d), 5)
+        self.assertTrue((target / "keep.txt").exists())
+        self.assertTrue((d / "linked").is_symlink())
+
+    def test_a_dangling_symlink_is_a_leftover_not_a_crash(self):
+        d = self.make_packet("p", items=["o/r#1"])
+        (d / "dangling").symlink_to(self.home / "no-such-target")
+        self.all_closed()
+        self.assertEqual(ing.delete_packet(d), 5)
+        self.assertTrue((d / "dangling").is_symlink())
+        self.assertTrue((d / ".ingest-run").exists())
+
+    def test_a_pre_existing_empty_directory_is_not_pruned(self):
+        # MINOR 10: only directories the deletion itself emptied are pruned —
+        # an empty directory the decider made is not ours.
+        d = self.make_packet("p", items=["o/r#1"])
+        (d / "keep-me").mkdir()
+        self.all_closed()
+        self.assertEqual(ing.delete_packet(d), 5)
+        self.assertTrue((d / "keep-me").is_dir())
+        self.assertTrue((d / ".ingest-run").exists())
 
     def test_sweep_report_never_deletes(self):
         d = self.make_packet("p", items=["o/r#1"])
@@ -649,6 +874,64 @@ class TestSweepDeletion(SweepBase):
         ing.cmd_sweep(A())
         self.assertTrue(d.exists())
         self.assertTrue((d / "transcript.srt").exists())
+
+
+class TestSweepDeleteCli(SweepBase):
+    """--delete is bounded by --home, processes every target, and reports
+    an honest aggregate."""
+
+    def all_closed(self):
+        self.respond(lambda argv: FakeProc(stdout="closed\n"))
+
+    def run_sweep(self, home, deletes, check_cmd=None):
+        class A:
+            pass
+        A.home = str(home)
+        A.check_cmd = check_cmd
+        A.delete = list(deletes)
+        with self.assertRaises(SystemExit) as cm:
+            ing.cmd_sweep(A)
+        return cm.exception.code
+
+    def test_a_nonexistent_home_is_refused_before_any_deletion(self):
+        # MAJOR 5 (reproduced upstream): --home was ignored on the delete
+        # path — a bogus home plus an outside target still deleted.
+        d = self.make_packet("p", items=["o/r#1"])
+        self.all_closed()
+        code = self.run_sweep(self.home / "no-such-home", [str(d)])
+        self.assertEqual(code, 2)
+        self.assertTrue((d / "transcript.srt").exists(), "nothing deleted")
+
+    def test_a_target_outside_home_is_refused(self):
+        inside_home = self.home / "the-home"
+        inside_home.mkdir()
+        d = self.make_packet("p", items=["o/r#1"])   # NOT under the-home
+        self.all_closed()
+        code = self.run_sweep(inside_home, [str(d)])
+        self.assertEqual(code, 2)
+        self.assertTrue((d / "transcript.srt").exists())
+
+    def test_all_targets_processed_and_the_aggregate_is_honest(self):
+        # MINOR 11: a refused first target must not stop the second, and the
+        # exit code carries the worst outcome, not the last one.
+        good = self.make_packet("good", items=["o/r#1"])
+        foreign = self.home / "documents"
+        foreign.mkdir()
+        (foreign / "taxes.pdf").write_text("important")
+        self.all_closed()
+        code = self.run_sweep(self.home, [str(foreign), str(good)])
+        self.assertEqual(code, 2)
+        self.assertFalse(good.exists(), "the deletable target was processed")
+        self.assertTrue((foreign / "taxes.pdf").exists())
+
+    def test_all_targets_deleted_exits_zero(self):
+        a = self.make_packet("a", items=["o/r#1"])
+        b = self.make_packet("b", items=["o/r#2"])
+        self.all_closed()
+        code = self.run_sweep(self.home, [str(a), str(b)])
+        self.assertEqual(code, 0)
+        self.assertFalse(a.exists())
+        self.assertFalse(b.exists())
 
 
 if __name__ == "__main__":

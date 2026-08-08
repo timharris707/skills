@@ -32,9 +32,23 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   follows the v1.1.0 ownership rules: by manifest ledger, ingest-created files
   only, foreign files left in place, unmarked directories refused. SKILL.md's
   Retention paragraph now describes the mechanism as real rather than pending.
-- **25 new tests** (60 total) covering link idempotence and ownership, resolution states
-  (gh mocked — the suite still never touches the network), sweep verdicts,
-  and offer-only ledger deletion.
+- **Adversarial-review hardening of the sweep**, applied before merge: item
+  ids reach a resolution command as data — a quoted positional argument,
+  never spliced into the shell — and `link` refuses ids carrying whitespace,
+  control characters, or shell metacharacters; a partial deletion (foreign
+  files, a failed unlink, a symlink where the ledger recorded a file) keeps
+  the packet's marker and manifest so it stays sweepable instead of orphaned,
+  under its own exit code (5); `--delete` is bounded to the swept `--home`,
+  processes every target, and exits with the worst outcome; resolution-check
+  crashes, hand-edited manifest entries, and one packet's failure degrade to
+  `unknown` instead of aborting the report; `--check-cmd` without `{id}` is
+  refused (a blanket exit 0 would resolve everything); ids are rendered
+  escaped in every report line; and `gh` joined `doctor`'s tool roster.
+- **46 new tests** (81 total) covering link idempotence and ownership,
+  resolution states, sweep verdicts, offer-only ledger deletion, and a
+  regression pin for every review finding — including a real-/bin/sh
+  injection test and a subprocess mock that can RAISE, not just fail
+  politely. The suite still never touches the network.
 
 ## [v1.1.0] - 2026-08-07 — Packets that cannot lie about their source
 
