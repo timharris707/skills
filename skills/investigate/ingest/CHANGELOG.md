@@ -5,7 +5,7 @@ All notable changes to the **ingest** skill. Versioned as a standalone plugin
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [v1.2.0] - 2026-08-07 — Packets that know their work and offer their own cleanup
 
 ### Added
 
