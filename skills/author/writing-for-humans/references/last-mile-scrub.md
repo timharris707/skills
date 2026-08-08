@@ -39,7 +39,7 @@ Em-dash density is a primary tell, the one row that fires on frequency alone. bl
 ## Done when
 
 - Every passage where tells clustered was redrafted whole, and no new facts entered.
-- The page ends inside its dash budget: a handful at most, none of them made by an in-place swap.
+- The page ends inside its dash budget: a handful at most, and no over-budget dash was fixed by an in-place swap.
 - The voice sample, when one exists, won every conflict with the table.
 - One read-through end-to-end found varied rhythm and no chatbot artifacts.
 
