@@ -1,0 +1,18 @@
+{
+  "extraKnownMarketplaces": {
+    "timharris-skills": {
+      "source": {
+        "source": "github",
+        "repo": "timharris707/skills"
+      },
+      "autoUpdate": true
+    }
+  },
+  "enabledPlugins": {
+    "team-workflow@timharris-skills": true,
+    "advisory-board@timharris-skills": true,
+    "ingest@timharris-skills": true,
+    "writing-for-agents@timharris-skills": true,
+    "writing-for-humans@timharris-skills": true
+  }
+}
