@@ -6,7 +6,8 @@
 tmp/
 dist/
 .cache/
-.claude/
+.claude/*
+!.claude/settings.json
 
 # Python
 __pycache__/
