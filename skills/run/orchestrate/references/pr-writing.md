@@ -24,6 +24,8 @@ The anti-pattern is the **implementation inventory**: a bullet list of internal 
 - Bad (real): *"— extract duplicated latest-run and active-run mapping into a typed shared helper — keep the response shape and query behavior unchanged — update the hygiene roadmap…"* No reader can say what the point of this PR was.
 - Good (real): *"The status icons next to the provider column headers did nothing on hover, and nothing said they were clickable. Hovering now shows the same health-detail popover that clicking does; click behavior is unchanged."* The problem in the user's own terms, then the fix.
 
+**A user-visible change carries visual evidence** — a screenshot, or a short recording for interaction: reviewers and a non-engineer decider judge what they can see, and one image outweighs a paragraph of description. Where the environment provides an upload capability (a file-host skill, a recorded binding), use it and embed the link; externally hosted video does not inline-play on GitHub, so link it plainly, optionally under a small GIF preview. No capability, no invention: note "demo available on request" instead of improvising hosting.
+
 Close the description with a **provenance blurb** naming the model and harness that did the work (*"Filed by \<model\> via \<harness\>"*) — read from a recorded source, never guessed, per the pack's announce discipline. `Closes #N` links the driving item; issue bookkeeping never substitutes for the problem statement.
 
 ## Responding to review feedback
