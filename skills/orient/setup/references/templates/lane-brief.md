@@ -37,6 +37,9 @@ the decider, never silently into the work).
   whenever `tail` does).
 - Commit discipline: checkpoint commits on the lane branch, short imperative subjects;
   merging is the reviewer/integrator's move, not the lane's.
+- Where this lane itself files a PR (e.g. a cross-repo lane): it must follow the orchestrate
+  skill's pr-writing reference — problem-first description, no implementation inventory,
+  no draft unless repo policy says otherwise, provenance blurb.
 - <the repo's own standing constraints, from the binding doc's precedence section>
 
 ## Output contract
