@@ -14,6 +14,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **setup** — glossary + non-negotiables optional binding: the interview can harvest a
+  domain glossary and a "what we never compromise on" list into the repo's agent-context
+  file (CLAUDE.md/AGENTS.md) — the file every session loads, deliberately not the binding
+  doc, which only skills read. Harvest-never-template: candidates are proposed from the
+  repo's own docs and vocabulary and confirmed term by term by the decider; setup ships no
+  boilerplate. Where domain-memory is bound, term drafts route through its backfill cards
+  into the existing terms file and the agent-context file gets a pointer line — never a
+  second glossary; the never-compromise list goes in the agent-context file either way.
+  The edit is a declared, confirmed setup write; sync-managed agent-context files follow
+  the existing never-write rule. (From the decider's review of Theo Browne's agents-file
+  lessons, 2026-08-11.)
+
 ### Changed
 
 - **setup, codebase-review, research** — description trims: the frontmatter description
