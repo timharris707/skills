@@ -16,6 +16,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- **setup, codebase-review, research** — description trims: the frontmatter description
+  is the only part of a skill loaded into every session, so it carries identity plus
+  `Use when` triggers and nothing else. Mechanism inventories (setup's binding list and
+  seed list, codebase-review's finder/skeptic/disposition pipeline, research's output
+  file location) moved out of the descriptions; the skill bodies already state them.
+  Triggers are unchanged. codebase-review keeps its "counterpart to adversarial-review"
+  clause — that one does routing work.
 - **orchestrate** — announce model and effort at lane launch and at review hand-off, read
   from a recorded source, never guessed (#156). Every launch announcement now carries the
   reasoning-effort level beside the runner and model §4 already required, and

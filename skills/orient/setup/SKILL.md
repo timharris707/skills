@@ -1,6 +1,6 @@
 ---
 name: setup
-description: Once-per-repo binding interview for the team-workflow pack — scan the repo, confirm the mandatory bindings (tracker, verify commands, decider, binding-doc home), seed the anchor binding doc, templates, and the session-start handoff hook, and refresh idempotently on re-run. Use when installing the pack into a repo, updating an existing installation, or auditing a consuming repo's bindings for drift after a pack release (audit mode).
+description: Once-per-repo binding interview for the team-workflow pack — records how the pack composes with this repo and seeds the binding doc the other skills read. Use when installing the pack into a repo, refreshing an existing installation's bindings, or auditing a consuming repo for drift after a pack release (audit mode).
 ---
 
 # Setup

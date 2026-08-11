@@ -1,6 +1,6 @@
 ---
 name: research
-description: Run an autonomous research lane against primary sources, ending in a cited findings file linked from the driving ticket — and, when the missing facts are human-held, a questionnaire. Use for investigations of vendor materials, regulations, upstream repos, recorded calls, or any fact-finding that should run fire-and-report.
+description: Run an autonomous research lane against primary sources, ending in cited findings — and, when the missing facts are human-held, a questionnaire. Use for investigations of vendor materials, regulations, upstream repos, recorded calls, or any fact-finding that should run fire-and-report.
 ---
 
 # Research
