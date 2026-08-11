@@ -47,7 +47,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   reference stays portable by naming the capability class, not any host. Externally
   hosted video doesn't inline-play on GitHub (plain link, optional GIF preview), and
   with no capability present the PR notes "demo available on request" rather than
-  improvising hosting. (Trigger: the first real PR that needed an embedded demo,
+  improvising hosting. Hosted evidence is public-by-URL, so every frame is reviewed
+  before upload — no credentials, tokens, or customer data on screen; unsafe surfaces
+  fall back to the no-capability path. (Trigger: the first real PR that needed an embedded demo,
   2026-08-11.)
 
 ### Changed
