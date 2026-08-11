@@ -1,6 +1,6 @@
 ---
 name: advisory-board
-description: Convene a multi-model advisory board where subscription-backed Claude, Codex, Gemini, and Grok CLIs review the same material in one of three modes — Formal Board Review (independent first round, rebuttal, structured verdict), Roundtable (collaborative judgment and synthesis), or Competitive (rival proposals, critique, and voting) — opening with a mandatory guided intake that settles mode, seats, lenses, and effort with the user before anything runs. Use when the user asks for an advisory board, round table, panel, or idea tournament; a multi-model or multi-provider review; a skilled debate among models; an adversarial review or red-team of a plan, design, architecture, skill, document, decision, or strategy; an Anthropic/OpenAI/Google/xAI cross-check; or a consensus handoff from several frontier models.
+description: Convene a multi-model advisory board — subscription-backed Claude, Codex, Gemini, and Grok CLIs reviewing the same material in formal, roundtable, or competitive mode. Use when the user asks for an advisory board, roundtable, panel, or idea tournament; a multi-model or cross-provider review or debate; a red-team of a plan, design, decision, or document by several models; or a consensus handoff from several frontier models.
 ---
 
 # Advisory Board

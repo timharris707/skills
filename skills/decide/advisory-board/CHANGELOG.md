@@ -9,6 +9,13 @@ versioned separately and do not replace the skill release version.
 
 ## [Unreleased]
 
+### Changed
+- **Description trimmed to identity + triggers.** The frontmatter description is loaded
+  into every session, so the per-mode explanations and the intake-process summary moved
+  out of it (the skill body already carries both). Trigger phrases are consolidated —
+  synonym runs collapsed, the provider cross-check folded into "cross-provider review" —
+  with no trigger situation dropped.
+
 ### Fixed
 - **Preflight no longer passes a signed-out CLI as GO.** The claude CLI answers any prompt with `Not logged in · Please run /login` on **stdout** and exits **0**, so every mechanical signal the classifier reads — exit code, non-empty output, clean stderr — looked healthy. A real run took consent, spent three other seats' tokens, and lost the claude seat at round 1 with `InvalidOutput`. Preflight now screens the smoke reply's text for signed-out tells and returns a labelled NO-GO carrying the adapter's auth hint. Scanning stdout is confined to the smoke path (a fixed `SMOKE_PROMPT`, so it cannot be poisoned by material under review) — the round classifiers still read stderr only, and only when no usable review came back.
 
