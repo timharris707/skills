@@ -89,6 +89,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- **orchestrate** — announce hook covers chip launches; chip announcements get a
+  read-don't-guess form (#173). Observed live: an orchestrator launched two lanes as
+  background-task chips and announced neither — the hook recipe's `Agent|Task` matcher
+  never fires on the chip tool (`mcp__ccd_session__spawn_task`), so the decay class the
+  hook exists to prevent walked around it through the other launch surface. The recipe's
+  matcher now includes the chip tool, the reminder covers both spawn shapes, and an
+  installed matcher missing the chip tool is an audit finding. Protocol half: a
+  chip-spawned session's model/effort are set by the session defaults at click time — the
+  launcher can neither set nor read them — so §4 names the compliant chip announcement:
+  identity list as always, model/effort stated as "set by session defaults at click
+  time — not launcher-readable", never a specific model guess.
 - **orchestrate** — title protocol outranks a launch surface's label convention (#162).
   Observed live: a background-task chip's title is required by the chip tool's schema to be
   an imperative action phrase AND becomes the spawned session's title, so a chip-arranged
