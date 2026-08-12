@@ -16,6 +16,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **orchestrate** — announce enforcement moves from prose to machinery. A live orchestrator
+  followed the recorded announce rule at launch and compressed the per-round repeats away
+  hours into the session — behavioral decay, not a stale rule. Three-part response:
+  `references/announce-hook.md` (new) ships the recipe for a harness-level PostToolUse hook
+  on the subagent tool that injects the reminder on every spawn (once per profile or per
+  workspace — the harness fires it, nothing decays); §4's launcher guidance now has a
+  conforming launcher print the ready-made announce line for the orchestrator to relay; and
+  §5's close-out gains the announce-compliance line (`rounds announced: N of N`) beside the
+  cost line — prevention, burden-removal, and detection respectively. Setup may offer the
+  hook wiring per repo where the harness supports it.
+
 - **orchestrate** — cache economics become protocol, from a measured usage audit of a real
   orchestration run (2026-08-11: cold full-context re-caching from 7–13-minute idle gaps was
   88% of the orchestrator's cache-write bill — the largest avoidable cost of the session,
