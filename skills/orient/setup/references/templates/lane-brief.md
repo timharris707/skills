@@ -45,7 +45,7 @@ the decider, never silently into the work).
 ## Output contract
 Write a compact summary containing:
 1. What landed (by file), with the diff stat.
-2. Verification you ran (each command with its own exit code).
+2. Verification you ran (each command with its own exit code), ending with `Skipped checks: none` — or every skipped check named, with why.
 3. Deviations from the spec + open questions.
 Quote only the load-bearing hunks or sentences — never the full diff or transcript;
 the orchestrator audits the diff in your workspace, and everything it ingests it
