@@ -16,7 +16,7 @@ A conforming launcher runs these stages in this order, each gating the next (con
 
 - A conforming workspace and branch (stage 3 above).
 - The claim stamped on the tracker item — runner, model, workspace, branch.
-- The session titled by the launcher, per the titling protocol (orchestrate §8).
+- The session titled by the launcher, per the titling protocol (orchestrate §8), where a title surface exists. Where the binding records `no titling surface` — the binding-doc template's documented option — launch reports and handoffs carry the lane's identity instead (§8's degrade path).
 - **An issue-as-spec brief readable by any runner.** The tracked item is the spec, cited by reference — the item id plus the tracker command that fetches it — beside any verbatim paste, so any runner can re-pull the authoritative text. The brief carries no harness-specific assumptions: no one harness's tool names, session mechanics, or file conventions.
 - The environment and sandbox provisioned (next section).
 - **Preflight.** The lane can run its named verification commands before handover — the launcher proves this rather than the lane discovering a broken environment mid-item. A lane that cannot run its own "done" test was never launched, only started.
