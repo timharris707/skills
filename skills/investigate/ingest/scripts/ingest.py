@@ -1383,7 +1383,7 @@ def main(argv=None) -> None:
         sys.exit(0 if doctor() else 3)
     elif args.cmd == "preview":
         out_dir = Path(args.out).expanduser()
-        out_dir.mkdir(parents=True, exist_ok=True)
+        claim_out_dir(out_dir)
         got = captions_preview(args.url, out_dir, Manifest(out_dir))
         sys.exit(0 if got else 1)
     elif args.cmd == "run":
