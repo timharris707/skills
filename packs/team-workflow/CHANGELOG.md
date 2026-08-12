@@ -14,6 +14,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- **orchestrate** — compaction pass (#180). Tim's verdict after the size check: SKILL.md had
+  grown to 4,151 words — second-largest skill in the repo, 2.5× the pack median — with titling
+  rules spread across §3/§4/§6/§7 and roughly a third of the word count being measured-incident
+  rationale rather than protocol. Three moves, zero rules dropped or weakened (a 95-rule
+  inventory was produced before editing and checked line-by-line after): the protocol spine
+  stays in SKILL.md, each rule with a one-line reason; the measured evidence (idle-gap cache
+  economics, mid-flight model-flip costs, announce-compliance decay) moves to a new
+  `references/evidence.md` the relevant rules point at; and the titling rules consolidate into
+  one section (§8) with a single carve-out for pre-titling launch surfaces — §3/§4/§6/§7 now
+  point there, and `references/runner-parity.md`'s titling pointer follows. §1–§7 keep their
+  numbers so external §-references (including installed announce hooks) stay valid.
+
 ### Added
 
 - **orchestrate** — on-behalf comment formatting (#179). Tim's formatting request, promoted
