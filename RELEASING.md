@@ -27,9 +27,8 @@ Pushing a version tag by hand still works and triggers
   explicit flags; and **patch** for backward-compatible fixes. Model and artifact schema versions
   such as `advisory-board/verdict@N` are separate axes and do not replace the skill version.
 - **Packs:** skills that ship and version **together** release under one **pack-scoped tag**
-  instead of per-skill tags. The `team-workflow` pack (router, setup, grilling, decision-map,
-  prototype, research, to-tickets, wizard, handoff, orchestrate) releases as `team-workflow/vX.Y.Z`
-  with one changelog at [`packs/team-workflow/CHANGELOG.md`](packs/team-workflow/CHANGELOG.md).
+  instead of per-skill tags. The `team-workflow` pack releases as `team-workflow/vX.Y.Z` with one
+  changelog at [`packs/team-workflow/CHANGELOG.md`](packs/team-workflow/CHANGELOG.md).
   A pack is not a skill, so its changelog lives outside `skills/`. Individual pack skills never get
   their own tags. The pack's plugin `version` in
   [`.claude-plugin/marketplace.json`](.claude-plugin/marketplace.json) mirrors the latest pack tag;

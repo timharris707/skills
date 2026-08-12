@@ -28,7 +28,9 @@ Buckets are declared in [`skills/buckets.json`](./skills/buckets.json), and each
 **Start a new skill in `in-progress/`.** It is a real directory with a real `SKILL.md`, it just isn't claimed by any plugin and isn't listed anywhere. When it earns its place:
 
 1. `git mv skills/in-progress/<name> skills/<bucket>/<name>`
-2. Claim it in `.claude-plugin/marketplace.json` and bump that plugin's version
+2. Claim it in `.claude-plugin/marketplace.json`; the version bump itself happens later, in the
+   release commit per [`RELEASING.md`](./RELEASING.md)'s per-PR habit (bump + changelog section
+   rename together) — bumping here without that changelog section would fail auto-release
 3. Add it to `.codex-plugin/plugin.json` so Codex ships it too
 4. Write `agents/openai.yaml` with a `display_name` and `short_description`
 5. Add it to the router roster if it joins the `team-workflow` pack
