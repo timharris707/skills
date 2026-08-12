@@ -16,6 +16,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **setup** — session-scope conduct pointer (#168). PR conduct pinned in a binding doc was
+  structurally scoped to orchestrated sessions: an ad-hoc session loads only the agent-context
+  file, and setup wrote nothing there pointing at the pr-writing reference. The interview and
+  re-run now offer an optional agent-context pointer section — binding-doc location plus
+  "before writing any PR description or comment, read the pack's pr-writing reference" —
+  pointer-only, so the reference stays the single evolving authority. Audit mode gains the
+  matching fifth check: a binding doc pinning pr-writing with no agent-context pointer to it
+  reports as drift.
+
 - **codebase-review** — five refinements from the insight-chat pilot (#129), the skill's
   first real run: the lane shapes candidates before the skeptic — convergent findings merge
   into one candidate with the convergence recorded as evidence, bundled claims split, one
