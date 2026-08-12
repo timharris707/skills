@@ -63,11 +63,12 @@ Re-running setup **re-scans the repo, diffs against the existing binding doc, an
 
 ## Audit mode: report drift, don't assume absence
 
-A re-run can instead run as an **audit** — it audits a consuming repo's bindings against reality and reports drift, rather than interviewing toward a refreshed binding. Run it after each pack release, and on demand; there is no calendar floor. Three checks, exactly:
+A re-run can instead run as an **audit** — it audits a consuming repo's bindings against reality and reports drift, rather than interviewing toward a refreshed binding. Run it after each pack release, and on demand; there is no calendar floor. Four checks, exactly:
 
 1. **Binding-doc currency.** The pack version the doc claims against the pack version actually installed, and — the common gap — sections missing for skills added since the doc was seeded: a repo bound before a release has no section to fill for the skills that release added, and nothing downstream ever creates one. Where the repo runs an orchestrator, currency includes the runner-policy binding: the orchestration section carries the runner inventory and runner-policy lines, the policy still names the runners the repo actually launches with, and the launcher recipe doc the inventory names still exists and still matches the launcher it describes (the check the [runner-parity reference](../../run/orchestrate/references/runner-parity.md) assigns to setup re-runs).
 2. **Local forks.** Overrides in the repo's own skills directory (e.g. `.claude/skills/`) that shadow pack skills: report where the fork and the pack now disagree. Report only — the fork's authority stays the repo's recorded choice, and the audit never rewrites or retires one.
 3. **Recorded grants and rules.** The grants, precedence rules, and exemptions the pack skills assume are actually present in the repo's canonical doc — nothing running on the memory of a confirmation the doc never recorded.
+4. **Machine portability.** The workflow artifacts the binding governs — helper scripts, seeded docs, contract validators and their tests — must not hard-code one machine's filesystem: an absolute home path (`/Users/<name>/…`, `/home/<name>/…`) works for the author and walls out the first contributor on a second machine, who hits a refusal the author never sees. Report each occurrence as drift, with the portable derivation (`$HOME`, the repo root) as the proposed fix.
 
 Deliberately not checked: hook-target existence — whether the files a seeded hook points at still exist stays the repo's own concern.
 
@@ -84,7 +85,7 @@ All bullets except the last govern install and refresh runs; an audit run satisf
 - The human confirmed every binding — including the inferred ones — and answered decider + home directly.
 - Where the domain-memory binding repoints an existing rejection-memory path at the memory home: the old records were moved into the store (as decision records, provenance noted) or the old path is recorded as read-until-migrated — the binding is accepted only when the old store is empty or its path is recorded.
 - Where the glossary + non-negotiables binding was accepted: the agent-context file carries the confirmed never-compromise section (or the binding doc records its decline); the glossary is the confirmed agent-context section — or, where domain-memory is bound, the memory-home pointer with the harvested candidates drafted as backfill cards — or a recorded decline; and every harvested candidate's disposition (`accepted`/`corrected`/`declined`) is in the binding doc.
-- On an audit run: all three checks ran against the repo, every drift finding was dispositioned by the decider — updated, accepted, or deferred — and accepted drifts are recorded where the next audit reads them. Zero drift is an explicit "bindings current" verdict in the report, never a silent finish.
+- On an audit run: all four checks ran against the repo, every drift finding was dispositioned by the decider — updated, accepted, or deferred — and accepted drifts are recorded where the next audit reads them. Zero drift is an explicit "bindings current" verdict in the report, never a silent finish.
 
 ## Attribution
 

@@ -16,6 +16,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **setup** — audit mode gains a fourth check, machine portability: workflow artifacts the
+  binding governs (helper scripts, seeded docs, contract validators and tests) must not
+  hard-code one machine's filesystem — an absolute home path works for the author and walls
+  out the first contributor on a second machine. Occurrences are reported as drift with the
+  portable derivation (`$HOME`, repo root) as the proposed fix. Motivated by a real onboarding
+  failure: a consuming repo's worktree helper pinned the author's absolute path and refused to
+  run on the second contributor's machine.
+
 - **setup** — glossary + non-negotiables optional binding: the interview can harvest a
   domain glossary and a "what we never compromise on" list into the repo's agent-context
   file (CLAUDE.md/AGENTS.md) — the file every session loads, deliberately not the binding
