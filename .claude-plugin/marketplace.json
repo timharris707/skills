@@ -23,7 +23,7 @@
       "name": "team-workflow",
       "source": "./",
       "strict": false,
-      "version": "1.4.0",
+      "version": "1.5.0",
       "description": "Fifteen skills that ship as one pack — a portable discipline for tracked, multi-session, agent-assisted development: a router entry point, a once-per-repo setup interview, per-repo institutional memory written as side effects of work, relentless grilling, decision maps, throwaway prototypes, autonomous research lanes, ticket filing, human-step wizards, session handoffs, an orchestration protocol for parallel lanes, a build discipline of seam-scoped test-first tracer slices, a disciplined bug-diagnosis loop where no fix ships without a named cause, an adversarial review that breaks changes before they ship, and a skeptic-verified state review of the codebase itself. Versioned together (team-workflow/vX.Y.Z); this version mirrors the latest pack tag.",
       "license": "MIT",
       "skills": [
