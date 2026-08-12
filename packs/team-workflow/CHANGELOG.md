@@ -89,6 +89,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- **orchestrate** — title protocol outranks a launch surface's label convention (#162).
+  Observed live: a background-task chip's title is required by the chip tool's schema to be
+  an imperative action phrase AND becomes the spawned session's title, so a chip-arranged
+  successor arrived titled like a task instead of an orchestrator — and in harnesses without
+  self-rename the wrong title sticks. §6 step 3 names the collision and settles precedence
+  (a chip-arranged successor's chip title is written in the orchestrator title shape, never
+  a generic imperative task label) and states the general form — any launch surface that
+  fixes the title at spawn time makes the launcher the titling actor at that moment. §3
+  step 4 gains the carve-out: chip-launched successors arrive pre-titled by the retiring
+  orchestrator, and one that stands down under §2 is retitled by whoever archives it. The
+  lane-launch binding slot (§7) now records which launch surfaces pre-title sessions, under
+  the same precedence rule.
 - **setup, codebase-review, research** — description trims: the frontmatter description
   is the only part of a skill loaded into every session, so it carries identity plus
   `Use when` triggers and nothing else. Mechanism inventories (setup's binding list and
