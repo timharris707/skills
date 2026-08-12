@@ -24,7 +24,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   most every ~4), pricing the existing "monitoring means polling" discipline; §4 — a session's
   model is fixed at launch (the cache is per-model; different-model work goes to a subagent,
   never a mid-flight switch); §4 — lane count is a cost dial (each lane pays its own
-  full-context first-write; trivially-related small items ride one lane serially); §5's
+  full-context first-write; trivially-related small items ride one lane serially, including
+  continuing an existing lane by message where the harness supports it — its cached context
+  is already paid for); §5's
   close-out cost line gains the cadence tripwire — where wake times are readable, the
   longest between-wake gap while lanes were live is named, and a gap past the TTL is
   reported as a cadence miss, never silently absorbed. The monitoring binding slot (§7) may
