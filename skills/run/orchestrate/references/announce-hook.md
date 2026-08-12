@@ -31,6 +31,6 @@ Settings entry (user-level settings.json covers every project that profile opens
 ## Composition
 
 - The hook **prevents** the miss; §5's close-out line (`rounds announced: N of N`, alongside the cost line) **proves** compliance after the fact — keep both; neither substitutes for the other.
-- Launcher-emitted announce lines (the §7 lane-launch slot's manifest pattern) compose: a conforming launcher prints the ready-made line and the orchestrator relays it; the hook still fires as the backstop for harness-direct spawns.
+- Launcher-emitted announce lines compose with the hook. The **launcher-manifest pattern** (SKILL.md §4 points here for it): a launcher records model and effort per lane in a manifest; the launcher's recipe doc names the manifest, not itself, as the authority on what a lane actually ran at; and a conforming launcher prints the ready-made announce line for the orchestrator to relay. The hook still fires as the backstop for harness-direct spawns.
 - The reminder is scoped ("if this session orchestrates") so non-orchestrating sessions in the same profile pay only the injected sentence, not false announcements.
 - Setup may offer wiring this per-repo where the harness is Claude Code; the recorded binding line is what audit mode checks. An installed matcher missing the chip tool is an audit finding — half the launch surface is unenforced.
