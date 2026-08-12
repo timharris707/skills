@@ -1,6 +1,6 @@
 # Measured evidence — the incidents behind orchestrate's cost rules
 
-Reference, not protocol: the rules live in [SKILL.md](../SKILL.md); this file holds the measurements and incident history that earned them. Consult it when a rule's price tag is questioned — when a repo debates relaxing the cadence, the announce discipline, or a review tier.
+Reference, not protocol: the rules live in [SKILL.md](../SKILL.md); this file holds the measurements and incident history that earned them. Consult it when a rule's price tag is questioned — when a repo debates relaxing the cadence or the announce discipline.
 
 ## Idle-gap cache economics (SKILL.md §1 item 5)
 
