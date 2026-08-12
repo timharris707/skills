@@ -25,6 +25,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   matching fifth check: a binding doc pinning pr-writing with no agent-context pointer to it
   reports as drift.
 
+- **codebase-review** — five refinements from the insight-chat pilot (#129), the skill's
+  first real run: the lane shapes candidates before the skeptic — convergent findings merge
+  into one candidate with the convergence recorded as evidence, bundled claims split, one
+  claim per candidate stated explicitly, one skeptic per candidate; partial kills fold the
+  skeptic's corrections into the survivor's write-up so the decider reads skeptic-hardened
+  claims; the skeptic reproduces the claimed behavior read-only where possible; and a
+  first-run-without-bindings degrade — the executor creates the tracker item itself and the
+  report names the unbound slots.
+
 - **orchestrate** — on-behalf comment formatting (#179). Tim's formatting request, promoted
   from one repo's local preference to the pack: any tracker-visible comment an agent writes
   on a human's behalf (PR comments, review-thread replies, issue close-outs — not just PR
@@ -138,6 +147,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   2026-08-11.)
 
 ### Changed
+
+- **adversarial-review** — finder execution shape follows where the review runs (#154).
+  Observed twice in one overnight session: a close-out review delegated to a subagent
+  spawned its isolated finder subagents and stalled waiting for them — nested subagents'
+  completions do not re-invoke a parent subagent in that harness shape. §2 now records the
+  rule: a reviewer in the harness's main loop launches finders as parallel subagents; a
+  review that itself runs as a delegated subagent runs the finder passes sequentially in
+  one context, keeping isolation between passes (fresh perspective per pass, no shared
+  candidate list until the skeptic) rather than between processes.
 
 - **orchestrate** — compaction pass (#180). Tim's verdict after the size check: SKILL.md had
   grown to 4,151 words — second-largest skill in the repo, 2.5× the pack median — with titling
