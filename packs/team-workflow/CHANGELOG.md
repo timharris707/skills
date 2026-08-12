@@ -16,6 +16,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **orchestrate** — cache economics become protocol, from a measured usage audit of a real
+  orchestration run (2026-08-11: cold full-context re-caching from 7–13-minute idle gaps was
+  88% of the orchestrator's cache-write bill — the largest avoidable cost of the session,
+  ahead of everything its 22 lanes spent). Four additions: §1 gains item 5 — while lanes are
+  live, the between-turn wake cadence stays under the prompt-cache TTL (~5 minutes; poll at
+  most every ~4), pricing the existing "monitoring means polling" discipline; §4 — a session's
+  model is fixed at launch (the cache is per-model; different-model work goes to a subagent,
+  never a mid-flight switch); §4 — lane count is a cost dial (each lane pays its own
+  full-context first-write; trivially-related small items ride one lane serially); §5's
+  close-out cost line gains the cadence tripwire — where wake times are readable, the
+  longest between-wake gap while lanes were live is named, and a gap past the TTL is
+  reported as a cadence miss, never silently absorbed. The monitoring binding slot (§7) may
+  set a faster interval, never a slower one.
+
 - **setup** — audit mode gains a fourth check, machine portability: workflow artifacts the
   binding governs (helper scripts, seeded docs, contract validators and tests) must not
   hard-code one machine's filesystem — an absolute home path works for the author and walls
