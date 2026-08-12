@@ -33,7 +33,7 @@ Finder agents run as parallel subagents that never see each other's output — i
 - **boundaries-vs-reality** — the declared module layout versus how change actually flows: imports that cross seams, layers honored in the diagram and bypassed in the code.
 - **test-pain** — code that can only be tested past its interface, and the setup-heavy tests that prove it.
 
-**The lane shapes candidates before any skeptic sees them, one claim per candidate, stated explicitly.** Convergent findings — lenses landing on the same code — merge into one candidate, with the convergence recorded as evidence; bundled claims split into one candidate each. One skeptic per candidate.
+**The lane shapes candidates before any skeptic sees them, one claim per candidate, stated explicitly.** Convergent findings — lenses making the same claim about the same code — merge into one candidate, with the convergence recorded as evidence; findings that share code but make different claims stay separate, the shared location recorded as evidence on each; bundled claims split into one candidate each. One skeptic per candidate.
 
 Finders and the skeptic speak the shared design vocabulary — depth, seams, locality, the deletion test — defined in [references/design-vocabulary.md](references/design-vocabulary.md); every claim in the report is phrased in those terms, in the codebase's own domain names.
 
