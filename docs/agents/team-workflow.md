@@ -25,7 +25,7 @@ python3 scripts/check_site_disclosure.py
 python -m compileall -q skills/decide/advisory-board/scripts
 ```
 
-Doc-only changes additionally verify that every changed file's relative markdown links resolve. The advisory-board mock validation in `ci.yml` runs when that skill's scripts change.
+Doc-only changes carry an additional reviewer-run gate — every changed file's relative Markdown links resolve — checked at close-out review; no script exists yet (revisit at next setup re-run). The advisory-board mock validation in `ci.yml` runs when that skill's scripts change.
 
 ## The decider
 
@@ -38,7 +38,7 @@ Every pack skill says "the decider"; this line is where the role resolves. Sessi
 - **Binding doc home**: `docs/agents/team-workflow.md` (this file)
 - **Decision maps**: `docs/agents/<scope>-decision-map.md`
 - **Research findings**: `docs/agents/research/`
-- **Domain/context docs agents should load**: `CONTRIBUTING.md`, `RELEASING.md`, and — for skill-authoring lanes — `skills/write/writing-for-agents/SKILL.md`
+- **Domain/context docs agents should load**: `CONTRIBUTING.md`, `RELEASING.md`, and — for skill-authoring lanes — `skills/author/writing-for-agents/SKILL.md`
 
 ## Precedence & exemptions
 
