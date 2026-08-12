@@ -16,6 +16,21 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **orchestrate** — subagent-vs-session lane choice rule (#178). From the 2026-08-12
+  chips-vs-subagents discussion: the choice between an in-process subagent and a separate
+  session (background-task chip) was recorded only in one consuming repo's binding — every
+  other orchestrator chose by habit. §4 now records the default: subagent for lanes that
+  fit standing permission grants, need no human input mid-flight, and are short-lived (the
+  orchestrator pays only brief-out and report-in; launch needs no human click); a separate
+  session, where the harness offers one, for lanes with expected mid-flight approvals — the
+  strongest single discriminator, since a subagent hitting a permission wall fails where a
+  session can prompt — long-lived build work, work that must survive the orchestrator, or
+  work the decider wants to watch (a full session boot as its own first-write, but all lane
+  traffic stays out of the orchestrator's context; babysitting is one click at launch). The
+  lane-launch slot (§7) refines or overrides this default with recorded policy; the rule is
+  the fallback where the slot is silent. Harnesses without separate-session launches are
+  unaffected.
+
 - **orchestrate** — lean wakes (#176). Companion to #175, same burn-comparison source: even
   with the sub-TTL metronome (#169), every wake re-reads the entire accumulated context at
   cache-read price, so what a wake ingests is paid again on every later wake. §1 item 5 now
