@@ -16,6 +16,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **orchestrate** — on-behalf comment formatting (#179). Tim's formatting request, promoted
+  from one repo's local preference to the pack: any tracker-visible comment an agent writes
+  on a human's behalf (PR comments, review-thread replies, issue close-outs — not just PR
+  bodies) opens with the attribution line alone on its own line, a blank line, then the body
+  as its own paragraph; paragraphs run roughly 2–3 sentences — the decider reads these on a
+  phone, and a wall of prose hides the verdict — with lists doing the enumerating and long
+  comma-chains split. Lives in `references/pr-writing.md`, loaded at the moment of writing.
+
 - **orchestrate** — subagent-vs-session lane choice rule (#178). From the 2026-08-12
   chips-vs-subagents discussion: the choice between an in-process subagent and a separate
   session (background-task chip) was recorded only in one consuming repo's binding — every
