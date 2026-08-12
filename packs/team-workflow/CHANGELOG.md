@@ -130,6 +130,22 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- **orchestrate** — compaction pass (#180). Tim's verdict after the size check: SKILL.md had
+  grown to 4,151 words — second-largest skill in the repo, 2.5× the pack median — with titling
+  rules spread across §3/§4/§6/§7 and roughly a third of the word count being measured-incident
+  rationale rather than protocol. Three moves, zero rules dropped or weakened (a 95-rule
+  inventory was produced before editing and checked line-by-line after, then re-probed by the
+  adversarial close-out layer): the protocol spine stays in SKILL.md at Tim's 2,500-word bound
+  (`wc -w` = 2,500), keeping reasons only where they aren't entailed by a rule's own wording or
+  carried by a reference; the measured evidence and relocated rationale (idle-gap cache
+  economics, mid-flight model-flip costs, announce-compliance decay, the permission-wall
+  mechanism) move to a new `references/evidence.md`, with the launcher-manifest pattern's
+  definition landing in `references/announce-hook.md` beside the hook it composes with; and the
+  titling rules consolidate into one section (§8) with a single carve-out for pre-titling launch
+  surfaces — §3/§4/§6/§7 and the setup binding-doc template now point there, as does
+  `references/runner-parity.md`. §1–§7 keep their numbers so external §-references (including
+  installed announce hooks) stay valid.
+
 - **orchestrate** — announce hook covers chip launches; chip announcements get a
   read-don't-guess form (#173). Observed live: an orchestrator launched two lanes as
   background-task chips and announced neither — the hook recipe's `Agent|Task` matcher
