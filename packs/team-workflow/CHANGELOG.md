@@ -130,6 +130,19 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- **orchestrate** — CodeRabbit follow-ups from the compaction review (#184). Four ambiguity
+  fixes and one decider-approved rule, at the same 2,500-word bound (`wc -w` = 2,500, offsetting
+  trims all entailment/dedup): §1 item 5 states the polling cadence as two explicit bounds
+  (wake gaps stay under the ~5-minute TTL; an eventless poll waits at least ~4 minutes since
+  the last); §5's close-out cost line defines what `rounds announced: N of N` counts (the
+  lane's launch plus every review round); §5's hand-off announcement now matches §4's toggle
+  scope — identity unconditional, the model/effort repeat as the toggle-governed addition;
+  §7 drops the number-shaped "a lane or two" (decider's call: no fake precision, not an exact
+  bound); and §5 step 5 gains the decider-approved prune guard — check a lane's workspace for
+  uncommitted work before pruning it. `references/runner-parity.md` makes the launcher's
+  titling duty conditional on a title surface existing, with the binding-doc template's
+  `no titling surface` option carrying identity in launch reports and handoffs instead.
+
 - **orchestrate** — compaction pass (#180). Tim's verdict after the size check: SKILL.md had
   grown to 4,151 words — second-largest skill in the repo, 2.5× the pack median — with titling
   rules spread across §3/§4/§6/§7 and roughly a third of the word count being measured-incident
