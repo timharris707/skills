@@ -43,10 +43,13 @@ the decider, never silently into the work).
 - <the repo's own standing constraints, from the binding doc's precedence section>
 
 ## Output contract
-Write a summary containing:
-1. What landed (by file).
-2. Verification you ran (commands + results verbatim).
+Write a compact summary containing:
+1. What landed (by file), with the diff stat.
+2. Verification you ran (each command with its own exit code).
 3. Deviations from the spec + open questions.
+Quote only the load-bearing hunks or sentences — never the full diff or transcript;
+the orchestrator audits the diff in your workspace, and everything it ingests it
+re-pays on every later wake.
 The summary posts back to item #<N> as a comment — write it for that audience; the
 tracker comment is the durable record.
 ```

@@ -16,6 +16,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **orchestrate, setup** — compact lane-report contract (#175). From the 2026-08-12 burn
+  comparison: post-#169 the biggest remaining ramp is orchestrator context accumulation
+  mid/late run — everything the orchestrator ingests it re-pays on every later wake. Two
+  layers: §5's close-out audit reads the lane's diff in the lane's workspace at the scope
+  the item names (targeted hunks, filtered queries), never wholesale into orchestrator
+  context, with a too-large diff going to a delegated verifier per the verification-executor
+  slot (§7); and the lane-brief template's output contract now asks for a compact report —
+  diff stat, per-command exit codes, only the load-bearing hunks or sentences quoted — never
+  the full diff or transcript.
+
 - **orchestrate** — announce enforcement moves from prose to machinery. A live orchestrator
   followed the recorded announce rule at launch and compressed the per-round repeats away
   hours into the session — behavioral decay, not a stale rule. Three-part response:
