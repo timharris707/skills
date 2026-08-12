@@ -1,4 +1,16 @@
 {
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=\"$CLAUDE_PROJECT_DIR/.claude/handoff.md\"; if [ -f \"$f\" ]; then printf 'A handoff note from a previous session was found at .claude/handoff.md. Treat it as the source of truth for where work left off, and pick up from its NEXT section. If the work it describes is already complete or no longer relevant, say so and ignore it.\\n\\n----- .claude/handoff.md -----\\n'; cat \"$f\"; fi"
+          }
+        ]
+      }
+    ]
+  },
   "extraKnownMarketplaces": {
     "timharris-skills": {
       "source": {
