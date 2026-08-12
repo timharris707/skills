@@ -16,6 +16,24 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **orchestrate** — lean wakes (#176). Companion to #175, same burn-comparison source: even
+  with the sub-TTL metronome (#169), every wake re-reads the entire accumulated context at
+  cache-read price, so what a wake ingests is paid again on every later wake. §1 item 5 now
+  defines a metronome wake as a minimal turn — re-arm, one small filtered check (count-shaped
+  or `-q` queries, never broad listings), a one-line status — with broad ingestion (full
+  listings, whole comment bodies, unfiltered logs) waiting for an event that needs it. The
+  metronome keeps the cache warm; lean wakes keep the thing being cached from growing.
+
+- **orchestrate, setup** — compact lane-report contract (#175). From the 2026-08-12 burn
+  comparison: post-#169 the biggest remaining ramp is orchestrator context accumulation
+  mid/late run — everything the orchestrator ingests it re-pays on every later wake. Two
+  layers: §5's close-out audit reads the lane's diff in the lane's workspace at the scope
+  the item names (targeted hunks, filtered queries), never wholesale into orchestrator
+  context, with a too-large diff going to a delegated verifier per the verification-executor
+  slot (§7); and the lane-brief template's output contract now asks for a compact report —
+  diff stat, per-command exit codes, only the load-bearing hunks or sentences quoted — never
+  the full diff or transcript.
+
 - **orchestrate** — announce enforcement moves from prose to machinery. A live orchestrator
   followed the recorded announce rule at launch and compressed the per-round repeats away
   hours into the session — behavioral decay, not a stale rule. Three-part response:
