@@ -130,6 +130,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- **adversarial-review** — finder execution shape follows where the review runs (#154).
+  Observed twice in one overnight session: a close-out review delegated to a subagent
+  spawned its isolated finder subagents and stalled waiting for them — nested subagents'
+  completions do not re-invoke a parent subagent in that harness shape. §2 now records the
+  rule: a reviewer in the harness's main loop launches finders as parallel subagents; a
+  review that itself runs as a delegated subagent runs the finder passes sequentially in
+  one context, keeping isolation between passes (fresh perspective per pass, no shared
+  candidate list until the skeptic) rather than between processes.
+
 - **orchestrate** — compaction pass (#180). Tim's verdict after the size check: SKILL.md had
   grown to 4,151 words — second-largest skill in the repo, 2.5× the pack median — with titling
   rules spread across §3/§4/§6/§7 and roughly a third of the word count being measured-incident
