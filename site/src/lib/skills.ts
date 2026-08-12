@@ -30,6 +30,12 @@ export type Skill = {
   /** The plugin that ships it, from marketplace.json. */
   plugin: string;
   pluginVersion: string;
+  /**
+   * "pack" when its plugin ships more than one skill, "standalone" when it
+   * ships alone — derived from the plugin's own skill count, so a plugin
+   * cannot claim a skill without its badge coming out correct.
+   */
+  shipsAs: "pack" | "standalone";
   /** Files beside SKILL.md — references/, scripts/, agents/. */
   extras: string[];
   githubUrl: string;
@@ -166,6 +172,7 @@ export function getSkills(): Skill[] {
         bucket: bucket.id,
         plugin: owner?.name ?? "unpublished",
         pluginVersion: owner?.version ?? "",
+        shipsAs: (owner?.skills.length ?? 0) > 1 ? "pack" : "standalone",
         extras: listExtras(dir),
         githubUrl: `https://github.com/timharris707/skills/blob/main/${rel}/SKILL.md`,
       });

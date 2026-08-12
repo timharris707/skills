@@ -18,7 +18,7 @@ Read the team-workflow binding doc first. The review runs **before external revi
 
 ## 2. Composition: three finders, isolated
 
-Three reviewers, run as parallel subagents that **never see each other's reasoning** — isolation is what makes agreement between finders meaningful. Each loads the diff, the repo's defect-class checklist (§5), the repo's decision records where [domain-memory](../../orient/domain-memory/SKILL.md) is bound, and nothing of the others' output.
+Three reviewers that **never see each other's reasoning** — isolation is what makes agreement between finders meaningful. Each loads the diff, the repo's defect-class checklist (§5), the repo's decision records where [domain-memory](../../orient/domain-memory/SKILL.md) is bound, and nothing of the others' output. The execution shape follows where the review runs: a reviewer in the harness's main loop launches the finders as parallel subagents, whose completions re-invoke it; a review that itself runs as a delegated subagent runs the finder passes **sequentially in one context** — nested subagents' completions do not re-invoke a parent subagent, so a spawn-and-wait reviewer there stalls. Sequential passes keep the isolation between passes rather than between processes: a fresh perspective per pass, no shared candidate list until the skeptic.
 
 1. **The correctness finder** — logic, edge cases, error paths, invariants; the defect-class checklist is its opening moves, not its limit.
 2. **The fitting lens** — one perspective chosen to match the change, from the menu:

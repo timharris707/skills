@@ -122,6 +122,49 @@ class TestOutDirOwnership(unittest.TestCase):
             ing.claim_out_dir(d)      # a second run reuses its own dir
 
 
+class TestPreviewMarksItsOwnDirectory(unittest.TestCase):
+    """Issue #160: `preview --out DIR` created DIR without the adoption
+    marker, so a same-dir `run --out DIR` afterwards was refused by
+    claim_out_dir as a foreign non-empty directory. preview must claim the
+    directory itself so the preview-then-run flow SKILL.md describes works,
+    while a genuinely foreign non-empty directory stays refused."""
+
+    def setUp(self):
+        original = ing.run_cmd
+        # No network: yt-dlp is mocked to "no captions available" so the
+        # test exercises directory ownership, not the caption pipeline.
+        ing.run_cmd = lambda argv, timeout=None, **kw: __import__(
+            "subprocess"
+        ).CompletedProcess(argv, 1, stdout="", stderr="")
+        self.addCleanup(lambda: setattr(ing, "run_cmd", original))
+
+    def test_preview_writes_the_marker_so_run_can_adopt_the_directory(self):
+        with tempfile.TemporaryDirectory() as t:
+            d = Path(t) / "packet"
+            with self.assertRaises(SystemExit):
+                ing.main(["preview", "--url", "https://example.com/v",
+                          "--out", str(d)])
+            self.assertTrue(
+                (d / ".ingest-run").exists(),
+                "preview must mark the directory it creates",
+            )
+            # A subsequent `run --out` on the same dir must adopt it, not
+            # refuse it (the bug: exit 2, "not empty and was not created by
+            # ingest").
+            ing.claim_out_dir(d)
+
+    def test_preview_still_refuses_a_foreign_non_empty_directory(self):
+        with tempfile.TemporaryDirectory() as t:
+            d = Path(t) / "my-documents"
+            d.mkdir()
+            (d / "taxes.pdf").write_text("important")
+            with self.assertRaises(SystemExit) as cm:
+                ing.main(["preview", "--url", "https://example.com/v",
+                          "--out", str(d)])
+            self.assertEqual(cm.exception.code, 2)
+            self.assertTrue((d / "taxes.pdf").exists())
+
+
 class TestRetention(unittest.TestCase):
     """Deletion is by ledger, never by directory name."""
 

@@ -5,6 +5,19 @@ All notable changes to the **ingest** skill. Versioned as a standalone plugin
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Fixed
+
+- **`preview` can now be followed by `run` in the same `--out` directory**
+  (issue #160). `preview` created its run directory with a plain `mkdir`
+  and never wrote the `.ingest-run` adoption marker, so a same-directory
+  `run` afterwards was refused as a foreign non-empty directory (exit 2) —
+  breaking the preview-then-run flow SKILL.md describes. `preview` now
+  claims its directory through `claim_out_dir`, the same ownership path
+  `run` uses, so it writes the marker itself; a genuinely foreign non-empty
+  directory is still refused.
+
 ## [v1.2.0] - 2026-08-07 — Packets that know their work and offer their own cleanup
 
 ### Added
