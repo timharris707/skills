@@ -14,6 +14,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [v1.5.0] - 2026-08-12 — orchestrate cost & announce protocol, review-cycle refinements
+
 ### Added
 
 - **setup** — session-scope conduct pointer (#168). PR conduct pinned in a binding doc was
