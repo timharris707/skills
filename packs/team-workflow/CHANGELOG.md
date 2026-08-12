@@ -148,8 +148,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
-- **orchestrate** — CodeRabbit follow-ups from the compaction review (#184). Four ambiguity
-  fixes and one decider-approved rule, at the same 2,500-word bound (`wc -w` = 2,500, offsetting
+- **orchestrate** — CodeRabbit follow-ups from the compaction review (#184). Five SKILL.md changes — four ambiguity
+  fixes and one decider-approved rule — plus a runner-parity titling conditional, at the same 2,500-word bound (`wc -w` = 2,500, offsetting
   trims all entailment/dedup): §1 item 5 states the polling cadence as two explicit bounds
   (wake gaps stay under the ~5-minute TTL; an eventless poll waits at least ~4 minutes since
   the last); §5's close-out cost line defines what `rounds announced: N of N` counts (the
