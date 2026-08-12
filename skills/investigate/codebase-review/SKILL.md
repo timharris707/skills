@@ -33,11 +33,13 @@ Finder agents run as parallel subagents that never see each other's output — i
 - **boundaries-vs-reality** — the declared module layout versus how change actually flows: imports that cross seams, layers honored in the diagram and bypassed in the code.
 - **test-pain** — code that can only be tested past its interface, and the setup-heavy tests that prove it.
 
+**The lane shapes candidates before any skeptic sees them, one claim per candidate, stated explicitly.** Convergent findings — lenses landing on the same code — merge into one candidate, with the convergence recorded as evidence; bundled claims split into one candidate each. One skeptic per candidate.
+
 Finders and the skeptic speak the shared design vocabulary — depth, seams, locality, the deletion test — defined in [references/design-vocabulary.md](references/design-vocabulary.md); every claim in the report is phrased in those terms, in the codebase's own domain names.
 
 ## 3. The skeptic
 
-A finder's candidate is a hypothesis. **Every candidate goes to a built-in skeptic whose brief is to kill it before the report exists** — a separate agent in its own context, handed the candidate and its evidence and nothing of the finder's reasoning, so the kill attempt starts from the code rather than from the argument: re-read the code, find the second caller that makes the "duplicate" a real seam, the constraint that explains the "shallow" wrapper, the test that already covers the pain. Only candidates the skeptic fails to kill reach the report.
+A finder's candidate is a hypothesis. **Every candidate goes to a built-in skeptic whose brief is to kill it before the report exists** — a separate agent in its own context, handed the candidate and its evidence and nothing of the finder's reasoning, so the kill attempt starts from the code rather than from the argument: re-read the code, reproduce the claimed behavior read-only where possible, find the second caller that makes the "duplicate" a real seam, the constraint that explains the "shallow" wrapper, the test that already covers the pain. Only candidates the skeptic fails to kill reach the report. A kill can be partial — where the skeptic kills legs but the core stands, the corrections fold into the survivor's write-up, so the decider reads skeptic-hardened claims, not finder enthusiasm.
 
 Survival is the only grade. A finder ranking its own findings — strong, worth exploring, speculative — is grading its own homework; the skeptic's failed kill is evidence, a badge is a mood.
 
@@ -66,6 +68,8 @@ The run's tracker item closes only when nothing is undispositioned.
 - **Lane-count threshold (N)** — merged lanes since the last review that open gate 2.
 - **Rejection memory** — where rejected candidates and their load-bearing reasons live. In repos also bound to [domain-memory](../../orient/domain-memory/SKILL.md), this slot points at its memory home and rejections land as decision records there — one store, never two.
 - **Executor mechanics** — how the review lane is launched, claimed, and tracked (in repos running the [orchestrate](../../run/orchestrate/SKILL.md) skill, its lane-launch machinery is the natural answer).
+
+On a first run before the setup interview has filled these, the executor creates the tracker item itself and the report names the unbound slots.
 
 ## Done when (checkable)
 
