@@ -8,6 +8,7 @@ safety property that all text is escaped before any tag is inserted.
 import os
 import sys
 import unittest
+from typing import ClassVar
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SCRIPTS = os.path.normpath(os.path.join(HERE, "..", "scripts"))
@@ -263,7 +264,7 @@ class SkillCliTemplates(unittest.TestCase):
     for that provider — flag presence, not exact argv equality, so prompt
     placeholders, gate-mode extras, and formatting don't matter."""
 
-    SEAT_BUILDERS = {
+    SEAT_BUILDERS: ClassVar[dict] = {
         "Claude": registry.claude_argv,
         "Codex": registry.codex_argv,
         "Gemini": registry.gemini_argv,
