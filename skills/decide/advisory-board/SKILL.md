@@ -191,10 +191,10 @@ codex exec --sandbox read-only --skip-git-repo-check \
 Gemini seat:
 
 ```
-gemini -p "<seat prompt>" -m pro
+gemini -p "<seat prompt>" -m pro --approval-mode plan --skip-trust
 ```
 
-Run in a read-only / non-auto-approval mode so the seat can't make edits, and select the highest available thinking level — prefer a CLI flag or environment variable if the installed CLI exposes one; a settings-file edit is the last resort, with backup and restore-on-failure (`references/execution-harness.md` §Gemini thinking level). The Gemini CLI may print internal errors to stderr (e.g. model-router retries) yet still return a valid review — judge a seat by whether usable content came back, not by stderr noise or a non-zero exit; treat that as a degraded-but-ran seat, not a failure.
+`--approval-mode plan` restricts the seat to read-only tools (`--skip-trust` avoids the untrusted-directory exit that would otherwise force approval-mode back to default). Select the highest available thinking level — prefer a CLI flag or environment variable if the installed CLI exposes one; a settings-file edit is the last resort, with backup and restore-on-failure (`references/execution-harness.md` §Gemini thinking level). The Gemini CLI may print internal errors to stderr (e.g. model-router retries) yet still return a valid review — judge a seat by whether usable content came back, not by stderr noise or a non-zero exit; treat that as a degraded-but-ran seat, not a failure.
 
 Grok seat:
 

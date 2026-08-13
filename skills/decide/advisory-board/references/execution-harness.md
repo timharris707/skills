@@ -87,7 +87,7 @@ ran=$(grep -cE '\bran\b|\bdegraded\b' run-metadata.tsv)
 
 ## Gemini thinking level
 
-Prefer a CLI flag or environment variable if the installed Gemini CLI exposes one. Edit settings files only as a last resort — and if you do, back up the existing file first and restore it in a cleanup step that runs even on failure, so a crash can't leave the user's config mutated. Verify the schema against the current Gemini CLI configuration reference first; the shape below is illustrative, not guaranteed current:
+Prefer a CLI flag or environment variable if the installed Gemini CLI exposes one. Edit settings files only as a last resort — and if you do, record whether the file existed first: back up an existing file and restore it in a cleanup step that runs even on failure; if no file existed, cleanup deletes the one you created. Either way a crash can't leave the user's config mutated. Verify the schema against the current Gemini CLI configuration reference first; the shape below is illustrative, not guaranteed current:
 
 ```json
 {

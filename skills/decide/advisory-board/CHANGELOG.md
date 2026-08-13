@@ -10,7 +10,7 @@ versioned separately and do not replace the skill release version.
 ## [Unreleased]
 
 ### Changed
-- **SKILL.md pruned to behavior-changing lines** (the writing-for-agents audit, following
+- **SKILL.md pruned to the lines that steer the agent** (the writing-for-agents audit, following
   writing-for-humans v1.2.0): 6,558 → 4,547 words with no protocol change. Version-history
   narration (v1.x / D-number / R-number tags, retired-alias archaeology) removed — the
   CHANGELOG owns history. Conductor feature detail, script flag semantics, and per-tier
