@@ -37,6 +37,6 @@ In repos with an approval-before-edit guardrail: invoking this skill **is** the 
 ## Done when (checkable — verify each line before reporting complete)
 
 - The handoff file exists at the binding doc's confirmed location, overwriting any previous one — no appended history.
-- All four template sections are filled, and NEXT is the tracker query, not an enumerated item list.
-- The saved file was re-read after writing: every entry is a pointer into a durable record, no pasted code blocks, and nothing shaped like a token, key, or password — secret *locations* only.
+- All four template sections are filled; NEXT contains the tracker query and enumerates no specific work items.
+- The saved file was re-read after writing: every entry is a pointer into a durable record with no pasted code blocks, and rule 5's secret scan ran against the saved text — any candidate value it flagged was replaced with its pointer and the file re-saved before reporting.
 - The user was told the handoff is saved and a fresh session or context reset is now safe.
