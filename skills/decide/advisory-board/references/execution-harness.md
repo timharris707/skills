@@ -84,3 +84,24 @@ ran=$(grep -cE '\bran\b|\bdegraded\b' run-metadata.tsv)
 - **Large packets:** passing a big prompt as an argument can exceed `ARG_MAX`. For a large source packet, either put it in a file the (agentic) seat reads from its working directory, or feed it on stdin — `claude -p < prompts/claude-round-1.prompt` and `gemini -p < ...` both work; for those, don't redirect `</dev/null`. Codex always takes its prompt as an argument with stdin closed.
 - **Never echo secrets.** Don't print env values, tokens, or cookies into logs or `run-metadata.md`. Keep `logs/` out of any committed artifact set.
 - These commands are illustrative, not guaranteed current — confirm flags against `<cli> --help` before a large run.
+
+## Gemini thinking level
+
+Prefer a CLI flag or environment variable if the installed Gemini CLI exposes one. Edit settings files only as a last resort — and if you do, back up the existing file first and restore it in a cleanup step that runs even on failure, so a crash can't leave the user's config mutated. Verify the schema against the current Gemini CLI configuration reference first; the shape below is illustrative, not guaranteed current:
+
+```json
+{
+  "modelConfigs": {
+    "customAliases": {
+      "<alias>": {
+        "modelConfig": {
+          "model": "pro",
+          "generateContentConfig": {
+            "thinkingConfig": { "thinkingLevel": "HIGH" }
+          }
+        }
+      }
+    }
+  }
+}
+```
