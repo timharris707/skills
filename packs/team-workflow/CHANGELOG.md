@@ -22,6 +22,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   values, and the user told a fresh session is safe.
 
 ### Changed
+- **router: intro and meta-rule deduplicated** (the writing-for-agents audit): 1,522 →
+  1,426 words. The opening paragraph's full-pack enumeration duplicated the skills table
+  that follows it — the table is the router's mechanism, so the intro now frames and
+  points. The review meta-rule keeps the pack-level why (no imported checklists) and
+  defers the checklist-honesty rules to adversarial-review's own defect-class section
+  instead of restating them. Main flow, on-ramps, the table, and the
+  institutional-review-memory territory statement unchanged.
 - **setup: SKILL.md deduplicated** (the writing-for-agents audit): 3,264 → 2,990 words,
   no protocol or Done-when change. "A recorded absence is a filled binding" now stated
   once (Done-when) instead of four times; the optional-bindings list names the four
