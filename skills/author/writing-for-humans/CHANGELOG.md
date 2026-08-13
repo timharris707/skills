@@ -8,6 +8,32 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [v1.2.0] - 2026-08-13
+
+### Added
+
+- An "It's working if" section: qualities of the finished page judged by reading
+  it cold, following the outcome-test shape of Matt Pocock's skill docs pages
+  (his `wait-what` docs page is the model). It carries the over-correction
+  guard his pattern makes explicit: each revision pass must leave the piece
+  clearer *and* warmer — a pass that only deletes tells is clean nothing.
+  Done-when gains a line requiring each "It's working if" line be checked
+  against the final text, not assumed.
+
+### Changed
+
+- The body was pruned line by line against writing-for-agents' no-op test
+  ("does this change behavior versus the default?"), 1,496 words to 1,264
+  while adding the new section. Cut: expository openers, in-body attribution
+  duplicating the Attribution section (the mattpocock/skills and forint573
+  parentheticals), the empathy sentence duplicated between Guide structure
+  and Warmth moves, and the positioning rule's rationale prose (the
+  third-person-descriptor discussion). The canonical positioning lines, the
+  two-legs rule, and the PLAN.md canon pointer survive verbatim.
+- Done-when was split against the new section: result qualities moved to
+  "It's working if", process checks stayed in Done-when, so no line appears
+  in both.
+
 ## [v1.1.0] - 2026-08-08
 
 ### Added
