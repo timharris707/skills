@@ -53,7 +53,7 @@ Every step ends on a **completion criterion** — the condition telling the agen
 - **Clarity** — can the agent tell done from not-done? A vague bound ("understanding reached") invites **premature completion**: ending early as attention slips toward *being done*. Visible later steps supply the pull; the criterion's clarity is the resistance. Sharpen the bound first — it is local and cheap. Only when a bound is irreducibly fuzzy *and* you observe the rush should you hide later steps by splitting the sequence, and hiding works only across a real context boundary (a handoff, a subagent dispatch). An inline call leaves the later steps in context and clears nothing.
 - **Demand** — how much the criterion requires. "Every modified model accounted for" forces thorough work where "produce a change list" does not. Demand drives the digging the agent does inside the work, and it is not step-bound: "every rule applied" binds a body of flat reference exactly as "every step done" binds a sequence. That is how an all-reference document still carries an exhaustiveness bar.
 
-The strongest criteria are both checkable and exhaustive. In this catalog they surface as the **`## Done when (checkable)`** section every skill carries.
+The strongest criteria are both checkable and exhaustive. In this catalog they surface as the **`## Done when (checkable)`** section every task-shaped skill carries; a skill with no discrete run to complete (a menu, a standing role) is exempt, and the exemption is a deliberate call, not an omission.
 
 ## When to split
 

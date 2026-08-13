@@ -33,3 +33,10 @@ In repos with an approval-before-edit guardrail: invoking this skill **is** the 
 2. Fill the [reference template](references/template.md) — STATE / DONE / NEXT / GOTCHAS — overwriting any existing handoff.
 3. Keep it tight and high-signal; apply the five rules above.
 4. Tell the user it's saved and that a fresh session (or a context reset) is now safe.
+
+## Done when (checkable — verify each line before reporting complete)
+
+- The handoff file exists at the binding doc's confirmed location, overwriting any previous one — no appended history.
+- All four template sections are filled; NEXT contains the tracker query and enumerates no specific work items.
+- The saved file was re-read after writing: every entry is a pointer into a durable record with no pasted code blocks, and rule 5's secret scan ran against the saved text — any candidate value it flagged was replaced with its pointer and the file re-saved before reporting.
+- The user was told the handoff is saved and a fresh session or context reset is now safe.
