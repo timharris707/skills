@@ -14,6 +14,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **handoff: Done-when section** (the writing-for-agents audit): handoff was the one
+  task-shaped skill in the catalog without a checkable exit gate. Four lines: file at the
+  confirmed location overwritten not appended, all template sections filled with NEXT as
+  the tracker query, the saved file re-read for pointer-only content and no secret
+  values, and the user told a fresh session is safe.
+
 ### Changed
 - **setup: SKILL.md deduplicated** (the writing-for-agents audit): 3,264 → 2,990 words,
   no protocol or Done-when change. "A recorded absence is a filled binding" now stated

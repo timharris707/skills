@@ -10,6 +10,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- **Done-when invariant claim corrected** (the catalog audit): the completion-criteria
+  section claimed the `## Done when (checkable)` section is one "every skill carries";
+  advisory-board, router, and orchestrate legitimately lack one (a gated artifact chain,
+  a menu, a standing role). The sentence now scopes the invariant to task-shaped skills
+  and names the exemption as a deliberate call. (The audit also added the missing
+  Done-when to handoff, the one task-shaped skill without one.)
+
 - **Terminology: agent-invoked / user-invoked** (#144). The skill-mechanics
   reference now says who actually triggers a skill: the invocation-mode section
   and its table say "agent-invoked" and "user-invoked" instead of the old
