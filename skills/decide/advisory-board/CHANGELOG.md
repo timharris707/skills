@@ -9,6 +9,8 @@ versioned separately and do not replace the skill release version.
 
 ## [Unreleased]
 
+## [v1.18.1] - 2026-08-13 — audit prune, lean description, signed-out preflight fix
+
 ### Changed
 - **SKILL.md pruned to the lines that steer the agent** (the writing-for-agents audit, following
   writing-for-humans v1.2.0): 6,558 → 4,547 words with no protocol change. Version-history
