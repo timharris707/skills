@@ -8,6 +8,7 @@ safety property that all text is escaped before any tag is inserted.
 import os
 import sys
 import unittest
+from typing import ClassVar
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SCRIPTS = os.path.normpath(os.path.join(HERE, "..", "scripts"))
@@ -15,6 +16,9 @@ sys.path.insert(0, SCRIPTS)
 
 import _md  # noqa: E402
 from _md import md_to_html  # noqa: E402
+from _conductor import registry  # noqa: E402
+
+SKILL_MD = os.path.normpath(os.path.join(HERE, "..", "SKILL.md"))
 
 
 class Headings(unittest.TestCase):
@@ -250,6 +254,56 @@ class Security(unittest.TestCase):
         t = time.time()
         md_to_html("[" * 100000)        # would be ~18s with the backtracking regex
         self.assertLess(time.time() - t, 2.0, "link regex must be near-linear")
+
+
+class SkillCliTemplates(unittest.TestCase):
+    """SKILL.md's "CLI Execution Notes" fallback templates must not drift from the
+    canonical seat-adapter registry (the gemini template shipped without
+    --approval-mode plan --skip-trust until an external reviewer caught it).
+    Each seat's fenced command block must contain every registry-invariant token
+    for that provider — flag presence, not exact argv equality, so prompt
+    placeholders, gate-mode extras, and formatting don't matter."""
+
+    SEAT_BUILDERS: ClassVar[dict] = {
+        "Claude": registry.claude_argv,
+        "Codex": registry.codex_argv,
+        "Gemini": registry.gemini_argv,
+        "Grok": registry.grok_argv,
+    }
+
+    def _seat_blocks(self):
+        # "<Seat> seat:" followed by an unlabeled fence, within CLI Execution Notes
+        import re
+        with open(SKILL_MD, encoding="utf-8") as f:
+            text = f.read()
+        section = text.split("## CLI Execution Notes", 1)[1]
+        blocks = dict(re.findall(
+            r"^(\w+) seat:\s*\n+```\n(.*?)\n```", section, re.M | re.S))
+        return blocks
+
+    @staticmethod
+    def _tokens(block):
+        # collapse line continuations, split, and drop quoting so
+        # model_reasoning_effort="xhigh" matches the argv's unquoted form
+        toks = block.replace("\\\n", " ").split()
+        return {t.replace('"', "").replace("'", "") for t in toks if t != "\\"}
+
+    def _invariant_tokens(self, build):
+        # tokens the builder emits regardless of model/prompt are the load-bearing
+        # constants (binary, subcommand, mode flags, default effort values);
+        # network=True yields the portable base without gate-mode isolation flags
+        a1 = build("model-one", "prompt one", network=True)
+        a2 = build("model-two", "prompt two", network=True)
+        return [t for t in a1 if t in set(a2)]
+
+    def test_seat_templates_carry_registry_flags(self):
+        blocks = self._seat_blocks()
+        for seat, build in self.SEAT_BUILDERS.items():
+            self.assertIn(seat, blocks, f"no fenced command block for the {seat} seat")
+            have = self._tokens(blocks[seat])
+            for tok in self._invariant_tokens(build):
+                self.assertIn(tok, have,
+                              f"{seat} template is missing registry token {tok!r}")
 
 
 if __name__ == "__main__":
