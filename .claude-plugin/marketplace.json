@@ -12,7 +12,7 @@
       "name": "advisory-board",
       "source": "./",
       "strict": false,
-      "version": "1.18.0",
+      "version": "1.18.1",
       "description": "Convene a board of frontier AI models — Claude, Codex, Gemini, and Grok — that each review the same decision independently, debate across rounds, and hand back one clear recommendation.",
       "license": "MIT",
       "skills": [
@@ -23,7 +23,7 @@
       "name": "team-workflow",
       "source": "./",
       "strict": false,
-      "version": "1.5.0",
+      "version": "1.5.1",
       "description": "Fifteen skills that ship as one pack — a portable discipline for tracked, multi-session, agent-assisted development: a router entry point, a once-per-repo setup interview, per-repo institutional memory written as side effects of work, relentless grilling, decision maps, throwaway prototypes, autonomous research lanes, ticket filing, human-step wizards, session handoffs, an orchestration protocol for parallel lanes, a build discipline of seam-scoped test-first tracer slices, a disciplined bug-diagnosis loop where no fix ships without a named cause, an adversarial review that breaks changes before they ship, and a skeptic-verified state review of the codebase itself. Versioned together (team-workflow/vX.Y.Z); this version mirrors the latest pack tag.",
       "license": "MIT",
       "skills": [
@@ -48,7 +48,7 @@
       "name": "ingest",
       "source": "./",
       "strict": false,
-      "version": "1.2.0",
+      "version": "1.2.1",
       "description": "Turn a video, recording, voice memo, or media URL into an evidence packet — authoritative whisper transcript, timestamped frames, manifest — plus a routing recommendation. Six intents behind a mandatory purpose gate; the pipeline script is resumable and encodes the hard-won gotchas.",
       "license": "MIT",
       "skills": [
@@ -59,7 +59,7 @@
       "name": "writing-for-agents",
       "source": "./",
       "strict": false,
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Write and prune documents an agent consumes — a SKILL.md, an AGENTS.md or CLAUDE.md, a reference reached by a pointer. Context pointers, the two loads, the information hierarchy, leading words, and the no-op test.",
       "license": "MIT",
       "skills": [

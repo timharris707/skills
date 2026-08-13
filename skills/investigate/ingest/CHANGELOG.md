@@ -7,6 +7,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [v1.2.1] - 2026-08-13 — preview-then-run fix, audit dedup
+
 ### Changed
 
 - **SKILL.md light dedup** (the writing-for-agents audit): 1,939 → 1,877 words, no

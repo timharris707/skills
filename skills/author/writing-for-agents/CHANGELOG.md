@@ -8,6 +8,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [v1.0.1] - 2026-08-13 — fidelity and invariant corrections
+
 ### Changed
 
 - **Done-when invariant claim corrected** (the catalog audit): the completion-criteria

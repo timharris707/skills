@@ -14,6 +14,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [v1.5.1] - 2026-08-13 — catalog audit: dedup pass + handoff exit gate
+
 ### Added
 - **handoff: Done-when section** (the writing-for-agents audit): handoff was the one
   task-shaped skill in the catalog without a checkable exit gate. Four lines: file at the
