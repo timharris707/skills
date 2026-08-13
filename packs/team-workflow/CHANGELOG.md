@@ -14,6 +14,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+- **setup: SKILL.md deduplicated** (the writing-for-agents audit): 3,264 → 2,990 words,
+  no protocol or Done-when change. "A recorded absence is a filled binding" now stated
+  once (Done-when) instead of four times; the optional-bindings list names the four
+  skills that define their own binding slots and points at their SKILL.mds instead of
+  enumerating the slots inline; the sync-managed never-write rule and the declared-write
+  framing each live in one authoritative place with per-item restatements cut; the
+  binding-doc-home rationale keeps its two sign-off reasons and drops the anecdote.
+
 ## [v1.5.0] - 2026-08-12 — orchestrate cost & announce protocol, review-cycle refinements
 
 ### Added
