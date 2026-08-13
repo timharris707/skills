@@ -7,6 +7,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- **SKILL.md light dedup** (the writing-for-agents audit): 1,939 → 1,877 words, no
+  behavior change. The packet-lifetime paragraph no longer pre-narrates the sweep
+  section that follows it (the sweep section is the single statement of the
+  offer/ownership mechanics), and the `link` command is spelled once, in the sweep
+  section, with the routing step pointing at it. The audit otherwise found the skill
+  clean — no version narration, no environment restatement, guardrails intact.
+
 ### Fixed
 
 - **`preview` can now be followed by `run` in the same `--out` directory**

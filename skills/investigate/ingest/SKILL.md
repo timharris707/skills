@@ -49,7 +49,7 @@ The packet is evidence; this step is the judgment, and it belongs to the session
 
 End with the takeaways ranked and each one routed — as a recommendation, in the language of the table above:
 
-- **Tracker-shaped** items name the issue they'd update or the item they'd become, with the binding doc's labels. No binding doc bound: say so, and route in prose. Hand the filing session its follow-through in the same breath: the exact `python3 scripts/ingest.py link --out <run-dir> --item owner/repo#N` command to run for each item it files, so the packet's derived-items ledger is written at filing time.
+- **Tracker-shaped** items name the issue they'd update or the item they'd become, with the binding doc's labels. No binding doc bound: say so, and route in prose. Hand the filing session its follow-through in the same breath: the exact `link` command (Derived items below) to run for each item it files, so the packet's derived-items ledger is written at filing time.
 - **Undecided-shaped** items name the open questions; offer a [grilling](../../decide/grilling/SKILL.md) session rather than answers.
 - **Decider-shaped** items (pricing, partnerships, strategy) are listed for discussion, never resolved.
 - A `call` run whose stated purpose asks for it also drafts the thank-you/recap email — saved to the run dir, put on the clipboard as plain text, never sent.
@@ -60,7 +60,7 @@ The run dir is the archive, and the rule is what can't be re-fetched stays: a lo
 
 **A URL is not a promise.** Signed, expiring, private, and geo-limited links all look like ordinary URLs, and the discard is irreversible — pass `--keep-media` whenever the source might not still be there tomorrow.
 
-**A packet lives as long as the work it spawned.** A packet is neither permanent evidence nor throwaway scratch: its usual product is work items — tickets filed from what the recording showed — and it stays reviewable until every item derived from it is resolved, because that is the span over which someone may need to hold a claim against the evidence. Once the derived work is closed, the packet is optionally trash: the skill may *offer* cleanup, and the decider takes or declines it, on the offer-only and ownership terms stated once in the sweep section below. The mechanism is the manifest's `derived_items` list plus that sweep: the filing session records what the packet spawned, and the sweep checks resolution and makes the offer. This lifetime rule governs the packet's files after a completed run; it is separate from the automatic discard of downloaded URL media above, which happens at run time under its own flag.
+**A packet lives as long as the work it spawned.** Its usual product is work items — tickets filed from what the recording showed — and it stays reviewable until every item derived from it is resolved, because that is the span over which someone may need to hold a claim against the evidence. Once the derived work is closed, the packet is optionally trash, on the sweep section's offer terms below. (The automatic discard of downloaded URL media above is separate: it happens at run time, under its own flag.)
 
 ### Derived items and the cleanup sweep
 
