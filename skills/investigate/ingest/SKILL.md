@@ -60,7 +60,7 @@ The run dir is the archive, and the rule is what can't be re-fetched stays: a lo
 
 **A URL is not a promise.** Signed, expiring, private, and geo-limited links all look like ordinary URLs, and the discard is irreversible — pass `--keep-media` whenever the source might not still be there tomorrow.
 
-**A packet lives as long as the work it spawned.** Its usual product is work items — tickets filed from what the recording showed — and it stays reviewable until every item derived from it is resolved, because that is the span over which someone may need to hold a claim against the evidence. Once the derived work is closed, the packet is optionally trash — offered to the decider, never auto-deleted, on the terms the sweep section below states. (The automatic discard of downloaded URL media above is separate: it happens at run time, under its own flag.)
+**A packet lives as long as the work it spawned.** Its usual product is work items — tickets filed from what the recording showed — and it stays reviewable until every item derived from it is resolved, because that is the span over which someone may need to hold a claim against the evidence. Once the derived work is closed, the packet is optionally trash, on the sweep section's offer terms below. (The automatic discard of downloaded URL media above is separate: it happens at run time, under its own flag.)
 
 ### Derived items and the cleanup sweep
 
