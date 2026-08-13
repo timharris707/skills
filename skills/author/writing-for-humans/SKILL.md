@@ -51,7 +51,7 @@ Warmth never buys these back:
 
 ## Last-mile scrub
 
-After structure and voice are settled (never before, or you produce clean nothing), run [references/last-mile-scrub.md](references/last-mile-scrub.md). Start with the guardrails: hunt clusters rather than isolated tells, and let a voice sample outrank every rule. Rewrite whole sentences rather than swapping words.
+After structure and voice are settled (never before, or you produce clean nothing), run [references/last-mile-scrub.md](references/last-mile-scrub.md). Start with the guardrails: hunt clusters rather than isolated tells, and let a voice sample outrank any conflicting tell rule (the standing voice rules above are never outranked). Rewrite whole sentences rather than swapping words.
 
 ## It's working if
 
@@ -59,7 +59,7 @@ Qualities of the finished page, judged by reading it cold:
 
 - A reader who has never seen the project can say what to install (or read, or click) first and what their first session looks like.
 - The piece carries at least one first-person opinion and one plainly admitted limit: something a competitor's page would not say.
-- Each revision pass left the piece clearer *and* warmer. A pass that only deleted tells produced clean nothing; put voice back before shipping.
+- The page is scrubbed but not silenced: free of AI tells and still audibly voiced. A page that is only cleaner is clean nothing; put voice back before shipping.
 - What the reader gets and does next fills the page; how it got made appears nowhere.
 
 ## Done when (checkable: verify each line before reporting complete)
@@ -68,9 +68,9 @@ Qualities of the finished page, judged by reading it cold:
 - No insider term appears before the sentence that teaches it: the page teaches its vocabulary or drops it.
 - Every claim is checkable or absent, every number has a live source or cannot rot, and nothing was invented to sound human.
 - The dash budget was spent deliberately, and no over-budget dash was fixed by an in-place swap.
-- The scrub ran last, whole clusters were rewritten, and the voice sample (when one exists) won every conflict with the rules.
+- The scrub ran last, whole clusters were rewritten, and the voice sample (when one exists) won every conflict with the tell rules.
 - Every line of "It's working if" was checked against the final text, not assumed.
 
 ## Attribution
 
-The guide structure is modeled on the README of Matt Pocock's [skills](https://github.com/mattpocock/skills) (MIT): hook, thirty-second start, problem → fix framing, and reference last are the shape his README demonstrates; the quoted phrases in Warmth moves ("it won't untangle the mud for you", "Hack around with them. Make them your own.") are his, and the *It's working if* section follows the outcome-test shape of his skill docs pages. *Process bleed* is [forint573/human-copywrite](https://github.com/forint573/human-copywrite)'s term (Apache-2.0). The scrub's guardrails (clusters over isolated tells, voice sample outranks the rules, no fabrication) follow [blader/humanizer](https://github.com/blader/humanizer) (MIT), whose 33-pattern catalog builds on Wikipedia's "Signs of AI writing"; the dash budget is a softer cousin of that skill's outright em-and-en-dash ban. What this catalog adds: the register split against its sibling writing-for-agents, the *agent-register bleed* and *clean nothing* failure modes, the standing voice rules, and the two checkable exit sections.
+The guide structure is modeled on the README of Matt Pocock's [skills](https://github.com/mattpocock/skills) (MIT): hook, thirty-second start, problem → fix framing, and reference last are the shape his README demonstrates; the quoted phrases in Warmth moves ("it won't untangle the mud for you", "Hack around with them. Make them your own.") are his, and the *It's working if* section follows the outcome-test shape of his skill docs pages. *Process bleed* is [forint573/human-copywrite](https://github.com/forint573/human-copywrite)'s term (Apache-2.0). The scrub's guardrails (clusters over isolated tells, voice sample outranks the tell rules, no fabrication) follow [blader/humanizer](https://github.com/blader/humanizer) (MIT), whose 33-pattern catalog builds on Wikipedia's "Signs of AI writing"; the dash budget is a softer cousin of that skill's outright em-and-en-dash ban. What this catalog adds: the register split against its sibling writing-for-agents, the *agent-register bleed* and *clean nothing* failure modes, the standing voice rules, and the two checkable exit sections.

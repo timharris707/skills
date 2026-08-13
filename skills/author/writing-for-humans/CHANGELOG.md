@@ -15,8 +15,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - An "It's working if" section: qualities of the finished page judged by reading
   it cold, following the outcome-test shape of Matt Pocock's skill docs pages
   (his `wait-what` docs page is the model). It carries the over-correction
-  guard his pattern makes explicit: each revision pass must leave the piece
-  clearer *and* warmer — a pass that only deletes tells is clean nothing.
+  guard his pattern makes explicit: the final page must be scrubbed but not
+  silenced — a page that is only cleaner is clean nothing.
   Done-when gains a line requiring each "It's working if" line be checked
   against the final text, not assumed.
 
