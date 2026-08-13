@@ -5,7 +5,7 @@ description: Entry point for the team-workflow pack — names every pack skill a
 
 # Team-workflow router
 
-One entry point for the **team-workflow** pack: a portable discipline for running tracked, multi-session, agent-assisted development, from pressure-testing an idea through parallel lanes to reviewed, merged changes — the table below names every skill and its moment. Everything repo-specific lives in one binding doc seeded by the setup skill; every skill defers decisions to **the decider**, the role that doc names.
+One entry point for the **team-workflow** pack: a portable discipline for running tracked, multi-session, agent-assisted development, from pressure-testing an idea through parallel lanes to reviewed, merged changes — the table below names every skill and its moment. Everything repo-specific lives in — or is pointed at from — one binding doc seeded by the setup skill; every skill defers decisions to **the decider**, the role that doc names.
 
 **First run in a repo? Run `setup` before anything else.** The other skills read the bindings it seeds.
 
@@ -42,7 +42,7 @@ Most work travels one route: **idea → grill → map → tickets → lanes → 
 
 ## Review discipline: the meta-rule
 
-The pack ships a review **protocol** — the [adversarial-review](../../run/adversarial-review/SKILL.md) skill — but still no review checklist, on purpose: **derive your own defect classes from your own defect history** — a checklist imported from someone else's war record checks for their bugs, not yours. The rules that keep a repo's checklist honest live in that skill's defect-class binding slot.
+The pack ships a review **protocol** — the [adversarial-review](../../run/adversarial-review/SKILL.md) skill — but still no review checklist, on purpose: **derive your own defect classes from your own defect history**. The reason and the rules that keep a repo's checklist honest live in that skill's defect-class section.
 
 A sibling of the same meta-rule: **institutional review memory** — review verdicts recorded as per-repo decision entries that later reviews (human and automated) consult before commenting, so settled decisions reopen on new evidence, not on repetition. Repos that already run such a system — a review-response skill with a decision wiki — have the review-RESPONSE stage covered, and this pack deliberately stays out of it: planning, research, prototyping, handoff, and orchestration are the pack's territory; review response belongs to the resident system, and pack outputs should cite that repo's precedent store rather than create a second one.
 
