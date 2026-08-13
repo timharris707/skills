@@ -10,6 +10,17 @@ versioned separately and do not replace the skill release version.
 ## [Unreleased]
 
 ### Changed
+- **SKILL.md pruned to the lines that steer the agent** (the writing-for-agents audit, following
+  writing-for-humans v1.2.0): 6,558 → 4,547 words with no protocol change. Version-history
+  narration (v1.x / D-number / R-number tags, retired-alias archaeology) removed — the
+  CHANGELOG owns history. Conductor feature detail, script flag semantics, and per-tier
+  effort values now live only where the environment and references already state them
+  (`scripts/README.md`, the registry, `references/*`); SKILL.md keeps the protocol, the
+  guardrails, and a run-controls index with pointers. Two passages relocated rather than
+  cut: the approval-time / poisoned-repo / snapshot-drift caveat on `verified` stamps moved
+  into `references/data-handling.md` §Repo-grounded review, and the illustrative Gemini
+  thinking-level config into `references/execution-harness.md`. Every Must-Not, default,
+  protocol step, and artifact contract survives verbatim or compressed in place.
 - **Description trimmed to identity + triggers.** The frontmatter description is loaded
   into every session, so the per-mode explanations and the intake-process summary moved
   out of it (the skill body already carries both). Trigger phrases are consolidated —
