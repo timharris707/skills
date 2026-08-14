@@ -32,6 +32,26 @@ jobs:
       - name: Check invocation classification freshness
         run: python3 scripts/check_invocation_freshness.py
 
+      # Tracker recipes must name the bound repo explicitly (#208): an
+      # unqualified gh command resolves the repo implicitly, which in a fork
+      # targets the upstream repo instead of the bound tracker.
+      - name: Check tracker commands carry an explicit repo
+        run: |
+          set -euo pipefail
+          # grep exit 1 is "no match" (fine); anything else (missing dir,
+          # unreadable file) fails the step — no bare `|| true`.
+          test -d skills
+          grep -rnE --include='*.md' --exclude-dir=deprecated \
+            '\bgh (issue|label|pr|search)\b' skills > /tmp/gh_lines || [ $? -eq 1 ]
+          grep -v -- '--repo' /tmp/gh_lines > /tmp/bad || [ $? -eq 1 ]
+          grep -rnE --include='*.md' --exclude-dir=deprecated \
+            'repos/\{owner\}/\{repo\}' skills >> /tmp/bad || [ $? -eq 1 ]
+          if [ -s /tmp/bad ]; then
+            cat /tmp/bad
+            echo 'Unqualified gh command or repos/{owner}/{repo} placeholder in skill docs — carry --repo <bound repo> / the literal repo in the api path (see tracker-discipline).' >&2
+            exit 1
+          fi
+
       # The site is written from a private context repository. This fails the
       # build if a confidential name or any email address reaches site/src.
       # The forbidden terms are stored as salted digests, so the check itself
