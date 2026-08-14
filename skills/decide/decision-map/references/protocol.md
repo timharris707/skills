@@ -61,8 +61,10 @@ Blocked-on-a-ticket work carries a **native tracker dependency edge**, so the fr
 
 ```bash
 # NOTE: -F issue_id takes the blocker's DATABASE id — not its #number, not its node_id.
-# Fetch it with: gh api repos/{owner}/{repo}/issues/<blocker-number> --jq .id
-gh api repos/{owner}/{repo}/issues/<child-number>/dependencies/blocked_by -F issue_id=<blocker-database-id>
+# <owner>/<repo> is the bound tracker repo, written literally — {owner}/{repo} would
+# resolve implicitly and mis-target in forks.
+# Fetch the id with: gh api repos/<owner>/<repo>/issues/<blocker-number> --jq .id
+gh api repos/<owner>/<repo>/issues/<child-number>/dependencies/blocked_by -F issue_id=<blocker-database-id>
 ```
 
 The frontier query dual-reads: a ticket is blocked when it carries dependency edges **or** a `blocked` label (recipe: the setup skill's tracker-discipline reference). The division of labor: **edges are authoritative wherever the blocker is a tracker ticket** (wire the edge; closing the blocker un-blocks the child with no label flip); **the `blocked` label** is the human-readable mirror and the only expressible form for non-ticket blockers — vendor gates, scheduling gates, pending adjudications. A purely edge-backed ticket does **not** carry the mirror label — a stale label would hold it blocked after its edges clear, defeating the self-unblocking; the label rides only while a non-ticket blocker exists and comes off when that blocker resolves.

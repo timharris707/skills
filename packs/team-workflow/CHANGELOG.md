@@ -14,6 +14,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+- **Tracker recipes name the bound repo explicitly** (#208, field report from a fork
+  consumer): every `gh issue`/`gh label` command in the recipes now carries
+  `--repo <owner>/<repo>`, and every `gh api` path writes the bound repo literally instead
+  of `{owner}/{repo}` placeholders — both forms previously resolved the repo implicitly
+  from the working directory's remotes, which in a fork targets the upstream repo, not the
+  bound tracker (false state reads; writes against a repo that never bound the pack).
+  Touches tracker-discipline, to-tickets, decision-map protocol, and the lane-brief
+  template. Setup's tracker binding gains an implicit-repo check (`gh repo view` vs the
+  bound repo) with a mismatch slot in the binding-doc template and a Done-when line;
+  `gh repo set-default` is documented as no substitute for command-level scoping.
+
 ## [v1.5.1] - 2026-08-13 — catalog audit: dedup pass + handoff exit gate
 
 ### Added

@@ -14,6 +14,7 @@ _Pack version: <pack version installed> · Last confirmed: <date>_
 - **Frontier query**: <the exact command/query that lists grabbable items>
 - **Blocking**: <native dependency edges + `blocked` label, or the repo's equivalent dual-read>
 - **Label vocabulary**: <`pack defaults, created at setup on <date>` | repo labels ↔ pack vocabulary: needs-triage / ready-for-agent / ready-for-human / blocked + type labels (slice / bug / gate-decision / process) | the creation instruction, for trackers setup cannot drive>
+- **Implicit-repo check** (GitHub trackers): <`match` | the mismatch found, e.g. `gh here resolves to <other-repo> (fork); recipes' --repo scoping applies` | `unresolved: <why gh repo view returned nothing usable>` — never blank>
 
 ## Verify commands
 
