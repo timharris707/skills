@@ -38,8 +38,10 @@ Items need ids before they can reference each other, so filing is always two pas
 **Pass 2 — wire the edges.** Add native dependency edges for every blocker that is itself a tracker item, using the recipe's database-id form:
 
 ```bash
-gh api repos/{owner}/{repo}/issues/<blocker-number> --jq .id
-gh api repos/{owner}/{repo}/issues/<child-number>/dependencies/blocked_by -F issue_id=<that-id>
+# <owner>/<repo> is the bound tracker repo, written literally — {owner}/{repo} would
+# resolve implicitly and mis-target in forks:
+gh api repos/<owner>/<repo>/issues/<blocker-number> --jq .id
+gh api repos/<owner>/<repo>/issues/<child-number>/dependencies/blocked_by -F issue_id=<that-id>
 ```
 
 Edges are authoritative wherever the blocker is a tracker item, so the frontier unblocks itself when the blocker closes. The `blocked` label is only for **non-ticket** blockers — a vendor gate, a scheduling constraint, a pending adjudication. An item blocked purely by edges must not also carry the label, or a stale label holds it blocked after its edges clear.

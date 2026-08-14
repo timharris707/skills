@@ -2,7 +2,7 @@
 
 How a tracked work item becomes a working brief for the session (human or agent) implementing it. The item is the spec — the brief adds only standing constraints and lane mechanics, **never a second copy of the requirements**. A brief that paraphrases the spec creates two sources of truth that drift; a brief that pastes it verbatim cannot.
 
-**Runner-agnostic by construction**: the same brief must work whichever runner the launch policy names — Claude, Codex, or a human. Beside the verbatim paste, cite the spec by issue reference (the item id plus the tracker command that fetches it, e.g. `gh issue view <N> --comments`) so any runner can re-pull the authoritative text, and keep the brief free of harness-specific assumptions — one harness's tool names or session mechanics. The orchestrate skill's runner-parity reference names the full standard a launcher meets.
+**Runner-agnostic by construction**: the same brief must work whichever runner the launch policy names — Claude, Codex, or a human. Beside the verbatim paste, cite the spec by issue reference (the item id plus the tracker command that fetches it, e.g. `gh issue view <N> --repo <owner>/<repo> --comments` — repo named explicitly, so the command works from any checkout, fork or not) so any runner can re-pull the authoritative text, and keep the brief free of harness-specific assumptions — one harness's tool names or session mechanics. The orchestrate skill's runner-parity reference names the full standard a launcher meets.
 
 ## Before generating the brief
 
@@ -17,7 +17,7 @@ How a tracked work item becomes a working brief for the session (human or agent)
 # Lane brief — item #<N>: <title>
 
 ## Spec
-The spec is item #<N>, fetchable via `<the tracker command that shows it, e.g. gh issue view <N> --comments>`
+The spec is item #<N>, fetchable via `<the tracker command that shows it, e.g. gh issue view <N> --repo <owner>/<repo> --comments>`
 (body pasted below verbatim — do not reinterpret; deviations go in
 the summary's "Deviations" section, and deviations from a recorded decision go back to
 the decider, never silently into the work).
