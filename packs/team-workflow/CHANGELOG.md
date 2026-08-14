@@ -14,6 +14,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [v1.5.2] - 2026-08-14 — tracker recipes carry the bound repo explicitly
+
 ### Fixed
 - **Tracker recipes name the bound repo explicitly** (#208, field report from a fork
   consumer): every `gh issue`/`gh label` command in the recipes now carries
