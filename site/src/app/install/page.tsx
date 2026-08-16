@@ -43,6 +43,11 @@ export default function Install() {
             })),
           ]}
         />
+        <p>
+          Third-party marketplaces don&apos;t auto-update by default. Turn it on once —{" "}
+          <code>/plugin</code> → Marketplaces → skills → Enable auto-update — or new releases wait
+          until you run <code>claude plugin update</code> yourself.
+        </p>
 
         <h2 className="runtime-head">
           <RuntimeMark id="codex" size={22} />
@@ -70,8 +75,12 @@ export default function Install() {
 
         <h2>Any other runtime</h2>
         <p>
-          Clone the repository and point your agent at the skill directories. Symlinks track
-          updates on <code>git pull</code>; copies pin what you have.
+          On Claude Code or Codex, use the plugin commands above — agents installing on
+          someone&apos;s behalf run the <code>claude plugin</code> or <code>codex plugin</code> CLI
+          from their shell, or relay the commands to their user; never copy skills into place one
+          file at a time. For harnesses without plugin support, clone the repository and point your
+          agent at the skill directories. Symlinks track updates on <code>git pull</code>; copies
+          pin what you have.
         </p>
         {/* Skills live in buckets, so glob rather than naming each one — the
             list would go stale the moment a skill moves between buckets. */}
