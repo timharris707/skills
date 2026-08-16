@@ -1,7 +1,7 @@
 {
   "name": "clickai-skills",
   "version": "1.0.0",
-  "description": "Portable skills for AI agents — a multi-model advisory board, a fifteen-skill team-workflow pack for tracked multi-session development, a media-ingest skill that turns recordings and URLs into evidence, and a pair of writing references: documents agents consume, and pages humans read.",
+  "description": "Portable skills for AI agents — a multi-model advisory board, a fifteen-skill team-workflow pack for tracked multi-session development, a media-ingest skill that turns recordings and URLs into evidence, a pair of writing references: documents agents consume, and pages humans read — and a plain-language decoder for agent messages that didn't land.",
   "author": {
     "name": "Tim Harris"
   },
@@ -27,6 +27,7 @@
     "websiteURL": "https://clickai.dev"
   },
   "skills": [
+    "./skills/author/huh",
     "./skills/author/writing-for-agents",
     "./skills/author/writing-for-humans",
     "./skills/decide/advisory-board",

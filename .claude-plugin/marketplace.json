@@ -5,7 +5,7 @@
     "url": "https://github.com/timharris707"
   },
   "metadata": {
-    "description": "Portable skills for AI agents: a multi-model advisory board for hard decisions, a fifteen-skill team-workflow pack for tracked, multi-session, agent-assisted development, a media-ingest skill that turns recordings and URLs into evidence, and a pair of writing references — one for documents agents consume, one for pages humans read."
+    "description": "Portable skills for AI agents: a multi-model advisory board for hard decisions, a fifteen-skill team-workflow pack for tracked, multi-session, agent-assisted development, a media-ingest skill that turns recordings and URLs into evidence, a pair of writing references — one for documents agents consume, one for pages humans read — and a plain-language decoder for agent messages that didn't land."
   },
   "plugins": [
     {
@@ -53,6 +53,17 @@
       "license": "MIT",
       "skills": [
         "./skills/investigate/ingest"
+      ]
+    },
+    {
+      "name": "huh",
+      "source": "./",
+      "strict": false,
+      "version": "1.0.0",
+      "description": "Decode an agent message that didn't land — a plain-sentence restatement, every piece of invented shorthand expanded, what's being asked of you separated from what happened, and unevidenced claims flagged.",
+      "license": "MIT",
+      "skills": [
+        "./skills/author/huh"
       ]
     },
     {

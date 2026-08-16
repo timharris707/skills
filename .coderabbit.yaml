@@ -112,8 +112,9 @@ reviews:
         as likely defects:
         - A hand-maintained list of skills, buckets, or install commands —
           the site derives these from buckets.json and the marketplace, and a
-          second copy WILL drift. (PLOT/BEARINGS in catalog.ts are the
-          deliberate exception, guarded by a build assertion.)
+          second copy WILL drift. (PLOT/BEARINGS/INVOCATION in catalog.ts
+          are the deliberate exception, guarded by build assertions and,
+          for INVOCATION, scripts/check_invocation_freshness.py in CI.)
         - Content or claims that assert numbers (counts, dates, statistics)
           inline rather than deriving them — this site corrects itself
           publicly when wrong, so an unverifiable claim is a liability.
