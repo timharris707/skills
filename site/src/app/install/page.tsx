@@ -75,10 +75,10 @@ export default function Install() {
 
         <h2>Any other runtime</h2>
         <p>
-          For harnesses without plugin support — on Claude Code or Codex, use the plugin commands
-          above. Agents installing on someone&apos;s behalf: run the <code>claude plugin</code> or{" "}
-          <code>codex plugin</code> CLI from your shell, or relay the commands to your user — never
-          copy skills into place one file at a time. Otherwise, clone the repository and point your
+          On Claude Code or Codex, use the plugin commands above — agents installing on
+          someone&apos;s behalf run the <code>claude plugin</code> or <code>codex plugin</code> CLI
+          from their shell, or relay the commands to their user; never copy skills into place one
+          file at a time. For harnesses without plugin support, clone the repository and point your
           agent at the skill directories. Symlinks track updates on <code>git pull</code>; copies
           pin what you have.
         </p>
