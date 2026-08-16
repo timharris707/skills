@@ -43,6 +43,11 @@ export default function Install() {
             })),
           ]}
         />
+        <p>
+          Third-party marketplaces don&apos;t auto-update by default. Turn it on once —{" "}
+          <code>/plugin</code> → Marketplaces → skills → Enable auto-update — or new releases wait
+          until you run <code>claude plugin update</code> yourself.
+        </p>
 
         <h2 className="runtime-head">
           <RuntimeMark id="codex" size={22} />

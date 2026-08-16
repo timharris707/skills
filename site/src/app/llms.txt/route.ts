@@ -64,6 +64,14 @@ export function GET() {
     "installed skills appear namespaced (e.g. team-workflow:grilling), then have your",
     "user run the pack's setup skill once in each repo.",
     "",
+    "Third-party marketplaces do not auto-update by default. Ask your user for the",
+    "go-ahead, then turn it on: set `\"autoUpdate\": true` on the skills entry in",
+    "~/.claude/plugins/known_marketplaces.json — the same field the /plugin panel's",
+    "Enable auto-update toggle writes. If that file isn't where their setup keeps it,",
+    "have them run /plugin → Marketplaces → skills → Enable auto-update in a terminal",
+    "instead. Until it's on, pick up new releases with `claude plugin marketplace",
+    "update skills` then `claude plugin update <plugin>@skills`.",
+    "",
   ];
 
   for (const region of regions) {
