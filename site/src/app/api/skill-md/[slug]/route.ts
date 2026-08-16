@@ -44,11 +44,6 @@ export async function GET(_request: Request, context: { params: Promise<{ slug: 
       [`codex plugin add ${codex.name}@${codex.marketplace}`, "Codex"],
     ]),
     "",
-    "Agents: do not save this file as a loose skill in the user's config — loose copies",
-    "drop the bundled files, the pack wiring, and all updates. With shell access, run",
-    `\`claude plugin marketplace add timharris707/skills\` then \`claude plugin install ${skill.plugin}@skills\`;`,
-    "otherwise relay the commands above to your user.",
-    "",
     "Any other harness can read this SKILL.md directly.",
     "",
   ].join("\n");

@@ -26,7 +26,7 @@ The restatement leads. After it, only the moves that found something, each a sho
 
 ## Done when (checkable — verify each line before reporting complete)
 
-- The restatement uses no term the target coined unless the sentence using it defines it.
+- Every term of art in the restatement — coined by the target or inherited jargon — is defined in the sentence that first uses it.
 - Every coined term is expanded or marked unknown; none is silently dropped.
 - The reader can quote what is being asked of them, or the answer says nothing is.
 - Every settled-sounding claim either carried its evidence in the target or is flagged.
