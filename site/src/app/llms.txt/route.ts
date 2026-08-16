@@ -47,6 +47,23 @@ export function GET() {
     `codex plugin add ${codex.name}@${codex.marketplace}`,
     "```",
     "",
+    "## If you are an agent installing this for someone",
+    "",
+    "The /plugin commands above are typed by the human in a terminal session — you",
+    "cannot run them from here. If you have shell access, install with the CLI instead:",
+    "",
+    "```",
+    "claude plugin marketplace add timharris707/skills",
+    ...plugins.map((p) => `claude plugin install ${p.name}@skills`),
+    "```",
+    "",
+    "Never save individual SKILL.md files as loose skills: loose copies drop each",
+    "skill's bundled templates and scripts, lose the cross-skill wiring the packs rely",
+    "on, and never update. Without shell access, relay the commands to your user (in",
+    "the Claude desktop app: + → Plugins → Add plugin). Either way, confirm the",
+    "installed skills appear namespaced (e.g. team-workflow:grilling), then have your",
+    "user run the pack's setup skill once in each repo.",
+    "",
   ];
 
   for (const region of regions) {

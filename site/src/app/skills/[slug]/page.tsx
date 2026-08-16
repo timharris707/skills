@@ -78,6 +78,7 @@ const SUBJECT_CLAIMS: Record<string, string> = {
     "writing-for-agents is a skill that writes and prunes the documents agents consume: SKILL.md files, standing instructions, reference files.",
   "writing-for-humans":
     "writing-for-humans is a skill that makes public-facing prose worth a stranger's next minute through guide shape, observable warmth, and a last-mile scrub for AI tells.",
+  huh: "huh is a skill that decodes an agent message that didn't land: a plain-sentence restatement, invented shorthand expanded, the ask separated from the report, and unevidenced claims flagged.",
 };
 
 /**

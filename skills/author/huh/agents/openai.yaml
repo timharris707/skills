@@ -1,0 +1,3 @@
+interface:
+  display_name: "Huh"
+  short_description: "Decode an agent message that didn't land into plain English"

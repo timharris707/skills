@@ -70,8 +70,12 @@ export default function Install() {
 
         <h2>Any other runtime</h2>
         <p>
-          Clone the repository and point your agent at the skill directories. Symlinks track
-          updates on <code>git pull</code>; copies pin what you have.
+          For harnesses without plugin support — on Claude Code or Codex, use the plugin commands
+          above. Agents installing on someone&apos;s behalf: run the <code>claude plugin</code> or{" "}
+          <code>codex plugin</code> CLI from your shell, or relay the commands to your user — never
+          copy skills into place one file at a time. Otherwise, clone the repository and point your
+          agent at the skill directories. Symlinks track updates on <code>git pull</code>; copies
+          pin what you have.
         </p>
         {/* Skills live in buckets, so glob rather than naming each one — the
             list would go stale the moment a skill moves between buckets. */}
