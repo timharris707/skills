@@ -5,7 +5,7 @@ description: Decode a message that didn't land — restate it in plain sentences
 
 # Huh
 
-An agent message loses its reader in predictable ways: shorthand invented mid-session and never defined, arrow chains standing where sentences should be, findings tangled with requests so the reader cannot tell what happened from what they must decide, and confidence with nothing shown behind it. This skill decodes one message by working those failure modes directly. The output is a translation, nothing more: perform no new work, and add no facts the target does not carry.
+Decode one message that failed its reader. The output is a translation, nothing more: perform no new work, and add no facts the target does not carry.
 
 ## Target
 
@@ -13,7 +13,7 @@ Pasted text: decode that. Nothing pasted: decode your own most recent substantiv
 
 ## The four moves
 
-Work every move on the target; a move that finds nothing contributes nothing.
+Work every move on the target.
 
 1. **Restate.** Rewrite the whole message in complete plain sentences at the reader's altitude, defining every term of art in the sentence that first uses it.
 2. **Expand the shorthand.** List every codename, label, abbreviation, or numbering scheme the message coined, each mapped to plain words — or marked unknown when the target does not say.
@@ -22,7 +22,7 @@ Work every move on the target; a move that finds nothing contributes nothing.
 
 ## Output shape
 
-The restatement leads. After it, only the moves that found something, each a short labeled section: **Shorthand expanded**, **What's being asked of you**, **Stated but not shown**. The whole answer runs shorter than the target unless the target was too compressed to understand — decompression is the one licensed way to grow.
+The restatement leads. After it, only the moves that found something, each a short labeled section: **Shorthand expanded**, **What's being asked of you**, **Stated but not shown**. The whole answer runs shorter than the target unless the target was too compressed to understand.
 
 ## Done when (checkable — verify each line before reporting complete)
 
