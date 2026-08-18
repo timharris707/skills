@@ -87,6 +87,14 @@ jobs:
           npm run start &
           python3 ../scripts/check_skill_og_cards.py
 
+      # Tripwire for the Markdown twins (#216 close-out): /skills/<name>.md
+      # serves each source SKILL.md body byte-identical; only the regenerated
+      # frontmatter and the #213 install trailer may differ. Reuses the server
+      # the previous step started. See the script's docstring.
+      - name: Check markdown twins match their source SKILL.md
+        working-directory: site
+        run: python3 ../scripts/check_skill_md_twins.py
+
   advisory-board:
     runs-on: ubuntu-latest
     timeout-minutes: 10
