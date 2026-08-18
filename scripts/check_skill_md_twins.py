@@ -62,6 +62,8 @@ def promoted_skill_files() -> list[tuple[str, Path]]:
             continue
         for skill_file in sorted(bucket_dir.glob("*/SKILL.md")):
             out.append((skill_file.parent.name, skill_file))
+    if not out:
+        raise SystemExit("no promoted skills discovered — a green run would check nothing")
     return out
 
 
