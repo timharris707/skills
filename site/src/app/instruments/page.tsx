@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { openGraph } from "@/lib/meta";
 import Link from "next/link";
 import { BENCHES, CHECKED, CLOSING_THE_LOOP, type Instrument } from "@/lib/instruments";
 import { formatDate } from "@/lib/notes";
@@ -8,6 +9,7 @@ export const metadata: Metadata = {
   description:
     "The tools these skills are run with — Fallow, CodeGraph, CodeRabbit, CLIProxyAPI and ModelDeck — and the point at which each one stops. Nothing sponsored, no affiliate links.",
   alternates: { canonical: "/instruments" },
+  openGraph: openGraph("/instruments"),
 };
 
 function Card({ instrument }: { instrument: Instrument }) {

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { openGraph } from "@/lib/meta";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BANDS, ENTRIES, getEntry } from "@/lib/legend";
@@ -27,6 +28,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
     title: entry.term,
     description: entry.gloss,
     alternates: { canonical: `/legend/${entry.slug}` },
+    openGraph: openGraph(`/legend/${entry.slug}`),
   };
 }
 

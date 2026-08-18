@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { openGraph } from "@/lib/meta";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { marked } from "marked";
@@ -21,6 +22,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
     title: skill.name,
     description: summarize(skill.description),
     alternates: { canonical: `/skills/${skill.slug}` },
+    openGraph: openGraph(`/skills/${skill.slug}`),
   };
 }
 

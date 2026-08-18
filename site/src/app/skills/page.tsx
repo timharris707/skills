@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { openGraph } from "@/lib/meta";
 import Regions from "@/components/Regions";
 import { getCatalog } from "@/lib/catalog";
 
@@ -6,6 +7,7 @@ export const metadata: Metadata = {
   title: "Catalog",
   description: "Every skill in the catalog, by region.",
   alternates: { canonical: "/skills" },
+  openGraph: openGraph("/skills"),
 };
 
 export default function Catalog() {

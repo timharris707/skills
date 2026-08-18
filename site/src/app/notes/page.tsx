@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { openGraph } from "@/lib/meta";
 import Link from "next/link";
 import { KIND_BLURB, KIND_LABEL, formatDate, getNotes, type NoteKind } from "@/lib/notes";
 
@@ -7,6 +8,7 @@ export const metadata: Metadata = {
   description:
     "Field notes on agentic coding: surveys of what a term actually means, corrections when something here turns out wrong, and the reasoning behind catalog changes.",
   alternates: { canonical: "/notes" },
+  openGraph: openGraph("/notes"),
 };
 
 const KINDS: NoteKind[] = ["survey", "correction", "release"];

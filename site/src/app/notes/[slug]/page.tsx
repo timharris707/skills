@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { openGraph } from "@/lib/meta";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { marked } from "marked";
@@ -22,8 +23,12 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
     title: `${note.title} — ${KIND_LABEL[note.kind]}`,
     description: note.standfirst,
     alternates: { canonical: `/notes/${note.slug}` },
+    // Not the shared helper: notes are articles, not website pages. siteName
+    // and url still need restating here — this block replaces the layout's.
     openGraph: {
       type: "article",
+      siteName: "Click AI",
+      url: `/notes/${note.slug}`,
       publishedTime: note.date,
       modifiedTime: note.checked ?? note.date,
       authors: ["Tim Harris"],
