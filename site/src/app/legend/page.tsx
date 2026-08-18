@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { openGraph } from "@/lib/meta";
 import Link from "next/link";
 import { BANDS, ENTRIES, assertLegendSound, byGroup, type Band } from "@/lib/legend";
 import { getSkills } from "@/lib/skills";
@@ -15,6 +16,7 @@ export const metadata: Metadata = {
   description:
     "A glossary of agentic coding: context rot, task graphs, verification gates, oracles, and which terms are a rebrand. Each entry says how solid the claim is.",
   alternates: { canonical: "/legend" },
+  openGraph: openGraph("/legend"),
 };
 
 const BAND_ORDER: Band[] = ["established", "emerging", "contested", "thin"];

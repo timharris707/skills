@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { openGraph } from "@/lib/meta";
 import Terminal from "@/components/Terminal";
 import Runtimes, { RuntimeMark } from "@/components/Runtimes";
 import { getCodexPlugin, getPlugins, getSkills } from "@/lib/skills";
@@ -7,6 +8,7 @@ export const metadata: Metadata = {
   title: "Install",
   description: "Add the marketplace once, then install whichever plugins you want.",
   alternates: { canonical: "/install" },
+  openGraph: openGraph("/install"),
 };
 
 export default function Install() {

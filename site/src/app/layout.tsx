@@ -4,6 +4,7 @@ import Link from "next/link";
 import { FlipProvider, FlipToggle, FlipView } from "@/components/AgentFlip";
 import Runtimes from "@/components/Runtimes";
 import ThemeToggle from "@/components/ThemeToggle";
+import { openGraph } from "@/lib/meta";
 import "./globals.css";
 
 const body = Archivo({
@@ -37,11 +38,9 @@ export const metadata: Metadata = {
   },
   description:
     "Workflows written down once, as skills any agent can read. Install once, invoke by name: grilling, decision maps, prototypes, research lanes, orchestration, and a multi-model advisory board.",
-  openGraph: {
-    type: "website",
-    siteName: "Click AI",
-    url: "https://clickai.dev",
-  },
+  // Pages override this with their own path — see src/lib/meta.ts for why the
+  // whole block is repeated rather than just the url.
+  openGraph: openGraph("/"),
   alternates: { canonical: "/" },
   // The colophon has said this in prose since the site launched; these say it
   // in the form a crawler reads. Inherited by every route.

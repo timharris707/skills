@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { openGraph } from "@/lib/meta";
 import Link from "next/link";
 import {
   BUILD_COUNT,
@@ -15,6 +16,7 @@ export const metadata: Metadata = {
   description:
     "Six builds, one method: ModelDeck, Panely, HiveRunner, this catalog, and two private builds. Made by Tim Harris, who ships software by directing AI agents.",
   alternates: { canonical: "/work" },
+  openGraph: openGraph("/work"),
 };
 
 /** An internal path stays a Link; anything else leaves the site. */
