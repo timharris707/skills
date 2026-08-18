@@ -59,6 +59,34 @@ jobs:
       - name: Check the site discloses nothing it should not
         run: python3 scripts/check_site_disclosure.py
 
+  site-link-previews:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+
+      - name: Build the site
+        working-directory: site
+        run: |
+          npm ci
+          npm run build
+
+      # Tripwire for the per-skill link-preview cards (#214): og:url names the
+      # page itself, the card images come from /skills/<slug>/, and the image
+      # route serves a 1200x630 PNG. See the script's docstring.
+      - name: Check per-skill link-preview cards
+        working-directory: site
+        run: |
+          set -euo pipefail
+          npm run start &
+          python3 ../scripts/check_skill_og_cards.py
+
   advisory-board:
     runs-on: ubuntu-latest
     timeout-minutes: 10
