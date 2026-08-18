@@ -203,12 +203,3 @@ export function getCodexPlugin(): { name: string; marketplace: string; skills: n
   );
   return { name: plugin.name, marketplace: marketplace.name, skills: plugin.skills.length };
 }
-
-/**
- * The first sentence of a description is what it does; the "Use when" clause is
- * where the triggers live. Cards show the former, detail pages show both.
- */
-export function summarize(description: string): string {
-  const cut = description.search(/\s(?:Use when|Use for)\b/);
-  return (cut === -1 ? description : description.slice(0, cut)).trim();
-}
