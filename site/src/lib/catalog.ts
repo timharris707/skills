@@ -1,4 +1,5 @@
 import { getBuckets, getSkills, type Bucket, type Skill } from "./skills";
+import { HUMAN } from "./human";
 
 /**
  * The catalog's regions ARE the repository's promoted buckets — name, order,
@@ -167,6 +168,25 @@ function assertComplete(skills: Skill[]) {
     throw new Error(
       `catalog.ts: ${phantom.join(", ")} in INVOCATION but not in any promoted bucket — ` +
         "remove the entry, or promote the skill.",
+    );
+  }
+
+  // Same discipline for the human copy as for PLOT and INVOCATION: the whole
+  // slug set compared both ways, so a promoted skill cannot ship without its
+  // human card and intro, and a demoted skill cannot leave stray copy behind.
+  const uncopied = skills.filter((s) => !HUMAN[s.slug]).map((s) => s.slug);
+  if (uncopied.length) {
+    throw new Error(
+      `catalog.ts: ${uncopied.join(", ")} ${uncopied.length === 1 ? "has" : "have"} no human ` +
+        "copy. Add a card and an intro in src/lib/human.ts.",
+    );
+  }
+
+  const stray = Object.keys(HUMAN).filter((slug) => !known.has(slug));
+  if (stray.length) {
+    throw new Error(
+      `catalog.ts: ${stray.join(", ")} in HUMAN but not in any promoted bucket — ` +
+        "remove the entry in src/lib/human.ts, or promote the skill.",
     );
   }
 

@@ -3,7 +3,8 @@ import { openGraph } from "@/lib/meta";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BANDS, ENTRIES, getEntry } from "@/lib/legend";
-import { getSkill, summarize } from "@/lib/skills";
+import { getSkill } from "@/lib/skills";
+import { human } from "@/lib/human";
 import {
   DEFINED_TERM_SET,
   definedTermNode,
@@ -77,7 +78,7 @@ export default async function LegendTerm({ params }: Params) {
             <h3>Implemented by</h3>
             <p className="term__skill">
               <Link href={`/skills/${skill.slug}`}>{skill.name}</Link>
-              <span>{summarize(skill.description)}</span>
+              <span>{human(skill.slug).card}</span>
             </p>
           </>
         ) : null}
