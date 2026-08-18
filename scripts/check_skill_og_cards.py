@@ -6,9 +6,10 @@ properties that PR shipped, so a metadata regression fails CI instead of
 silently shipping a homepage card to every timeline:
 
   1. og:url names the page's own path, not the bare origin.
-  2. og:image and twitter:image point at the per-skill image route
-     (/skills/<slug>/...), not the site-wide fallback.
-  3. The og:image route serves a real 1200x630 PNG (dimensions read from
+  2. og:image and twitter:image each name their per-skill image route
+     (/skills/<slug>/opengraph-image, .../twitter-image) exactly, not the
+     site-wide fallback.
+  3. Each image route serves a real 1200x630 PNG (dimensions read from
      the IHDR chunk, content sniffed from the PNG signature).
 
 Standard library only; HTML is matched with attribute-order-tolerant
@@ -26,6 +27,7 @@ import struct
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 
 SITE_ORIGIN = "https://clickai.dev"
@@ -75,23 +77,32 @@ def main() -> None:
     if og_url != SITE_ORIGIN + page_path:
         failures.append(f"og:url is {og_url!r}, want {SITE_ORIGIN + page_path!r}")
 
-    # 2. Both card images come from the per-skill route.
-    og_image = meta_content(html, "property", "og:image")
-    twitter_image = meta_content(html, "name", "twitter:image")
-    for label, url in (("og:image", og_image), ("twitter:image", twitter_image)):
-        if not url.startswith(f"{SITE_ORIGIN}{page_path}/"):
-            failures.append(f"{label} is {url!r}, want it under {SITE_ORIGIN}{page_path}/")
-
-    # 3. The image route serves a 1200x630 PNG. og:image is absolute against
-    # the production origin; refetch its path from the server under test.
-    if og_image.startswith(SITE_ORIGIN):
-        png = fetch_when_up(args.base + og_image[len(SITE_ORIGIN):])
+    # 2 and 3. Each card image is the per-skill image route — exactly, not
+    # merely somewhere under the skill path — and that route serves a
+    # 1200x630 PNG. The emitted URL is absolute against the production origin
+    # (with a cache-busting query); refetch its path from the server under
+    # test.
+    for tag_attr, key, route in (
+        ("property", "og:image", "opengraph-image"),
+        ("name", "twitter:image", "twitter-image"),
+    ):
+        url = meta_content(html, tag_attr, key)
+        parsed = urllib.parse.urlsplit(url)
+        expected = urllib.parse.urlsplit(f"{SITE_ORIGIN}{page_path}/{route}")
+        if (parsed.scheme, parsed.netloc, parsed.path) != (
+            expected.scheme,
+            expected.netloc,
+            expected.path,
+        ):
+            failures.append(f"{key} is {url!r}, want {expected.geturl()!r}")
+            continue
+        png = fetch_when_up(args.base + parsed.path)
         if png[:8] != b"\x89PNG\r\n\x1a\n":
-            failures.append("og:image route did not return a PNG")
+            failures.append(f"{key} route did not return a PNG")
         else:
             width, height = struct.unpack(">II", png[16:24])
             if (width, height) != (1200, 630):
-                failures.append(f"og:image is {width}x{height}, want 1200x630")
+                failures.append(f"{key} is {width}x{height}, want 1200x630")
 
     if failures:
         print("\n".join(failures), file=sys.stderr)
