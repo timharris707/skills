@@ -42,6 +42,7 @@
     "./skills/orient/router",
     "./skills/orient/setup",
     "./skills/run/adversarial-review",
+    "./skills/run/blast-radius",
     "./skills/run/diagnose",
     "./skills/run/handoff",
     "./skills/run/implement",

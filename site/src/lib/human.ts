@@ -130,6 +130,12 @@ export const HUMAN: Record<string, HumanCopy> = {
     intro:
       "You can't review what you can't read, and I can't read code. adversarial-review is how a change earns its way out anyway: a team of agents each tries to break it from a different angle, then a skeptic tries to prove every finding wrong. Only the problems that survive both passes reach you, so what you see is short and real. It blocks shipping on confirmed problems; it can't promise there are none left.",
   },
+  "blast-radius": {
+    card:
+      "Before a change ships, this hunts for what it breaks somewhere else: past where grep stops, into library source, timing, and wire formats. Then it proves the one fact the change is safe because of by running real code, not by writing a risk list that merely sounds right.",
+    intro:
+      "Ask an agent whether a change is safe and you get a confident paragraph either way. blast-radius is the discipline a session runs on its own change before it merges: find the one fact the change is safe because of, look where a symbol search can't (library source at the pinned version, scheduling and teardown, the JSON on the wire, code three hops downstream), then prove that fact with a script that calls the real code and fails loud if it's wrong. Every safety claim gets a rung on an evidence ladder, and anything that stopped short of running code is labeled unproven instead of rounded up to settled.",
+  },
   handoff: {
     card:
       "When a session ends, where the work stands goes into one small file. The next session reads it and picks up mid-stride. You stop re-explaining the project every morning.",

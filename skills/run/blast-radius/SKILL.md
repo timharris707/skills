@@ -7,7 +7,7 @@ description: Find what a change breaks somewhere else before it ships, beyond th
 
 Find what a change breaks somewhere else, before it ships. Listing the callers is not the job: any agent can grep those in a second. The job is the breakage grep will not show you.
 
-This is the implementing session's own discipline, run before or during the change, pre-merge. [adversarial-review](../../run/adversarial-review/SKILL.md) is the other side of the line: it reviews a finished change with isolated finders and a skeptic gate. Blast radius is what you run on your own work while it is still yours.
+This is the implementing session's own discipline, run before or during the change, pre-merge. [adversarial-review](../adversarial-review/SKILL.md) is the other side of the line: it reviews a finished change with isolated finders and a skeptic gate. Blast radius is what you run on your own work while it is still yours.
 
 ## The writeup is not the deliverable
 
@@ -32,7 +32,7 @@ Any safety fact that stops short of rung 4 is said out loud as unproven, never w
 3. **Look where grep stops.** Read the source of the library you call, at its pinned version, plus any local patch. Work out when things run: microtasks, unmount and teardown, one framework's scheduling versus another's. Follow what a symbol search misses: the JSON an API returns, a DB column, a wire format, another language reading the same bytes, a feature flag, code three hops downstream.
 4. **Grade each risk honestly.** Give it a real chance of happening and a real cost if it does. Keep the risks you confirmed; list the ones you checked and cleared separately. Cite a real `file:line`, treat a search that finds nothing as an answer worth recording, and never invent a caller or an API.
 5. **Prove the one fact.** Write a script or test that runs the real code, run it, and paste what happened. If you cannot prove it cheaply, mark it unproven. Never round up.
-6. **Escalate a wide change.** When the change is big or touches many seams, finish your own pass first, then hand the change to [adversarial-review](../../run/adversarial-review/SKILL.md): isolated finders catch real bugs a single perspective misses.
+6. **Escalate a wide change.** When the change is big or touches many seams, finish your own pass first, then hand the change to [adversarial-review](../adversarial-review/SKILL.md): isolated finders catch real bugs a single perspective misses.
 
 ## What to hand back
 
@@ -42,7 +42,7 @@ Any safety fact that stops short of rung 4 is said out loud as unproven, never w
 - **Cleared.** What you checked and why it is fine.
 - **Before you merge.** The cheapest test or repro that catches the real bug, including the script you wrote.
 
-Run the prose through plainspoken once that skill is in reach, and strip anything private before the writeup goes anywhere public.
+Run the prose through [plainspoken](../../author/plainspoken/SKILL.md), and strip anything private before the writeup goes anywhere public.
 
 ## Done when (checkable: verify each line before reporting complete)
 
