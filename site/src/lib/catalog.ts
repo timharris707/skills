@@ -96,7 +96,7 @@ export const PLOT: Record<string, { x: number; y: number; anchor?: "start" | "en
   "to-tickets": { x: 655, y: 290 },
   wizard: { x: 655, y: 415 },
   orchestrate: { x: 830, y: 190 },
-  "blast-radius": { x: 830, y: 95 },
+  "blast-radius": { x: 940, y: 150, anchor: "end" },
   "adversarial-review": { x: 830, y: 320, anchor: "end" },
   handoff: { x: 830, y: 430 },
   "writing-for-agents": { x: 940, y: 490, anchor: "end" },
