@@ -5,7 +5,7 @@ description: Turn a video, recording, voice memo, or media URL into an evidence 
 
 # Ingest
 
-Media in, evidence out. A run converts a recording or URL into a **packet** — transcript, frames, manifest — reads it, and ends with a **routing recommendation**: what in this media looks like tickets, what needs a grilling session, what is strategy for the decider. The recommendation is where a run stops. Filing, claiming, and building are separate acts that follow it.
+Media in, evidence out. A run converts a recording or URL into a **packet** — transcript, frames, manifest — reads it, and ends with a **routing recommendation**: what in this media looks like tickets, what needs a grilling session, what is strategy for the decider. The recommendation is where a run stops. Filing, claiming, and building are separate acts that follow it. A run is stateful on disk: it writes the packet into its own run directory under a persistent output home (both defined under "Run the pipeline"), where the evidence outlives the session.
 
 ## The purpose gate
 
