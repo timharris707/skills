@@ -573,6 +573,85 @@ class TestManifestDurability(unittest.TestCase):
             self.assertEqual(m.data["stages"], {})
             self.assertTrue((d / "manifest.json.corrupt").exists())
 
+    def test_an_interrupted_marker_write_leaves_no_marker(self):
+        # #190: claim_out_dir wrote .ingest-run with a plain write_text(), so
+        # a crash mid-write could leave a partial marker that adoption checks
+        # then trusted. After an interrupted write, the marker must either
+        # exist complete or not exist at all.
+        import builtins
+        import io as io_mod
+
+        class SimulatedCrash(OSError):
+            pass
+
+        class CrashingWriter:
+            """Wraps a real file handle; the first write() emits half the
+            payload, flushes, then dies, like a process killed mid-write."""
+
+            def __init__(self, fh):
+                self._fh = fh
+
+            def write(self, s):
+                self._fh.write(s[: len(s) // 2])
+                self._fh.flush()
+                raise SimulatedCrash("interrupted mid-write")
+
+            def __getattr__(self, name):
+                return getattr(self._fh, name)
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                self._fh.close()
+                return False
+
+        real_open = io_mod.open
+
+        def crashing_open(file, mode="r", *args, **kwargs):
+            fh = real_open(file, mode, *args, **kwargs)
+            if "w" in str(mode) and ing.RUN_MARKER in str(file):
+                return CrashingWriter(fh)
+            return fh
+
+        with tempfile.TemporaryDirectory() as t:
+            d = Path(t) / "run"
+            io_mod.open, builtins.open = crashing_open, crashing_open
+            try:
+                with self.assertRaises(SimulatedCrash):
+                    ing.claim_out_dir(d)
+            finally:
+                io_mod.open, builtins.open = real_open, real_open
+            self.assertFalse(
+                (d / ing.RUN_MARKER).exists(),
+                "an interrupted write must never leave a partial marker",
+            )
+
+    def test_two_claimants_never_share_a_temp_path(self):
+        # #254 review: a shared fixed temp name let one claimant's publish
+        # delete the path out from under the other's rename, crashing the
+        # loser with FileNotFoundError. Distinct per-claim temp paths keep
+        # concurrent claims last-writer-wins instead.
+        sources = []
+        real_replace = Path.replace
+
+        def recording_replace(self, target):
+            sources.append(self.name)
+            return real_replace(self, target)
+
+        Path.replace = recording_replace
+        try:
+            with tempfile.TemporaryDirectory() as t:
+                d = Path(t) / "run"
+                ing.claim_out_dir(d)
+                (d / ing.RUN_MARKER).unlink()
+                ing.claim_out_dir(d)
+        finally:
+            Path.replace = real_replace
+        self.assertEqual(len(sources), 2)
+        self.assertNotEqual(sources[0], sources[1],
+                            "each claim must write through its own temp path")
+
     def test_save_is_atomic_and_reloadable(self):
         with tempfile.TemporaryDirectory() as t:
             d = Path(t)

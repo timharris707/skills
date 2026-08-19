@@ -52,6 +52,7 @@ Exit codes: 0 ok · 1 stage failed, or sweep --delete refused (unresolved)
 import argparse
 import hashlib
 import json
+import os
 import re
 import shlex
 import shutil
@@ -262,10 +263,41 @@ def claim_out_dir(out_dir: Path) -> None:
         )
     out_dir.mkdir(parents=True, exist_ok=True)
     if not marker.exists():
-        marker.write_text(
-            f"created by ingest.py v{SCRIPT_VERSION} at "
-            f"{time.strftime('%Y-%m-%dT%H:%M:%S')}\n"
+        # Adoption checks trust this marker's existence (#190), so it must
+        # never exist partial or unflushed: temp file, flush + fsync, then
+        # atomic rename. A crash leaves either no marker or a complete one.
+        # Unique per claimant: a shared temp name would let one claimant's
+        # publish delete the path out from under another's rename, crashing
+        # the loser. Distinct names keep concurrent claims last-writer-wins,
+        # the semantics the plain write always had.
+        tmp = marker.with_name(
+            f"{RUN_MARKER}.tmp-{os.getpid()}-{os.urandom(4).hex()}"
         )
+        try:
+            with tmp.open("w") as f:
+                f.write(
+                    f"created by ingest.py v{SCRIPT_VERSION} at "
+                    f"{time.strftime('%Y-%m-%dT%H:%M:%S')}\n"
+                )
+                f.flush()
+                os.fsync(f.fileno())
+            tmp.replace(marker)
+        except BaseException:
+            tmp.unlink(missing_ok=True)
+            raise
+        # The file fsync above does not persist the directory entry the
+        # rename created; sync the directory too so a power loss cannot
+        # leave packet data without its marker.
+        try:
+            dfd = os.open(out_dir, os.O_RDONLY)
+            try:
+                os.fsync(dfd)
+            finally:
+                os.close(dfd)
+        except OSError:
+            # A platform that cannot open or fsync a directory still gets
+            # the rename's atomicity; entry durability is best-effort there.
+            pass
 
 
 # --------------------------------------------------------------- staging ---
