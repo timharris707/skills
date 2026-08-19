@@ -52,6 +52,7 @@ Exit codes: 0 ok · 1 stage failed, or sweep --delete refused (unresolved)
 import argparse
 import hashlib
 import json
+import os
 import re
 import shlex
 import shutil
@@ -251,10 +252,22 @@ def claim_out_dir(out_dir: Path) -> None:
         )
     out_dir.mkdir(parents=True, exist_ok=True)
     if not marker.exists():
-        marker.write_text(
-            f"created by ingest.py v{SCRIPT_VERSION} at "
-            f"{time.strftime('%Y-%m-%dT%H:%M:%S')}\n"
-        )
+        # Adoption checks trust this marker's existence (#190), so it must
+        # never exist partial or unflushed: temp file, flush + fsync, then
+        # atomic rename. A crash leaves either no marker or a complete one.
+        tmp = marker.with_name(RUN_MARKER + ".tmp")
+        try:
+            with tmp.open("w") as f:
+                f.write(
+                    f"created by ingest.py v{SCRIPT_VERSION} at "
+                    f"{time.strftime('%Y-%m-%dT%H:%M:%S')}\n"
+                )
+                f.flush()
+                os.fsync(f.fileno())
+            tmp.replace(marker)
+        except BaseException:
+            tmp.unlink(missing_ok=True)
+            raise
 
 
 # --------------------------------------------------------------- staging ---

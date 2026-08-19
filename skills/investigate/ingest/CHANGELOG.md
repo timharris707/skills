@@ -21,6 +21,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   behavior change; the convention itself is unchanged and still defined
   under "Run the pipeline".
 
+### Fixed
+
+- **The `.ingest-run` adoption marker is written atomically** (issue #190, from
+  CodeRabbit on PR #186): `claim_out_dir()` wrote the marker with a plain
+  `Path.write_text()`, so a crash mid-write could leave a partial or non-durable
+  marker that adoption checks then trusted. The marker now goes to a temp file
+  with flush + fsync and an atomic rename into place, so after any crash it
+  either exists complete or not at all. Covers every command that claims a
+  directory (run, preview, link, sweep).
+
 ## [v1.2.1] - 2026-08-13 — preview-then-run fix, audit dedup
 
 ### Changed
