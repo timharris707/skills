@@ -45,7 +45,7 @@ On a Competitive run, offer the optional graft-and-verify close here (`reference
 
 ## Step 6 — Confirm-summary, then consent
 
-Play back the fully resolved plan as one card the user approves before anything runs: mode, seats with lenses, effort, rounds, output, and where artifacts land. **Nothing launches without this yes.** `use defaults` jumps straight here with everything resolved to defaults and doctor's findings applied.
+Play back the fully resolved plan as one card the user approves before anything runs: mode (on Competitive, with `graft-and-verify close: on/off` as resolved), seats with lenses, effort, rounds, output, and where artifacts land. **Nothing launches without this yes.** `use defaults` jumps straight here with everything resolved to defaults and doctor's findings applied.
 
 Data-handling consent (`references/data-handling.md`) is separate and unwaivable: for non-public material, disclose what leaves the machine and to whom, and get the explicit go-ahead — `use defaults` and the confirm-summary never cover it.
 
