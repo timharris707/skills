@@ -23,14 +23,17 @@ The map must list exactly the promoted skills — a missing or phantom entry is
 an error, as is any value disagreement. The checker parses the INVOCATION
 block line by line, so each entry stays on one line (catalog.ts says so too).
 
-README.md's catalog table carries the same classification as its Invocation
-column, one tag per state: "you call it" (user), "fires itself" (agent),
+README.md's catalog (one table per bucket section) carries the same
+classification as its Invocation column, one tag per state: "you call it" (user), "fires itself" (agent),
 "both" (either), with the slash command in backticks when one exists. This
 check derives each row's expected cell from the same frontmatter derivation
 and fails on any disagreement, a row for a skill that is not promoted, or a
 row missing the cell, so the README marking cannot silently drift either.
 The table must also be complete: every promoted skill has a row, so a
-promotion cannot skip the README and pass CI silently (#248).
+promotion cannot skip the README and pass CI silently (#248). Only tables
+inside the '## The catalog' section, under a heading named for a promoted
+bucket, count, every promoted bucket must have one, and a lookalike table
+elsewhere in the README cannot satisfy the check.
 
 Standard library only. Exit 0 = in agreement; exit 1 = drift, one line per
 problem.
@@ -170,26 +173,53 @@ def readme_mark(invoked_by: str, command) -> str:
 # A catalog-table row: a linked slug, then the remaining cells.
 README_ROW_RE = re.compile(r"^\|\s*\[(?P<slug>[\w-]+)\]\([^)]*\)\s*\|(?P<rest>.*)\|\s*$")
 README_HEADER_RE = re.compile(r"^\|\s*Skill\s*\|.*\|\s*Invocation\s*\|\s*$")
+# The H2 that opens the catalog; only tables inside this section count.
+CATALOG_HEADING = "The catalog"
 
 
 def check_readme(expected: dict):
     """Every skill row in README.md's catalog table carries the derived mark."""
     lines = README.read_text().splitlines()
-    # Scope validation to the catalog table itself: the contiguous pipe-row
-    # block that follows the Invocation header. Linked rows in unrelated
-    # tables must not count toward `rows`, or a gutted catalog could pass.
-    header_at = next(
-        (i for i, line in enumerate(lines) if README_HEADER_RE.match(line)), None
-    )
-    if header_at is None:
-        errors.append("README.md catalog table has no 'Invocation' column header")
-        table = []
-    else:
-        table = []
-        for offset, line in enumerate(lines[header_at + 1 :], header_at + 2):
-            if not line.lstrip().startswith("|"):
-                break
-            table.append((offset, line))
+    # Scope validation to the catalog tables themselves: each contiguous
+    # pipe-row block that follows an Invocation header inside the
+    # '## The catalog' section, under the sub-heading carrying a promoted
+    # bucket's name from buckets.json (the catalog is one table per
+    # bucket, and every promoted bucket must have one). A lookalike table
+    # anywhere else must not count toward `rows` or completeness, or a
+    # decoy table could stand in while the real catalog is gutted.
+    bucket_names = {
+        b["name"] for b in json.loads(BUCKETS.read_text())["buckets"] if b["promoted"]
+    }
+    table = []
+    buckets_with_tables = set()
+    in_catalog = False
+    catalog_found = False
+    heading = None
+    i = 0
+    while i < len(lines):
+        title = re.match(r"^(#+)\s+(.*?)\s*$", lines[i])
+        if title:
+            if len(title.group(1)) <= 2:
+                # An H1 or H2 enters or leaves the catalog section outright.
+                in_catalog = title.group(2) == CATALOG_HEADING
+                catalog_found = catalog_found or in_catalog
+                heading = None
+            else:
+                heading = title.group(2)
+        elif in_catalog and README_HEADER_RE.match(lines[i]) and heading in bucket_names:
+            buckets_with_tables.add(heading)
+            i += 1
+            while i < len(lines) and lines[i].lstrip().startswith("|"):
+                table.append((i + 1, lines[i]))
+                i += 1
+            continue
+        i += 1
+    if not catalog_found:
+        errors.append(f"README.md has no '## {CATALOG_HEADING}' section")
+    for name in sorted(bucket_names - buckets_with_tables):
+        errors.append(
+            f"README.md's catalog has no table under promoted bucket heading '{name}'"
+        )
 
     rows = 0
     listed = set()
