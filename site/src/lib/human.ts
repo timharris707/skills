@@ -134,7 +134,7 @@ export const HUMAN: Record<string, HumanCopy> = {
     card:
       "Before a change ships, this hunts for what it breaks somewhere else: past where grep stops, into library source, timing, and wire formats. Then it proves the one fact the change is safe because of by running real code, not by writing a risk list that merely sounds right.",
     intro:
-      "Ask an agent whether a change is safe and you get a confident paragraph either way. blast-radius is the discipline a session runs on its own change before it merges: find the one fact the change is safe because of, look where a symbol search can't (library source at the pinned version, scheduling and teardown, the JSON on the wire, code three hops downstream), then prove that fact with a script that calls the real code and fails loud if it's wrong. Every safety claim gets a rung on an evidence ladder, and anything that stopped short of running code is labeled unproven instead of rounded up to settled.",
+      "Ask an agent whether a change is safe and you get a confident paragraph either way. blast-radius is the discipline a session runs on its own change before it merges: find the one fact the change is safe because of, look where a symbol search can't (library source at the pinned version, scheduling and teardown, the JSON on the wire, downstream code), then prove that fact with a script that calls the real code and fails loud if it's wrong. Every safety claim gets a rung on an evidence ladder, and anything that stopped short of running code is labeled unproven instead of rounded up to settled.",
   },
   handoff: {
     card:
