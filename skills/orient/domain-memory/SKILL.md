@@ -5,7 +5,9 @@ description: Keep per-repo institutional memory: a domain glossary plus lightwei
 
 # Domain memory
 
-Per-repo institutional memory: what the repo's words mean, and why its settled decisions went the way they did, written as **side effects of work**, never as a documentation chore. The third orientation instrument beside [router](../router/SKILL.md) and [setup](../setup/SKILL.md): they orient a session on the pack and the repo's bindings; this skill orients it on the domain. This skill is the portable protocol: two artifacts in one store, the write and read moments that keep it alive, and evolution rules that keep it honest. Where the store lives, when consolidation is offered, and whether backfill runs are **binding slots** the team-workflow setup interview fills.
+Per-repo institutional memory: what the repo's words mean, and why its settled decisions went the way they did. It is written as **side effects of work**, never as a documentation chore. [router](../router/SKILL.md) and [setup](../setup/SKILL.md) orient a session on the pack and the repo's bindings; this skill is the third orientation instrument beside them, and it orients the session on the domain.
+
+This skill is the portable protocol: two artifacts in one store, the write and read moments that keep it alive, and evolution rules that keep it honest. Where the store lives, when consolidation is offered, and whether backfill runs are **binding slots** the team-workflow setup interview fills.
 
 Read the team-workflow binding doc first; its domain-memory section names the memory home.
 

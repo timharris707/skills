@@ -5,7 +5,7 @@ description: How a working lane builds an item: seam-scoped test-first, tracer-f
 
 # Implement
 
-How a working lane builds an item. The item's body is the spec, the brief's verification set defines done, and this skill is the discipline between those two points, not a lane type of its own, and deliberately without binding slots: everything repo-specific (verify commands, constraints, the tracker) already arrived in the lane's brief.
+How a working lane builds an item. The item's body is the spec, the brief's verification set defines done, and this skill is the discipline between those two points. It is not a lane type of its own, and it deliberately has no binding slots: everything repo-specific (verify commands, constraints, the tracker) already arrived in the lane's brief.
 
 ## Tracer first
 

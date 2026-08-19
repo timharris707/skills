@@ -5,7 +5,7 @@ description: The disciplined bug-fixing loop: no fix ships without a cause the f
 
 # Diagnose
 
-A fix may not ship without a **named cause**: one plain sentence stating what was wrong, backed by evidence, readable by a non-engineer decider. This skill is the discipline a working lane follows inline when fixing bugs, not a lane type of its own, and deliberately without binding slots: everything repo-specific already arrived in the lane's brief.
+A fix may not ship without a **named cause**: one plain sentence stating what was wrong, backed by evidence, readable by a non-engineer decider. This skill is the discipline a working lane follows inline when fixing bugs. It is not a lane type of its own, and it deliberately has no binding slots: everything repo-specific already arrived in the lane's brief.
 
 **The named-cause test is the trigger, and it binds on every fix.** If you can already state the cause in one sentence and point at the evidence, the loop is satisfied: ship. If you cannot, the loop runs, however small the bug looks. "Hard bugs only" is the wrong gate, because the first fix attempt is where the vibes-fix ships: a change that makes the symptom go away for reasons nobody can state.
 

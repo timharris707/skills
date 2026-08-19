@@ -5,7 +5,7 @@ description: Build throwaway prototype code that answers a design question: UI v
 
 # Prototype
 
-A prototype is throwaway code that answers a question. It is the expensive-fidelity tool: simple frames resolve in discussion, and questions answerable from existing screenshots or artifacts resolve from those. Reach for a prototype the moment the question is "I need to see/feel this in action." It runs two ways: as the engine of a `prototype` ticket inside a decision map (see the decision-map skill), and standalone for UI-heavy or state-model-heavy work outside any map.
+A prototype is throwaway code that answers a question. It is the most expensive way to get an answer, so the cheap ways come first: a question with a simple frame resolves in discussion, and a question answerable from existing screenshots or artifacts resolves from those. Reach for a prototype the moment the question is "I need to see/feel this in action." It runs two ways: as the engine of a `prototype` ticket inside a decision map (see the decision-map skill), and standalone for UI-heavy or state-model-heavy work outside any map.
 
 ## Pick the branch
 

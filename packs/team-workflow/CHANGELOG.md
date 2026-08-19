@@ -15,6 +15,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Changed
+- **Readability pass on SKILL.md front halves** (#227, Theo-video takeaways): the opening
+  paragraphs of eight pack skills (router, decision-map, domain-memory, prototype,
+  codebase-review, implement, diagnose, orchestrate) now read as plain sentences with the
+  pitch before the mechanics: clause-stacked openings split, the coined "expensive-fidelity
+  tool" and "lens-named finders" phrasings spelled out, and decision-map's pitch moved above
+  its session-mechanics paragraph. Register-only edits: no rule weakened, dropped, or
+  reordered; frontmatter descriptions untouched.
 - **Em-dash sweep across every pack skill** (#226): all pack SKILL.mds and their
   references (router, setup and its templates and tracker-discipline, domain-memory,
   grilling, decision-map, prototype, research, codebase-review, to-tickets, wizard,
