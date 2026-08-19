@@ -41,6 +41,8 @@ One card: **Highest available** (the default — Claude `fable` at `max`, Codex 
 
 Rounds (`1`/`2`/`3`/`auto` — Formal Board Review only; the other modes fix their own phases), cross-reading, and output shape (`quick verdict` / `full handoff` / `implementation sequence`), each with the default marked.
 
+On a Competitive run, offer the optional graft-and-verify close here (`references/modes.md` §Competitive), off by default and marked as such. Name the cost on the card: it adds a synthesis pass, a per-graft endorsement vote, and a verification pass on top of the three phases.
+
 ## Step 6 — Confirm-summary, then consent
 
 Play back the fully resolved plan as one card the user approves before anything runs: mode, seats with lenses, effort, rounds, output, and where artifacts land. **Nothing launches without this yes.** `use defaults` jumps straight here with everything resolved to defaults and doctor's findings applied.
