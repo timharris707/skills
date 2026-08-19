@@ -1,6 +1,6 @@
 # Guided Intake: the wizard
 
-Every board run opens with this intake. It is **mandatory**: the run's shape is chosen by the user on the record, never by the agent on the user's behalf: mode, seats, lenses, effort, rounds, output. The one fast path is `use defaults`, which collapses steps 2-5 into a single confirm-summary card (step 6); it never skips step 1, it never skips confirmation, and it never waives data-handling consent.
+Every board run opens with this intake. It is **mandatory**: the run's shape is chosen by the user on the record, never by the agent on the user's behalf: mode, seats, lenses, effort, rounds, output. The one fast path is `use defaults`, which collapses steps 2-5 into a single confirm-summary card (step 6); it never skips step 1, it never collapses below two GO seats (step 3's fallbacks are the user's call), it never skips confirmation, and it never waives data-handling consent.
 
 Present choices the way the `grilling` skill does: choice-shaped questions as selection cards with your recommendation first and marked `(Recommended)`, at most four cards per round; open questions as ❓/➡️ text. Where cards aren't available, ask the same questions as numbered text.
 
@@ -45,7 +45,7 @@ On a Competitive run, offer the optional graft-and-verify close here (`reference
 
 ## Step 6: Confirm-summary, then consent
 
-Play back the fully resolved plan as one card the user approves before anything runs: mode (on Competitive, with `graft-and-verify close: on/off` as resolved), seats with lenses, effort, rounds, output, and where artifacts land. **Nothing launches without this yes.** `use defaults` reaches this card only through step 1: run doctor first, resolve each broken seat with the user (fix, continue without, or abort), and only then resolve steps 2-5 to defaults and build this card from what doctor confirmed. A seat that is not GO never appears on the card as a default.
+Play back the fully resolved plan as one card the user approves before anything runs: mode (on Competitive, with `graft-and-verify close: on/off` as resolved), seats with lenses, effort, rounds, output, and where artifacts land. **Nothing launches without this yes.** `use defaults` reaches this card only through step 1: run doctor first, resolve each broken seat with the user (fix, continue without, or abort), and only then resolve steps 2-5 to defaults and build this card from what doctor confirmed. A seat that is not GO never appears on the card as a default, and below two GO seats defaults cannot fill the board: walk step 3's fallbacks with the user before this card (`references/board-composition.md` sets the two-seat minimum).
 
 Data-handling consent (`references/data-handling.md`) is separate and unwaivable: for non-public material, disclose what leaves the machine and to whom, and get the explicit go-ahead; `use defaults` and the confirm-summary never cover it.
 

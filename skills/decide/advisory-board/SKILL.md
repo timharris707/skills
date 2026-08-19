@@ -43,7 +43,7 @@ Every run opens with the wizard in `references/intake-interview.md`, presented a
 5. **Rounds and output.** With defaults marked.
 6. **Confirm-summary.** The resolved plan as one card; nothing launches without this yes.
 
-"Use defaults" resolves steps 2-5 to defaults and goes to step 6, but only after step 1 completes and its findings are applied to the card: doctor still runs, and a seat that is not GO is never a default. It never skips the confirmation, and it never waives data-handling consent: if the material isn't clearly public, still disclose which providers will receive it and get an explicit go-ahead before launching any external seat (`references/data-handling.md`).
+"Use defaults" resolves steps 2-5 to defaults and goes to step 6, but only after step 1 completes and its findings are applied to the card: doctor still runs, a seat that is not GO is never a default, and below two GO seats there is no defaults board (step 3's fallbacks are settled with the user first). It never skips the confirmation, and it never waives data-handling consent: if the material isn't clearly public, still disclose which providers will receive it and get an explicit go-ahead before launching any external seat (`references/data-handling.md`).
 
 ## Model Lineup
 

@@ -27,7 +27,9 @@ versioned separately and do not replace the skill release version.
   straight" to the step-6 confirm card, which let a run launch with an unconfirmed or
   unavailable seat. Both now state that `use defaults` resolves steps 2-5 to defaults only
   after step 1 completes and its findings are applied to the card; a seat that is not GO is
-  never offered as a default. Doc-only: the conductor scripts have no intake path and never
+  never offered as a default, and below two GO seats the fast path cannot fill a board
+  (the two-seat minimum in `board-composition.md`; step 3's fallbacks are the user's
+  call). Doc-only: the conductor scripts have no intake path and never
   encoded the jump.
 
 ### Changed
