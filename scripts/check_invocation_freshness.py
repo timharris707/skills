@@ -29,8 +29,8 @@ column, one tag per state: "you call it" (user), "fires itself" (agent),
 check derives each row's expected cell from the same frontmatter derivation
 and fails on any disagreement, a row for a skill that is not promoted, or a
 row missing the cell, so the README marking cannot silently drift either.
-A promoted skill absent from the table is not this check's concern; the table
-is checked as listed.
+The table must also be complete: every promoted skill has a row, so a
+promotion cannot skip the README and pass CI silently (#248).
 
 Standard library only. Exit 0 = in agreement; exit 1 = drift, one line per
 problem.
@@ -83,7 +83,9 @@ def promoted_skills() -> dict:
             continue
         bucket_dir = SKILLS_DIR / bucket["id"]
         if not bucket_dir.is_dir():
-            continue
+            print(f"ERROR: promoted bucket '{bucket['id']}' has no skills/{bucket['id']} "
+                  "directory; a skipped bucket is not a green check")
+            sys.exit(1)
         for entry in sorted(bucket_dir.iterdir()):
             if entry.is_dir() and (entry / "SKILL.md").is_file():
                 out[entry.name] = entry
@@ -190,12 +192,14 @@ def check_readme(expected: dict):
             table.append((offset, line))
 
     rows = 0
+    listed = set()
     for lineno, line in table:
         row = README_ROW_RE.match(line)
         if row is None:
             continue
         rows += 1
         slug = row.group("slug")
+        listed.add(slug)
         if slug not in expected:
             errors.append(
                 f"README.md:{lineno}: '{slug}' is in the catalog table but is not a promoted skill"
@@ -213,6 +217,11 @@ def check_readme(expected: dict):
             )
     if rows == 0:
         errors.append("README.md has no catalog-table skill rows; an empty check is not a green check")
+    for slug in sorted(set(expected) - listed):
+        errors.append(
+            f"'{slug}' is promoted but has no row in README.md's catalog table; "
+            f"add one with the Invocation cell '{readme_mark(*expected[slug])}'"
+        )
 
 
 def main():
