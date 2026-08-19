@@ -8,6 +8,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **Punctuation rule** (#226): a compact section stating that skill prose carries
+  no em dashes (periods, commas, colons instead), because the em dash is a top AI
+  tell and the style of prose an agent reads leaks into what it writes; rationale
+  pointed at plainspoken's tell catalog, pattern 13. A matching Done-when bullet
+  ("No em dash appears outside a code block") makes it checkable.
+
+### Changed
+- **Em-dash sweep** (#226): SKILL.md and `references/skill-mechanics.md` rewrote
+  their em-dash constructions into periods, commas, and colons, meaning-preserving;
+  the frontmatter description's trigger wording is unchanged. The description-shape
+  example in skill-mechanics now demonstrates the swept form. Part of the
+  catalog-wide sweep guarded by `scripts/check_emdash_density.py` in CI.
+
 ## [v1.0.1] - 2026-08-13 — fidelity and invariant corrections
 
 ### Changed

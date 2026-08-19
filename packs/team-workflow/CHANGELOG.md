@@ -15,6 +15,19 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Changed
+- **Em-dash sweep across every pack skill** (#226): all pack SKILL.mds and their
+  references (router, setup and its templates and tracker-discipline, domain-memory,
+  grilling, decision-map, prototype, research, codebase-review, to-tickets, wizard,
+  handoff and its template, orchestrate and its four references, adversarial-review,
+  diagnose, implement) rewrote their em-dash constructions into periods, commas,
+  colons, or restructured sentences, meaning-preserving: every normative rule keeps
+  its exact force, and bold-label list separators became "**X**: explanation" /
+  "**X.** Explanation" per file. Rationale: the em dash is a top AI tell and skill
+  prose style leaks into model output (plainspoken tell catalog, pattern 13).
+  Literal formats stayed byte-identical: code blocks, session-title formats
+  (`Orchestrator — <repo>`, `#<N> — <short item name>`), grilling's ❓ question
+  block, and quoted anti-pattern examples. CI now runs
+  `scripts/check_emdash_density.py` as the regression tripwire.
 - **adversarial-review: evidence ladder and skeptic-judgment grafts** (#222, decision
   record 0003): findings and skeptic verdicts now grade proof strength on a 5-rung
   evidence ladder (asserted / cited / traced / run / reproduced), composing with the

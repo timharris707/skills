@@ -8,6 +8,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+- **Em-dash sweep** (#226): the Done-when heading's em dash became a colon, the
+  file's only occurrence. Guarded by `scripts/check_emdash_density.py` in CI.
+
 ### Added
 
 - Initial adaptation from Lauren Tan's pstack `blast-radius` (github.com/cursor/plugins,

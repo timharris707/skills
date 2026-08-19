@@ -44,7 +44,7 @@ Any safety fact that stops short of rung 4 is said out loud as unproven, never w
 
 Run the prose through plainspoken once that skill is in reach, and strip anything private before the writeup goes anywhere public.
 
-## Done when (checkable — verify each line before reporting complete)
+## Done when (checkable: verify each line before reporting complete)
 
 - The one fact the change is safe because of is stated in a single sentence, with the ladder rung it reached; when the change rests on two facts, each has its own sentence and rung.
 - Every safety fact that stopped short of rung 4 is labeled unproven; none reads as settled.

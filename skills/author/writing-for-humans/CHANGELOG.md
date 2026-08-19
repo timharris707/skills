@@ -10,6 +10,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- **Em-dash sweep** (#226): SKILL.md and `references/last-mile-scrub.md` rewrote
+  their em-dash constructions into periods, commas, and colons, meaning-preserving.
+  The shipped-page dash *budget* this skill teaches is unchanged; the sweep governs
+  the skill's own source prose. Guarded by `scripts/check_emdash_density.py` in CI.
+
 - The last-mile scrub no longer carries its own tell table. The repo's single
   merged AI-tell catalog now lives in the `plainspoken` skill (decision record
   0004: two catalogs drift), and the scrub defers to it, keeping only its

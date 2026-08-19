@@ -1,4 +1,4 @@
-# The last-mile scrub — an AI-tell pass for finished drafts
+# The last-mile scrub: an AI-tell pass for finished drafts
 
 The final pass over human-facing copy, run from [SKILL.md](../SKILL.md) after structure and voice are settled. Scrubbing an unfinished draft produces *clean nothing*. Do the content work first.
 
@@ -9,7 +9,7 @@ The tells themselves, and the method for hunting them (judge clusters rather tha
 ## Artifact-only additions (read before hunting)
 
 - **The catalog's voice-sample rule does the artifact work here.** Its precedence over every pattern is defined in the catalog; this pass adds one clarification: the standing voice rules in [SKILL.md](../SKILL.md) are never outranked, even by a sample.
-- **A dash budget, not the ban.** The catalog drops em dashes from agent prose outright. Shipped pages keep [SKILL.md](../SKILL.md)'s budget instead: roughly a handful per page, each one earning its place, with density alone enough to fire the tell. A voice sample that uses em dashes is the one exception: match the sample's frequency even past the budget. When a page runs over otherwise, restructure — split the sentence, subordinate the aside with a comma, or cut it. A mechanical in-place swap of a dash for any other mark preserves the exact rhythm the budget exists to break, which is the anti-pattern the catalog's redraft rule already names.
+- **A dash budget, not the ban.** The catalog drops em dashes from agent prose outright. Shipped pages keep [SKILL.md](../SKILL.md)'s budget instead: roughly a handful per page, each one earning its place, with density alone enough to fire the tell. A voice sample that uses em dashes is the one exception: match the sample's frequency even past the budget. When a page runs over otherwise, restructure: split the sentence, subordinate the aside with a comma, or cut it. A mechanical in-place swap of a dash for any other mark preserves the exact rhythm the budget exists to break, which is the anti-pattern the catalog's redraft rule already names.
 
 ## The pass
 
