@@ -800,10 +800,30 @@ h2 {
   color: var(--magenta);
 }
 
+/* Ships-as line plus the invocation tag, stacked and right-aligned so the
+   card's second column stays one quiet block. */
+.entry__meta {
+  display: grid;
+  gap: 0.3rem;
+  justify-items: end;
+  text-align: right;
+}
+
 .entry__ships {
   font-family: var(--font-mono), monospace;
   font-size: 0.68rem;
   letter-spacing: 0.06em;
+  color: var(--sounding);
+  white-space: nowrap;
+}
+
+/* Who invokes the skill: "fires itself", "you call it", or "both". One tag,
+   set like region__count, per the minimal-first rule. */
+.entry__invoke {
+  font-family: var(--font-mono), monospace;
+  font-size: 0.62rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
   color: var(--sounding);
   white-space: nowrap;
 }

@@ -23,6 +23,15 @@ The map must list exactly the promoted skills — a missing or phantom entry is
 an error, as is any value disagreement. The checker parses the INVOCATION
 block line by line, so each entry stays on one line (catalog.ts says so too).
 
+README.md's catalog table carries the same classification as its Invocation
+column, one tag per state: "you call it" (user), "fires itself" (agent),
+"both" (either), with the slash command in backticks when one exists. This
+check derives each row's expected cell from the same frontmatter derivation
+and fails on any disagreement, a row for a skill that is not promoted, or a
+row missing the cell, so the README marking cannot silently drift either.
+A promoted skill absent from the table is not this check's concern; the table
+is checked as listed.
+
 Standard library only. Exit 0 = in agreement; exit 1 = drift, one line per
 problem.
 """
@@ -37,6 +46,7 @@ SKILLS_DIR = ROOT / "skills"
 BUCKETS = SKILLS_DIR / "buckets.json"
 MARKETPLACE = ROOT / ".claude-plugin" / "marketplace.json"
 CATALOG = ROOT / "site" / "src" / "lib" / "catalog.ts"
+README = ROOT / "README.md"
 
 ENTRY_RE = re.compile(
     r'^\s*(?:"(?P<qslug>[\w-]+)"|(?P<slug>[\w-]+)):\s*'
@@ -145,10 +155,58 @@ def parse_catalog() -> dict:
     return found
 
 
+def readme_mark(invoked_by: str, command) -> str:
+    """The exact Invocation cell the README's catalog table must carry.
+
+    Same three tags the site renders (invocationLabel in catalog.ts), plus the
+    slash command in backticks when the state has one.
+    """
+    label = {"user": "you call it", "agent": "fires itself", "either": "both"}[invoked_by]
+    return f"{label} (`{command}`)" if command else label
+
+
+# A catalog-table row: a linked slug, then the remaining cells.
+README_ROW_RE = re.compile(r"^\|\s*\[(?P<slug>[\w-]+)\]\([^)]*\)\s*\|(?P<rest>.*)\|\s*$")
+README_HEADER_RE = re.compile(r"^\|\s*Skill\s*\|.*\|\s*Invocation\s*\|\s*$")
+
+
+def check_readme(expected: dict):
+    """Every skill row in README.md's catalog table carries the derived mark."""
+    lines = README.read_text().splitlines()
+    if not any(README_HEADER_RE.match(line) for line in lines):
+        errors.append("README.md catalog table has no 'Invocation' column header")
+
+    rows = 0
+    for lineno, line in enumerate(lines, 1):
+        row = README_ROW_RE.match(line)
+        if row is None:
+            continue
+        rows += 1
+        slug = row.group("slug")
+        if slug not in expected:
+            errors.append(
+                f"README.md:{lineno}: '{slug}' is in the catalog table but is not a promoted skill"
+            )
+            continue
+        want = readme_mark(*expected[slug])
+        cells = [c.strip() for c in row.group("rest").split("|")]
+        # Cells after the link: what it's for, ships as, invocation.
+        if len(cells) < 3 or not cells[2]:
+            errors.append(f"README.md:{lineno}: '{slug}' row has no Invocation cell; expected '{want}'")
+        elif cells[2] != want:
+            errors.append(
+                f"README.md:{lineno}: '{slug}' is marked '{cells[2]}', "
+                f"but frontmatter derives '{want}'"
+            )
+    if rows == 0:
+        errors.append("README.md has no catalog-table skill rows; an empty check is not a green check")
+
+
 def main():
     skills = promoted_skills()
     expected = derive_expected(skills, plugin_owners())
     actual = parse_catalog()
+    check_readme(expected)
 
     for slug in sorted(set(expected) - set(actual)):
         errors.append(
