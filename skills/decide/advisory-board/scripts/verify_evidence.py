@@ -50,10 +50,13 @@ Command re-execution (M3) — read before enabling:
       program name in that set — never a path (`./x`, `/bin/sh`, `../x` are refused).
       This pins which program runs INDEPENDENT of any regex, so a too-broad
       `--allow-command` pattern cannot let the attacker choose the executable.
-    * OPTIONAL ARG CONSTRAINT: `--allow-command REGEX` (repeatable) further requires
-      the full command to `re.fullmatch` a pattern — for pinning args, not the
-      program. PATTERNS ARE LIVE REGEXES (`.` is a wildcard); they refine, never
-      widen, the program allowlist.
+    * ARGS ARE PINNED TOO (#243): `--allow-program` alone permits only the BARE
+      program (argv is exactly [NAME]). A command that carries ANY arguments must
+      also `re.fullmatch` an `--allow-command REGEX` (repeatable) — the command
+      text is model-authored, so unpinned arguments are attacker-chosen arguments
+      (`pytest --rootdir=... -p plugin`, `git -c core.pager=...`). PATTERNS ARE
+      LIVE REGEXES (`.` is a wildcard); they refine, never widen, the program
+      allowlist.
     * NO SHELL: split with shlex, run with shell=False, so `;`/`&&`/`|`/`>`/`$(...)`/
       globs are inert literal args, not operators.
     * CLEAN PATH, NO PLANTED BINARIES: argv[0] is resolved with shutil.which against
@@ -486,9 +489,12 @@ def command_allowed(command, rerun):
       2. argv[0] is a BARE program name — no `/`, no leading `.`, not absolute
          (kills `./build.sh`, `/bin/sh`, `../x` and other path-based argv[0]);
       3. argv[0] is in `--allow-program` (the load-bearing pin);
-      4. if any `--allow-command` patterns were given, the full command string
-         `re.fullmatch`es one (fullmatch, not search — `pytest -q` never green-lights
-         `pytest -q; rm -rf ~`; a malformed pattern is skipped, never crashes).
+      4. the ARGUMENTS are pinned (#243): a command with any argument beyond
+         argv[0], or any command when `--allow-command` patterns were given, must
+         `re.fullmatch` a pattern (fullmatch, not search — `pytest -q` never
+         green-lights `pytest -q; rm -rf ~`; a malformed pattern is skipped, never
+         crashes). `--allow-program` alone runs only the bare program: the command
+         text is model-authored, so unpinned arguments are attacker-chosen.
     """
     cmd = (command or "").strip()
     if not cmd:
@@ -507,7 +513,7 @@ def command_allowed(command, rerun):
         return None, (f"program {prog!r} is not in the --allow-program allowlist "
                       f"({', '.join(sorted(rerun['programs'])) or 'empty'})")
     patterns = rerun.get("patterns") or []
-    if patterns:
+    if patterns or len(argv) > 1:
         matched = False
         for pat in patterns:
             try:
@@ -517,6 +523,12 @@ def command_allowed(command, rerun):
             except re.error:
                 continue
         if not matched:
+            if not patterns:
+                return None, ("command carries arguments but no --allow-command pattern "
+                              "was given — --allow-program alone permits only the bare "
+                              "program (the command text is model-authored, so unpinned "
+                              "arguments are attacker-chosen); add --allow-command 'REGEX' "
+                              "to pin the exact arguments")
             return None, "command does not match any --allow-command pattern"
     return argv, None
 
@@ -725,14 +737,17 @@ def main(argv=None) -> int:
         "--allow-program", dest="allow_program", action="append", default=[], metavar="NAME",
         help="ENABLE command-evidence re-execution for commands whose argv[0] is exactly this bare "
              "program name (repeatable). This is the load-bearing control: argv[0] is pinned to a "
-             "program you name, never a path and never chosen by a regex. OMITTED => command "
-             "citations stay unverified (re-execution is opt-in). Allowlist only programs you trust "
-             "to be read-only over public material — a re-run's output is persisted to verdict.json.")
+             "program you name, never a path and never chosen by a regex. On its own it permits "
+             "ONLY the bare program with no arguments; a command carrying arguments must also match "
+             "an --allow-command pattern (#243). OMITTED => command citations stay unverified "
+             "(re-execution is opt-in). Allowlist only programs you trust to be read-only over "
+             "public material — a re-run's output is persisted to verdict.json.")
     parser.add_argument(
         "--allow-command", dest="allow_command", action="append", default=[], metavar="REGEX",
-        help="OPTIONAL extra constraint: also require the full command to re.fullmatch this regex "
-             "(repeatable) — for pinning ARGS, not the program. Patterns are LIVE regexes (`.` is a "
-             "wildcard). Refines the --allow-program allowlist; cannot enable re-execution on its own.")
+        help="pin the ARGS: require the full command to re.fullmatch this regex (repeatable). "
+             "REQUIRED for any command that carries arguments (#243) — --allow-program alone runs "
+             "only the bare program. Patterns are LIVE regexes (`.` is a wildcard). Refines the "
+             "--allow-program allowlist; cannot enable re-execution on its own.")
     parser.add_argument(
         "--rerun-timeout", dest="rerun_timeout", type=int, default=DEFAULT_RERUN_TIMEOUT,
         metavar="SECONDS", help=f"hard timeout per re-executed command (default {DEFAULT_RERUN_TIMEOUT}s)")

@@ -97,7 +97,8 @@ rule). Each item has a `kind`:
 - `source`: `url` plus a verbatim `quote`.
 - `command`: a `command` string, plus optional `expect_exit` (int, default 0) and a verbatim
   `expect` substring. Re-execution is **opt-in** (M3): `verify_evidence.py --allow-program NAME`
-  (+ optional `--allow-command REGEX` to pin args) re-runs a command whose argv[0] is `NAME` with
+  (+ `--allow-command REGEX` to pin args — required for any command that carries arguments;
+  `--allow-program` alone runs only the bare program, #243) re-runs a command whose argv[0] is `NAME` with
   no shell, a curated PATH, an isolated cwd, and a scrubbed env, then attaches the observed
   exit/output under `observed`.
 - `judgment`: no external referent, by design; carries optional `detail`.
