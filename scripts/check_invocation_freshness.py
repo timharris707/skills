@@ -30,7 +30,9 @@ check derives each row's expected cell from the same frontmatter derivation
 and fails on any disagreement, a row for a skill that is not promoted, or a
 row missing the cell, so the README marking cannot silently drift either.
 The table must also be complete: every promoted skill has a row, so a
-promotion cannot skip the README and pass CI silently (#248).
+promotion cannot skip the README and pass CI silently (#248). Only tables
+under a heading named for a promoted bucket count, so a lookalike table
+elsewhere in the README cannot satisfy the check.
 
 Standard library only. Exit 0 = in agreement; exit 1 = drift, one line per
 problem.
@@ -176,23 +178,35 @@ def check_readme(expected: dict):
     """Every skill row in README.md's catalog table carries the derived mark."""
     lines = README.read_text().splitlines()
     # Scope validation to the catalog tables themselves: each contiguous
-    # pipe-row block that follows an Invocation header (the catalog is one
-    # table per bucket section). Linked rows in unrelated tables must not
-    # count toward `rows`, or a gutted catalog could pass.
+    # pipe-row block that follows an Invocation header inside a promoted
+    # bucket's section, i.e. under the heading carrying that bucket's name
+    # from buckets.json (the catalog is one table per bucket). A lookalike
+    # table anywhere else must not count toward `rows` or completeness, or
+    # a decoy table could stand in while the real catalog is gutted.
+    bucket_names = {
+        b["name"] for b in json.loads(BUCKETS.read_text())["buckets"] if b["promoted"]
+    }
     table = []
     headers = 0
+    heading = None
     i = 0
     while i < len(lines):
-        if README_HEADER_RE.match(lines[i]):
+        title = re.match(r"^#+\s+(.*?)\s*$", lines[i])
+        if title:
+            heading = title.group(1)
+        elif README_HEADER_RE.match(lines[i]) and heading in bucket_names:
             headers += 1
             i += 1
             while i < len(lines) and lines[i].lstrip().startswith("|"):
                 table.append((i + 1, lines[i]))
                 i += 1
-        else:
-            i += 1
+            continue
+        i += 1
     if headers == 0:
-        errors.append("README.md catalog table has no 'Invocation' column header")
+        errors.append(
+            "README.md has no catalog table (a 'Skill … Invocation' header) "
+            "under a promoted bucket's heading"
+        )
 
     rows = 0
     listed = set()

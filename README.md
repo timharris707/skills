@@ -83,9 +83,12 @@ Clone the repo and copy or symlink skill directories into wherever your runtime 
 ```bash
 git clone https://github.com/timharris707/skills.git agent-skills
 # Skills live in buckets; this links every skill in a promoted bucket by name.
-for d in agent-skills/skills/*/*/; do
-  [ -f "$d/SKILL.md" ] || continue
-  ln -s "$(pwd)/$d" ~/.claude/skills/"$(basename "$d")"
+python3 -c "import json; [print(b['id']) for b in json.load(open('agent-skills/skills/buckets.json'))['buckets'] if b['promoted']]" |
+while read -r bucket; do
+  for d in agent-skills/skills/"$bucket"/*/; do
+    [ -f "$d/SKILL.md" ] || continue
+    ln -s "$(pwd)/$d" ~/.claude/skills/"$(basename "$d")"
+  done
 done
 ```
 
@@ -189,7 +192,8 @@ packs/
 .claude-plugin/
   marketplace.json   # plugin marketplace: one entry per plugin, the pack plus each standalone skill
 scripts/
-  check_router_freshness.py   # CI: buckets, promotion, marketplace, and router stay in sync
+  check_router_freshness.py       # CI: buckets, promotion, marketplace, and router stay in sync
+  check_invocation_freshness.py   # CI: the catalog tables above and the site's invocation map stay in sync
 site/                # the clickai.dev catalog, generated from these SKILL.md files
 docs/                # GitHub Pages site
 examples/            # real advisory-board runs you can browse
