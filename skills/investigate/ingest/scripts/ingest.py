@@ -661,35 +661,49 @@ def retranscribe_span(wav: Path, start: float, end: float, out_dir: Path):
 def recover_wedged_spans(wav: Path, srt: Path, out_dir: Path) -> tuple:
     """Detect wedged spans in transcript.srt and splice re-transcribed cues
     over them; the untouched original is kept as transcript.orig.srt. Returns
-    (spans_meta, words_recovered). Prints its coverage line ALWAYS — a human
-    must be able to see at a glance whether the transcript needed rescue.
-    A failed recovery keeps the original cues and warns loudly; it is never a
-    failed packet."""
+    (spans_meta, words_recovered, failed_spans). Prints its coverage line
+    ALWAYS — a human must be able to see at a glance whether the transcript
+    needed rescue. A failed recovery keeps the original cues and warns loudly;
+    it is never a failed packet."""
     original_text = srt.read_text()
     cues = parse_srt_cues(original_text)
     spans = wedged_spans(cues)
     if not spans:
         log("loop-wedge recovery: none needed")
-        return [], 0
-    meta, words, failed = [], 0, 0
+        return [], 0, []
+    meta, words, failed = [], 0, []
     # Splice back-to-front so earlier spans' indices stay valid.
     for i, j in reversed(spans):
         w_start = max(0.0, cues[i][0] - RECOVERY_PAD_S)
         w_end = cues[j][1] + RECOVERY_PAD_S
         new = retranscribe_span(wav, w_start, w_end, out_dir)
-        if new is None:
-            failed += 1
+        if new is not None:
+            # The padding re-hears the neighbours' edges; keep only cues that
+            # overlap the wedged span itself so neighbour text is not
+            # duplicated.
+            new = [c for c in new if c[1] > cues[i][0] and c[0] < cues[j][1]]
+        if not new:
+            # Tool failure, or nothing usable came back. Either way the span
+            # was NOT verified: keep the original cues so the wedge stays
+            # visible, and record the failure so a resumed run still reports
+            # it instead of "none needed".
+            why = ("recovery tool failed" if new is None
+                   else "re-transcription produced no usable cues")
+            failed.append(
+                {
+                    "start_s": round(cues[i][0], 2),
+                    "end_s": round(cues[j][1], 2),
+                    "seconds": round(cues[j][1] - cues[i][0], 2),
+                }
+            )
             log(
                 f"WARNING: loop-wedge recovery FAILED for "
-                f"{cues[i][0]:.0f}s–{cues[j][1]:.0f}s — original cues kept; "
-                f"re-transcribe that span by hand (normalize + "
+                f"{cues[i][0]:.0f}s-{cues[j][1]:.0f}s ({why}); original cues "
+                f"kept, re-transcribe that span by hand (normalize + "
                 f"--condition-on-previous-text False, see "
                 f"references/pipeline.md)"
             )
             continue
-        # The padding re-hears the neighbours' edges; keep only cues that
-        # overlap the wedged span itself so neighbour text is not duplicated.
-        new = [c for c in new if c[1] > cues[i][0] and c[0] < cues[j][1]]
         meta.append(
             {
                 "start_s": round(cues[i][0], 2),
@@ -702,23 +716,26 @@ def recover_wedged_spans(wav: Path, srt: Path, out_dir: Path) -> tuple:
         words += sum(len(t.split()) for _, _, t in new)
         cues[i : j + 1] = new
     meta.reverse()
+    failed.reverse()
     if meta:
         # Original first, so a crash between the two writes loses nothing.
         (out_dir / "transcript.orig.srt").write_text(original_text)
         srt.write_text(cues_to_srt(cues))
-    log(recovery_summary(meta, words)
-        + (f"; {failed} span(s) FAILED — original cues kept" if failed else ""))
-    return meta, words
+    log(recovery_summary(meta, words, failed))
+    return meta, words, failed
 
 
-def recovery_summary(spans_meta, words: int) -> str:
-    if not spans_meta:
+def recovery_summary(spans_meta, words: int, failed_spans=()) -> str:
+    if not spans_meta and not failed_spans:
         return "loop-wedge recovery: none needed"
-    total = sum(m["seconds"] for m in spans_meta)
-    return (
+    line = (
         f"loop-wedge recovery: {len(spans_meta)} span(s), "
-        f"{total:.0f}s re-transcribed, {words} words recovered"
+        f"{sum(m['seconds'] for m in spans_meta):.0f}s re-transcribed, "
+        f"{words} words recovered"
     )
+    if failed_spans:
+        line += f"; {len(failed_spans)} span(s) FAILED, original cues kept"
+    return line
 
 
 def transcribe(wav: Path, out_dir: Path, manifest: Manifest) -> tuple:
@@ -730,7 +747,8 @@ def transcribe(wav: Path, out_dir: Path, manifest: Manifest) -> tuple:
     if manifest.done("transcribe"):
         rec = manifest.data["stages"]["transcribe"]
         log(recovery_summary(rec.get("recovered_spans") or [],
-                             rec.get("recovered_words", 0)))
+                             rec.get("recovered_words", 0),
+                             rec.get("failed_spans") or []))
         return srt, txt, reading
     log(f"transcribing with {WHISPER_MODEL} (minutes, not seconds — patience)")
     r = run_cmd(
@@ -749,7 +767,7 @@ def transcribe(wav: Path, out_dir: Path, manifest: Manifest) -> tuple:
 
     # Recovery runs INSIDE this stage, before it is declared done, so a
     # resumed run never reuses a wedged transcript as finished work.
-    recovered, rec_words = recover_wedged_spans(wav, srt, out_dir)
+    recovered, rec_words, failed = recover_wedged_spans(wav, srt, out_dir)
     orig = out_dir / "transcript.orig.srt"
 
     raw = srt_to_segments(srt.read_text())
@@ -774,6 +792,7 @@ def transcribe(wav: Path, out_dir: Path, manifest: Manifest) -> tuple:
             no_speech=True,
             recovered_spans=recovered,
             recovered_words=rec_words,
+            failed_spans=failed,
         )
         return srt, txt, reading
 
@@ -789,6 +808,7 @@ def transcribe(wav: Path, out_dir: Path, manifest: Manifest) -> tuple:
         collapsed_runs=collapsed,
         recovered_spans=recovered,
         recovered_words=rec_words,
+        failed_spans=failed,
     )
     log(
         f"transcript ready: {len(segs)} segments"
