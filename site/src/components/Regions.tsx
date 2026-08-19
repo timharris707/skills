@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { human } from "@/lib/human";
-import type { Region } from "@/lib/catalog";
+import { invocationLabel, type Region } from "@/lib/catalog";
 
 export default function Regions({ regions }: { regions: Region[] }) {
   return (
@@ -20,7 +20,10 @@ export default function Regions({ regions }: { regions: Region[] }) {
               <li className="entry" key={skill.slug}>
                 <Link className="entry__link" href={`/skills/${skill.slug}`}>
                   <span className="entry__name">{skill.name}</span>
-                  <span className="entry__ships">{skill.shipsAs}</span>
+                  <span className="entry__side">
+                    <span className="entry__ships">{skill.shipsAs}</span>
+                    <span className="entry__invoke">{invocationLabel(skill.invokedBy)}</span>
+                  </span>
                   <p className="entry__what">{human(skill.slug).card}</p>
                 </Link>
               </li>

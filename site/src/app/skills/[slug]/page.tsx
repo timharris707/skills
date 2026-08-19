@@ -8,6 +8,7 @@ import Runtimes from "@/components/Runtimes";
 import { getCodexPlugin, getSkill, getSkills } from "@/lib/skills";
 import { getBuckets } from "@/lib/skills";
 import { human } from "@/lib/human";
+import { INVOCATION, invocationLabel } from "@/lib/catalog";
 
 type Params = { params: Promise<{ slug: string }> };
 
@@ -60,6 +61,9 @@ export default async function SkillPage({ params }: Params) {
   const body = skill.body.trimStart().replace(/^#\s+.*(\r?\n|$)/, "");
   const html = absolutise(await marked.parse(body), skill.bucket, skill.slug);
   const codex = getCodexPlugin();
+  // Who invokes it, from the CI-synced INVOCATION map (frontmatter is the
+  // source of truth; check_invocation_freshness.py polices the sync).
+  const invocation = INVOCATION[skill.slug];
 
   return (
     <div className="shell detail">
@@ -97,6 +101,20 @@ export default async function SkillPage({ params }: Params) {
           </dd>
           <dt>Region</dt>
           <dd>{region?.name ?? "—"}</dd>
+          {invocation && (
+            <>
+              <dt>Invoked</dt>
+              <dd>
+                {invocationLabel(invocation.invokedBy)}
+                {invocation.command ? (
+                  <>
+                    {" "}
+                    (<code>{invocation.command}</code>)
+                  </>
+                ) : null}
+              </dd>
+            </>
+          )}
           <dt>Source</dt>
           <dd>
             <a href={skill.githubUrl}>SKILL.md</a>

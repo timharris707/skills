@@ -25,6 +25,19 @@ import { HUMAN } from "./human";
 export type InvokedBy = "user" | "agent" | "either";
 export type Invocation = { invokedBy: InvokedBy; command: string | null };
 
+/**
+ * The short invocation tag every surface shows, one per state: "you call it"
+ * (user-invoked, slash command only), "fires itself" (agent-invoked, the
+ * default), "both" (agent-invoked with a user-invoked alias). The README's
+ * catalog table carries the same three strings; `check_invocation_freshness.py`
+ * derives them independently from frontmatter, so keep the mapping in step.
+ */
+export function invocationLabel(invokedBy: InvokedBy): string {
+  if (invokedBy === "user") return "you call it";
+  if (invokedBy === "either") return "both";
+  return "fires itself";
+}
+
 /** A catalog entry: the generated Skill plus its hand-asserted invocation. */
 export type CatalogSkill = Skill & Invocation;
 
