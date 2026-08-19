@@ -14,6 +14,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+- **setup: glossary + non-negotiables Done-when bullet admits the sync-managed pending
+  state** (#192, found during #168's review): the bullet accepted only the carried
+  section, the memory-home pointer, or a recorded decline, unsatisfiable on a
+  sync-managed repo the section itself routes to a pending-with-the-settings-owner
+  snippet. Both agent-context arms (the never-compromise section and the glossary) now
+  also accept the approved snippet recorded as pending with the settings owner, the
+  same state the conduct-pointer bullet gained in #191 (9aabb82).
+
 ### Changed
 - **Readability pass on SKILL.md front halves** (#227, Theo-video takeaways): the opening
   paragraphs of eight pack skills (router, decision-map, domain-memory, prototype,
