@@ -20,7 +20,7 @@ export default function Regions({ regions }: { regions: Region[] }) {
               <li className="entry" key={skill.slug}>
                 <Link className="entry__link" href={`/skills/${skill.slug}`}>
                   <span className="entry__name">{skill.name}</span>
-                  <span className="entry__meta">
+                  <span className="entry__side">
                     <span className="entry__ships">{skill.shipsAs}</span>
                     <span className="entry__invoke">{invocationLabel(skill.invokedBy)}</span>
                   </span>

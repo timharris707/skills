@@ -801,8 +801,9 @@ h2 {
 }
 
 /* Ships-as line plus the invocation tag, stacked and right-aligned so the
-   card's second column stays one quiet block. */
-.entry__meta {
+   card's second column stays one quiet block. (Not .entry__meta: that class
+   is the notes card's full-width date footer.) */
+.entry__side {
   display: grid;
   gap: 0.3rem;
   justify-items: end;
