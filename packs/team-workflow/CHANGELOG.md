@@ -14,6 +14,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+- **adversarial-review: evidence ladder and skeptic-judgment grafts** (#222, decision
+  record 0003): findings and skeptic verdicts now grade proof strength on a 5-rung
+  evidence ladder (asserted / cited / traced / run / reproduced), composing with the
+  existing bars rather than replacing them: the citation requirement is rung 2, the floor
+  to count at all; BLOCKER's runnable reproduction is rung 4 or 5; no claim reported above
+  the rung its proof reached. The skeptic pass gains three judgment filters (nitpick
+  gravity, hypothetical-vs-actual with call-site tracing, the "I would have done it
+  differently" false-positive filter), and the report gains a dismissed bucket listing
+  every skeptic kill with its reason, a trust mechanism the decider can override. No
+  consensus weighting introduced: survival of the skeptic stays the only grade. Sources
+  named in the skill's Attribution: pstack `blast-radius` and `interrogate` lead-judgment
+  (github.com/cursor/plugins, MIT, Lauren Tan).
+
 ## [v1.5.2] - 2026-08-14 — tracker recipes carry the bound repo explicitly
 
 ### Fixed
