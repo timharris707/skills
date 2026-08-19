@@ -14,6 +14,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+- **diagnose: one grafted line in step 4 (Instrument)** (#225, decision record 0003): when a
+  check fails, suspect the observation method before the system, because indirect evidence
+  (mtimes, cached screenshots, self-reports) feels cheaper than direct observation and lies
+  more often. Adapted from Lauren Tan's pstack `principle-prove-it-works` (MIT); attribution
+  note extended accordingly. Nothing else in the skill changed.
+
 ## [v1.5.2] - 2026-08-14 — tracker recipes carry the bound repo explicitly
 
 ### Fixed
