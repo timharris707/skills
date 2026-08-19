@@ -29,7 +29,7 @@ python -m compileall -q skills/investigate/ingest/scripts
 python -m unittest discover -s skills/investigate/ingest/tests -t skills/investigate/ingest/tests -p 'test*.py'
 ```
 
-Two further CI checks run against the built site and need its server up first (`npm ci && npm run build && npm run start` in `site/`, then from `site/`): `python3 ../scripts/check_skill_og_cards.py` and `python3 ../scripts/check_skill_md_twins.py`. CI additionally greps skill docs for unqualified `gh` commands (every one carries `--repo`) and runs `git diff --check` for whitespace. The advisory-board mock validation in `ci.yml` runs when that skill's scripts change.
+Two further CI checks run against the built site and need its server up first: in `site/`, run `npm ci && npm run build`, start the server in the background or a second terminal (`npm run start &`), then, still from `site/`, run `python3 ../scripts/check_skill_og_cards.py` and `python3 ../scripts/check_skill_md_twins.py` (both retry until the server responds). CI additionally greps skill docs for unqualified `gh` commands (every one carries `--repo`) and runs `git diff --check` for whitespace. The advisory-board mock validation in `ci.yml` runs when that skill's scripts change.
 
 Doc-only changes keep the reviewer-run gate: every changed file's relative Markdown links resolve, checked at close-out review; no script exists yet (revisit at next setup re-run).
 
