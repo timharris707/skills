@@ -43,7 +43,7 @@ No commit-by-commit reconstruction of red-before-green: the kept tests, the visi
 Four situations route out of this skill, each to a named place:
 
 1. **A bug surfaces mid-build** → [diagnose](../diagnose/SKILL.md). The named-cause test binds before the lane resumes building: no fix ships without a cause stated in one plain sentence, with evidence.
-2. **The structure fights the lane**, a change that should have been local sprawls, a test only writable past an interface → fix nothing structural; report it as **friction** in the close-out summary, [codebase-review](../../investigate/codebase-review/SKILL.md)'s third entry gate.
+2. **The structure fights the lane**: a change that should have been local sprawls, a test only writable past an interface → fix nothing structural; report it as **friction** in the close-out summary, [codebase-review](../../investigate/codebase-review/SKILL.md)'s third entry gate.
 3. **The spec is ambiguous** → back through the orchestrator to the decider, and build waits on the answer for anything the ambiguity gates. A lane that resolves ambiguity silently has made a decision that was never its to make.
 4. **A step only a human can take** → generate a [wizard](../wizard/SKILL.md) and put the `blocked` label on the driving item until the human clears it.
 

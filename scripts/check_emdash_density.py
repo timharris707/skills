@@ -14,7 +14,9 @@ Guarded set (the files the sweep normalized):
 
 Deliberately not guarded: `CHANGELOG.md` (the release headline format requires
 "— " separators per RELEASING.md), `README.md`, and files under `tests/` or
-`scripts/`; none were in the sweep's scope.
+`scripts/`; none were in the sweep's scope. The descriptions in
+`agents/openai.yaml` and `.claude-plugin/marketplace.json` are also outside
+the guard (human-facing catalog copy).
 
 Threshold: 8 em dashes outside code per file. Post-sweep the worst legitimate
 survivor is 3 (a verbatim quoted anti-pattern example in orchestrate's

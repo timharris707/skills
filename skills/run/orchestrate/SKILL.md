@@ -5,7 +5,7 @@ description: Run a session as the orchestrator of parallel agent-assisted work: 
 
 # Orchestrate
 
-One session coordinates many. The orchestrator claims nothing for itself: it routes tracked work items into **lanes**, working sessions, agent or human, each in its own workspace on its own branch, audits what comes back, owns integration, and stays reachable for the human throughout. The portable protocol: principles plus **binding slots** (§7) for the machinery every repo does differently. Rule-based: do every step, every time; memory-only protocols drift.
+One session coordinates many. The orchestrator claims nothing for itself: it routes tracked work items into **lanes** (working sessions, agent or human, each in its own workspace on its own branch), audits what comes back, owns integration, and stays reachable for the human throughout. The portable protocol: principles plus **binding slots** (§7) for the machinery every repo does differently. Rule-based: do every step, every time; memory-only protocols drift.
 
 Read the team-workflow binding doc first. The tracker discipline (claims, frontier, blocking; [setup's references](../../orient/setup/references/tracker-discipline.md)) is assumed throughout. Measurements behind the cost-shaped rules: [references/evidence.md](references/evidence.md).
 
@@ -39,7 +39,7 @@ Read the team-workflow binding doc first. The tracker discipline (claims, fronti
 - **Every picker-visible lane session is titled with its item at launch** (§8).
 - **A session's model is fixed at launch, never switched mid-flight.** The prompt cache is per-model: a switch forces a full-context re-write ([evidence](references/evidence.md)). Work needing a different model goes to a fresh subagent or lane at that model.
 - **Lane count is a cost dial**: every lane pays a first-write of its whole brief and startup context. Where the tracker discipline allows, trivially-related small items ride one lane serially, or continue an existing lane by message where resuming is supported. The dial never overrides isolation where items conflict.
-- **Subagent or separate session: by shape, not habit.** Default is an in-process subagent: lanes that fit standing permission grants, need no human input, and are short-lived cost only brief-out and report-in, no launch click. A separate session (background-task chip, where offered) takes what breaks that shape: expected mid-flight approvals above all, long-lived builds, work that must survive the orchestrator, work the decider wants to watch, paying a full session boot but keeping lane traffic out of your context. The slot (§7) refines or overrides this default.
+- **Subagent or separate session: by shape, not habit.** Default is an in-process subagent: lanes that fit standing permission grants, need no human input, and are short-lived cost only brief-out and report-in, no launch click. A separate session (background-task chip, where offered) pays a full session boot but keeps lane traffic out of your context; it takes what breaks that shape: expected mid-flight approvals above all, long-lived builds, work that must survive the orchestrator, work the decider wants to watch. The slot (§7) refines or overrides this default.
 - **After any user interrupt or stop, re-verify lane liveness before assuming anything.** A stopped agent session is generally not resumable: relaunch fresh; completed work survives in the workspace (checkpoint-commit before resuming on top).
 
 ## 5. Close-outs (one lane at a time; never two merges racing)

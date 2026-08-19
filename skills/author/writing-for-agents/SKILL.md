@@ -74,7 +74,7 @@ Coining your own works if you define it clearly, but a made-up word recruits no 
 
 ## Punctuation
 
-Skill prose separates thoughts with periods, commas, and colons; the em dash never appears. It is one of the most reliable AI tells, and the style of the prose an agent reads leaks into the prose it writes (plainspoken's tell catalog, pattern 13, holds the rationale).
+The em dash never appears in skill prose: it is a top AI tell, and the prose an agent reads leaks into the prose it writes (plainspoken's tell catalog, pattern 13). Separate thoughts with periods, commas, and colons instead.
 
 ## Pruning
 

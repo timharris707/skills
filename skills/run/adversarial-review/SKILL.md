@@ -5,7 +5,7 @@ description: Run an adversarial review of a change before it ships: isolated fin
 
 # Adversarial review
 
-Reviewers whose job is to find what is **wrong** with a change before it ships, not to summarize it, not to appreciate it. This skill is the portable protocol: isolated finders, a skeptic pass that separates proven defects from plausible ones, and a gate that only skeptic-confirmed blockers may hold. Everything a repo does differently, its defect history, its probe policy, its stakes, lives in **binding slots** the team-workflow setup interview fills.
+Reviewers whose job is to find what is **wrong** with a change before it ships, not to summarize it, not to appreciate it. This skill is the portable protocol: isolated finders, a skeptic pass that separates proven defects from plausible ones, and a gate that only skeptic-confirmed blockers may hold. Everything a repo does differently (its defect history, its probe policy, its stakes) lives in **binding slots** the team-workflow setup interview fills.
 
 Read the team-workflow binding doc first. The review runs **before external reviewers** (CodeRabbit, Copilot, human PR review) see the change: they are the safety net, not the review.
 
@@ -33,7 +33,7 @@ Three reviewers that **never see each other's reasoning**: isolation is what mak
    The invoker picks and **states the pick in the report**; the repo binding may pin mandatory lenses for named paths (a money lens on payment code is not optional there). A change fitting no lens well still gets its best fit: a second pair of eyes with a stated angle beats a second correctness pass.
 3. **The spec axis.** Checks the diff against the originating ticket/spec: requirements missing, half-done, or wrongly done, and scope the spec never asked for. **No ticket or spec? The gap itself is a line in the report** (in a repo with tracker discipline, untracked substantial work is worth flagging), and the other two finders proceed normally. The spec axis never invents requirements to check against.
 
-Finders **read code and run proofs**, tests, focused scripts, repro snippets, but modify nothing: no source edits, no commits, no state mutation beyond what a test run inherently does. Live probes against real services, seeded databases, or running apps are a **binding slot**: the repo names where they are mandatory (and safe), the protocol never assumes them.
+Finders **read code and run proofs** (tests, focused scripts, repro snippets) but modify nothing: no source edits, no commits, no state mutation beyond what a test run inherently does. Live probes against real services, seeded databases, or running apps are a **binding slot**: the repo names where they are mandatory (and safe), the protocol never assumes them.
 
 ## 3. The skeptic pass
 
@@ -101,7 +101,7 @@ A new repo starts with an empty checklist and that is correct: it fills at the s
 - Three isolated finders ran; the spec axis either ran against a spec or reported no-spec; the lens pick is stated; and every finding above NIT went through the skeptic.
 - Every reported finding carries its citation and its evidence-ladder rung, no claim reported above the rung its proof reached; every BLOCKER carries its confirmed repro.
 - The dismissed bucket lists every skeptic kill with its reason and rung; clean-bill claims state theirs.
-- The report, findings, composition, clean bill, is posted on the driving ticket/PR, or delivered in-session when none exists.
+- The report (findings, composition, clean bill) is posted on the driving ticket/PR, or delivered in-session when none exists.
 - Confirmed blockers are fixed, or waived by the decider on the record. Lesser findings are each dispositioned.
 - Any new defect class earned by this review is queued for the fixing PR, with its repro.
 - Where domain-memory is bound: finders loaded the decision records, and every declined finding landed there as a record with its reason.

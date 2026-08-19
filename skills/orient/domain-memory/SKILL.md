@@ -57,7 +57,7 @@ An existing repo starts empty and grows forward; that is the default, and it is 
 
 ## Done when (checkable)
 
-- Every settled decision from the triggering write moment, grilling close, review disposition, or decider correction, is a record at the memory home carrying title, date, decision, the load-bearing reason, and links where a ticket or PR exists (a decider-correction record often has neither), or was declined by the decider; none is silently skipped.
+- Every settled decision from the triggering write moment (grilling close, review disposition, or decider correction) is a record at the memory home carrying title, date, decision, the load-bearing reason, and links where a ticket or PR exists (a decider-correction record often has neither), or was declined by the decider; none is silently skipped.
 - New or sharpened terms from the moment are in the glossary: canonical form, avoid-list, no implementation detail.
 - No existing record was edited outside an approved consolidation pass, save adding a Superseded-by forward marker per formats.md's supersession steps: changes of mind are new records with supersedes links, and each superseded record carries its marker.
 - The read moment in play actually read: session start, pre-round, lane brief, or review layer consulted the store, and nothing re-asked or re-raised a recorded decision without new evidence.

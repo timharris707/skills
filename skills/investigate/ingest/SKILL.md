@@ -22,7 +22,7 @@ Every run carries a **purpose**: a named intent plus the user's goal in their ow
 
 ## Run the pipeline
 
-`scripts/ingest.py` owns everything mechanical. Staging (with the macOS TCC fallback), URL fetch, caption preview, true duration, transcription, frames, manifest:
+`scripts/ingest.py` owns everything mechanical, from staging (with the macOS TCC fallback), URL fetch, caption preview, and true duration through transcription, frames, and the manifest:
 
 ```bash
 python3 scripts/ingest.py doctor                 # first run: checks tools, prints fixes
@@ -35,7 +35,7 @@ Run it in the background: transcription takes minutes. To decide whether a URL d
 
 **A run directory holds exactly one source.** The run is fingerprinted by input, intent, and processing options; pointing a *different* run at a finished packet's directory is refused rather than resumed, because the finished stages belong to the other source. Same arguments, same directory resumes: that is what makes a failed transcription cheap to retry. Give each source a fresh `--out`.
 
-The run directory: the team-workflow binding doc's git-ignored reference home when one names it, else `~/.ingest/<slug>-<date>/`. It must be a new or ingest-created directory: the script refuses to adopt a folder it did not make, because retention deletes inside it. The parent directory that holds run directories, the binding doc's reference home when named, else `~/.ingest/`, is the **output home**: the cleanup sweep's `--home` takes exactly that, and scans one level deep. With the script unavailable, the same pipeline runs by hand: commands, ordering, and the gotchas the script encodes are in [references/pipeline.md](references/pipeline.md).
+The run directory: the team-workflow binding doc's git-ignored reference home when one names it, else `~/.ingest/<slug>-<date>/`. It must be a new or ingest-created directory: the script refuses to adopt a folder it did not make, because retention deletes inside it. The **output home** is the parent directory that holds run directories: the binding doc's reference home when one is named, else `~/.ingest/`. The cleanup sweep's `--home` takes exactly that, and scans one level deep. With the script unavailable, the same pipeline runs by hand: commands, ordering, and the gotchas the script encodes are in [references/pipeline.md](references/pipeline.md).
 
 ## Read, then look
 
