@@ -137,6 +137,7 @@ export const BEARINGS: Array<{ from: string; to: string; note: string }> = [
   { from: "implement", to: "diagnose", note: "bug mid-build" },
   { from: "wizard", to: "orchestrate", note: "human-only steps" },
   { from: "orchestrate", to: "adversarial-review", note: "lane close-out" },
+  { from: "blast-radius", to: "adversarial-review", note: "wide-change escalation" },
   { from: "orchestrate", to: "diagnose", note: "bug-shaped lanes" },
   { from: "diagnose", to: "domain-memory", note: "standing facts" },
   { from: "diagnose", to: "codebase-review", note: "structural causes as friction" },
