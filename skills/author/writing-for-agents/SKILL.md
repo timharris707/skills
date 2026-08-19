@@ -11,7 +11,7 @@ This skill is reference, not a sequence: consult the rung that matches what you'
 
 ## Context pointers
 
-A **context pointer** is a reference the agent already holds that names material it does not, plus the condition for going and getting it. A skill's `description` is one. A line in `AGENTS.md` naming a doc is the same object.
+An agent often holds a short line that points at material it has not loaded: a skill's `description`, or a line in `AGENTS.md` naming a doc. That line is a **context pointer**: a reference the agent already holds that names material it does not, plus the condition for going and getting it.
 
 The pointer's **wording**, not its target, decides whether the agent reaches the material. A must-have target behind a weakly worded pointer is a variance bug: the material is right and the firing is a coin flip. Sharpen the wording first; inline the material only when sharpening has already failed.
 

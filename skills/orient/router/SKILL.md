@@ -5,7 +5,7 @@ description: Entry point for the team-workflow pack: names every pack skill and 
 
 # Team-workflow router
 
-One entry point for the **team-workflow** pack: a portable discipline for running tracked, multi-session, agent-assisted development, from pressure-testing an idea through parallel lanes to reviewed, merged changes; the table below names every skill and its moment. Everything repo-specific lives in, or is pointed at from, one binding doc seeded by the setup skill; every skill defers decisions to **the decider**, the role that doc names.
+One entry point for the **team-workflow** pack. The pack is a portable discipline for running tracked, multi-session, agent-assisted development: pressure-test an idea, build it in parallel lanes, ship it reviewed and merged. The table below names every skill and its moment. Everything repo-specific lives in, or is pointed at from, one binding doc seeded by the setup skill; every skill defers decisions to **the decider**, the role that doc names.
 
 **First run in a repo? Run `setup` before anything else.** The other skills read the bindings it seeds.
 

@@ -5,7 +5,9 @@ description: Run a state review of the codebase: the counterpart to adversarial-
 
 # Codebase review
 
-A review of what the codebase **is**, where [adversarial-review](../../run/adversarial-review/SKILL.md) reviews what a diff changes. It hunts **deepening opportunities**, places where structure taxes every change that passes through, and ends only when the decider has dispositioned every surviving candidate. This skill is the portable protocol: an entry gate, a read-only review lane of lens-named finders, a skeptic pass that kills candidates before the report exists, and the disposition loop. Everything repo-specific lives in **binding slots** the team-workflow setup interview fills: where reports land, the trigger threshold, where rejections are remembered, how the lane is run.
+A review of what the codebase **is**, where [adversarial-review](../../run/adversarial-review/SKILL.md) reviews what a diff changes. It hunts **deepening opportunities**: places where structure taxes every change that passes through. It ends only when the decider has dispositioned every surviving candidate.
+
+This skill is the portable protocol: an entry gate, a read-only review lane of finders each named for the lens it looks through, a skeptic pass that kills candidates before the report exists, and the disposition loop. Everything repo-specific lives in **binding slots** the team-workflow setup interview fills: where reports land, the trigger threshold, where rejections are remembered, how the lane is run.
 
 Read the team-workflow binding doc first. Full domain-modeling discipline (glossaries, decision records) lives in [domain-memory](../../orient/domain-memory/SKILL.md), deliberately not here.
 

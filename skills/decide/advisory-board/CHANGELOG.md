@@ -10,6 +10,9 @@ versioned separately and do not replace the skill release version.
 ## [Unreleased]
 
 ### Changed
+- **Readability pass on the opening paragraph** (#227): the single dense mode sentence is
+  now one plain sentence per mode; every fact (mode names, the default, the intake
+  reference, the per-mode shapes) is unchanged. Frontmatter description untouched.
 - **Em-dash sweep** (#226): SKILL.md and all thirteen references rewrote their
   em-dash constructions into periods, commas, colons, or restructured sentences,
   meaning-preserving: every Must-Not and schema rule keeps its exact force, and

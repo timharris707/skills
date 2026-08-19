@@ -5,7 +5,7 @@ description: Convene a multi-model advisory board: subscription-backed Claude, C
 
 # Advisory Board
 
-Bring an idea, problem, plan, or architecture to a board of frontier models sitting in different roles. The board runs in one of three **modes**, the interaction topology chosen with the user at intake (`references/modes.md`): **Formal Board Review** (the default: independent first round, rebuttal, structured verdict; the protocol this document defines), **Roundtable** (collaborative, shared transcript, optional moderator), or **Competitive** (pitch → critique → blind vote). Whatever the mode, you leave with the strongest conclusion the board can reach together and a clean takeaway, not disconnected opinions.
+Bring an idea, problem, plan, or architecture to a board of frontier models sitting in different roles. The board runs in one of three **modes**, the interaction topology chosen with the user at intake (`references/modes.md`). **Formal Board Review** is the default and the protocol this document defines: an independent first round, then rebuttal, then a structured verdict. **Roundtable** is collaborative, on a shared transcript, with an optional moderator. **Competitive** runs pitch, then critique, then a blind vote. Whatever the mode, you leave with the strongest conclusion the board can reach together and a clean takeaway, not disconnected opinions.
 
 ## Must Not
 

@@ -5,9 +5,9 @@ description: Chart or work a decision map for genuinely foggy work before any bu
 
 # Decision Map
 
-You are running a decision-map session. The protocol authority is [references/protocol.md](references/protocol.md). Read it first, whole; this skill only sequences the session. If the consuming repo has a domain-vocabulary or context doc (see its team-workflow binding doc, seeded by the setup skill), load that too and use its terms.
+A decision map turns fog into recorded decisions. It is for work nobody can spec in one sitting, where the open questions gate each other. It produces decisions, not deliverables: when the map's frontier is empty, the scope specs and builds as ordinary tracked work.
 
-A decision map exists to turn fog into recorded decisions. It produces decisions, not deliverables: when the map's frontier is empty, the scope specs and builds as ordinary tracked work.
+You are running a decision-map session. The protocol authority is [references/protocol.md](references/protocol.md). Read it first, whole; this skill only sequences the session. If the consuming repo has a domain-vocabulary or context doc (see its team-workflow binding doc, seeded by the setup skill), load that too and use its terms.
 
 ## Mode 1: charting a new map (invoked with a scope or destination)
 

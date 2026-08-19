@@ -5,7 +5,7 @@ description: Run a session as the orchestrator of parallel agent-assisted work: 
 
 # Orchestrate
 
-One session coordinates many. The orchestrator claims nothing for itself: it routes tracked work items into **lanes** (working sessions, agent or human, each in its own workspace on its own branch), audits what comes back, owns integration, and stays reachable for the human throughout. The portable protocol: principles plus **binding slots** (§7) for the machinery every repo does differently. Rule-based: do every step, every time; memory-only protocols drift.
+One session coordinates many. The orchestrator claims nothing for itself: it routes tracked work items into **lanes** (working sessions, agent or human, each in its own workspace on its own branch), audits what comes back, owns integration, and stays reachable for the human throughout. This skill is the portable protocol: principles, plus **binding slots** (§7) for the machinery every repo does differently. It is rule-based: do every step, every time, because memory-only protocols drift.
 
 Read the team-workflow binding doc first. The tracker discipline (claims, frontier, blocking; [setup's references](../../orient/setup/references/tracker-discipline.md)) is assumed throughout. Measurements behind the cost-shaped rules: [references/evidence.md](references/evidence.md).
 

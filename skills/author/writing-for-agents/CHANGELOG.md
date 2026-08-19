@@ -8,6 +8,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+- **Context-pointers definition gets a readable lead** (#227, Theo-video takeaways): the
+  paragraph defining a context pointer now opens with a plain-English sentence carrying the
+  examples, with the precise definition kept verbatim after it. No rule changed.
+
 ### Added
 - **Punctuation rule** (#226): a compact section stating that skill prose carries
   no em dashes (periods, commas, colons instead), because the em dash is a top AI
