@@ -173,11 +173,24 @@ README_HEADER_RE = re.compile(r"^\|\s*Skill\s*\|.*\|\s*Invocation\s*\|\s*$")
 def check_readme(expected: dict):
     """Every skill row in README.md's catalog table carries the derived mark."""
     lines = README.read_text().splitlines()
-    if not any(README_HEADER_RE.match(line) for line in lines):
+    # Scope validation to the catalog table itself: the contiguous pipe-row
+    # block that follows the Invocation header. Linked rows in unrelated
+    # tables must not count toward `rows`, or a gutted catalog could pass.
+    header_at = next(
+        (i for i, line in enumerate(lines) if README_HEADER_RE.match(line)), None
+    )
+    if header_at is None:
         errors.append("README.md catalog table has no 'Invocation' column header")
+        table = []
+    else:
+        table = []
+        for offset, line in enumerate(lines[header_at + 1 :], header_at + 2):
+            if not line.lstrip().startswith("|"):
+                break
+            table.append((offset, line))
 
     rows = 0
-    for lineno, line in enumerate(lines, 1):
+    for lineno, line in table:
         row = README_ROW_RE.match(line)
         if row is None:
             continue
