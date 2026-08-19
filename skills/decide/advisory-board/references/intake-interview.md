@@ -41,7 +41,7 @@ One card: **Highest available** (the default — Claude `fable` at `max`, Codex 
 
 Rounds (`1`/`2`/`3`/`auto` — Formal Board Review only; the other modes fix their own phases), cross-reading, and output shape (`quick verdict` / `full handoff` / `implementation sequence`), each with the default marked.
 
-On a Competitive run, offer the optional graft-and-verify close here (`references/modes.md` §Competitive), off by default and marked as such. Name the cost on the card: it adds a synthesis pass, a per-graft endorsement vote, and a verification pass on top of the three phases.
+On a Competitive run, offer the optional graft-and-verify close here (`references/modes.md` §Competitive), off by default and marked as such. Name the cost on the card: it adds a synthesis pass, a per-graft endorsement vote, and a verification pass on top of the three phases; and note that a wildly divergent field ends in a recommendation to reframe and re-run, a fresh tournament at full cost that only launches through this intake again.
 
 ## Step 6 — Confirm-summary, then consent
 
