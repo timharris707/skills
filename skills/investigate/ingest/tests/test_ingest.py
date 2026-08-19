@@ -472,6 +472,31 @@ class TestManifestDurability(unittest.TestCase):
                 "an interrupted write must never leave a partial marker",
             )
 
+    def test_two_claimants_never_share_a_temp_path(self):
+        # #254 review: a shared fixed temp name let one claimant's publish
+        # delete the path out from under the other's rename, crashing the
+        # loser with FileNotFoundError. Distinct per-claim temp paths keep
+        # concurrent claims last-writer-wins instead.
+        sources = []
+        real_replace = Path.replace
+
+        def recording_replace(self, target):
+            sources.append(self.name)
+            return real_replace(self, target)
+
+        Path.replace = recording_replace
+        try:
+            with tempfile.TemporaryDirectory() as t:
+                d = Path(t) / "run"
+                ing.claim_out_dir(d)
+                (d / ing.RUN_MARKER).unlink()
+                ing.claim_out_dir(d)
+        finally:
+            Path.replace = real_replace
+        self.assertEqual(len(sources), 2)
+        self.assertNotEqual(sources[0], sources[1],
+                            "each claim must write through its own temp path")
+
     def test_save_is_atomic_and_reloadable(self):
         with tempfile.TemporaryDirectory() as t:
             d = Path(t)

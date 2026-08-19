@@ -28,8 +28,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `Path.write_text()`, so a crash mid-write could leave a partial or non-durable
   marker that adoption checks then trusted. The marker now goes to a temp file
   with flush + fsync and an atomic rename into place, so after any crash it
-  either exists complete or not at all. Covers every command that claims a
-  directory (run, preview, link, sweep).
+  either exists complete or not at all. The temp name is unique per claimant
+  (concurrent claims stay last-writer-wins instead of crashing the loser),
+  and the directory entry is fsynced after the rename where the platform
+  allows. Covers every command that claims a directory (run, preview, link,
+  sweep).
 
 ## [v1.2.1] - 2026-08-13 — preview-then-run fix, audit dedup
 
