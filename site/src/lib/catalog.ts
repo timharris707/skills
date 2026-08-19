@@ -58,6 +58,7 @@ export const INVOCATION: Record<string, Invocation> = {
   "writing-for-agents": { invokedBy: "agent", command: null },
   "writing-for-humans": { invokedBy: "agent", command: null },
   huh: { invokedBy: "agent", command: null },
+  plainspoken: { invokedBy: "agent", command: null },
 };
 
 /**
@@ -86,6 +87,7 @@ export const PLOT: Record<string, { x: number; y: number; anchor?: "start" | "en
   "writing-for-agents": { x: 940, y: 490, anchor: "end" },
   "writing-for-humans": { x: 940, y: 380, anchor: "end" },
   huh: { x: 940, y: 275, anchor: "end" },
+  plainspoken: { x: 940, y: 95, anchor: "end" },
 };
 
 /**
