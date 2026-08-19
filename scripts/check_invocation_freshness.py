@@ -83,7 +83,9 @@ def promoted_skills() -> dict:
             continue
         bucket_dir = SKILLS_DIR / bucket["id"]
         if not bucket_dir.is_dir():
-            continue
+            print(f"ERROR: promoted bucket '{bucket['id']}' has no skills/{bucket['id']} "
+                  "directory; a skipped bucket is not a green check")
+            sys.exit(1)
         for entry in sorted(bucket_dir.iterdir()):
             if entry.is_dir() and (entry / "SKILL.md").is_file():
                 out[entry.name] = entry

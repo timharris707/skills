@@ -31,7 +31,7 @@
 | [plainspoken](./skills/author/plainspoken/SKILL.md) | Write like a person in everything the agent emits: plain words, concrete claims, no AI tells, in chat replies and commit messages included. Governs how a message sounds, nothing more. | Standalone plugin | fires itself |
 | [huh](./skills/author/huh/SKILL.md) | Decode a message that didn't land: restate it in plain sentences, expand invented shorthand, split report from request, and flag claims stated without evidence. | Standalone plugin | fires itself |
 
-The fifteen **team-workflow** skills ship and version together as one pack — install them as a set and they cover the full loop of tracked, multi-session, agent-assisted development. The rest stand alone: **advisory-board** works anywhere a hard decision does; **ingest** turns media into evidence wherever it lands; **blast-radius** proves a change safe before it merges; **writing-for-agents** is the standard the rest of this catalog is written against, and **writing-for-humans** its counterpart for the copy humans read; **plainspoken** keeps everything an agent writes sounding human, and **huh** translates the messages that don't land.
+The **team-workflow** skills ship and version together as one pack — install them as a set and they cover the full loop of tracked, multi-session, agent-assisted development. The rest stand alone: **advisory-board** works anywhere a hard decision does; **ingest** turns media into evidence wherever it lands; **blast-radius** proves a change safe before it merges; **writing-for-agents** is the standard the rest of this catalog is written against, and **writing-for-humans** its counterpart for the copy humans read; **plainspoken** keeps everything an agent writes sounding human, and **huh** translates the messages that don't land.
 
 ## Install
 
@@ -42,7 +42,7 @@ Add the marketplace once, then install whichever plugins you want.
 ```text
 /plugin marketplace add timharris707/skills
 /plugin install advisory-board@skills      # the multi-model advisory board
-/plugin install team-workflow@skills       # all fifteen pack skills as one plugin
+/plugin install team-workflow@skills       # every pack skill as one plugin
 /plugin install ingest@skills              # media → evidence packet + routing
 /plugin install writing-for-agents@skills  # the skill-authoring reference
 /plugin install writing-for-humans@skills  # the human-facing copy reference
