@@ -39,7 +39,7 @@ Everyone sees everything; the value is accumulation, not independence.
 
 ## Competitive
 
-Three fixed phases; the output is a ranked field of ideas, not a consensus.
+Three fixed phases, plus an optional graft-and-verify close (below); the output is a ranked field of ideas, not a consensus.
 
 **Minimum three seats — through the pitch phase.** With two pitches, each voter has exactly one eligible pitch (its own is excluded), so every tally is 1–1 by construction. The intake refuses a two-seat Competitive run and offers a third seat or Formal Board Review instead; and if drops leave fewer than three pitches in the field at the end of the pitch phase, stop and report rather than vote. A seat that drops *after* pitching leaves its pitch votable, so the run continues — its missing critique and vote are stated in `results.md`.
 
@@ -54,6 +54,22 @@ Three fixed phases; the output is a ranked field of ideas, not a consensus.
 **Artifacts.** `pitch-<seat>.md`, `critique-<seat>.md`, `vote-<seat>.md`, and `results.md` (the tally, the winning pitch, and the strongest surviving objections to it). A seat that drops mid-run is recorded in `run-metadata.md` (status: dropped) and named in `results.md` — its pitch stays in the field, its missing votes are stated, never imputed. No `verdict.json`.
 
 **Variant.** Vote on individual *ideas* rather than whole pitches when pitches each contain several separable options; say which variant ran in `results.md`.
+
+### Graft and verify (optional close)
+
+Off by default. The user opts in at intake, on the record, never mid-run. Flag the cost on the intake card before the yes: this close adds a synthesis pass, a per-graft endorsement vote across the losing seats, and a verification pass on top of the three phases, so an opted-in run spends meaningfully more model calls and time than a plain Competitive run.
+
+**Read the field first.** After the tally, before any grafting, judge the shape of the field. When the pitches converge on one shape, that convergence is the answer: record it in `results.md` and ship the consensus shape, with no graft pass and no `synthesis.md` (the file exists only when grafting ran). When the pitches wildly diverge, the brief was under-specified; recommend reframing and re-running the tournament rather than averaging the divergence into a synthesis nobody pitched. A re-run is a new tournament at full tournament cost: it goes back through intake for the user's consent and never auto-launches. Graft-and-verify earns its cost only in the middle ground, where distinct pitches each carry something the winner lacks.
+
+**Mechanics.** The tally still decides the winner; this close starts from that result and never reopens the vote. A tied tally has no graft base: report the tie as the tally rules already require and skip this close entirely, noting in `results.md` that it was skipped for the tie.
+
+1. **Graft.** Take the winning pitch as the base. Walk each losing pitch once, looking for its strongest separable ideas; the signal is usually one or two things per pitch, not most of it. Fold each graft in so the result stays coherent under one mental model, never by mechanical pasting. Treat each graft the way the `--output revised-draft` machinery treats an edit (`SKILL.md` §Artifact Standard): a discrete, attributable change put to the non-winning seats for a per-graft `ENDORSE`/`OBJECT`/`ABSTAIN` vote. The vote informs, never gates: the conductor folds or drops each graft on its own judgment, and the full tally travels with the graft in `synthesis.md` so the human sees where seats objected. A seat that dropped before the close, or returns no vote, is recorded as `NO VOTE`, distinct from `ABSTAIN`. Objections are recorded for a human to read, never resolved by another model loop.
+2. **Record.** Write down what was grafted and from which seat, and what was considered and rejected and why. The rejection notes are the highest-signal part of the record: future readers learn from what was weighed and dropped, not just from what was kept.
+3. **Verify.** The synthesis faces the same scrutiny as any seat output; winning the tournament earns no pass. Re-run the critique shape against the synthesized pitch (each seat stress-tests it by name), fold confirmed problems back in or record them as open, and record the outcome. A problem no pitch caught means the brief was wrong: reframe. A problem one losing pitch caught means the graft walk missed it: go back to step 1, once. If the second verification still finds confirmed problems, stop — record them as open in `synthesis.md` for the human rather than looping again.
+
+**Artifacts.** One additional file, `synthesis.md`: the synthesized pitch, the graft record (each graft with its source seat and its endorsement tally), the rejection notes, and the verification outcome. `results.md` and the tally are unchanged, and there is still no `verdict.json`; the synthesis is a record for the human, never a gate input.
+
+**Attribution.** This close is adapted from phases E and F of Lauren Tan's [`arena`](https://github.com/cursor/plugins/tree/main/pstack/skills/arena) (MIT): the winner-as-base grafting, the rejection notes as the highest-signal part of the record, verification that grants no pass, and the convergence and divergence heuristics are hers. The per-graft endorsement vote is this skill's addition, reusing its revised-draft convention.
 
 ## Choosing a mode
 
