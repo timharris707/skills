@@ -32,6 +32,11 @@ else
 		printf 'log.sh: %s exists but its header is not the decision-log header; refusing to append\n' "$logfile" >&2
 		exit 1
 	fi
+	# Heal a missing trailing newline (a crash mid-write) so the new row
+	# can never concatenate onto a partial last line.
+	if [ -s "$logfile" ] && [ "$(tail -c 1 "$logfile")" != "" ]; then
+		printf '\n' >> "$logfile"
+	fi
 fi
 
 ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
