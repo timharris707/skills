@@ -25,10 +25,13 @@
 | [adversarial-review](./skills/run/adversarial-review/SKILL.md) | Break the change before it ships: isolated finders, a skeptic pass that kills unproven findings, and a gate only confirmed blockers may hold — run before external reviewers see it. | team-workflow pack | fires itself |
 | [diagnose](./skills/run/diagnose/SKILL.md) | The disciplined bug-fixing loop — reproduce red, minimize, hypothesize falsifiably, instrument, fix, regression-test — where no fix ships without a cause named in one plain sentence, with evidence. | team-workflow pack | fires itself |
 | [implement](./skills/run/implement/SKILL.md) | How a lane builds an item: seam-scoped test-first, tracer-first sequencing, a green checkpoint commit per slice, and file-don't-fix scope discipline — adjacent discoveries go to the tracker, never into the diff. | team-workflow pack | fires itself |
+| [blast-radius](./skills/run/blast-radius/SKILL.md) | Find what a change breaks somewhere else before it ships: past where grep stops, into library source, timing, and wire formats. The one fact it's safe because of gets proven by running real code. | Standalone plugin | fires itself |
 | [writing-for-agents](./skills/author/writing-for-agents/SKILL.md) | Write and prune documents an agent consumes — context pointers, the two loads, the information hierarchy, leading words, and the no-op test. | Standalone plugin | fires itself |
 | [writing-for-humans](./skills/author/writing-for-humans/SKILL.md) | Write copy a human reads — pages, READMEs, launch posts. Guide structure over catalog structure, the warmth moves, three named failure modes, and a last-mile AI-tell scrub. | Standalone plugin | fires itself |
+| [plainspoken](./skills/author/plainspoken/SKILL.md) | Write like a person in everything the agent emits: plain words, concrete claims, no AI tells, in chat replies and commit messages included. Governs how a message sounds, nothing more. | Standalone plugin | fires itself |
+| [huh](./skills/author/huh/SKILL.md) | Decode a message that didn't land: restate it in plain sentences, expand invented shorthand, split report from request, and flag claims stated without evidence. | Standalone plugin | fires itself |
 
-The fifteen **team-workflow** skills ship and version together as one pack — install them as a set and they cover the full loop of tracked, multi-session, agent-assisted development. **advisory-board** stands alone and works anywhere a hard decision does; **ingest** stands alone and turns media into evidence wherever it lands; **writing-for-agents** stands alone as the standard the rest of this catalog is written against, and **writing-for-humans** as its counterpart for the copy humans read.
+The fifteen **team-workflow** skills ship and version together as one pack — install them as a set and they cover the full loop of tracked, multi-session, agent-assisted development. The rest stand alone: **advisory-board** works anywhere a hard decision does; **ingest** turns media into evidence wherever it lands; **blast-radius** proves a change safe before it merges; **writing-for-agents** is the standard the rest of this catalog is written against, and **writing-for-humans** its counterpart for the copy humans read; **plainspoken** keeps everything an agent writes sounding human, and **huh** translates the messages that don't land.
 
 ## Install
 
@@ -43,12 +46,15 @@ Add the marketplace once, then install whichever plugins you want.
 /plugin install ingest@skills              # media → evidence packet + routing
 /plugin install writing-for-agents@skills  # the skill-authoring reference
 /plugin install writing-for-humans@skills  # the human-facing copy reference
+/plugin install plainspoken@skills         # the always-on plain-writing voice rule
+/plugin install huh@skills                 # decode a message that didn't land
+/plugin install blast-radius@skills        # prove a change safe before it merges
 ```
 
 ### Codex
 
-The same nineteen skills, native. Codex allows one plugin per repository root, so the
-whole catalog arrives as a single plugin rather than five:
+Every skill in the catalog above, native. Codex allows one plugin per repository
+root, so the whole catalog arrives as a single plugin rather than one per skill:
 
 ```bash
 codex plugin marketplace add timharris707/skills
