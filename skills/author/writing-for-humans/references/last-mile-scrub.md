@@ -2,45 +2,26 @@
 
 The final pass over human-facing copy, run from [SKILL.md](../SKILL.md) after structure and voice are settled. Scrubbing an unfinished draft produces *clean nothing*. Do the content work first.
 
-## Guardrails (read before hunting)
+## The catalog lives elsewhere
 
-- **Clusters, not isolated tells.** A single em dash means nothing; several tells stacking in one passage is what to fix. Judge passages, never words in isolation. (This rule and the next follow [blader/humanizer](https://github.com/blader/humanizer).) One tell is exempt from needing company: em-dash density, where sheer recurrence is itself the cluster (first row of the table below).
-- **A voice sample outranks every rule below.** When the author's real writing uses em dashes, triads, or any listed pattern, match the sample's frequency instead of scrubbing the tell. Matching the author beats scrubbing the tell.
-- **No fabrication.** The scrub rewrites; it never adds facts, names, numbers, or anecdotes the source didn't carry.
-- **Rewrite sentences, not words.** Swapping "leverage" for "use" leaves the AI sentence standing. When a cluster fires, redraft the passage in the piece's voice.
+The tells themselves, and the method for hunting them (judge clusters rather than isolated words, redraft the passage whole rather than swapping a word), live in the repo's single merged catalog: [plainspoken's tell catalog](../../../in-progress/plainspoken/references/tell-catalog.md). Read it there; this file adds only what shipped artifacts need on top.
+
+## Artifact-only additions (read before hunting)
+
+- **The catalog's voice-sample rule does the artifact work here.** Its precedence over every pattern is defined in the catalog; this pass adds one clarification: the standing voice rules in [SKILL.md](../SKILL.md) are never outranked, even by a sample.
+- **A dash budget, not the ban.** The catalog drops em dashes from agent prose outright. Shipped pages keep [SKILL.md](../SKILL.md)'s budget instead: roughly a handful per page, each one earning its place, with density alone enough to fire the tell. A voice sample that uses em dashes is the one exception: match the sample's frequency even past the budget. When a page runs over otherwise, restructure — split the sentence, subordinate the aside with a comma, or cut it. A mechanical in-place swap of a dash for any other mark preserves the exact rhythm the budget exists to break, which is the anti-pattern the catalog's redraft rule already names.
 
 ## The pass
 
-1. Read the draft aloud (or as if aloud). Mark every passage where two or more tells from the table stack. Judge the dash count per page; when it runs over budget, mark the stretches carrying the least-earned dashes; that tell needs no company.
-2. Redraft each marked passage whole, keeping its facts and its next-action.
+1. Read the draft aloud (or as if aloud). Mark passages the catalog's method flags, and judge the dash count per page; when it runs over budget, mark the stretches carrying the least-earned dashes; that tell needs no company.
+2. Redraft each marked passage per the catalog's redraft rule, keeping its facts and its next-action.
 3. Reread once end-to-end for rhythm: sentence lengths should vary, and no two adjacent paragraphs should open the same way.
-
-## Tell clusters
-
-Condensed from the patterns Wikipedia's "Signs of AI writing" documents and blader/humanizer catalogs; consult that catalog's 33 numbered patterns with before/after examples when a passage fails and the reason won't surface.
-
-| Cluster | What it looks like |
-| --- | --- |
-| Em-dash density | Dash-spliced asides recurring sentence after sentence; each dash looks fine alone, and a page of them is a signature |
-| Significance inflation | "stands as a testament", "plays a vital role", "marks a significant step": importance asserted, never shown |
-| Promotional gloss | "seamless", "robust", "comprehensive", "cutting-edge": adjectives doing a claim's job |
-| AI vocabulary | "delve", "leverage", "landscape", "tapestry", "journey", "unlock" |
-| Rule of three | Triads in every list and sentence ("fast, simple, and powerful") regardless of whether three things exist |
-| Contrast scaffold | "It's not just X, it's Y", "more than a tool" |
-| Essay endings | "In conclusion", "Ultimately,": a summary paragraph restating what the reader just read |
-| Empty transitions | "Moreover," "Furthermore," "Additionally," opening consecutive paragraphs |
-| Hedging stacks | "could potentially", "it's important to note that": two hedges where zero belong |
-| Uniform rhythm | Every sentence the same length and shape; no short one anywhere |
-| Chatbot artifacts | "Certainly!", "I hope this helps", "Let's dive in" |
-| Formatting litter | Bold terms scattered mid-prose, headers for two-sentence sections, emoji bullets |
-
-Em-dash density is a primary tell, the one row that fires on frequency alone. blader/humanizer calls the em dash one of the most reliable AI tells and bans em and en dashes from its final rewrites outright, a voice sample that uses them being the sole exception. This pass keeps [SKILL.md](../SKILL.md)'s budget instead of the ban: roughly a handful per page, each one earning its place. When the row fires, restructure. Split the sentence, subordinate the aside with a comma, or cut it. A mechanical in-place swap of a dash for any other mark (comma, semicolon, colon, or parentheses) preserves the exact rhythm the budget exists to break, which is the anti-pattern the guardrail above ("rewrite sentences, not words") already names.
 
 ## Done when
 
 - Every passage where tells clustered was redrafted whole, and no new facts entered.
 - The page ends inside its dash budget: a handful at most, and no over-budget dash was fixed by an in-place swap.
-- The voice sample, when one exists, won every conflict with the table.
+- The voice sample, when one exists, won every conflict with the catalog.
 - One read-through end-to-end found varied rhythm and no chatbot artifacts.
 
 ## Future tooling

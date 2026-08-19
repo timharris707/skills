@@ -8,6 +8,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- The last-mile scrub no longer carries its own tell table. The repo's single
+  merged AI-tell catalog now lives in the `plainspoken` skill (decision record
+  0004: two catalogs drift), and the scrub defers to it, keeping only its
+  artifact-specific additions: the voice-sample-outranks-rules and
+  no-fabrication guardrails, the dash budget that replaces the catalog's
+  outright em-dash ban for shipped pages, the pass steps, and the exit
+  checklist.
+
 ## [v1.2.0] - 2026-08-13
 
 ### Added
