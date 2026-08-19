@@ -4,7 +4,7 @@ The final pass over human-facing copy, run from [SKILL.md](../SKILL.md) after st
 
 ## The catalog lives elsewhere
 
-The tells themselves, and the method for hunting them (judge clusters rather than isolated words, redraft the passage whole rather than swapping a word), live in the repo's single merged catalog: [plainspoken's tell catalog](../../../in-progress/plainspoken/references/tell-catalog.md). Read it there; this file adds only what shipped artifacts need on top.
+The tells themselves, and the method for hunting them (judge clusters rather than isolated words, redraft the passage whole rather than swapping a word), live in the repo's single merged catalog: [plainspoken's tell catalog](../../plainspoken/references/tell-catalog.md). Read it there; this file adds only what shipped artifacts need on top.
 
 ## Artifact-only additions (read before hunting)
 

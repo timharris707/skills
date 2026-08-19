@@ -28,6 +28,7 @@
   },
   "skills": [
     "./skills/author/huh",
+    "./skills/author/plainspoken",
     "./skills/author/writing-for-agents",
     "./skills/author/writing-for-humans",
     "./skills/decide/advisory-board",

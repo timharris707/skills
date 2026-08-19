@@ -87,6 +87,17 @@
       "skills": [
         "./skills/author/writing-for-humans"
       ]
+    },
+    {
+      "name": "plainspoken",
+      "source": "./",
+      "strict": false,
+      "version": "1.0.0",
+      "description": "Write like a person in everything the agent emits: plain words, concrete claims, no AI tells. Always on for chat replies, status updates, close-outs, review comments, and commit messages; owns the repo's single merged tell catalog behind a pointer.",
+      "license": "MIT",
+      "skills": [
+        "./skills/author/plainspoken"
+      ]
     }
   ]
 }
