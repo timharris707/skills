@@ -1,6 +1,7 @@
 ---
 name: advisory-board
 description: Convene a multi-model advisory board — subscription-backed Claude, Codex, Gemini, and Grok CLIs reviewing the same material in formal, roundtable, or competitive mode. Use when the user asks for an advisory board, roundtable, panel, or idea tournament; a multi-model or cross-provider review or debate; a red-team of a plan, design, decision, or document by several models; or a consensus handoff from several frontier models.
+disable-model-invocation: true
 ---
 
 # Advisory Board

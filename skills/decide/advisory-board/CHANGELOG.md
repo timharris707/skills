@@ -9,6 +9,12 @@ versioned separately and do not replace the skill release version.
 
 ## [Unreleased]
 
+### Changed
+- **`disable-model-invocation: true` in frontmatter** (invocation-mode audit, timharris707/skills#228):
+  every trigger in the description is an explicit user ask, no pack flow routes an agent into
+  convening a board, and a misfired board spawns paid multi-model subprocesses — so the skill is
+  user-invoked by design (`/advisory-board:advisory-board`). No behavior text changed.
+
 ## [v1.18.1] - 2026-08-13 — audit prune, lean description, signed-out preflight fix
 
 ### Changed

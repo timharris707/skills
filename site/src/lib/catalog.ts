@@ -42,7 +42,7 @@ export const INVOCATION: Record<string, Invocation> = {
   setup: { invokedBy: "agent", command: null },
   "domain-memory": { invokedBy: "agent", command: null },
   grilling: { invokedBy: "agent", command: null },
-  "advisory-board": { invokedBy: "agent", command: null },
+  "advisory-board": { invokedBy: "user", command: "/advisory-board:advisory-board" },
   "decision-map": { invokedBy: "agent", command: null },
   ingest: { invokedBy: "agent", command: null },
   research: { invokedBy: "agent", command: null },
