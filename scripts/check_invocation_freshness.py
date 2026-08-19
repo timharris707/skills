@@ -23,8 +23,8 @@ The map must list exactly the promoted skills — a missing or phantom entry is
 an error, as is any value disagreement. The checker parses the INVOCATION
 block line by line, so each entry stays on one line (catalog.ts says so too).
 
-README.md's catalog table carries the same classification as its Invocation
-column, one tag per state: "you call it" (user), "fires itself" (agent),
+README.md's catalog (one table per bucket section) carries the same
+classification as its Invocation column, one tag per state: "you call it" (user), "fires itself" (agent),
 "both" (either), with the slash command in backticks when one exists. This
 check derives each row's expected cell from the same frontmatter derivation
 and fails on any disagreement, a row for a skill that is not promoted, or a
@@ -175,21 +175,24 @@ README_HEADER_RE = re.compile(r"^\|\s*Skill\s*\|.*\|\s*Invocation\s*\|\s*$")
 def check_readme(expected: dict):
     """Every skill row in README.md's catalog table carries the derived mark."""
     lines = README.read_text().splitlines()
-    # Scope validation to the catalog table itself: the contiguous pipe-row
-    # block that follows the Invocation header. Linked rows in unrelated
-    # tables must not count toward `rows`, or a gutted catalog could pass.
-    header_at = next(
-        (i for i, line in enumerate(lines) if README_HEADER_RE.match(line)), None
-    )
-    if header_at is None:
+    # Scope validation to the catalog tables themselves: each contiguous
+    # pipe-row block that follows an Invocation header (the catalog is one
+    # table per bucket section). Linked rows in unrelated tables must not
+    # count toward `rows`, or a gutted catalog could pass.
+    table = []
+    headers = 0
+    i = 0
+    while i < len(lines):
+        if README_HEADER_RE.match(lines[i]):
+            headers += 1
+            i += 1
+            while i < len(lines) and lines[i].lstrip().startswith("|"):
+                table.append((i + 1, lines[i]))
+                i += 1
+        else:
+            i += 1
+    if headers == 0:
         errors.append("README.md catalog table has no 'Invocation' column header")
-        table = []
-    else:
-        table = []
-        for offset, line in enumerate(lines[header_at + 1 :], header_at + 2):
-            if not line.lstrip().startswith("|"):
-                break
-            table.append((offset, line))
 
     rows = 0
     listed = set()
