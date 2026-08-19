@@ -156,6 +156,12 @@ export const HUMAN: Record<string, HumanCopy> = {
     intro:
       "Agents produce messages that are confident, dense, and not quite parseable: invented shorthand, claims with nothing behind them, a request buried inside a report. huh reads the message back in plain sentences, expands the shorthand, separates what's being reported from what's being asked, and flags which claims come with evidence and which are just confident. It decodes; it can't verify the claims for you, only mark which ones arrived unproven.",
   },
+  plainspoken: {
+    card:
+      "You can tell when an agent wrote something: the dashes, the padded phrases, the cheerful sign-off nobody asked for. This makes plain writing the default in every message your agent sends, chat replies and commit messages included. It fixes how things sound, and only that.",
+    intro:
+      "Ask an agent how the work went and you get a press release: everything is seamless, everything is a journey, and there's a dash in every sentence. plainspoken is the always-on voice rule for everything an agent writes, down to the chat replies and commit messages nobody thinks of as writing. Plain words, concrete claims, no dashes, no victory laps. When a passage still reads generated, it gets redrafted whole, because swapping one giveaway word for a synonym leaves the AI sentence standing. It governs how a message sounds, nothing more: whether the claim is true is a different discipline, and taste is still yours.",
+  },
 };
 
 /**
