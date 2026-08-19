@@ -83,6 +83,7 @@ Clone the repo and copy or symlink skill directories into wherever your runtime 
 ```bash
 git clone https://github.com/timharris707/skills.git agent-skills
 # Skills live in buckets; this links every skill in a promoted bucket by name.
+set -o pipefail  # a failed bucket read must fail the install, not link nothing
 python3 -c "import json; [print(b['id']) for b in json.load(open('agent-skills/skills/buckets.json'))['buckets'] if b['promoted']]" |
 while read -r bucket; do
   for d in agent-skills/skills/"$bucket"/*/; do
