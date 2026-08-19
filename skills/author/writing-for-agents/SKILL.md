@@ -90,7 +90,7 @@ The em dash never appears in skill prose: it is a top AI tell, and the prose an 
 - Every step ends on a criterion you can evaluate as done or not-done, and the document carries an exhaustiveness bar.
 - No meaning appears in two places, and nothing restates a lookup the environment answers in one command.
 - Every prohibition either states a positive target beside it or is a hard guardrail that cannot be phrased positively.
-- No em dash appears outside a code block.
+- No em dash appears outside a code block or inline code span.
 - The no-op test has been run sentence by sentence, and what failed was deleted rather than trimmed.
 
 ## Attribution

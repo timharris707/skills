@@ -20,7 +20,7 @@ The tells themselves, and the method for hunting them (judge clusters rather tha
 ## Done when
 
 - Every passage where tells clustered was redrafted whole, and no new facts entered.
-- The page ends inside its dash budget: a handful at most, and no over-budget dash was fixed by an in-place swap.
+- The page ends inside its dash budget (a handful at most), or matching its voice sample's dash frequency where one exists, and no over-budget dash was fixed by an in-place swap.
 - The voice sample, when one exists, won every conflict with the catalog.
 - One read-through end-to-end found varied rhythm and no chatbot artifacts.
 

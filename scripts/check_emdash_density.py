@@ -3,9 +3,10 @@
 
 The em dash is one of the most reliable AI tells (plainspoken's tell catalog,
 pattern 13), and skill prose style leaks into model output, so the catalog's
-skill texts were swept to zero em dashes outside code (#226). This check keeps
-that from regressing: it counts em dashes per file, outside fenced code blocks
-and inline code spans, and fails when any guarded file exceeds the threshold.
+skill texts were swept (#226), leaving at most a few deliberate literals per
+file (the worst is 3). This check keeps that from regressing: it counts em
+dashes per file, outside fenced code blocks and inline code spans, and fails
+when any guarded file exceeds the threshold of 8.
 
 Guarded set (the files the sweep normalized):
 
@@ -37,15 +38,34 @@ ROOT = Path(__file__).resolve().parent.parent
 SKILLS_DIR = ROOT / "skills"
 THRESHOLD = 8
 
-FENCED_CODE = re.compile(r"^(?: {0,3})(```|~~~).*?^(?: {0,3})\1[^\n]*$", re.M | re.S)
+FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
 INLINE_CODE = re.compile(r"`[^`\n]+`")
 
 
 def emdash_count_outside_code(text: str) -> int:
-    """Em dashes in prose: fenced code blocks and inline code spans exempt."""
-    text = FENCED_CODE.sub("", text)
-    text = INLINE_CODE.sub("", text)
-    return text.count("—")
+    """Em dashes in prose: fenced code blocks and inline code spans exempt.
+
+    Fence tracking follows the CommonMark shape: a fence opens with three or
+    more backticks or tildes (optionally followed by an info string); once
+    open, it closes only on a line whose fence characters match the opening
+    character, are at least as long as the opener, and carry nothing else but
+    trailing whitespace. A line like ```python inside an open backtick fence
+    is therefore content, never a close.
+    """
+    count = 0
+    open_char = None
+    open_len = 0
+    for line in text.split("\n"):
+        m = FENCE.match(line)
+        if open_char is None:
+            if m:
+                open_char = m.group(1)[0]
+                open_len = len(m.group(1))
+            else:
+                count += INLINE_CODE.sub("", line).count("—")
+        elif m and m.group(1)[0] == open_char and len(m.group(1)) >= open_len and m.group(2).strip() == "":
+            open_char = None
+    return count
 
 
 def guarded_files() -> list[Path]:

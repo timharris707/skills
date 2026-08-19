@@ -43,7 +43,7 @@ At every read moment, follow the supersession chain: only the latest unsupersede
 
 A decision record is **superseded, never edited**: a change of mind gets a new record carrying a "supersedes" link to the old one, and the old record gains a superseded marker pointing forward. Adding that Superseded-by marker is the one edit a record ever receives outside an approved consolidation pass ([references/formats.md](references/formats.md) states the two supersession steps). History stays readable: you can watch a decision change and see each reason standing at its own date. The glossary is the opposite case and updates in place: it says what a term means now, and its history is git's job.
 
-Past the **size bound** the binding names, the skill offers a **consolidation pass**, merge superseded chains, retire records whose subject no longer exists, tighten the glossary, presented to the decider for disposition like any other proposal. The store shrinks only on the decider's yes, never on a session's tidying instinct.
+Past the **size bound** the binding names, the skill offers a **consolidation pass**: a proposal to merge superseded chains, retire records whose subject no longer exists, and tighten the glossary, presented to the decider for disposition like any other proposal. The store shrinks only on the decider's yes, never on a session's tidying instinct.
 
 ## 5. Backfill: on request, by disposition
 
