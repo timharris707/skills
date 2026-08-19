@@ -1,0 +1,3 @@
+interface:
+  display_name: "Blast Radius"
+  short_description: "Find what a change breaks somewhere else before it ships, and prove it safe by running real code"
