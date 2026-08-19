@@ -7,6 +7,25 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **Loop-wedge auto-recovery in the transcription stage.** Twice on real
+  recordings (2026-08-17 and 2026-08-18 team calls) mlx-whisper wedged over
+  quiet-but-substantive spans, emitting identical-line runs the reading copy
+  collapsed as "likely a transcription loop over silence" — while the span
+  actually held conversation. The pipeline now detects identical-line runs
+  covering ≥15s in `transcript.srt` (empty zero-length cues are transparent —
+  the 8/18 wedge strewed them between its repeats), re-transcribes each span
+  (±3s padding) from the extracted audio with band-limit + loudness
+  normalization and `--condition-on-previous-text False`, and splices the
+  recovered cues back at absolute timestamps before deriving the reading
+  copies. The raw model output survives as `transcript.orig.srt`; recovered
+  spans (start, end, seconds, cue counts) and word count land in the manifest,
+  and a summary line always prints — `loop-wedge recovery: none needed` or
+  `N span(s), Ns re-transcribed, N words recovered`. A recovery tool failure
+  keeps the original cues and warns loudly, naming the span; it never fails
+  the packet.
+
 ### Changed
 
 - **Em-dash sweep** (#226): SKILL.md and `references/pipeline.md` rewrote their

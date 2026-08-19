@@ -241,6 +241,161 @@ class TestTranscriptFidelity(unittest.TestCase):
         self.assertEqual((out, collapsed), (segs, 0))
 
 
+class TestLoopWedgeRecovery(unittest.TestCase):
+    """A wedge over quiet-but-substantive audio is re-transcribed, spliced
+    back at absolute timestamps, and loudly reported — and a recovery failure
+    never fails the packet (2026-08-17/18 team calls)."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.dir = Path(self.tmp.name)
+        self.addCleanup(self.tmp.cleanup)
+
+    @staticmethod
+    def srt(cues):
+        return ing.cues_to_srt(cues)
+
+    def test_cue_round_trip(self):
+        cues = [(0.0, 2.48, "hello"), (809.32, 812.0, "goodbye then")]
+        self.assertEqual(ing.parse_srt_cues(self.srt(cues)), cues)
+
+    def test_a_long_identical_run_is_a_wedge(self):
+        cues = [(0, 5, "intro")]
+        cues += [(float(t), float(t + 2), "!") for t in range(10, 30, 2)]
+        cues += [(40.0, 45.0, "outro")]
+        self.assertEqual(ing.wedged_spans(cues), [(1, 10)])
+
+    def test_two_identical_cues_covering_the_threshold_are_a_wedge(self):
+        # The threshold is TIME, not repeat count — losing >15s of a call is
+        # unacceptable however few cues the loop emitted.
+        cues = [(0.0, 8.0, "same line"), (8.0, 16.0, "same line")]
+        self.assertEqual(ing.wedged_spans(cues), [(0, 1)])
+
+    def test_quick_genuine_repetition_is_not_a_wedge(self):
+        cues = [(10.0, 11.0, "Yes"), (12.0, 13.0, "Yes"), (14.0, 15.0, "Yes")]
+        self.assertEqual(ing.wedged_spans(cues), [])
+
+    def test_empty_text_runs_are_not_a_wedge(self):
+        cues = [(0.0, 10.0, ""), (10.0, 20.0, "")]
+        self.assertEqual(ing.wedged_spans(cues), [])
+
+    def test_empty_cues_inside_a_run_are_transparent(self):
+        # The 2026-08-18 wedge: repeated "!" cues strewn with zero-length
+        # empty cues. Empties must neither break the run nor anchor its ends.
+        cues = [
+            (0.0, 2.0, "!"), (2.0, 2.0, ""), (2.0, 2.0, ""),
+            (20.0, 22.0, "!"), (22.0, 22.0, ""),
+            (40.0, 42.0, "!"),
+            (42.0, 42.0, ""),          # trailing empty: not the run's end
+            (45.0, 50.0, "real speech"),
+        ]
+        self.assertEqual(ing.wedged_spans(cues), [(0, 5)])
+
+    def _patch_retranscribe(self, fn):
+        original = ing.retranscribe_span
+        ing.retranscribe_span = fn
+        self.addCleanup(lambda: setattr(ing, "retranscribe_span", original))
+
+    def test_recovered_cues_are_spliced_at_absolute_time(self):
+        cues = [(0.0, 5.0, "before")]
+        cues += [(float(t), float(t + 2), "!") for t in range(10, 30, 2)]
+        cues += [(31.0, 36.0, "after")]
+        srt = self.dir / "transcript.srt"
+        srt.write_text(self.srt(cues))
+        # The fake returns absolute-time cues, including one that lives
+        # entirely in the padding — that one must not duplicate "before".
+        self._patch_retranscribe(
+            lambda wav, start, end, out_dir: [
+                (8.0, 9.5, "before"),                 # padding-only: dropped
+                (11.0, 18.0, "actual conversation over the quiet span"),
+                (18.0, 27.0, "that the wedge swallowed"),
+            ]
+        )
+        with contextlib.redirect_stdout(io.StringIO()) as out:
+            meta, words, failed = ing.recover_wedged_spans(
+                self.dir / "audio.wav", srt, self.dir
+            )
+        self.assertEqual(failed, [])
+        self.assertEqual(len(meta), 1)
+        self.assertEqual(meta[0]["cues_before"], 10)
+        self.assertEqual(meta[0]["cues_after"], 2)
+        self.assertEqual(meta[0]["start_s"], 10.0)
+        self.assertEqual(meta[0]["end_s"], 30.0)
+        self.assertEqual(words, 10, "only spliced cues count, not padding")
+        merged = ing.parse_srt_cues(srt.read_text())
+        self.assertEqual(
+            [t for _, _, t in merged],
+            ["before", "actual conversation over the quiet span",
+             "that the wedge swallowed", "after"],
+        )
+        self.assertEqual(
+            ing.parse_srt_cues(
+                (self.dir / "transcript.orig.srt").read_text()
+            ),
+            cues,
+            "the raw model output survives as transcript.orig.srt",
+        )
+        self.assertIn("loop-wedge recovery: 1 span(s)", out.getvalue())
+
+    def test_a_failed_recovery_keeps_the_original_and_does_not_raise(self):
+        cues = [(float(t), float(t + 4), "uh uh uh") for t in range(0, 24, 4)]
+        srt = self.dir / "transcript.srt"
+        srt.write_text(self.srt(cues))
+        self._patch_retranscribe(lambda wav, start, end, out_dir: None)
+        with contextlib.redirect_stdout(io.StringIO()) as out:
+            meta, words, failed = ing.recover_wedged_spans(
+                self.dir / "audio.wav", srt, self.dir
+            )
+        self.assertEqual((meta, words), ([], 0))
+        self.assertEqual(len(failed), 1)
+        self.assertEqual(failed[0]["start_s"], 0.0)
+        self.assertEqual(failed[0]["end_s"], 24.0)
+        self.assertEqual(ing.parse_srt_cues(srt.read_text()), cues)
+        self.assertFalse((self.dir / "transcript.orig.srt").exists(),
+                         "no splice happened, so there is nothing to back up")
+        self.assertIn("FAILED", out.getvalue())
+
+    def test_a_recovery_with_no_usable_cues_is_a_failure_not_a_deletion(self):
+        # If re-transcription returns nothing usable inside the wedged span,
+        # the original cues must survive: deleting them while reporting
+        # success would recreate the exact blind spot recovery exists for.
+        cues = [(float(t), float(t + 4), "uh uh uh") for t in range(0, 24, 4)]
+        srt = self.dir / "transcript.srt"
+        srt.write_text(self.srt(cues))
+        # Only a padding-window cue comes back; the filter drops it.
+        self._patch_retranscribe(
+            lambda wav, start, end, out_dir: [(24.5, 26.0, "edge speech")]
+        )
+        with contextlib.redirect_stdout(io.StringIO()) as out:
+            meta, words, failed = ing.recover_wedged_spans(
+                self.dir / "audio.wav", srt, self.dir
+            )
+        self.assertEqual((meta, words), ([], 0))
+        self.assertEqual(len(failed), 1)
+        self.assertEqual(ing.parse_srt_cues(srt.read_text()), cues,
+                         "original cues kept when nothing usable came back")
+        self.assertIn("FAILED", out.getvalue())
+
+    def test_failed_spans_keep_reporting_after_resume(self):
+        # A detected wedge whose recovery failed must not report
+        # "none needed" from the persisted metadata on a resumed run.
+        line = ing.recovery_summary(
+            [], 0, [{"start_s": 0.0, "end_s": 24.0, "seconds": 24.0}]
+        )
+        self.assertNotIn("none needed", line)
+        self.assertIn("FAILED", line)
+
+    def test_a_clean_transcript_still_prints_the_coverage_line(self):
+        srt = self.dir / "transcript.srt"
+        srt.write_text(self.srt([(0.0, 2.0, "hello"), (2.0, 4.0, "world")]))
+        with contextlib.redirect_stdout(io.StringIO()) as out:
+            meta, _, _ = ing.recover_wedged_spans(
+                self.dir / "audio.wav", srt, self.dir
+            )
+        self.assertEqual(meta, [])
+        self.assertIn("loop-wedge recovery: none needed", out.getvalue())
+
+
 class TestPacketValidation(unittest.TestCase):
     """'Complete' is re-derived from disk, not inferred from control flow."""
 

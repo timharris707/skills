@@ -80,6 +80,17 @@ MAX_EXTRA_FRAMES = 240
 # half a minute is the model looping over silence.
 MIN_LOOP_REPEATS = 3
 MIN_LOOP_SPAN_S = 20
+# Loop-wedge auto-recovery. Twice on real team calls (2026-08-17/18) whisper
+# wedged over quiet-but-substantive spans — identical-line runs the reading
+# copy collapses as "likely silence" that actually held conversation. Any
+# identical-line run of ≥2 cues covering this much wall time is re-transcribed
+# with audio normalization and conditioning off, which recovered both real
+# cases; losing more than 15s of a call is unacceptable (Tim, 2026-08-18).
+RECOVERY_MIN_SPAN_S = 15
+RECOVERY_PAD_S = 3
+# Band-limit to speech and normalize loudness: quiet spans stop reading to the
+# model as "keep emitting the previous line".
+RECOVERY_AUDIO_FILTER = "highpass=f=80,lowpass=f=8000,loudnorm=I=-14:TP=-1.5"
 EXIT_IDENTITY_MISMATCH = 4
 EXIT_DELETE_INCOMPLETE = 5
 RUN_MARKER = ".ingest-run"
@@ -539,6 +550,194 @@ def collapse_repeats(segs):
     return out, collapsed
 
 
+# ------------------------------------------------ loop-wedge recovery ---
+
+_SRT_CUE_TIMES_RE = re.compile(
+    r"(\d+):(\d\d):(\d\d)[,.](\d+)\s*-->\s*(\d+):(\d\d):(\d\d)[,.](\d+)"
+)
+
+
+def _srt_time_s(h, m, s, ms) -> float:
+    return int(h) * 3600 + int(m) * 60 + int(s) + int(ms.ljust(3, "0")[:3]) / 1000
+
+
+def parse_srt_cues(srt_text: str):
+    """Parse SRT into (start_s, end_s, text) triples at millisecond precision —
+    the full-fidelity counterpart to srt_to_segments, for the paths that
+    REWRITE cues rather than read them."""
+    cues = []
+    for block in re.split(r"\n\s*\n", srt_text.strip()):
+        lines = block.strip().splitlines()
+        for idx, ln in enumerate(lines):
+            m = _SRT_CUE_TIMES_RE.search(ln)
+            if m:
+                g = m.groups()
+                text = " ".join(x.strip() for x in lines[idx + 1 :]).strip()
+                cues.append((_srt_time_s(*g[:4]), _srt_time_s(*g[4:]), text))
+                break
+    return cues
+
+
+def srt_timestamp(seconds: float) -> str:
+    ms = round(seconds * 1000)
+    h, ms = divmod(ms, 3600_000)
+    m, ms = divmod(ms, 60_000)
+    s, ms = divmod(ms, 1000)
+    return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
+
+
+def cues_to_srt(cues) -> str:
+    return "\n".join(
+        f"{n}\n{srt_timestamp(a)} --> {srt_timestamp(b)}\n{t}\n"
+        for n, (a, b, t) in enumerate(cues, 1)
+    )
+
+
+def wedged_spans(cues):
+    """Index ranges [i, j] of identical-line runs long enough to be a wedge:
+    ≥2 consecutive cues with the same non-empty text covering
+    RECOVERY_MIN_SPAN_S of wall time (last cue's END minus first cue's start —
+    the audio the wedge is sitting on, not just the cue starts). Empty cues
+    are transparent: a wedged whisper strews zero-length empty cues between
+    the repeated lines (2026-08-18 call), so they neither break a run nor
+    anchor one."""
+    spans, i, n = [], 0, len(cues)
+    while i < n:
+        if not cues[i][2]:
+            i += 1
+            continue
+        j = last = i
+        while j + 1 < n and cues[j + 1][2] in ("", cues[i][2]):
+            j += 1
+            if cues[j][2]:
+                last = j
+        if last > i and cues[last][1] - cues[i][0] >= RECOVERY_MIN_SPAN_S:
+            spans.append((i, last))
+        i = j + 1
+    return spans
+
+
+def retranscribe_span(wav: Path, start: float, end: float, out_dir: Path):
+    """One recovery window: cut it from the extracted audio with the
+    normalization filter, transcribe it with conditioning OFF (conditioning on
+    the looped line is what keeps the wedge fed), and return the cues offset
+    back to absolute timestamps. None on any tool failure — recovery must
+    never take the packet down with it."""
+    clip = out_dir / "recover-clip.wav"
+    produced = out_dir / "recover-clip.srt"
+    try:
+        r = run_cmd(
+            [
+                "ffmpeg", "-nostdin", "-y",
+                "-ss", f"{start:.3f}", "-to", f"{end:.3f}", "-i", str(wav),
+                "-af", RECOVERY_AUDIO_FILTER, "-ar", "16000", "-ac", "1",
+                str(clip),
+            ],
+            timeout=1800,
+        )
+        if r.returncode != 0 or not clip.exists():
+            return None
+        r = run_cmd(
+            [
+                "uvx", "--from", "mlx-whisper", "mlx_whisper", str(clip),
+                "--model", WHISPER_MODEL,
+                "--output-format", "srt",
+                "--output-dir", str(out_dir),
+                "--condition-on-previous-text", "False",
+            ],
+            timeout=3600,
+        )
+        if r.returncode != 0 or not produced.exists():
+            return None
+        cues = parse_srt_cues(produced.read_text())
+        return [(a + start, b + start, t) for a, b, t in cues if t]
+    except (OSError, subprocess.SubprocessError):
+        return None
+    finally:
+        clip.unlink(missing_ok=True)
+        produced.unlink(missing_ok=True)
+
+
+def recover_wedged_spans(wav: Path, srt: Path, out_dir: Path) -> tuple:
+    """Detect wedged spans in transcript.srt and splice re-transcribed cues
+    over them; the untouched original is kept as transcript.orig.srt. Returns
+    (spans_meta, words_recovered, failed_spans). Prints its coverage line
+    ALWAYS — a human must be able to see at a glance whether the transcript
+    needed rescue. A failed recovery keeps the original cues and warns loudly;
+    it is never a failed packet."""
+    original_text = srt.read_text()
+    cues = parse_srt_cues(original_text)
+    spans = wedged_spans(cues)
+    if not spans:
+        log("loop-wedge recovery: none needed")
+        return [], 0, []
+    meta, words, failed = [], 0, []
+    # Splice back-to-front so earlier spans' indices stay valid.
+    for i, j in reversed(spans):
+        w_start = max(0.0, cues[i][0] - RECOVERY_PAD_S)
+        w_end = cues[j][1] + RECOVERY_PAD_S
+        new = retranscribe_span(wav, w_start, w_end, out_dir)
+        if new is not None:
+            # The padding re-hears the neighbours' edges; keep only cues that
+            # overlap the wedged span itself so neighbour text is not
+            # duplicated.
+            new = [c for c in new if c[1] > cues[i][0] and c[0] < cues[j][1]]
+        if not new:
+            # Tool failure, or nothing usable came back. Either way the span
+            # was NOT verified: keep the original cues so the wedge stays
+            # visible, and record the failure so a resumed run still reports
+            # it instead of "none needed".
+            why = ("recovery tool failed" if new is None
+                   else "re-transcription produced no usable cues")
+            failed.append(
+                {
+                    "start_s": round(cues[i][0], 2),
+                    "end_s": round(cues[j][1], 2),
+                    "seconds": round(cues[j][1] - cues[i][0], 2),
+                }
+            )
+            log(
+                f"WARNING: loop-wedge recovery FAILED for "
+                f"{cues[i][0]:.0f}s-{cues[j][1]:.0f}s ({why}); original cues "
+                f"kept, re-transcribe that span by hand (normalize + "
+                f"--condition-on-previous-text False, see "
+                f"references/pipeline.md)"
+            )
+            continue
+        meta.append(
+            {
+                "start_s": round(cues[i][0], 2),
+                "end_s": round(cues[j][1], 2),
+                "seconds": round(cues[j][1] - cues[i][0], 2),
+                "cues_before": j - i + 1,
+                "cues_after": len(new),
+            }
+        )
+        words += sum(len(t.split()) for _, _, t in new)
+        cues[i : j + 1] = new
+    meta.reverse()
+    failed.reverse()
+    if meta:
+        # Original first, so a crash between the two writes loses nothing.
+        (out_dir / "transcript.orig.srt").write_text(original_text)
+        srt.write_text(cues_to_srt(cues))
+    log(recovery_summary(meta, words, failed))
+    return meta, words, failed
+
+
+def recovery_summary(spans_meta, words: int, failed_spans=()) -> str:
+    if not spans_meta and not failed_spans:
+        return "loop-wedge recovery: none needed"
+    line = (
+        f"loop-wedge recovery: {len(spans_meta)} span(s), "
+        f"{sum(m['seconds'] for m in spans_meta):.0f}s re-transcribed, "
+        f"{words} words recovered"
+    )
+    if failed_spans:
+        line += f"; {len(failed_spans)} span(s) FAILED, original cues kept"
+    return line
+
+
 def transcribe(wav: Path, out_dir: Path, manifest: Manifest) -> tuple:
     """One whisper invocation, one file, SRT out; TXT and a timestamped
     reading copy are derived — never transcribed twice."""
@@ -546,6 +745,10 @@ def transcribe(wav: Path, out_dir: Path, manifest: Manifest) -> tuple:
     txt = out_dir / "transcript.txt"
     reading = out_dir / "transcript.md"
     if manifest.done("transcribe"):
+        rec = manifest.data["stages"]["transcribe"]
+        log(recovery_summary(rec.get("recovered_spans") or [],
+                             rec.get("recovered_words", 0),
+                             rec.get("failed_spans") or []))
         return srt, txt, reading
     log(f"transcribing with {WHISPER_MODEL} (minutes, not seconds — patience)")
     r = run_cmd(
@@ -561,6 +764,11 @@ def transcribe(wav: Path, out_dir: Path, manifest: Manifest) -> tuple:
     if r.returncode != 0 or not produced.exists():
         die(f"whisper failed:\n{(r.stderr or r.stdout).strip()[-2000:]}")
     produced.replace(srt)
+
+    # Recovery runs INSIDE this stage, before it is declared done, so a
+    # resumed run never reuses a wedged transcript as finished work.
+    recovered, rec_words, failed = recover_wedged_spans(wav, srt, out_dir)
+    orig = out_dir / "transcript.orig.srt"
 
     raw = srt_to_segments(srt.read_text())
     segs, collapsed = collapse_repeats(raw)
@@ -578,7 +786,13 @@ def transcribe(wav: Path, out_dir: Path, manifest: Manifest) -> tuple:
         txt.write_text(note + "\n")
         reading.write_text(header + note + "\n")
         manifest.finish(
-            "transcribe", [srt, txt, reading], segments=0, no_speech=True
+            "transcribe",
+            [srt, txt, reading] + ([orig] if orig.exists() else []),
+            segments=0,
+            no_speech=True,
+            recovered_spans=recovered,
+            recovered_words=rec_words,
+            failed_spans=failed,
         )
         return srt, txt, reading
 
@@ -588,10 +802,13 @@ def transcribe(wav: Path, out_dir: Path, manifest: Manifest) -> tuple:
     )
     manifest.finish(
         "transcribe",
-        [srt, txt, reading],
+        [srt, txt, reading] + ([orig] if orig.exists() else []),
         segments=len(segs),
         raw_segments=len(raw),
         collapsed_runs=collapsed,
+        recovered_spans=recovered,
+        recovered_words=rec_words,
+        failed_spans=failed,
     )
     log(
         f"transcript ready: {len(segs)} segments"
