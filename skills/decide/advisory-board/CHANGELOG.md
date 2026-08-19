@@ -21,6 +21,17 @@ versioned separately and do not replace the skill release version.
   Regression tests cover the hostile-argv case at the `command_allowed`, `resolve_command`,
   and `main()` layers (nothing executes, no `observed` receipt).
 
+### Fixed
+- **`use defaults` no longer reads as a way past the doctor preflight** (#244, surfaced by
+  CodeRabbit on PR #242): `intake-interview.md` and SKILL.md said the fast path "jumps
+  straight" to the step-6 confirm card, which let a run launch with an unconfirmed or
+  unavailable seat. Both now state that `use defaults` resolves steps 2-5 to defaults only
+  after step 1 completes and its findings are applied to the card; a seat that is not GO is
+  never offered as a default, and below two GO seats the fast path cannot fill a board
+  (the two-seat minimum in `board-composition.md`; step 3's fallbacks are the user's
+  call). Doc-only: the conductor scripts have no intake path and never
+  encoded the jump.
+
 ### Changed
 - **Readability pass on the opening paragraph** (#227): the single dense mode sentence is
   now one plain sentence per mode; every fact (mode names, the default, the intake
