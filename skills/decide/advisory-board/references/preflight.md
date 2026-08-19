@@ -1,10 +1,10 @@
 # Advisory Board Preflight
 
-Run this before launching a board. Most board failures are environmental — a CLI not installed, expired auth, a renamed model, a hung process — not reasoning. Catch them here, before spending real tokens.
+Run this before launching a board. Most board failures are environmental, not reasoning: a CLI not installed, expired auth, a renamed model, a hung process. Catch them here, before spending real tokens.
 
 Goal: a go/no-go table. Proceed only when at least two seats are **GO** (a board needs at least two voices). Label any seat that is degraded or dropped in the final handoff.
 
-> **New machine?** `run_board.py doctor` runs this whole preflight proactively across **every** registered provider (not just a chosen board): installed → version currency → auth → default model, with per-provider fix-it steps, a viable-board summary (≥ 2 seats GO), and a suggested first command. Probes and smoke-pings only — it never reads or sends your material.
+> **New machine?** `run_board.py doctor` runs this whole preflight proactively across **every** registered provider (not just a chosen board): installed → version currency → auth → default model, with per-provider fix-it steps, a viable-board summary (≥ 2 seats GO), and a suggested first command. Probes and smoke-pings only: it never reads or sends your material.
 
 ## Step 0: toolchain currency (run this first)
 
@@ -16,9 +16,9 @@ run_board.py toolchain --update   # update stale CLIs (confirms first; --yes to 
 run_board.py toolchain --install  # install absent CLIs (consent-gated; auth still required)
 ```
 
-- **Check** is read-only — it never mutates anything. It reads the installed version (`<cli> --version`) and the latest published version (npm for Claude/Codex/Grok, Homebrew for Gemini/Antigravity/Ollama), and reports each seat as **current / STALE / missing / unknown**, plus a *flag-drift* advisory when the installed CLI is newer than the version its argv flags were last grounded against (re-verify `--help`).
+- **Check** is read-only: it never mutates anything. It reads the installed version (`<cli> --version`) and the latest published version (npm for Claude/Codex/Grok, Homebrew for Gemini/Antigravity/Ollama), and reports each seat as **current / STALE / missing / unknown**, plus a *flag-drift* advisory when the installed CLI is newer than the version its argv flags were last grounded against (re-verify `--help`).
 - **Update is consent-gated** (`detect → confirm → update`): it lists what's stale and updates only what you approve. `--yes` approves unattended; a non-interactive shell without `--yes` is a no-op, not an error.
-- **Missing CLIs**: an absent binary is reported as `missing` (distinct from `unknown`), and the exact install command is printed. `--install` runs it on consent. **Installing a CLI does not grant an account** — you still need provider auth, so it's only worth installing a CLI you can log into.
+- **Missing CLIs**: an absent binary is reported as `missing` (distinct from `unknown`), and the exact install command is printed. `--install` runs it on consent. **Installing a CLI does not grant an account**: you still need provider auth, so it's only worth installing a CLI you can log into.
 - `run --update-tools` folds Step 0 into a run: check + (gated) update, then preflight, then the board.
 
 ## When the board can't form (fewer than 2 usable seats)
@@ -26,8 +26,8 @@ run_board.py toolchain --install  # install absent CLIs (consent-gated; auth sti
 A board needs at least two independent voices. Rather than dead-ending, preflight (and `run`) print actionable guidance: which seats are *not installed* (with the install command) vs *installed but unusable* (auth/login or model), and the realistic ways to still run a board:
 
 - **Install + authenticate another provider** (the commands are printed).
-- **A same-provider, multi-lens board** — two seats on the same model with different lenses. Lower independence than two providers, so flag it in provenance. See `references/board-composition.md`.
-- **A human or local-model seat** — no extra account needed. See `references/board-composition.md`.
+- **A same-provider, multi-lens board**: two seats on the same model with different lenses. Lower independence than two providers, so flag it in provenance. See `references/board-composition.md`.
+- **A human or local-model seat**: no extra account needed. See `references/board-composition.md`.
 
 So a user who only has one provider (say, only Anthropic) is never stuck: they can run a same-provider multi-lens board or add a local/human seat, and the skill says so instead of just refusing.
 
@@ -37,16 +37,16 @@ So a user who only has one provider (say, only Anthropic) is never stuck: they c
 
 For each seat in the lineup (Claude, Codex, Gemini, or whatever you're running):
 
-1. **CLI present** — the binary exists and runs.
+1. **CLI present.** The binary exists and runs.
    - `claude --version` · `codex --version` · `gemini --version`
-2. **Auth active, subscription-backed where possible** — not API-key-only, not logged out.
+2. **Auth active, subscription-backed where possible.** Not API-key-only, not logged out.
    - Use the CLI's own status / whoami command. Never print tokens, cookies, or keys.
-3. **Requested model resolves** — the model named in the lineup is actually available.
+3. **Requested model resolves.** The model named in the lineup is actually available.
    - List models if the CLI supports it, or run the smoke ping below with the real model flag and confirm it isn't rejected as unknown.
-4. **Smoke ping** — a trivial read-only prompt returns a non-empty answer.
+4. **Smoke ping.** A trivial read-only prompt returns a non-empty answer.
    - Keep it to one word back. This proves auth + model + transport end to end in one shot.
 
-Verify every flag against `<cli> --help` first — CLI syntax drifts between versions, and the commands here are illustrative, not guaranteed current. Close stdin on Codex (`</dev/null`) so `codex exec` can't hang waiting for EOF, and pass `--skip-git-repo-check` when running outside a git repo. Some CLIs (e.g. Gemini) print internal errors to stderr yet still return a valid answer — judge a seat by whether usable content came back, not by stderr noise alone.
+Verify every flag against `<cli> --help` first: CLI syntax drifts between versions, and the commands here are illustrative, not guaranteed current. Close stdin on Codex (`</dev/null`) so `codex exec` can't hang waiting for EOF, and pass `--skip-git-repo-check` when running outside a git repo. Some CLIs (e.g. Gemini) print internal errors to stderr yet still return a valid answer: judge a seat by whether usable content came back, not by stderr noise alone.
 
 ## Smoke-ping templates
 
@@ -71,7 +71,7 @@ Record one row per seat, then decide:
 | ------ | --- | ---- | ----- | ----- | ------- |
 | Claude |  ✓  |  ✓   |   ✓   |   ✓   | GO      |
 | Codex  |  ✓  |  ✓   |   ✓   |   ✓   | GO      |
-| Gemini |  ✓  |  ✗   |   —   |   —   | NO-GO   |
+| Gemini |  ✓  |  ✗   |  n/a  |  n/a  | NO-GO   |
 
 Decision rule:
 
@@ -80,4 +80,4 @@ Decision rule:
 
 ## What to capture
 
-Fold the result into `run-metadata.md`: each seat's CLI version, the model that actually answered (not just the one requested), auth mode (subscription / API key — no secrets), and the go/no-go verdict. This is the provenance the final handoff cites.
+Fold the result into `run-metadata.md`: each seat's CLI version, the model that actually answered (not just the one requested), auth mode (subscription / API key; no secrets), and the go/no-go verdict. This is the provenance the final handoff cites.

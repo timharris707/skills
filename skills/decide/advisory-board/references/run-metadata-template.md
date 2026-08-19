@@ -1,6 +1,6 @@
 # Run Metadata Template
 
-Copy into `run-metadata.md` for the run and fill it in. This is the provenance the handoff cites — record what *actually* happened, not what was requested. Never include secrets.
+Copy into `run-metadata.md` for the run and fill it in. This is the provenance the handoff cites: record what *actually* happened, not what was requested. Never include secrets.
 
 ```text
 # Run Metadata — <title>

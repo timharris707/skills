@@ -1,6 +1,6 @@
 ---
 name: writing-for-humans
-description: Write copy a human reads — a landing page, a README's front half, a launch post, a profile page. Use when drafting or revising public-facing prose, when a page reads like agent documentation, or when a finished draft needs its last-mile scrub for AI tells.
+description: Write copy a human reads: a landing page, a README's front half, a launch post, a profile page. Use when drafting or revising public-facing prose, when a page reads like agent documentation, or when a finished draft needs its last-mile scrub for AI tells.
 ---
 
 # Writing for Humans
@@ -34,9 +34,9 @@ Warmth is specific moves, each observable in the text:
 
 Check a draft against each by name:
 
-- **Agent-register bleed** — human copy in the compressed declarative style of agent docs. The tell is a term of art standing where a reader's word should be; translate it or teach it in the sentence where it first appears.
-- **Process bleed** — the piece narrates the hidden work behind it: chat history shipping as copy. Write from the facts, ordered by the reader's questions, never by the build timeline.
-- **Clean nothing** — tidy, de-AI'd, and empty. A scrub is not a voice. The test: does the piece contain an opinion, an admitted limit, or a choice a competitor's page wouldn't make?
+- **Agent-register bleed.** Human copy in the compressed declarative style of agent docs. The tell is a term of art standing where a reader's word should be; translate it or teach it in the sentence where it first appears.
+- **Process bleed.** The piece narrates the hidden work behind it: chat history shipping as copy. Write from the facts, ordered by the reader's questions, never by the build timeline.
+- **Clean nothing.** Tidy, de-AI'd, and empty. A scrub is not a voice. The test: does the piece contain an opinion, an admitted limit, or a choice a competitor's page wouldn't make?
 
 ## Standing voice rules
 

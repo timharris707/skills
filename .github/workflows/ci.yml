@@ -32,6 +32,14 @@ jobs:
       - name: Check invocation classification freshness
         run: python3 scripts/check_invocation_freshness.py
 
+      # The em dash is a reliable AI tell and skill prose style leaks into
+      # model output (#226): this fails the build when any SKILL.md or
+      # references file exceeds the per-file density threshold outside code.
+      # Pure Python rather than grep, so it is grep-flavor-independent.
+      # See the script's docstring.
+      - name: Check em-dash density in skill texts
+        run: python3 scripts/check_emdash_density.py
+
       # Tracker recipes must name the bound repo explicitly (#208): an
       # unqualified gh command resolves the repo implicitly, which in a fork
       # targets the upstream repo instead of the bound tracker.

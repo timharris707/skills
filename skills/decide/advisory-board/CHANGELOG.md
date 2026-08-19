@@ -9,6 +9,17 @@ versioned separately and do not replace the skill release version.
 
 ## [Unreleased]
 
+### Changed
+- **Em-dash sweep** (#226): SKILL.md and all thirteen references rewrote their
+  em-dash constructions into periods, commas, colons, or restructured sentences,
+  meaning-preserving: every Must-Not and schema rule keeps its exact force, and
+  bold-label list separators became "**X**: explanation" per file. Untouched by
+  design: code blocks, the CLI prompt templates (their bytes must keep matching
+  the conductor's shipped templates and `prompt_template_sha256`), and literal
+  output strings such as the severity filter's elision line (the `— --filter`
+  form `_severity_filter.py` actually emits). Guarded by
+  `scripts/check_emdash_density.py` in CI.
+
 ### Added
 - **Competitive mode: optional graft-and-verify close** (`references/modes.md` §Competitive),
   off by default and opted into at intake with its extra cost named on the card. After

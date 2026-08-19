@@ -1,17 +1,17 @@
 # Execution Harness
 
-The orchestrator runs each seat as a CLI subprocess and keeps the artifact, the logs, the exit code, and the timing. Reasoning quality is the model's job; *capturing the run correctly* is the harness's job — and most board failures (a hang, an empty answer, a silent model fallback) are harness failures, not reasoning failures. This is a concrete, copy-pasteable pattern. Adapt the flags to the installed CLIs (`<cli> --help`); confirm the model lineup in `references/preflight.md` first.
+The orchestrator runs each seat as a CLI subprocess and keeps the artifact, the logs, the exit code, and the timing. Reasoning quality is the model's job; *capturing the run correctly* is the harness's job, and most board failures (a hang, an empty answer, a silent model fallback) are harness failures, not reasoning failures. This is a concrete, copy-pasteable pattern. Adapt the flags to the installed CLIs (`<cli> --help`); confirm the model lineup in `references/preflight.md` first.
 
 ## Layout
 
-One folder per run (default: the persistent runs root, `~/.advisory-board/runs/<slug>-<date>/`; `--ephemeral` for a throwaway `/tmp/advisory-board-<timestamp>/` — see the artifact-write policy in `SKILL.md`):
+One folder per run (default: the persistent runs root, `~/.advisory-board/runs/<slug>-<date>/`; `--ephemeral` for a throwaway `/tmp/advisory-board-<timestamp>/`; see the artifact-write policy in `SKILL.md`):
 
 ```
 mkdir -p round-1 round-2 prompts logs
 : > run-metadata.tsv          # one row per seat-round; folded into run-metadata.md at the end
 ```
 
-Write each seat's prompt to a file (`prompts/<seat>-round-<n>.prompt`) instead of inlining it — it keeps the exact bytes each seat saw, and sidesteps shell-quoting and `ARG_MAX` limits on long packets.
+Write each seat's prompt to a file (`prompts/<seat>-round-<n>.prompt`) instead of inlining it: it keeps the exact bytes each seat saw, and sidesteps shell-quoting and `ARG_MAX` limits on long packets.
 
 ## Capture helper
 
@@ -38,11 +38,11 @@ capture() {
 
 Classification, in one place:
 
-- **ran** — exit 0 and a non-empty artifact.
-- **degraded** — usable content came back, but the exit was non-zero or stderr was noisy (the Gemini CLI does this routinely: model-router retries on stderr, valid review on stdout). Judge by whether the artifact is usable, not by stderr.
-- **dropped** — timed out, or produced nothing. Does not count toward the two-voice minimum.
+- **ran**: exit 0 and a non-empty artifact.
+- **degraded**: usable content came back, but the exit was non-zero or stderr was noisy (the Gemini CLI does this routinely: model-router retries on stderr, valid review on stdout). Judge by whether the artifact is usable, not by stderr.
+- **dropped**: timed out, or produced nothing. Does not count toward the two-voice minimum.
 
-`</dev/null` closes stdin for every seat. That is safe **because each prompt is passed as an argument below**, so no seat needs stdin — and it is exactly what stops `codex exec` from hanging (it reads stdin to EOF). If instead you feed a seat its prompt *on stdin* (see the large-packet note), drop `</dev/null` for that seat and keep it for Codex.
+`</dev/null` closes stdin for every seat. That is safe **because each prompt is passed as an argument below**, so no seat needs stdin, and it is exactly what stops `codex exec` from hanging (it reads stdin to EOF). If instead you feed a seat its prompt *on stdin* (see the large-packet note), drop `</dev/null` for that seat and keep it for Codex.
 
 ## Per-seat invocations (Round 1)
 
@@ -76,18 +76,18 @@ ran=$(grep -cE '\bran\b|\bdegraded\b' run-metadata.tsv)
 
 ## Fold into run-metadata.md
 
-`run-metadata.tsv` holds `seat · round · status · wall-clock · exit`. Transcribe it, plus the model that *actually* answered (read it back from each artifact or the CLI banner — not the one you requested), into `run-metadata.md` using `references/run-metadata-template.md`. The verdict is only as trustworthy as knowing exactly who voted.
+`run-metadata.tsv` holds `seat · round · status · wall-clock · exit`. Transcribe it, plus the model that *actually* answered (read it back from each artifact or the CLI banner, not the one you requested), into `run-metadata.md` using `references/run-metadata-template.md`. The verdict is only as trustworthy as knowing exactly who voted.
 
 ## Caveats
 
-- **macOS `timeout`** isn't built in — install coreutils and use `gtimeout`, or drop the `timeout` wrapper and watch the run.
-- **Large packets:** passing a big prompt as an argument can exceed `ARG_MAX`. For a large source packet, either put it in a file the (agentic) seat reads from its working directory, or feed it on stdin — `claude -p < prompts/claude-round-1.prompt` and `gemini -p < ...` both work; for those, don't redirect `</dev/null`. Codex always takes its prompt as an argument with stdin closed.
+- **macOS `timeout`** isn't built in: install coreutils and use `gtimeout`, or drop the `timeout` wrapper and watch the run.
+- **Large packets:** passing a big prompt as an argument can exceed `ARG_MAX`. For a large source packet, either put it in a file the (agentic) seat reads from its working directory, or feed it on stdin: `claude -p < prompts/claude-round-1.prompt` and `gemini -p < ...` both work; for those, don't redirect `</dev/null`. Codex always takes its prompt as an argument with stdin closed.
 - **Never echo secrets.** Don't print env values, tokens, or cookies into logs or `run-metadata.md`. Keep `logs/` out of any committed artifact set.
-- These commands are illustrative, not guaranteed current — confirm flags against `<cli> --help` before a large run.
+- These commands are illustrative, not guaranteed current; confirm flags against `<cli> --help` before a large run.
 
 ## Gemini thinking level
 
-Prefer a CLI flag or environment variable if the installed Gemini CLI exposes one. Edit settings files only as a last resort — and if you do, record whether the file existed first: back up an existing file and restore it in a cleanup step that runs even on failure; if no file existed, cleanup deletes the one you created. Either way a crash can't leave the user's config mutated. Verify the schema against the current Gemini CLI configuration reference first; the shape below is illustrative, not guaranteed current:
+Prefer a CLI flag or environment variable if the installed Gemini CLI exposes one. Edit settings files only as a last resort. If you do, record whether the file existed first: back up an existing file and restore it in a cleanup step that runs even on failure; if no file existed, cleanup deletes the one you created. Either way a crash can't leave the user's config mutated. Verify the schema against the current Gemini CLI configuration reference first; the shape below is illustrative, not guaranteed current:
 
 ```json
 {
