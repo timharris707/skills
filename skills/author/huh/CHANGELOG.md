@@ -7,6 +7,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+- **Em-dash sweep** (#226): SKILL.md's em-dash constructions rewrote into periods,
+  commas, and colons, meaning-preserving; the description's trigger wording is
+  unchanged. Part of the catalog-wide sweep guarded by
+  `scripts/check_emdash_density.py` in CI.
+
 ## [v1.0.0] - 2026-08-16
 
 ### Added

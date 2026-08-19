@@ -1,11 +1,11 @@
-# Adversarial review — defect classes
+# Adversarial review: defect classes
 
 <!-- Seeded by the team-workflow pack's setup skill for the adversarial-review skill.
-     Every finder loads this file. It records defect classes PROVEN IN THIS REPO —
+     Every finder loads this file. It records defect classes PROVEN IN THIS REPO:
      nothing imported, nothing hypothetical. -->
 
-The admission and removal rules live in one place — the adversarial-review skill
-(§ The defect-class checklist) — and are not restated here. This file is data only.
+The admission and removal rules live in one place, the adversarial-review skill
+(§ The defect-class checklist), and are not restated here. This file is data only.
 
 An empty list is the correct starting state: it fills at the speed real defects
 escape.
