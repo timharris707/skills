@@ -9,6 +9,18 @@ versioned separately and do not replace the skill release version.
 
 ## [Unreleased]
 
+### Security
+- **`verify_evidence.py` re-execution now pins arguments, not just the program** (#243,
+  surfaced by CodeRabbit on PR #242): `--allow-program NAME` alone used to re-run a
+  `command` citation with whatever arguments it carried, and the command text is
+  model-authored, so an untrusted seat could smuggle hostile arguments to an allowed
+  program (`pytest --rootdir=... -p plugin`, `git -c core.pager=...`). Now
+  `--allow-program` alone permits only the bare program with no arguments; a command
+  carrying any argument must also `re.fullmatch` an `--allow-command` pattern. A refused
+  command stays `unverified` with a `status_reason` naming the missing pattern.
+  Regression tests cover the hostile-argv case at the `command_allowed`, `resolve_command`,
+  and `main()` layers (nothing executes, no `observed` receipt).
+
 ### Changed
 - **Readability pass on the opening paragraph** (#227): the single dense mode sentence is
   now one plain sentence per mode; every fact (mode names, the default, the intake

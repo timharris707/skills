@@ -185,7 +185,9 @@ python3 scripts/render_verdict.py <out>/verdict.json --run <out> --html <out>/fi
 # --- the canonical-verdict chain (after the agent fills verdict.json,
 #     or `run --synthesize` drafts it via the neutral synthesizer seat — M2) ---
 # 1. resolve + stamp each typed citation verified/unverified/refuted.
-#    add --allow-program NAME (+ optional --allow-command 'REGEX' to pin args) to ALSO
+#    add --allow-program NAME (+ --allow-command 'REGEX' to pin args — REQUIRED for any
+#    command that carries arguments; --allow-program alone runs only the bare program,
+#    #243: the command text is model-authored, so unpinned args are attacker-chosen) to ALSO
 #    re-execute command citations whose argv[0] is NAME (M3; opt-in, program-pinned,
 #    no-shell, isolated cwd, curated PATH, scrubbed env, process-group timeout —
 #    allowlist only read-only programs you trust; a re-run's output is persisted)
