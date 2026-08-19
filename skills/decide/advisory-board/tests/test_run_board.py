@@ -6111,7 +6111,10 @@ class TestCommandReexecution(unittest.TestCase):
     binary); an isolated throwaway cwd by default; a scrubbed env (no PATH/HOME
     inheritance); stdin closed; a process-group-killed hard timeout; and a
     STRUCTURAL match (exit code + verbatim substring — never reasoning over output,
-    design section 11)."""
+    design section 11). Arguments are pinned too (#243): --allow-program alone
+    permits only the bare program; a command carrying any arguments must fullmatch
+    an --allow-command pattern (the command text is model-authored, so unpinned
+    arguments are attacker-chosen)."""
 
     def setUp(self):
         self.d = tempfile.mkdtemp(prefix="m3-rerun-")
@@ -6123,11 +6126,38 @@ class TestCommandReexecution(unittest.TestCase):
         return {"programs": set(programs), "patterns": list(patterns or []),
                 "cwd": cwd or self.d, "timeout": timeout}
 
-    # --- command_allowed: argv[0] pinning + optional regex ------------------ #
+    # --- command_allowed: argv[0] pinning + argument pinning ---------------- #
     def test_allowed_returns_argv(self):
-        argv, reason = ve.command_allowed("echo hi", self.rerun("echo"))
+        argv, reason = ve.command_allowed("echo hi", self.rerun("echo", patterns=[r"echo hi"]))
         self.assertEqual(argv, ["echo", "hi"])
         self.assertIsNone(reason)
+
+    def test_bare_program_allowed_without_pattern(self):
+        # --allow-program alone still covers the no-argument invocation.
+        argv, reason = ve.command_allowed("echo", self.rerun("echo"))
+        self.assertEqual(argv, ["echo"])
+        self.assertIsNone(reason)
+
+    def test_args_without_pattern_refused(self):
+        # THE #243 fix: the evidence command is model-authored, so --allow-program
+        # alone must not hand an allowed program attacker-chosen arguments.
+        for hostile in ("pytest --rootdir=/ -p attacker_plugin",
+                        "git -c core.pager=id log",
+                        "echo hi"):
+            argv, reason = ve.command_allowed(hostile, self.rerun("pytest", "git", "echo"))
+            self.assertIsNone(argv, hostile)
+            self.assertIn("allow-command", reason)
+
+    def test_resolve_hostile_argv_never_runs(self):
+        # #243 at the resolve layer: hostile args with only a program allowlist ->
+        # unverified with the refusal reason, and nothing executed.
+        marker = os.path.join(self.d, "PWNED")
+        ev = self.cmd(f"touch {marker}")
+        status = ve.resolve_command(ev, self.rerun("touch", cwd=self.d))
+        self.assertEqual(status, "unverified")
+        self.assertIn("allow-command", ev["status_reason"])
+        self.assertNotIn("observed", ev)   # never ran
+        self.assertFalse(os.path.exists(marker), "the hostile argv must NOT have run")
 
     def test_program_not_allowlisted_refused(self):
         argv, reason = ve.command_allowed("curl https://evil", self.rerun("echo"))
@@ -6254,7 +6284,8 @@ class TestCommandReexecution(unittest.TestCase):
 
     def test_allowed_passing_is_verified(self):
         ev = self.cmd("echo hello")
-        self.assertEqual(ve.resolve_command(ev, self.rerun("echo")), "verified")
+        self.assertEqual(ve.resolve_command(ev, self.rerun("echo", patterns=[r"echo hello"])),
+                         "verified")
         self.assertEqual(ev["observed"]["exit"], 0)
         self.assertIn("hello", ev["observed"]["output"])
 
@@ -6306,7 +6337,8 @@ class TestCommandReexecution(unittest.TestCase):
         src_tree = tempfile.mkdtemp(prefix="m3-src-")
         out, err = io.StringIO(), io.StringIO()
         with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
-            ve.main([path, "--allow-program", "sh", "--rerun-cwd", src_tree])
+            ve.main([path, "--allow-program", "sh", "--allow-command", r"sh -c .*",
+                     "--rerun-cwd", src_tree])
         with open(path) as fh:
             data = json.load(fh)
         observed = data["blockers"][0]["evidence"][0].get("observed", {})
@@ -6326,17 +6358,20 @@ class TestCommandReexecution(unittest.TestCase):
 
     def test_expect_substring_present_verified(self):
         ev = self.cmd("echo all tests passed", expect="passed")
-        self.assertEqual(ve.resolve_command(ev, self.rerun("echo")), "verified")
+        rerun = self.rerun("echo", patterns=[r"echo .*"])
+        self.assertEqual(ve.resolve_command(ev, rerun), "verified")
         self.assertIs(ev["observed"]["expect_found"], True)
 
     def test_expect_substring_absent_refuted(self):
         ev = self.cmd("echo something else", expect="passed")
-        self.assertEqual(ve.resolve_command(ev, self.rerun("echo")), "refuted")
+        rerun = self.rerun("echo", patterns=[r"echo .*"])
+        self.assertEqual(ve.resolve_command(ev, rerun), "refuted")
         self.assertIs(ev["observed"]["expect_found"], False)
 
     def test_expect_substring_whitespace_normalized(self):
         ev = self.cmd("echo 3 passed in 0.1s", expect="3   passed")
-        self.assertEqual(ve.resolve_command(ev, self.rerun("echo")), "verified")
+        self.assertEqual(ve.resolve_command(ev, self.rerun("echo", patterns=[r"echo .*"])),
+                         "verified")
 
     def test_malformed_expect_exit_requires_clean_exit(self):
         ev = self.cmd("false", expect_exit="banana")
@@ -6348,7 +6383,7 @@ class TestCommandReexecution(unittest.TestCase):
         # The python code rides in a double-quoted segment so shlex keeps it one arg.
         code = "print('H'*100); print('x'*9000); print('TAILMARK')"
         ev = self.cmd(f'python3 -c "{code}"', expect="TAILMARK")
-        status = ve.resolve_command(ev, self.rerun("python3"))
+        status = ve.resolve_command(ev, self.rerun("python3", patterns=[r"python3 -c .*"]))
         self.assertEqual(status, "verified")   # expect matched on FULL output
         self.assertTrue(ev["observed"]["truncated"])
         # The tail marker survives the head+tail excerpt even though it's past the limit.
@@ -6366,7 +6401,8 @@ class TestCommandReexecution(unittest.TestCase):
     def test_stamp_with_rerun_resolves_commands(self):
         data = {"blockers": [{"evidence": [self.cmd("echo hi"),
                                            self.cmd("false", expect_exit=0)]}]}
-        counts = ve.stamp(data, None, None, self.rerun("echo", "false"))
+        counts = ve.stamp(data, None, None,
+                          self.rerun("echo", "false", patterns=[r"echo hi", r"false"]))
         evs = data["blockers"][0]["evidence"]
         self.assertEqual(evs[0]["status"], "verified")
         self.assertEqual(evs[1]["status"], "refuted")
@@ -6414,6 +6450,7 @@ class TestCommandReexecution(unittest.TestCase):
         out, err = io.StringIO(), io.StringIO()
         with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
             rc = ve.main([path, "--allow-program", "echo", "--allow-program", "false",
+                          "--allow-command", r"echo hi", "--allow-command", r"false",
                           "--rerun-cwd", self.d])
         self.assertEqual(rc, 0)
         with open(path) as fh:
@@ -6422,6 +6459,24 @@ class TestCommandReexecution(unittest.TestCase):
         self.assertEqual(evs[0]["status"], "verified")
         self.assertEqual(evs[1]["status"], "refuted")
         self.assertIn("REFUTED", err.getvalue())
+
+    def test_main_hostile_args_without_pattern_stay_unverified(self):
+        # #243 end to end: --allow-program alone must not re-execute a command that
+        # carries arguments (the argv tail is model-authored). The evidence stays
+        # unverified with the refusal reason and no `observed` receipt.
+        marker = os.path.join(self.d, "PWNED-MAIN")
+        path = self._write_verdict([self.cmd(f"touch {marker}")])
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            rc = ve.main([path, "--allow-program", "touch"])
+        self.assertEqual(rc, 0)
+        with open(path) as fh:
+            data = json.load(fh)
+        ev = data["blockers"][0]["evidence"][0]
+        self.assertEqual(ev["status"], "unverified")
+        self.assertIn("allow-command", ev["status_reason"])
+        self.assertNotIn("observed", ev)
+        self.assertFalse(os.path.exists(marker), "the hostile argv must NOT have run")
 
     def test_main_default_cwd_is_throwaway_and_cleaned(self):
         # No --rerun-cwd: a fresh throwaway dir is created and removed after.
