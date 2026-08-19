@@ -1,6 +1,6 @@
 ---
 name: plainspoken
-description: Write like a person in everything you emit. Plain words, concrete claims, no AI tells. Always on for chat replies, status updates, close-outs, and review comments; open the tell catalog when a draft runs long, a passage reads generated, or you are reviewing prose another agent wrote.
+description: Write like a person in everything you emit. Plain words, concrete claims, no AI tells. Use when writing any chat reply, status update, close-out, review comment, or commit message (always on for those), when a passage you drafted reads generated, or when reviewing prose another agent wrote.
 ---
 
 # Plainspoken
