@@ -98,6 +98,17 @@
       "skills": [
         "./skills/author/plainspoken"
       ]
+    },
+    {
+      "name": "blast-radius",
+      "source": "./",
+      "strict": false,
+      "version": "1.0.0",
+      "description": "Find what a change breaks somewhere else before it ships: past where grep stops, risks graded with real file:line cites, and the one fact the change is safe because of proven by running real code.",
+      "license": "MIT",
+      "skills": [
+        "./skills/run/blast-radius"
+      ]
     }
   ]
 }
