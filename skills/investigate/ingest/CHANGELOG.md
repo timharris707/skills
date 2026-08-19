@@ -7,6 +7,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- **SKILL.md opening states the on-disk statefulness up front** (issue #230):
+  one sentence added to the intro naming the run-directory and output-home
+  convention before the mechanics, so a first-time reader knows the run
+  writes a persistent packet to disk before starting the pipeline. No
+  behavior change; the convention itself is unchanged and still defined
+  under "Run the pipeline".
+
 ## [v1.2.1] - 2026-08-13 — preview-then-run fix, audit dedup
 
 ### Changed
