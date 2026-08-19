@@ -37,7 +37,7 @@ Finders **read code and run proofs** — tests, focused scripts, repro snippets 
 
 ## 3. The skeptic pass
 
-Findings from a finder are hypotheses, not evidence. **Every finding above a NIT goes to an independent skeptic whose brief is to kill it** — re-read the code, run the disproof, find the guard the finder missed. Only findings the skeptic fails to kill stand in the report; killed ones drop to the dismissed bucket (§4) with the reason they died.
+Findings from a finder are hypotheses, not evidence. **Every finding above a NIT goes to an independent skeptic whose brief is to kill it** — re-read the code, run the disproof, find the guard the finder missed. Only findings the skeptic fails to kill stand in the report; killed ones drop to the dismissed bucket (§4) with the reason they died. A NIT skips the skeptic and reports as style-level advice, with no skeptic outcome and no rung.
 
 **BLOCKER rank requires a runnable reproduction the skeptic confirmed.** No repro, no blocker — it ranks MAJOR at most, stated as unproven. This keeps the gate honest: nothing blocks a merge on a hunch, and a blocker in the report is a defect you can watch happen.
 
@@ -58,7 +58,7 @@ Every finding and every skeptic verdict states its rung, and nothing gets rounde
 Disproof runs are the skeptic's first move, not its whole brief. Three filters catch the findings that survive a re-read but still are not defects:
 
 - **Nitpick gravity.** Reviewers fill their review: a finder short on real defects inflates nits to fill the space. A pass whose findings are all nits and style preferences is evidence the change is probably fine, and the report says so plainly instead of dressing the nits up.
-- **Hypothetical vs. actual.** "What if the caller passes null" is a finding only if a caller actually can. Trace the call site: input validated upstream, or ruled out by the type system, kills the finding at the trace (rung 3).
+- **Hypothetical vs. actual.** "What if the caller passes null" is a finding only if a caller actually can. Trace the call site: input validated upstream, or ruled out by the type system, kills the finding at the trace (rung 3) — except at a trust boundary. HTTP, JSON, user input, and untyped callers are not closed by type annotations; there the kill needs runtime validation on the path, or a call graph the checker fully covers.
 - **"I would have done it differently."** The most common false positive in review. A preference for another approach is not a defect; it dies unless it names a concrete problem with the code as written.
 
 A kill under any filter is recorded with its reason and lands in the dismissed bucket, same as a kill by disproof.
@@ -69,8 +69,8 @@ The report lands **on the driving ticket or PR** (session output only when no tr
 
 - Findings ranked **BLOCKER / MAJOR / MINOR / NIT**, each with a citation — file:line and the failing scenario, plus the repro for blockers — its skeptic outcome (confirmed, or surviving-unproven for a downgraded would-be blocker), and the evidence-ladder rung its proof reached. A finding without a citation does not count.
 - The finder composition: which lens ran and why, and whether the spec axis had a spec.
-- **The clean bill** — what was specifically checked and found correct. A clean bill on a named hazard is as durable as a finding: it prevents the next reviewer from re-litigating settled ground.
-- **The dismissed bucket**: every finding the skeptic killed, one line each, the claim and what killed it. This is a trust mechanism, not residue. The decider sees what was rejected and why, and can override a kill they disagree with; a dismissed finding carries no weight at the gate unless they do.
+- **The clean bill** — what was specifically checked and found correct, each claim with the rung its proof reached. A clean bill on a named hazard is as durable as a finding: it prevents the next reviewer from re-litigating settled ground.
+- **The dismissed bucket**: every finding the skeptic killed, one line each — the claim, what killed it, and the rung the kill reached. This is a trust mechanism, not residue. The decider sees what was rejected and why, and can override a kill they disagree with; a dismissed finding carries no weight at the gate unless they do.
 
 Axes are reported separately and **never blended into one verdict** — a passing lens must not soften a failing correctness axis, and there is no overall score to hide behind.
 
@@ -98,9 +98,9 @@ A new repo starts with an empty checklist and that is correct: it fills at the s
 
 ## Done when (checkable)
 
-- Three isolated finders ran (or the spec axis reported no-spec), the lens pick is stated, and every finding above NIT went through the skeptic.
+- Three isolated finders ran; the spec axis either ran against a spec or reported no-spec; the lens pick is stated; and every finding above NIT went through the skeptic.
 - Every reported finding carries its citation and its evidence-ladder rung, no claim reported above the rung its proof reached; every BLOCKER carries its confirmed repro.
-- The dismissed bucket lists every skeptic kill with its reason.
+- The dismissed bucket lists every skeptic kill with its reason and rung; clean-bill claims state theirs.
 - The report — findings, composition, clean bill — is posted on the driving ticket/PR, or delivered in-session when none exists.
 - Confirmed blockers are fixed, or waived by the decider on the record. Lesser findings are each dispositioned.
 - Any new defect class earned by this review is queued for the fixing PR, with its repro.
