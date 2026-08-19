@@ -9,6 +9,36 @@ versioned separately and do not replace the skill release version.
 
 ## [Unreleased]
 
+### Changed
+- **Readability pass on the opening paragraph** (#227): the single dense mode sentence is
+  now one plain sentence per mode; every fact (mode names, the default, the intake
+  reference, the per-mode shapes) is unchanged. Frontmatter description untouched.
+- **Em-dash sweep** (#226): SKILL.md and all thirteen references rewrote their
+  em-dash constructions into periods, commas, colons, or restructured sentences,
+  meaning-preserving: every Must-Not and schema rule keeps its exact force, and
+  bold-label list separators became "**X**: explanation" per file. Untouched by
+  design: code blocks, the CLI prompt templates (their bytes must keep matching
+  the conductor's shipped templates and `prompt_template_sha256`), and literal
+  output strings such as the severity filter's elision line (the `— --filter`
+  form `_severity_filter.py` actually emits). Guarded by
+  `scripts/check_emdash_density.py` in CI.
+
+### Added
+- **Competitive mode: optional graft-and-verify close** (`references/modes.md` §Competitive),
+  off by default and opted into at intake with its extra cost named on the card. After
+  Pitch → Critique → Vote, the conductor reads the shape of the field first (convergence
+  means ship the consensus with no graft; wild divergence means the brief was
+  under-specified, so reframe and re-run), then takes the winning pitch as base, grafts
+  the strongest separable ideas from the losing pitches (each graft a discrete,
+  attributable change put to the non-winning seats for a per-graft
+  `ENDORSE`/`OBJECT`/`ABSTAIN` vote, per the revised-draft convention), records grafts,
+  sources, and above all the rejection notes, and re-verifies the synthesis under the same
+  scrutiny as any seat output; winning the tournament earns no pass. New artifact:
+  `synthesis.md`. The tally, `results.md`, and the no-`verdict.json` rule are unchanged,
+  and the intake wizard (`references/intake-interview.md` step 5) now offers the close on
+  Competitive runs. Adapted from phases E and F of Lauren Tan's `arena`
+  (github.com/cursor/plugins, `pstack/`, MIT); attribution recorded beside the phase.
+
 ## [v1.18.1] - 2026-08-13 — audit prune, lean description, signed-out preflight fix
 
 ### Changed

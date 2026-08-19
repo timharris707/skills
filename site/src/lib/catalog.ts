@@ -1,4 +1,5 @@
 import { getBuckets, getSkills, type Bucket, type Skill } from "./skills";
+import { HUMAN } from "./human";
 
 /**
  * The catalog's regions ARE the repository's promoted buckets — name, order,
@@ -23,6 +24,19 @@ import { getBuckets, getSkills, type Bucket, type Skill } from "./skills";
  */
 export type InvokedBy = "user" | "agent" | "either";
 export type Invocation = { invokedBy: InvokedBy; command: string | null };
+
+/**
+ * The short invocation tag every surface shows, one per state: "you call it"
+ * (user-invoked, slash command only), "fires itself" (agent-invoked, the
+ * default), "both" (agent-invoked with a user-invoked alias). The README's
+ * catalog table carries the same three strings; `check_invocation_freshness.py`
+ * derives them independently from frontmatter, so keep the mapping in step.
+ */
+export function invocationLabel(invokedBy: InvokedBy): string {
+  if (invokedBy === "user") return "you call it";
+  if (invokedBy === "either") return "both";
+  return "fires itself";
+}
 
 /** A catalog entry: the generated Skill plus its hand-asserted invocation. */
 export type CatalogSkill = Skill & Invocation;
@@ -57,6 +71,7 @@ export const INVOCATION: Record<string, Invocation> = {
   "writing-for-agents": { invokedBy: "agent", command: null },
   "writing-for-humans": { invokedBy: "agent", command: null },
   huh: { invokedBy: "agent", command: null },
+  plainspoken: { invokedBy: "agent", command: null },
 };
 
 /**
@@ -85,6 +100,7 @@ export const PLOT: Record<string, { x: number; y: number; anchor?: "start" | "en
   "writing-for-agents": { x: 940, y: 490, anchor: "end" },
   "writing-for-humans": { x: 940, y: 380, anchor: "end" },
   huh: { x: 940, y: 275, anchor: "end" },
+  plainspoken: { x: 940, y: 95, anchor: "end" },
 };
 
 /**
@@ -167,6 +183,25 @@ function assertComplete(skills: Skill[]) {
     throw new Error(
       `catalog.ts: ${phantom.join(", ")} in INVOCATION but not in any promoted bucket — ` +
         "remove the entry, or promote the skill.",
+    );
+  }
+
+  // Same discipline for the human copy as for PLOT and INVOCATION: the whole
+  // slug set compared both ways, so a promoted skill cannot ship without its
+  // human card and intro, and a demoted skill cannot leave stray copy behind.
+  const uncopied = skills.filter((s) => !HUMAN[s.slug]).map((s) => s.slug);
+  if (uncopied.length) {
+    throw new Error(
+      `catalog.ts: ${uncopied.join(", ")} ${uncopied.length === 1 ? "has" : "have"} no human ` +
+        "copy. Add a card and an intro in src/lib/human.ts.",
+    );
+  }
+
+  const stray = Object.keys(HUMAN).filter((slug) => !known.has(slug));
+  if (stray.length) {
+    throw new Error(
+      `catalog.ts: ${stray.join(", ")} in HUMAN but not in any promoted bucket — ` +
+        "remove the entry in src/lib/human.ts, or promote the skill.",
     );
   }
 

@@ -1,6 +1,6 @@
 ---
 name: Work-item spec
-about: A PR-sized build slice — the item body is the spec and the brief source
+about: A PR-sized build slice: the item body is the spec and the brief source
 labels: slice
 ---
 
@@ -15,7 +15,7 @@ labels: slice
 
 ## Plan source
 
-<!-- The roadmap/plan line or recorded decision this slice implements — link the primary
+<!-- The roadmap/plan line or recorded decision this slice implements; link the primary
      source so review doesn't relitigate it. -->
 
 ## Acceptance criteria

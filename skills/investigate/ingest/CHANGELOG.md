@@ -26,6 +26,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   keeps the original cues and warns loudly, naming the span; it never fails
   the packet.
 
+### Changed
+
+- **Em-dash sweep** (#226): SKILL.md and `references/pipeline.md` rewrote their
+  em-dash constructions into periods, commas, and colons, meaning-preserving; the
+  description's trigger wording and all code blocks are unchanged. Guarded by
+  `scripts/check_emdash_density.py` in CI.
+
+- **SKILL.md opening states the on-disk statefulness up front** (issue #230):
+  one sentence added to the intro naming the run-directory and output-home
+  convention before the mechanics, so a first-time reader knows the run
+  writes a persistent packet to disk before starting the pipeline. No
+  behavior change; the convention itself is unchanged and still defined
+  under "Run the pipeline".
+
 ## [v1.2.1] - 2026-08-13 — preview-then-run fix, audit dedup
 
 ### Changed

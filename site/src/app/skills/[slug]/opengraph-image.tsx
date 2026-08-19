@@ -2,7 +2,8 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { ImageResponse } from "next/og";
 import { notFound } from "next/navigation";
-import { getSkill, getSkills, summarize } from "@/lib/skills";
+import { getSkill, getSkills } from "@/lib/skills";
+import { human } from "@/lib/human";
 
 /**
  * Per-skill link-preview card, in the survey-chart style of the site-wide
@@ -30,15 +31,13 @@ const GRIDLINE = "rgba(219, 231, 233, 0.05)";
 const MUTED = "rgba(219, 231, 233, 0.66)";
 
 /**
- * First sentence only — summarize() keeps trigger clauses that don't open
- * with "Use when/for", and a card is not the place for triggers. The longest
- * first sentence today is 183 chars (four rendered lines); the char clamp is
- * a backstop for a future skill that outgrows that, cutting on a word.
+ * The tagline is the skill's human card line, whole. The longest card today
+ * is 211 chars (five rendered lines, which the layout absorbs); the clamp is
+ * a backstop for a future line that outgrows that, cutting on a word.
  */
-function clip(text: string, max = 200): string {
-  const sentence = text.split(/(?<=[.!?])\s+/)[0];
-  if (sentence.length <= max) return sentence;
-  return `${sentence.slice(0, sentence.lastIndexOf(" ", max))} …`;
+function clip(text: string, max = 240): string {
+  if (text.length <= max) return text;
+  return `${text.slice(0, text.lastIndexOf(" ", max))} …`;
 }
 
 export default async function Image({ params }: { params: Promise<{ slug: string }> }) {
@@ -95,7 +94,7 @@ export default async function Image({ params }: { params: Promise<{ slug: string
             }}
           />
           <div style={{ fontSize: 30, lineHeight: 1.55, color: MUTED, maxWidth: 980 }}>
-            {clip(summarize(skill.description))}
+            {clip(human(skill.slug).card)}
           </div>
         </div>
 

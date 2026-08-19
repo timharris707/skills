@@ -1,10 +1,10 @@
-# Pipeline by hand — commands, ordering, and the gotcha ledger
+# Pipeline by hand: commands, ordering, and the gotcha ledger
 
 The portable fallback when [`scripts/ingest.py`](../scripts/ingest.py) is unavailable, and the reference for debugging it. The script encodes everything here; a by-hand run must honor every gotcha or it will reproduce the failures these rules came from.
 
 ## Stages in order
 
-**1. Stage the media.** Copy into the run dir. On macOS, Dropbox/Documents/Downloads paths are TCC-protected — plain `cp` fails "Operation not permitted" even unsandboxed. The working route is Finder:
+**1. Stage the media.** Copy into the run dir. On macOS, Dropbox/Documents/Downloads paths are TCC-protected: plain `cp` fails "Operation not permitted" even unsandboxed. The working route is Finder:
 
 ```bash
 osascript -e 'tell application "Finder" to duplicate (POSIX file "<src>" as alias) to (POSIX file "<run-dir>/media" as alias)'
@@ -12,7 +12,7 @@ osascript -e 'tell application "Finder" to duplicate (POSIX file "<src>" as alia
 
 Folder names Finder shows with "/" are ":" in the POSIX path. A cloud file must be downloaded locally (not online-only) first.
 
-**2. URL instead of a file.** Captions preview first — seconds, and enough to triage:
+**2. URL instead of a file.** Captions preview first, in seconds and enough to triage:
 
 ```bash
 yt-dlp --skip-download --write-auto-subs --sub-langs en --sub-format vtt -o captions "<url>"
@@ -53,7 +53,7 @@ ffmpeg -nostdin -i media/<file> -vf freezedetect=n=0.003:d=4 -map 0:v:0 -f null 
 ffmpeg -nostdin -y -ss <ts> -i media/<file> -frames:v 1 frames/extra_<ts>.jpg
 ```
 
-**7. Manifest.** Record every frame's file, timestamp, and reason, plus stage completion and tool versions, in `manifest.json` — downstream reads frames through it, never by doing arithmetic on filenames.
+**7. Manifest.** Record every frame's file, timestamp, and reason, plus stage completion and tool versions, in `manifest.json`; downstream reads frames through it, never by doing arithmetic on filenames.
 
 **8. Validate before calling it complete.** Walk the manifest: every stage has a status, every artifact it lists exists and is non-empty, every frame it lists is on disk, and the transcript's last timestamp reaches the probed duration. A failure here is a failed run, not a caveat.
 
@@ -61,7 +61,7 @@ ffmpeg -nostdin -y -ss <ts> -i media/<file> -frames:v 1 frames/extra_<ts>.jpg
 
 The script enforces these; a by-hand run has to enforce them itself, or the packet it produces is not the same artifact.
 
-**Claim the directory before writing anything.** Use a new directory, or one you created for this purpose earlier. Drop a `.ingest-run` marker in it. Never point a run at a directory holding anything else — step 9 deletes files inside it.
+**Claim the directory before writing anything.** Use a new directory, or one you created for this purpose earlier. Drop a `.ingest-run` marker in it. Never point a run at a directory holding anything else: step 9 deletes files inside it.
 
 **Write the purpose and the identity first.** Before staging a byte:
 
@@ -77,7 +77,7 @@ The script enforces these; a by-hand run has to enforce them itself, or the pack
 }
 ```
 
-**One packet, one source.** Before reusing a directory, compare its recorded `identity` with this run's. Any difference — a different URL, an edited local file, a changed ladder or frame policy — means **stop and use a fresh directory**. Reusing it mixes two sources' evidence under one label, which is the failure this contract exists to prevent.
+**One packet, one source.** Before reusing a directory, compare its recorded `identity` with this run's. Any difference (a different URL, an edited local file, a changed ladder or frame policy) means **stop and use a fresh directory**. Reusing it mixes two sources' evidence under one label, which is the failure this contract exists to prevent.
 
 **A stage is complete when it says so.** Each entry records a status and what it produced:
 
@@ -86,19 +86,19 @@ The script enforces these; a by-hand run has to enforce them itself, or the pack
                "transcript.md"], "segments": 101, "at": "2026-08-07T09:14:02"}
 ```
 
-Use `"status": "skipped"` with a reason for a stage you deliberately did not run (frames on a `memo`, say). "No artifacts" never means "finished" on its own — an empty list plus no status is an unfinished stage, and re-running must redo it.
+Use `"status": "skipped"` with a reason for a stage you deliberately did not run (frames on a `memo`, say). "No artifacts" never means "finished" on its own: an empty list plus no status is an unfinished stage, and re-running must redo it.
 
-**9. Retention deletes by ledger.** When the source is re-fetchable and you are discarding media, delete exactly the paths the manifest recorded under `fetch`/`stage`/`audio` — never the `media/` directory wholesale. Remove the directory only if it ends up empty; anything else in there was not yours. Remember a URL is not a promise: signed, expiring, and private links look identical to durable ones, so keep the media whenever the source might not survive.
+**9. Retention deletes by ledger.** When the source is re-fetchable and you are discarding media, delete exactly the paths the manifest recorded under `fetch`/`stage`/`audio`, never the `media/` directory wholesale. Remove the directory only if it ends up empty; anything else in there was not yours. Remember a URL is not a promise: signed, expiring, and private links look identical to durable ones, so keep the media whenever the source might not survive.
 
 ## The gotcha ledger
 
 Merged from four `video-review` runs (loanmeld) and the first `playtest-review` runs (gameoflife). Each entry cost a real session.
 
-- **Zoom containers lie about duration** — 36 hours reported for a 20-minute file. The decode-to-null number is authoritative; treat a >5% disagreement as the container lying, not the decode failing.
-- **Whisper batching mislabels outputs.** One media file per invocation, proven the hard way. This is also why TXT derives from the SRT — a second transcription is a second chance to diverge.
-- **Whisper hallucinates loops over silence** — the same sentence repeated for minutes of quiet. Collapse such a run **only in the derived reading copy**, and only when it both repeats ≥3 times and spans ≥20s: three quick "yes"es are speech, the same line held for half a minute is the model looping. Label it as a collapsed repeat pointing at the SRT, never as `[silence]` — the audio was never checked, and asserting silence puts a claim in the transcript that nothing verified. `transcript.srt` keeps the raw output and is the record for exact wording.
-- **"Silence" under a wedge may be conversation.** Twice on real team calls (2026-08-17/18) a collapsed identical-line run — one line ("uh uh…", "!") held for minutes, sometimes strewn with zero-length empty cues — actually covered substantive speech. The script auto-recovers: any identical-line run ≥15s is re-cut from `audio.wav` with `-af "highpass=f=80,lowpass=f=8000,loudnorm=I=-14:TP=-1.5"`, re-transcribed with `--condition-on-previous-text False`, and spliced back at absolute timestamps (raw output kept as `transcript.orig.srt`; spans in the manifest under `recovered_spans`). By hand, do the same for every collapsed run ≥15s — never trust the "likely silence" label unverified.
-- **Scene-change scoring misfires on screen shares.** Scroll bursts read as scene changes and flood the output. The useful boundary on a screen share is a *freeze ending* — the screen changed after sitting still — which `freezedetect` catches and scene scoring drowns.
-- **Provider captions garble proper names** — "Matt PCO" for Matt Pocock, "clot code" for Claude Code, "codeex" for Codex. Preview and triage only; every quotation comes from whisper.
-- **TCC hides files from `test -e` too.** A path that "doesn't exist" under a protected folder may stage fine through Finder — try before concluding the file is gone.
+- **Zoom containers lie about duration**: 36 hours reported for a 20-minute file. The decode-to-null number is authoritative; treat a >5% disagreement as the container lying, not the decode failing.
+- **Whisper batching mislabels outputs.** One media file per invocation, proven the hard way. This is also why TXT derives from the SRT: a second transcription is a second chance to diverge.
+- **Whisper hallucinates loops over silence**: the same sentence repeated for minutes of quiet. Collapse such a run **only in the derived reading copy**, and only when it both repeats ≥3 times and spans ≥20s: three quick "yes"es are speech, the same line held for half a minute is the model looping. Label it as a collapsed repeat pointing at the SRT, never as `[silence]`: the audio was never checked, and asserting silence puts a claim in the transcript that nothing verified. `transcript.srt` keeps the raw output and is the record for exact wording.
+- **"Silence" under a wedge may be conversation.** Twice on real team calls (2026-08-17/18) a collapsed identical-line run (one line, "uh uh…" or "!", held for minutes, sometimes strewn with zero-length empty cues) actually covered substantive speech. The script auto-recovers: any identical-line run ≥15s is re-cut from `audio.wav` with `-af "highpass=f=80,lowpass=f=8000,loudnorm=I=-14:TP=-1.5"`, re-transcribed with `--condition-on-previous-text False`, and spliced back at absolute timestamps (raw output kept as `transcript.orig.srt`; spans in the manifest under `recovered_spans`). By hand, do the same for every collapsed run ≥15s: never trust the "likely silence" label unverified.
+- **Scene-change scoring misfires on screen shares.** Scroll bursts read as scene changes and flood the output. The useful boundary on a screen share is a *freeze ending*, the screen changed after sitting still, which `freezedetect` catches and scene scoring drowns.
+- **Provider captions garble proper names**: "Matt PCO" for Matt Pocock, "clot code" for Claude Code, "codeex" for Codex. Preview and triage only; every quotation comes from whisper.
+- **TCC hides files from `test -e` too.** A path that "doesn't exist" under a protected folder may stage fine through Finder; try before concluding the file is gone.
 - **yt-dlp's timedtext advantage is real:** YouTube's caption endpoints return empty to plain HTTP clients without session tokens; `yt-dlp` handles the handshake. Do not hand-roll caption fetching.

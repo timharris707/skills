@@ -25,12 +25,21 @@ jobs:
       - name: Check bucket, marketplace, and router freshness
         run: python3 scripts/check_router_freshness.py
 
-      # The site's per-skill invocation classification (agent-invoked vs
+      # The per-skill invocation classification (agent-invoked vs
       # user-invoked, and the slash command for the user path) is derived from
       # each SKILL.md's frontmatter; this fails the build when catalog.ts's
-      # INVOCATION map disagrees. See the script's docstring.
+      # INVOCATION map or README.md's catalog-table Invocation column
+      # disagrees. See the script's docstring.
       - name: Check invocation classification freshness
         run: python3 scripts/check_invocation_freshness.py
+
+      # The em dash is a reliable AI tell and skill prose style leaks into
+      # model output (#226): this fails the build when any SKILL.md or
+      # references file exceeds the per-file density threshold outside code.
+      # Pure Python rather than grep, so it is grep-flavor-independent.
+      # See the script's docstring.
+      - name: Check em-dash density in skill texts
+        run: python3 scripts/check_emdash_density.py
 
       # Tracker recipes must name the bound repo explicitly (#208): an
       # unqualified gh command resolves the repo implicitly, which in a fork
@@ -86,6 +95,14 @@ jobs:
           set -euo pipefail
           npm run start &
           python3 ../scripts/check_skill_og_cards.py
+
+      # Tripwire for the Markdown twins (#216 close-out): /skills/<name>.md
+      # serves each source SKILL.md body byte-identical; only the regenerated
+      # frontmatter and the #213 install trailer may differ. Reuses the server
+      # the previous step started. See the script's docstring.
+      - name: Check markdown twins match their source SKILL.md
+        working-directory: site
+        run: python3 ../scripts/check_skill_md_twins.py
 
   advisory-board:
     runs-on: ubuntu-latest
