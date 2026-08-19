@@ -11,7 +11,7 @@ This is the implementing session's own discipline, run before or during the chan
 
 ## The writeup is not the deliverable
 
-A blast-radius writeup that sounds right is worth nothing on its own. It reads as convincing whether or not it is true, and that is the trap. The deliverable is the proof: find the one or two facts the change's safety depends on and get them proven by running code. Words are where you start, not what you hand back.
+A blast-radius writeup that sounds right is worth nothing on its own. It reads as convincing whether or not it is true, and that is the trap. The deliverable is the proof: find the one fact the change's safety depends on (occasionally a change rests on two; then each gets the same treatment) and get it proven by running code. Words are where you start, not what you hand back.
 
 ## The evidence ladder
 
@@ -27,7 +27,7 @@ Any safety fact that stops short of rung 4 is said out loud as unproven, never w
 
 ## Steps
 
-1. **Read the change.** The diff, the symbols it adds, changes, and deletes, and what it now does differently, including the part the diff does not spell out. Pull the PR and its commits for the stated intent.
+1. **Read the change.** The diff, the symbols it adds, changes, and deletes, and what it now does differently, including the part the diff does not spell out. When a PR exists, pull it and its commits for the stated intent; mid-change, before any PR, read the working diff and the branch's commit messages instead.
 2. **Find the one fact it is safe because of.** Most changes that look scary are safe because of a single fact, like "this call only drops already-dead cache entries and does nothing else". Find that fact. If it holds, most of the scary cases die at once. Spend your time here, not on a long list of maybes.
 3. **Look where grep stops.** Read the source of the library you call, at its pinned version, plus any local patch. Work out when things run: microtasks, unmount and teardown, one framework's scheduling versus another's. Follow what a symbol search misses: the JSON an API returns, a DB column, a wire format, another language reading the same bytes, a feature flag, code three hops downstream.
 4. **Grade each risk honestly.** Give it a real chance of happening and a real cost if it does. Keep the risks you confirmed; list the ones you checked and cleared separately. Cite a real `file:line`, treat a search that finds nothing as an answer worth recording, and never invent a caller or an API.
@@ -46,7 +46,7 @@ Run the prose through plainspoken once that skill is in reach, and strip anythin
 
 ## Done when (checkable — verify each line before reporting complete)
 
-- The one fact the change is safe because of is stated in a single sentence, with the ladder rung it reached.
+- The one fact the change is safe because of is stated in a single sentence, with the ladder rung it reached; when the change rests on two facts, each has its own sentence and rung.
 - Every safety fact that stopped short of rung 4 is labeled unproven; none reads as settled.
 - Every kept risk carries a real `file:line`, a likelihood, a cost, and a way to check it.
 - Cleared items sit in their own list, apart from confirmed risks.
