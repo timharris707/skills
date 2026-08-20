@@ -26,8 +26,10 @@ versioned separately and do not replace the skill release version.
   model-authored, so an untrusted seat could smuggle hostile arguments to an allowed
   program (`pytest --rootdir=... -p plugin`, `git -c core.pager=...`). Now
   `--allow-program` alone permits only the bare program with no arguments; a command
-  carrying any argument must also `re.fullmatch` an `--allow-command` pattern. A refused
-  command stays `unverified` with a `status_reason` naming the missing pattern.
+  carrying any argument must shlex-split to exactly an `--allow-command` literal entry
+  (matching went literal in the bullet above; it was a `re.fullmatch` pattern when this
+  first shipped). A refused command stays `unverified` with a `status_reason` naming the
+  missing entry.
   Regression tests cover the hostile-argv case at the `command_allowed`, `resolve_command`,
   and `main()` layers (nothing executes, no `observed` receipt).
 
