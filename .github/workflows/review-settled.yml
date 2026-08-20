@@ -49,7 +49,9 @@ jobs:
           owner=${REPO%/*}
           name=${REPO#*/}
 
-          if [ -n "$SKIP_TITLE_REGEX" ] && printf '%s' "$PR_TITLE" | grep -Eq "$SKIP_TITLE_REGEX"; then
+          # Case-insensitive to mirror CodeRabbit's ignore_title_keywords
+          # matching (keyword anywhere in the title, any case).
+          if [ -n "$SKIP_TITLE_REGEX" ] && printf '%s' "$PR_TITLE" | grep -Eiq "$SKIP_TITLE_REGEX"; then
             echo "exempt: title matches skip regex ($SKIP_TITLE_REGEX)"
             exit 0
           fi
@@ -58,37 +60,55 @@ jobs:
             exit 0
           fi
 
+          # Anchor for skip notices: only a notice at least as new as the head
+          # commit counts, so a skip for an earlier commit can't settle a
+          # later push.
+          head_committed_at=$(gh api "repos/$REPO/commits/$HEAD_SHA" --jq '.commit.committer.date')
+
+          # Sum unresolved review threads across every page; a partial count
+          # would either deadlock resolved PRs or green-light unseen threads.
+          count_unresolved() {
+            local cursor='' page n
+            n=0
+            while :; do
+              page=$(gh api graphql \
+                -f query='query($owner: String!, $name: String!, $number: Int!, $cursor: String) {
+                  repository(owner: $owner, name: $name) {
+                    pullRequest(number: $number) {
+                      reviewThreads(first: 100, after: $cursor) {
+                        pageInfo { hasNextPage endCursor }
+                        nodes { isResolved }
+                      }
+                    }
+                  }
+                }' -f owner="$owner" -f name="$name" -F number="$PR_NUMBER" \
+                ${cursor:+-f cursor="$cursor"} \
+                --jq '.data.repository.pullRequest.reviewThreads')
+              n=$((n + $(jq '[.nodes[] | select(.isResolved | not)] | length' <<<"$page")))
+              [ "$(jq -r '.pageInfo.hasNextPage' <<<"$page")" = "true" ] || break
+              cursor=$(jq -r '.pageInfo.endCursor' <<<"$page")
+            done
+            echo "$n"
+          }
+
           deadline=$((SECONDS + WAIT_MINUTES * 60))
           while :; do
             # A review object whose commit_id is the current head means the
-            # bot has seen this exact code, fix pushes included.
-            reviewed=$(gh api "repos/$REPO/pulls/$PR_NUMBER/reviews" --paginate \
-              --jq "[.[] | select(.user.login == \"coderabbitai[bot]\" and .commit_id == \"$HEAD_SHA\")] | length")
+            # bot has seen this exact code, fix pushes included. --paginate
+            # emits one JSON array per page, so aggregate with jq -s.
+            reviewed=$(gh api "repos/$REPO/pulls/$PR_NUMBER/reviews" --paginate | jq -s \
+              --arg head "$HEAD_SHA" \
+              '[.[][] | select(.user.login == "coderabbitai[bot]" and .commit_id == $head)] | length')
 
             # Skip notices live in the pre-<details> segment of the bot's
             # latest comment; the segment test is the reliable detection.
-            skipped=$(gh api "repos/$REPO/issues/$PR_NUMBER/comments" --paginate \
-              --jq '[.[] | select(.user.login == "coderabbitai[bot]") | .body] | last // "" | split("<details>")[0] | test("Review skipped") | if . then 1 else 0 end')
+            skipped=$(gh api "repos/$REPO/issues/$PR_NUMBER/comments" --paginate | jq -s \
+              --arg since "$head_committed_at" \
+              '[.[][] | select(.user.login == "coderabbitai[bot]")] | last // null
+               | if . != null and .updated_at >= $since and (.body | split("<details>")[0] | test("Review skipped"))
+                 then 1 else 0 end')
 
-            threads=$(gh api graphql \
-              -f query='query($owner: String!, $name: String!, $number: Int!) {
-                repository(owner: $owner, name: $name) {
-                  pullRequest(number: $number) {
-                    reviewThreads(first: 100) {
-                      pageInfo { hasNextPage }
-                      nodes { isResolved }
-                    }
-                  }
-                }
-              }' -f owner="$owner" -f name="$name" -F number="$PR_NUMBER" \
-              --jq '.data.repository.pullRequest.reviewThreads')
-            unresolved=$(printf '%s' "$threads" | jq '[.nodes[] | select(.isResolved | not)] | length')
-            # Past 100 threads the count is partial; stay conservative rather
-            # than green-lighting threads the query never saw.
-            if [ "$(printf '%s' "$threads" | jq '.pageInfo.hasNextPage')" = "true" ] && [ "$unresolved" -eq 0 ]; then
-              unresolved=1
-              echo "over 100 review threads; treating the overflow as unresolved"
-            fi
+            unresolved=$(count_unresolved)
 
             echo "head-reviewed=$reviewed review-skipped=$skipped unresolved-threads=$unresolved"
             if { [ "$reviewed" -gt 0 ] || [ "$skipped" -eq 1 ]; } && [ "$unresolved" -eq 0 ]; then

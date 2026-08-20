@@ -27,6 +27,7 @@ jobs:
     uses: ./.github/workflows/review-settled.yml
     with:
       # Mirrors .coderabbit.yaml: docs-titled and skip-review-labeled PRs
-      # get no bot review, so the gate must not wait for one.
-      skip-title-regex: '^docs:'
+      # get no bot review, so the gate must not wait for one. CodeRabbit
+      # matches the keyword anywhere in the title; the gate greps -Ei.
+      skip-title-regex: 'docs:'
       skip-label: skip-review
