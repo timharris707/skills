@@ -1,7 +1,7 @@
 name: review-settled
 
 # Reusable merge gate: a PR is "settled" only when CodeRabbit has reviewed
-# the current head commit (or explicitly skipped it) and no review thread is
+# the current head commit and no review thread is
 # unresolved. Closes the race where a PR merges minutes before the bot's
 # incremental pass lands, stranding findings nobody dispositions (audit,
 # 2026-08-19: live escapes on three repos). Callers make this a required
@@ -60,11 +60,6 @@ jobs:
             exit 0
           fi
 
-          # Anchor for skip notices: only a notice at least as new as the head
-          # commit counts, so a skip for an earlier commit can't settle a
-          # later push.
-          head_committed_at=$(gh api "repos/$REPO/commits/$HEAD_SHA" --jq '.commit.committer.date')
-
           # Sum unresolved review threads across every page; a partial count
           # would either deadlock resolved PRs or green-light unseen threads.
           count_unresolved() {
@@ -100,24 +95,17 @@ jobs:
               --arg head "$HEAD_SHA" \
               '[.[][] | select(.user.login == "coderabbitai[bot]" and .commit_id == $head)] | length')
 
-            # Skip notices live in the pre-<details> segment of the bot's
-            # latest comment; the segment test is the reliable detection.
-            skipped=$(gh api "repos/$REPO/issues/$PR_NUMBER/comments" --paginate | jq -s \
-              --arg since "$head_committed_at" \
-              '[.[][] | select(.user.login == "coderabbitai[bot]")] | last // null
-               | if . != null and .updated_at >= $since and (.body | split("<details>")[0] | test("Review skipped"))
-                 then 1 else 0 end')
-
             unresolved=$(count_unresolved)
 
-            echo "head-reviewed=$reviewed review-skipped=$skipped unresolved-threads=$unresolved"
-            if { [ "$reviewed" -gt 0 ] || [ "$skipped" -eq 1 ]; } && [ "$unresolved" -eq 0 ]; then
+            echo "head-reviewed=$reviewed unresolved-threads=$unresolved"
+            if [ "$reviewed" -gt 0 ] && [ "$unresolved" -eq 0 ]; then
               echo "settled: CodeRabbit has seen $HEAD_SHA and every review thread is resolved"
               exit 0
             fi
             if [ "$SECONDS" -ge "$deadline" ]; then
               echo "not settled after $WAIT_MINUTES minutes."
-              echo "needs: a CodeRabbit review of head $HEAD_SHA (or a Review-skipped notice), and zero unresolved threads."
+              echo "needs: a CodeRabbit review of head $HEAD_SHA and zero unresolved threads."
+              echo "if CodeRabbit is configured to skip this PR, exempt it explicitly via the skip label or title regex."
               echo "after dispositioning findings and resolving threads, re-run this check (gh run rerun <run-id>)."
               exit 1
             fi
