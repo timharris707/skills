@@ -10,6 +10,16 @@ versioned separately and do not replace the skill release version.
 ## [Unreleased]
 
 ### Security
+- **`--allow-command` entries are literal command lines now, not regexes** (CodeRabbit on
+  PR #252, CWE-78): under `re.fullmatch`, allowlisting an interpreter with a pattern like
+  `sh -c .*` or `python3 -c .*` authorized any model-authored payload — and since `.`
+  matches spaces, even a "constrained" pattern like `pytest -q tests/.*` was an open argv
+  tail (`pytest -q tests/x.py -p attacker_plugin` fullmatched it). A command now runs only
+  when its shlex-split argv EXACTLY equals an `--allow-command` entry's, so the reviewer
+  pins the whole command line by copying it out of the verdict; quoting variants of the
+  same argv still match, and an unparseable entry is skipped. Hostile-payload regression
+  tests cover the old wildcard shapes at the `command_allowed` layer.
+
 - **`verify_evidence.py` re-execution now pins arguments, not just the program** (#243,
   surfaced by CodeRabbit on PR #242): `--allow-program NAME` alone used to re-run a
   `command` citation with whatever arguments it carried, and the command text is
@@ -22,6 +32,13 @@ versioned separately and do not replace the skill release version.
   and `main()` layers (nothing executes, no `observed` receipt).
 
 ### Fixed
+- **A refused or disabled re-execution pass no longer keeps a stale `observed` receipt**
+  (CodeRabbit on PR #252): `resolve_command` only wrote `status_reason` on refusal, so a
+  citation re-verified after an earlier authorized run could persist as `unverified` while
+  still carrying the old execution receipt (and a later verified pass kept a stale
+  `status_reason`). Every resolve pass now drops both keys first — mirroring `stamp()`'s
+  stale-snippet drop — and re-attaches only what it actually did. Covered at the
+  `resolve_command` and `main()` layers, including seeding stale metadata end to end.
 - **`use defaults` no longer reads as a way past the doctor preflight** (#244, surfaced by
   CodeRabbit on PR #242): `intake-interview.md` and SKILL.md said the fast path "jumps
   straight" to the step-6 confirm card, which let a run launch with an unconfirmed or
