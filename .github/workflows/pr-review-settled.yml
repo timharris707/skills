@@ -1,0 +1,32 @@
+name: pr-review-settled
+
+# This repo's caller for the reusable review-settled gate. The review and
+# comment triggers re-evaluate as dispositions land; thread resolution alone
+# emits no event, so a re-run after resolving is sometimes needed.
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review, labeled, unlabeled]
+  pull_request_review:
+    types: [submitted, dismissed]
+  pull_request_review_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: review-settled-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review-settled:
+    # Local path so the gate exercises the version on this branch; external
+    # repos call timharris707/skills/.github/workflows/review-settled.yml@main.
+    uses: ./.github/workflows/review-settled.yml
+    with:
+      # Mirrors .coderabbit.yaml: docs-titled and skip-review-labeled PRs
+      # get no bot review, so the gate must not wait for one.
+      skip-title-regex: '^docs:'
+      skip-label: skip-review
