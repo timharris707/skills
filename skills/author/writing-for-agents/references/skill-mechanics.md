@@ -15,7 +15,7 @@ description: <what it does, then when to reach for it>
 
 `description` **is** the context pointer, and it is the only part of a skill loaded into every session. Everything in SKILL.md's "Context pointers" section applies to it with full force. The house shape is one sentence of identity followed by the branches:
 
-> Write and prune documents an agent consumes: a SKILL.md, an AGENTS.md or CLAUDE.md, a reference file reached by a pointer. **Use when** authoring or revising a skill, editing standing agent instructions, or diagnosing why a document fires unreliably.
+> Write and prune documents an agent consumes: a SKILL.md, an AGENTS.md or CLAUDE.md, a rules file, a reference file reached by a pointer. **Use when** authoring or revising a skill, editing standing agent instructions or recording a decision as a rule agents will follow (a CLAUDE.md, AGENTS.md, CODE-RULES, or conduct-rules entry), or diagnosing why a document fires unreliably.
 
 The `Use when` clause is where the branches live. One trigger per branch; a run of synonyms is one branch written three times.
 

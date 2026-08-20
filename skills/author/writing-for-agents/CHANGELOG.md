@@ -9,6 +9,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Changed
+- **Description names the rules-file case** (#266): the frontmatter trigger now says
+  "recording a decision as a rule agents will follow" with the concrete file names an
+  agent sees in the moment (CLAUDE.md, AGENTS.md, CODE-RULES, conduct rules). Written
+  after a live miss: an agent recording a verdict as a rules-file entry never connected
+  that act to "editing standing agent instructions," so the skill sat unfired while an
+  overstated rule went into the durable record. Same branch, wording matched to the
+  agent's in-the-moment framing. The quoted description example in
+  `references/skill-mechanics.md` follows.
 - **Context-pointers definition gets a readable lead** (#227, Theo-video takeaways): the
   paragraph defining a context pointer now opens with a plain-English sentence carrying the
   examples, with the precise definition kept verbatim after it. No rule changed.
