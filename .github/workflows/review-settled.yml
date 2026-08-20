@@ -95,6 +95,21 @@ jobs:
               --arg head "$HEAD_SHA" \
               '[.[][] | select(.user.login == "coderabbitai[bot]" and .commit_id == $head)] | length')
 
+            # A zero-finding pass posts NO review object (proven live:
+            # timharris707/chili#307 sat red for 20 minutes after a clean
+            # review). The walkthrough comment is updated every pass and its
+            # Commits section names the reviewed range, so the head SHA as
+            # the range's endpoint ("between <sha> and <head>") is the same
+            # evidence. Anchored to that phrase, not the whole body: the SHA
+            # appearing elsewhere in a bot comment proves nothing.
+            if [ "$reviewed" -eq 0 ]; then
+              reviewed=$(gh api "repos/$REPO/issues/$PR_NUMBER/comments" --paginate | jq -s \
+                --arg head "$HEAD_SHA" \
+                '[.[][] | select(.user.login == "coderabbitai[bot]"
+                                 and (.body | contains("auto-generated comment: summarize"))
+                                 and (.body | test("between [0-9a-f]{40} and " + $head)))] | length')
+            fi
+
             unresolved=$(count_unresolved)
 
             echo "head-reviewed=$reviewed unresolved-threads=$unresolved"
