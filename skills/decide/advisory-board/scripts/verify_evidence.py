@@ -44,19 +44,20 @@ Command re-execution (M3) — read before enabling:
   was synthesized from untrusted source (the M2 synthesizer over poisoned reviews),
   a `command` citation can be attacker-influenced. Re-execution is OFF by default;
   enabling it is two explicit allowlists plus several structural containments. The
-  program allowlist (NOT the regex) is the load-bearing control:
+  program allowlist (NOT the command list) is the load-bearing control:
     * OPT-IN, PROGRAM-PINNED: nothing re-runs unless you pass `--allow-program NAME`
       (repeatable). A command runs only if its argv[0] (after shlex.split) is a BARE
       program name in that set — never a path (`./x`, `/bin/sh`, `../x` are refused).
-      This pins which program runs INDEPENDENT of any regex, so a too-broad
-      `--allow-command` pattern cannot let the attacker choose the executable.
+      This pins which program runs INDEPENDENT of the command list, so an
+      `--allow-command` entry cannot let the attacker choose the executable.
     * ARGS ARE PINNED TOO (#243): `--allow-program` alone permits only the BARE
       program (argv is exactly [NAME]). A command that carries ANY arguments must
-      also `re.fullmatch` an `--allow-command REGEX` (repeatable) — the command
-      text is model-authored, so unpinned arguments are attacker-chosen arguments
-      (`pytest --rootdir=... -p plugin`, `git -c core.pager=...`). PATTERNS ARE
-      LIVE REGEXES (`.` is a wildcard); they refine, never widen, the program
-      allowlist.
+      shlex-split to EXACTLY the argv of an `--allow-command COMMAND` entry
+      (repeatable) — the command text is model-authored, so unpinned arguments are
+      attacker-chosen arguments (`pytest --rootdir=... -p plugin`,
+      `git -c core.pager=...`). ENTRIES ARE LITERAL COMMAND LINES, not regexes
+      (CodeRabbit on PR #252: `.` matched spaces, so a pattern's wildcard was an
+      open argv tail); they refine, never widen, the program allowlist.
     * NO SHELL: split with shlex, run with shell=False, so `;`/`&&`/`|`/`>`/`$(...)`/
       globs are inert literal args, not operators.
     * CLEAN PATH, NO PLANTED BINARIES: argv[0] is resolved with shutil.which against
@@ -490,11 +491,14 @@ def command_allowed(command, rerun):
          (kills `./build.sh`, `/bin/sh`, `../x` and other path-based argv[0]);
       3. argv[0] is in `--allow-program` (the load-bearing pin);
       4. the ARGUMENTS are pinned (#243): a command with any argument beyond
-         argv[0], or any command when `--allow-command` patterns were given, must
-         `re.fullmatch` a pattern (fullmatch, not search — `pytest -q` never
-         green-lights `pytest -q; rm -rf ~`; a malformed pattern is skipped, never
-         crashes). `--allow-program` alone runs only the bare program: the command
-         text is model-authored, so unpinned arguments are attacker-chosen.
+         argv[0], or any command when `--allow-command` entries were given, must
+         shlex-split to EXACTLY the argv of an `--allow-command` entry (a LITERAL
+         command line, never a regex — CodeRabbit on PR #252: `.` matches spaces,
+         so even a "constrained" pattern like `pytest -q tests/.*` fullmatched an
+         arbitrary argv tail, and an allowlisted interpreter with `sh -c .*` ran
+         arbitrary payloads; an unparseable entry is skipped, never crashes).
+         `--allow-program` alone runs only the bare program: the command text is
+         model-authored, so unpinned arguments are attacker-chosen.
     """
     cmd = (command or "").strip()
     if not cmd:
@@ -512,24 +516,24 @@ def command_allowed(command, rerun):
     if prog not in rerun["programs"]:
         return None, (f"program {prog!r} is not in the --allow-program allowlist "
                       f"({', '.join(sorted(rerun['programs'])) or 'empty'})")
-    patterns = rerun.get("patterns") or []
-    if patterns or len(argv) > 1:
+    allowed = rerun.get("commands") or []
+    if allowed or len(argv) > 1:
         matched = False
-        for pat in patterns:
+        for entry in allowed:
             try:
-                if re.fullmatch(pat, cmd):
+                if shlex.split(entry) == argv:
                     matched = True
                     break
-            except re.error:
+            except ValueError:
                 continue
         if not matched:
-            if not patterns:
-                return None, ("command carries arguments but no --allow-command pattern "
+            if not allowed:
+                return None, ("command carries arguments but no --allow-command entry "
                               "was given — --allow-program alone permits only the bare "
                               "program (the command text is model-authored, so unpinned "
-                              "arguments are attacker-chosen); add --allow-command 'REGEX' "
-                              "to pin the exact arguments")
-            return None, "command does not match any --allow-command pattern"
+                              "arguments are attacker-chosen); add --allow-command 'COMMAND' "
+                              "to pin the exact command line")
+            return None, "command does not match any --allow-command entry"
     return argv, None
 
 
@@ -628,8 +632,8 @@ def _output_excerpt(output: str) -> tuple:
 def resolve_command(ev: dict, rerun) -> str:
     """Resolve a `command` citation by RE-EXECUTING it (M3). `rerun` is None (the
     feature is off → `unverified`, the pre-M3 default) or a dict with keys
-    `programs` (the argv[0] allowlist), `patterns` (optional full-command regexes),
-    `cwd`, `timeout`, and optional `home`.
+    `programs` (the argv[0] allowlist), `commands` (optional literal full-command
+    pins), `cwd`, `timeout`, and optional `home`.
 
     Structural match only (design section 11): verified iff exit == expect_exit
     (default 0) AND any verbatim `expect` substring is present in the output. The
@@ -644,6 +648,13 @@ def resolve_command(ev: dict, rerun) -> str:
     `refuted`: re-execution drops PYTHONPATH/VIRTUAL_ENV etc., so an env-shaped
     failure must NOT be defamed as a fabricated receipt (and a refuted citation
     routes the gate to abstain)."""
+    # A re-verify must never carry STALE execution metadata from a prior pass
+    # (mirrors stamp()'s snippet drop, CodeRabbit on PR #252): a refused or
+    # disabled pass that kept an old `observed` would persist an `unverified`
+    # citation still carrying an execution receipt. Drop both; this pass
+    # re-attaches only what it actually did.
+    ev.pop("observed", None)
+    ev.pop("status_reason", None)
     if rerun is None:
         return "unverified"   # re-execution not enabled for this verify pass
     argv, reason = command_allowed(ev.get("command", ""), rerun)
@@ -688,8 +699,8 @@ def stamp(data: dict, source_root, packet_text, rerun=None, manifest=None) -> di
     """Resolve every code/source/command citation and write its `status`. Mutates data.
 
     `rerun` (M3) is None by default — command citations stay `unverified`, exactly
-    the pre-M3 behavior — or a dict {allow, cwd, timeout} that enables allowlisted
-    command re-execution (see resolve_command).
+    the pre-M3 behavior — or a dict {programs, commands, cwd, timeout} that enables
+    allowlisted command re-execution (see resolve_command).
 
     `manifest` (v1.13 P3, Blocker 2) is None (ungrounded verify — capture allowed,
     gated only by Blocker 1's read), MANIFEST_UNUSABLE (a present-but-broken
@@ -739,15 +750,17 @@ def main(argv=None) -> int:
              "program name (repeatable). This is the load-bearing control: argv[0] is pinned to a "
              "program you name, never a path and never chosen by a regex. On its own it permits "
              "ONLY the bare program with no arguments; a command carrying arguments must also match "
-             "an --allow-command pattern (#243). OMITTED => command citations stay unverified "
+             "an --allow-command entry (#243). OMITTED => command citations stay unverified "
              "(re-execution is opt-in). Allowlist only programs you trust to be read-only over "
              "public material — a re-run's output is persisted to verdict.json.")
     parser.add_argument(
-        "--allow-command", dest="allow_command", action="append", default=[], metavar="REGEX",
-        help="pin the ARGS: require the full command to re.fullmatch this regex (repeatable). "
-             "REQUIRED for any command that carries arguments (#243) — --allow-program alone runs "
-             "only the bare program. Patterns are LIVE regexes (`.` is a wildcard). Refines the "
-             "--allow-program allowlist; cannot enable re-execution on its own.")
+        "--allow-command", dest="allow_command", action="append", default=[], metavar="COMMAND",
+        help="pin the ARGS: allow a command whose shlex-split argv EXACTLY equals this literal "
+             "command line (repeatable). REQUIRED for any command that carries arguments (#243) — "
+             "--allow-program alone runs only the bare program. Entries are LITERAL commands, not "
+             "regexes (a pattern's wildcard could green-light an arbitrary argv tail): copy the "
+             "exact command out of the verdict you are re-executing. Refines the --allow-program "
+             "allowlist; cannot enable re-execution on its own.")
     parser.add_argument(
         "--rerun-timeout", dest="rerun_timeout", type=int, default=DEFAULT_RERUN_TIMEOUT,
         metavar="SECONDS", help=f"hard timeout per re-executed command (default {DEFAULT_RERUN_TIMEOUT}s)")
@@ -777,7 +790,7 @@ def main(argv=None) -> int:
     manifest = load_scope_manifest(args.run_dir)
 
     # M3: assemble the re-execution config only when the user opted in with at least
-    # one --allow-program. The PROGRAM allowlist (not the regex) is the enabler; a
+    # one --allow-program. The PROGRAM allowlist (not the command list) is the enabler; a
     # bare --allow-command does NOT run anything. cwd defaults to a fresh empty
     # throwaway dir (no attacker files in cwd, no planted conftest/Makefile, nothing
     # writes into the reviewed source); --rerun-cwd opts into a real tree.
@@ -803,7 +816,7 @@ def main(argv=None) -> int:
         throwaways.append(home)
         rerun = {
             "programs": set(args.allow_program),
-            "patterns": list(args.allow_command),
+            "commands": list(args.allow_command),
             "cwd": cwd,
             "home": home,
             "timeout": args.rerun_timeout,

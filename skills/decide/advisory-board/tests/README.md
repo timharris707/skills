@@ -107,8 +107,9 @@ The M5 canonical-verdict layer adds:
   no-packet → unverified — it never reaches the URL); `command` is unverified by
   default (re-execution is opt-in), and resolves against re-execution under
   `--allow-program NAME` (exit matches `expect_exit` and `expect` substring present
-  → verified, mismatch → refuted; a command carrying arguments also needs a matching
-  `--allow-command` pattern, #243); `judgment` is left unstamped.
+  → verified, mismatch → refuted; a command carrying arguments also needs an
+  `--allow-command` entry whose shlex argv matches exactly — a literal command line,
+  not a regex, #243); `judgment` is left unstamped.
 - **The gate abstains in the torn regime** (`TestGateAbstain`, `TestGateReconcileVerdictVsBoard`,
   `TestGateRefutedAnywhere`) — `--gate` returns exit `3` ("human required") when the seats that
   ran straddle the `--fail-on` line with no strict majority, when the declared `verdict` clears
