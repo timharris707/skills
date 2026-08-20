@@ -24,7 +24,8 @@ on:
         default: 20
 
 # contents: none — this workflow never checks out code or reads repo contents
-# (REST reviews + GraphQL reviewThreads only). Anything above "none" would
+# (REST reviews, issue labels/comments, and GraphQL reviewThreads only).
+# Anything above "none" would
 # force every caller to grant at least that much: a workflow_call fails when
 # the caller's grant is narrower than what the called workflow requests
 # (flagged by CodeRabbit on modeldeck-private#544).
