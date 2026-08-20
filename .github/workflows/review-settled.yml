@@ -1,0 +1,113 @@
+name: review-settled
+
+# Reusable merge gate: a PR is "settled" only when CodeRabbit has reviewed
+# the current head commit and no review thread is
+# unresolved. Closes the race where a PR merges minutes before the bot's
+# incremental pass lands, stranding findings nobody dispositions (audit,
+# 2026-08-19: live escapes on three repos). Callers make this a required
+# status check so the merge button waits for the review instead of racing it.
+
+on:
+  workflow_call:
+    inputs:
+      skip-title-regex:
+        description: PR titles matching this regex are exempt (CodeRabbit is configured to skip them)
+        type: string
+        default: ''
+      skip-label:
+        description: PRs carrying this label are exempt (CodeRabbit is configured to skip them)
+        type: string
+        default: ''
+      wait-minutes:
+        description: minutes to wait for CodeRabbit to review the head commit before failing
+        type: number
+        default: 20
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      # PR fields flow in via env, never inline ${{ }} in run: a PR title is
+      # attacker-controlled on public repos (template-injection class).
+      - name: Wait for CodeRabbit review of head and zero unresolved threads
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          SKIP_TITLE_REGEX: ${{ inputs.skip-title-regex }}
+          SKIP_LABEL: ${{ inputs.skip-label }}
+          WAIT_MINUTES: ${{ inputs.wait-minutes }}
+        run: |
+          set -euo pipefail
+          owner=${REPO%/*}
+          name=${REPO#*/}
+
+          # Case-insensitive to mirror CodeRabbit's ignore_title_keywords
+          # matching (keyword anywhere in the title, any case).
+          if [ -n "$SKIP_TITLE_REGEX" ] && printf '%s' "$PR_TITLE" | grep -Eiq "$SKIP_TITLE_REGEX"; then
+            echo "exempt: title matches skip regex ($SKIP_TITLE_REGEX)"
+            exit 0
+          fi
+          if [ -n "$SKIP_LABEL" ] && gh api "repos/$REPO/issues/$PR_NUMBER/labels" --paginate --jq '.[].name' | grep -Fxq "$SKIP_LABEL"; then
+            echo "exempt: PR carries the $SKIP_LABEL label"
+            exit 0
+          fi
+
+          # Sum unresolved review threads across every page; a partial count
+          # would either deadlock resolved PRs or green-light unseen threads.
+          count_unresolved() {
+            local cursor='' page n
+            n=0
+            while :; do
+              page=$(gh api graphql \
+                -f query='query($owner: String!, $name: String!, $number: Int!, $cursor: String) {
+                  repository(owner: $owner, name: $name) {
+                    pullRequest(number: $number) {
+                      reviewThreads(first: 100, after: $cursor) {
+                        pageInfo { hasNextPage endCursor }
+                        nodes { isResolved }
+                      }
+                    }
+                  }
+                }' -f owner="$owner" -f name="$name" -F number="$PR_NUMBER" \
+                ${cursor:+-f cursor="$cursor"} \
+                --jq '.data.repository.pullRequest.reviewThreads')
+              n=$((n + $(jq '[.nodes[] | select(.isResolved | not)] | length' <<<"$page")))
+              [ "$(jq -r '.pageInfo.hasNextPage' <<<"$page")" = "true" ] || break
+              cursor=$(jq -r '.pageInfo.endCursor' <<<"$page")
+            done
+            echo "$n"
+          }
+
+          deadline=$((SECONDS + WAIT_MINUTES * 60))
+          while :; do
+            # A review object whose commit_id is the current head means the
+            # bot has seen this exact code, fix pushes included. --paginate
+            # emits one JSON array per page, so aggregate with jq -s.
+            reviewed=$(gh api "repos/$REPO/pulls/$PR_NUMBER/reviews" --paginate | jq -s \
+              --arg head "$HEAD_SHA" \
+              '[.[][] | select(.user.login == "coderabbitai[bot]" and .commit_id == $head)] | length')
+
+            unresolved=$(count_unresolved)
+
+            echo "head-reviewed=$reviewed unresolved-threads=$unresolved"
+            if [ "$reviewed" -gt 0 ] && [ "$unresolved" -eq 0 ]; then
+              echo "settled: CodeRabbit has seen $HEAD_SHA and every review thread is resolved"
+              exit 0
+            fi
+            if [ "$SECONDS" -ge "$deadline" ]; then
+              echo "not settled after $WAIT_MINUTES minutes."
+              echo "needs: a CodeRabbit review of head $HEAD_SHA and zero unresolved threads."
+              echo "if CodeRabbit is configured to skip this PR, exempt it explicitly via the skip label or title regex."
+              echo "after dispositioning findings and resolving threads, re-run this check (gh run rerun <run-id>)."
+              exit 1
+            fi
+            sleep 30
+          done
