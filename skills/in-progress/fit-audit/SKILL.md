@@ -21,7 +21,7 @@ Three rules govern everything below:
 
 ## Steps
 
-The gathering and inventory steps (1, 2, and team mode's incumbent inventory) are mechanical reading and may run on a cheap model or subagents; scoring and verdicts stay on the session's main model.
+The gathering and inventory steps (1, 2, and team mode's incumbent inventory) are mechanical reading and may run on a cheap model or subagents, but only over sources the main session has already staged: naming sources, getting permission, and staging stay in the main session, delegated work reads staged artifacts and returns its inventory, and scoring and verdicts stay on the session's main model.
 
 1. **Gather the evidence.** Name the sources you want (repos, PR and review history, CI logs, transcripts), get permission, then stage them yourself: clone or fetch anything not already local, read-only, before scoring starts. Read what shows how this person actually works: recent session transcripts or chat history where the harness can reach them, git log and CI history of the repos they name as active, and open issues or review threads that show recurring pain. Interviewing is the fallback for sources that truly cannot be fetched, not a substitute for fetching: ask for the last three times work went sideways, what it cost, and what they wish had existed. Done when each evidence source is staged and read or explicitly unavailable, and you hold a written list of concrete incidents with dates.
 
@@ -51,7 +51,7 @@ When the adopter is a team with house skills, guidelines, or recorded review dec
 
 The evidence rules above govern every verdict, not just tiers. An `adopt` pick with no incident ranks D. A `redundant-with` or `conflicts-with` verdict must quote the actual house document, with a link as supporting evidence rather than a substitute; a verdict that cannot quote its document is a guess, and the report emits `adopt` for that skill instead and applies `adopt` scoring. An `adapt` verdict names the concrete changes, never just "tailor it."
 
-The team-mode report groups by verdict: `adopt` picks ranked by tier and carrying their citations as in step 4, then the `redundant-with`, `conflicts-with`, and `adapt` lines each carrying their named house counterpart, quoted rule, or change list.
+The team-mode report groups by verdict: `adopt` picks ranked by tier and carrying their citations as in step 4, then the `redundant-with`, `conflicts-with`, and `adapt` lines each carrying their named house counterpart, quoted rule, or change list. The closing install list draws from `adopt` picks only; `redundant-with` means the house keeps its incumbent, and `conflicts-with` and `adapt` items are discussion or rewrite work, not installs. When no `adopt` pick earns a citation, the report closes with "no install; the house stack covers it" stated plainly.
 
 ## What this skill does not do
 
@@ -59,15 +59,15 @@ It does not install anything, bind anything, or run setup. It ends at the report
 
 ## Done when (checkable: verify each line before reporting complete)
 
-- Every evidence source was named, permitted, and staged and read, or recorded as unavailable; none silently skipped, and none replaced by interview while still fetchable.
-- Every promoted skill carries Fit, Benefit, and a tier.
+- Every evidence source was named and its permission outcome recorded; every permitted source was staged and read or recorded as unavailable with the reason, and a declined source is recorded as unavailable, never silently skipped. No source still fetchable and permitted was replaced by interview.
+- Every promoted skill carries Fit, Benefit, and a tier (in team mode this applies to `adopt` verdicts; the other verdicts carry their own required fields below).
 - Every S and A pick cites an incident traceable to a transcript, commit, CI run, issue or review thread, or the person's own words; no citation is invented.
 - Every tier assignment follows the stated bands; no skill carries a tier its scores and evidence do not support.
 - Skills with no supporting evidence say "no evidence found" rather than carrying a story.
 - In team mode: every incumbent document, including every artifact a house index names, was read or recorded as unreachable before scoring began, and the written coverage map exists with a named covering document for each area.
 - In team mode: every skill carries exactly one of the four verdicts by its exact name, and the Fit-Benefit-tier line above applies to `adopt` verdicts only.
 - In team mode: every `redundant-with` verdict names its house equivalent and either states in one sentence what the catalog adds or states that the house keeps its incumbent; every `conflicts-with` verdict quotes the contradicted rule and states which mechanism the cited evidence favors or that the call belongs to the team; every `adapt` verdict names the concrete rewrite changes.
-- The report ends with a named next move: a minimal install list of at most five skills, or setup.
+- The report ends with a named next move: a minimal install list of at most five skills (in team mode, drawn from `adopt` verdicts only, or an explicit "no install; the house stack covers it"), or setup.
 
 ## Attribution
 
