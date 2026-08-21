@@ -46,7 +46,7 @@ When the adopter is a team with house skills, guidelines, or recorded review dec
 - **`conflicts-with` [house rule].** Quote the specific rule, guideline line, or decision record it contradicts. A conflict is a finding to evaluate on mechanics, never an auto-disqualifier: compare what each side's mechanism would have caught or cost against the cited evidence, then either say which mechanism the evidence favors or state plainly that the call belongs to the team.
 - **`adapt`.** The idea earns its place but the text does not fit the house: name what changes in the rewrite (the house format it moves into, vocabulary swapped for house terms, pointers rewired to house documents, parts the house makes unnecessary).
 
-The evidence rules above govern every verdict, not just tiers. An `adopt` pick with no incident ranks D. A `redundant-with` or `conflicts-with` verdict must quote or link the actual house document; one that cannot is a guess, and the skill goes back through `adopt` scoring instead. An `adapt` verdict names the concrete changes, never just "tailor it."
+The evidence rules above govern every verdict, not just tiers. An `adopt` pick with no incident ranks D. A `redundant-with` or `conflicts-with` verdict must quote the actual house document, with a link as supporting evidence rather than a substitute; a verdict that cannot quote its document is a guess, and the skill goes back through `adopt` scoring instead. An `adapt` verdict names the concrete changes, never just "tailor it."
 
 The team-mode report groups by verdict: `adopt` picks ranked by tier and carrying their citations as in step 4, then the `redundant-with`, `conflicts-with`, and `adapt` lines each carrying their named house counterpart, quoted rule, or change list.
 
@@ -61,7 +61,7 @@ It does not install anything, bind anything, or run setup. It ends at the report
 - Every S and A pick cites an incident traceable to a transcript, commit, CI run, issue or review thread, or the person's own words; no citation is invented.
 - Every tier assignment follows the stated bands; no skill carries a tier its scores and evidence do not support.
 - Skills with no supporting evidence say "no evidence found" rather than carrying a story.
-- In team mode: every incumbent document, including every artifact a house index names, was read or recorded as unreachable before scoring began.
+- In team mode: every incumbent document, including every artifact a house index names, was read or recorded as unreachable before scoring began, and the written coverage map exists with a named covering document for each area.
 - In team mode: every skill carries exactly one of the four verdicts by its exact name, and the Fit-Benefit-tier line above applies to `adopt` verdicts only.
 - In team mode: every `redundant-with` verdict names its house equivalent and either states in one sentence what the catalog adds or states that the house keeps its incumbent; every `conflicts-with` verdict quotes the contradicted rule and states which mechanism the cited evidence favors or that the call belongs to the team; every `adapt` verdict names the concrete rewrite changes.
 - The report ends with a named next move: a minimal install list or setup.
