@@ -1,6 +1,6 @@
 ---
 name: fit-audit
-description: "Rank this catalog's skills by what each would have saved this specific person, every top pick citing a real incident from their own history. Use when someone is considering the catalog and has not run setup, when the user asks which skills would help them most, or when recommending a starting subset to a new adopter."
+description: "Rank this catalog's skills by what each would have saved this specific adopter, every top pick citing a real incident from their own history, and for a team judge each skill against the incumbent stack as well. Use when someone is considering the catalog and has not run setup, when the user asks which skills would help them most, when recommending a starting subset to a new adopter, or when auditing the catalog for a team that already runs house skills, guidelines, or recorded review decisions."
 ---
 
 # Fit audit
@@ -8,6 +8,8 @@ description: "Rank this catalog's skills by what each would have saved this spec
 Before anyone installs anything, answer the question they actually have: which of these skills would have saved *me* time, on work I actually did? The audit reads real evidence of how the person works, scores every promoted skill against it, and returns a short ranked report in which every top pick names a concrete incident it would have prevented or shortened. The ranking earns trust through those citations: a recommendation that says "on Tuesday your deploy broke and this skill's check would have caught it" beats any description of features.
 
 This audit belongs to the not-yet-adopted state: nothing installed, nothing bound. [setup](../../orient/setup/SKILL.md) binds the discipline to a repo, and in a repo where that has already happened the router governs the session; there the audit's only job is ranking what to adopt next. For everyone earlier than that, the audit comes first and setup follows it.
+
+The audit runs in one of two modes. **Individual mode**, the steps below as written, serves a person with no incumbent stack: the question is only which skills to adopt first. **Team mode** serves an adopter that already runs its own skills, guidelines, and recorded decisions: the same steps run, plus the additions under "Team mode" below, because for a team "would this have saved us" is only half the question; the other half is "does the house already do this, or forbid it."
 
 ## Evidence rules
 
@@ -31,6 +33,23 @@ Two rules govern everything below:
 
 4. **Report.** One line per skill, grouped by tier, best first. The S and A picks each carry their incident citation in one plain sentence: what happened, when, and what the skill would have changed. Close with the try-first move: install only the top picks by name, or run setup for the full discipline, and say which of the two the evidence argues for. Done when the report is delivered and every S/A line cites its incident.
 
+## Team mode: auditing against an incumbent stack
+
+When the adopter is a team with house skills, guidelines, or recorded review decisions, run the four steps above with one step added and the verdict widened. Everything in this section is additive; individual mode never reaches it.
+
+**Incumbent inventory (between steps 2 and 3).** Before scoring anything, read what the house already runs: the team's own skills, their standing rules files (CLAUDE.md, AGENTS.md, contribution guidelines), and their recorded review or design decisions. Where the house keeps an index that names where its records live (a binding document, a memory home, a glossary or canonical-terms file), follow its pointers rather than guessing paths, and treat each artifact it names as part of the inventory. Done when each incumbent document, including every artifact a house index names, is read or recorded as unreachable, and you hold a written map of what the house already covers, naming the covering document for each area.
+
+**Verdicts (replaces the tier as the top-level answer in step 4).** Each catalog skill gets exactly one of four verdicts, written with exactly these names: `adopt`, `redundant-with`, `conflicts-with`, `adapt`. Tiers attach to `adopt` verdicts only; the other three carry their named counterpart, quotation, or change list instead.
+
+- **`adopt`.** Nothing in the house covers or contradicts it. Score and tier exactly as in step 3, citation and all.
+- **`redundant-with` [house equivalent].** Name the specific house skill or rule that already covers the ground. If the catalog version is meaningfully stronger, say in one sentence what it adds; otherwise the house keeps its incumbent and the line says so.
+- **`conflicts-with` [house rule].** Quote the specific rule, guideline line, or decision record it contradicts. A conflict is a finding to evaluate on mechanics, never an auto-disqualifier: compare what each side's mechanism would have caught or cost against the cited evidence, then either say which mechanism the evidence favors or state plainly that the call belongs to the team.
+- **`adapt`.** The idea earns its place but the text does not fit the house: name what changes in the rewrite (the house format it moves into, vocabulary swapped for house terms, pointers rewired to house documents, parts the house makes unnecessary).
+
+The evidence rules above govern every verdict, not just tiers. An `adopt` pick with no incident ranks D. A `redundant-with` or `conflicts-with` verdict must quote the actual house document, with a link as supporting evidence rather than a substitute; a verdict that cannot quote its document is a guess, and the report emits `adopt` for that skill instead and applies `adopt` scoring. An `adapt` verdict names the concrete changes, never just "tailor it."
+
+The team-mode report groups by verdict: `adopt` picks ranked by tier and carrying their citations as in step 4, then the `redundant-with`, `conflicts-with`, and `adapt` lines each carrying their named house counterpart, quoted rule, or change list.
+
 ## What this skill does not do
 
 It does not install anything, bind anything, or run setup. It ends at the report and the recommendation; acting on it is the person's call.
@@ -42,6 +61,9 @@ It does not install anything, bind anything, or run setup. It ends at the report
 - Every S and A pick cites an incident traceable to a transcript, commit, CI run, issue or review thread, or the person's own words; no citation is invented.
 - Every tier assignment follows the stated bands; no skill carries a tier its scores and evidence do not support.
 - Skills with no supporting evidence say "no evidence found" rather than carrying a story.
+- In team mode: every incumbent document, including every artifact a house index names, was read or recorded as unreachable before scoring began, and the written coverage map exists with a named covering document for each area.
+- In team mode: every skill carries exactly one of the four verdicts by its exact name, and the Fit-Benefit-tier line above applies to `adopt` verdicts only.
+- In team mode: every `redundant-with` verdict names its house equivalent and either states in one sentence what the catalog adds or states that the house keeps its incumbent; every `conflicts-with` verdict quotes the contradicted rule and states which mechanism the cited evidence favors or that the call belongs to the team; every `adapt` verdict names the concrete rewrite changes.
 - The report ends with a named next move: a minimal install list or setup.
 
 ## Attribution
