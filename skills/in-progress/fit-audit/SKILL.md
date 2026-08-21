@@ -13,14 +13,17 @@ The audit runs in one of two modes. **Individual mode**, the steps below as writ
 
 ## Evidence rules
 
-Two rules govern everything below:
+Three rules govern everything below:
 
 - **Nothing invented.** Every incident cited traces to a transcript line, a commit, a CI run, an issue or review thread, or the person's own words. A skill with no evidence behind it ranks low with "no evidence found" stated, never with a plausible-sounding story.
 - **Permission first.** Session transcripts and chat history are read only after the person agrees. Name what you want to read before reading it.
+- **Rejections are the product too.** The ranking only has value if the low ranks are real. A report where most skills score low, or where a team's house stack already covers the ground, is an acceptable outcome stated plainly, never softened to make the catalog look better.
 
 ## Steps
 
-1. **Gather the evidence.** With permission, read what shows how this person actually works: recent session transcripts or chat history where the harness can reach them, git log and CI history of the repos they name as active, and open issues or review threads that show recurring pain. Where no history is reachable, interview instead: ask for the last three times work went sideways, what it cost, and what they wish had existed. Done when each evidence source is either read or explicitly unavailable, and you hold a written list of concrete incidents with dates.
+The gathering and inventory steps (1, 2, and team mode's incumbent inventory) are mechanical reading and may run on a cheap model or subagents; scoring and verdicts stay on the session's main model.
+
+1. **Gather the evidence.** Name the sources you want (repos, PR and review history, CI logs, transcripts), get permission, then stage them yourself: clone or fetch anything not already local, read-only, before scoring starts. Read what shows how this person actually works: recent session transcripts or chat history where the harness can reach them, git log and CI history of the repos they name as active, and open issues or review threads that show recurring pain. Interviewing is the fallback for sources that truly cannot be fetched, not a substitute for fetching: ask for the last three times work went sideways, what it cost, and what they wish had existed. Done when each evidence source is staged and read or explicitly unavailable, and you hold a written list of concrete incidents with dates.
 
 2. **Inventory the catalog.** The bucket registry ([skills/buckets.json](../../buckets.json)) is the source of truth for which buckets are promoted: list every skill directory in a promoted bucket, and read each skill's description from its SKILL.md frontmatter. When only the public README is reachable, use its catalog rows and say so in the report. In-progress skills stay out unless the person asks. Done when every skill in a promoted bucket is on your scoring list.
 
@@ -31,7 +34,7 @@ Two rules govern everything below:
 
    Done when every skill on the list carries both scores, a tier, and either an incident citation or "no evidence found."
 
-4. **Report.** One line per skill, grouped by tier, best first. The S and A picks each carry their incident citation in one plain sentence: what happened, when, and what the skill would have changed. Close with the try-first move: install only the top picks by name, or run setup for the full discipline, and say which of the two the evidence argues for. Done when the report is delivered and every S/A line cites its incident.
+4. **Report.** One line per skill, grouped by tier, best first. The S and A picks each carry their incident citation in one plain sentence: what happened, when, and what the skill would have changed. Close with the try-first move: install only the top picks by name (five at most, so the report ends in a decision rather than a catalog), or run setup for the full discipline, and say which of the two the evidence argues for. Done when the report is delivered and every S/A line cites its incident.
 
 ## Team mode: auditing against an incumbent stack
 
@@ -56,7 +59,7 @@ It does not install anything, bind anything, or run setup. It ends at the report
 
 ## Done when (checkable: verify each line before reporting complete)
 
-- Every evidence source was read with permission or recorded as unavailable; none silently skipped.
+- Every evidence source was named, permitted, and staged and read, or recorded as unavailable; none silently skipped, and none replaced by interview while still fetchable.
 - Every promoted skill carries Fit, Benefit, and a tier.
 - Every S and A pick cites an incident traceable to a transcript, commit, CI run, issue or review thread, or the person's own words; no citation is invented.
 - Every tier assignment follows the stated bands; no skill carries a tier its scores and evidence do not support.
@@ -64,7 +67,7 @@ It does not install anything, bind anything, or run setup. It ends at the report
 - In team mode: every incumbent document, including every artifact a house index names, was read or recorded as unreachable before scoring began, and the written coverage map exists with a named covering document for each area.
 - In team mode: every skill carries exactly one of the four verdicts by its exact name, and the Fit-Benefit-tier line above applies to `adopt` verdicts only.
 - In team mode: every `redundant-with` verdict names its house equivalent and either states in one sentence what the catalog adds or states that the house keeps its incumbent; every `conflicts-with` verdict quotes the contradicted rule and states which mechanism the cited evidence favors or that the call belongs to the team; every `adapt` verdict names the concrete rewrite changes.
-- The report ends with a named next move: a minimal install list or setup.
+- The report ends with a named next move: a minimal install list of at most five skills, or setup.
 
 ## Attribution
 

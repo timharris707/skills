@@ -8,6 +8,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- Four grafts from the same DecisionCloud audit prompt that surfaced team mode:
+  evidence staging as the first resort (name sources, get permission, then
+  clone or fetch them read-only yourself; interviewing is the fallback only for
+  what truly cannot be fetched), an honest-rejection evidence rule (low ranks
+  stated plainly are an acceptable outcome), a cost note (inventory passes may
+  run on a cheap model; judgment stays on the main model), and a five-skill cap
+  on the closing install list.
 - **Team mode**: auditing the catalog against an incumbent stack. Adds an
   incumbent-inventory step (read the team's own skills, rules files, and
   decision records before scoring) and widens the verdict beyond ranked
