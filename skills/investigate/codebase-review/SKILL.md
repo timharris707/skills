@@ -1,6 +1,6 @@
 ---
 name: codebase-review
-description: Run a state review of the codebase: the counterpart to adversarial-review's change review. Use before building against an upcoming spec (make the change easy first), when lanes merged since the last review cross the repo's threshold, or when lanes or the orchestrator report the code fighting them.
+description: "Run a state review of the codebase: the counterpart to adversarial-review's change review. Use before building against an upcoming spec (make the change easy first), when lanes merged since the last review cross the repo's threshold, or when lanes or the orchestrator report the code fighting them."
 ---
 
 # Codebase review

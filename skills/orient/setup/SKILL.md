@@ -1,6 +1,6 @@
 ---
 name: setup
-description: Once-per-repo binding interview for the team-workflow pack: records how the pack composes with this repo and seeds the binding doc the other skills read. Use when installing the pack into a repo, refreshing an existing installation's bindings, or auditing a consuming repo for drift after a pack release (audit mode).
+description: "Once-per-repo binding interview for the team-workflow pack: records how the pack composes with this repo and seeds the binding doc the other skills read. Use when installing the pack into a repo, refreshing an existing installation's bindings, or auditing a consuming repo for drift after a pack release (audit mode)."
 ---
 
 # Setup

@@ -8,6 +8,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [v1.2.1] - 2026-08-25 — frontmatter description parses as strict YAML
+
+### Fixed
+
+- **Frontmatter description is strict YAML now**: the SKILL.md description carried an
+  unquoted ": ", which a strict YAML parser reads as the start of a nested mapping.
+  GitHub showed an error banner instead of the frontmatter table, and any
+  strict-parsing harness could reject the skill outright. The description is now
+  double-quoted with the wording byte-identical; `scripts/check_skill_frontmatter.py`
+  in CI is the regression tripwire.
+
 ### Changed
 
 - **Em-dash sweep** (#226): SKILL.md and `references/last-mile-scrub.md` rewrote

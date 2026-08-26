@@ -33,6 +33,14 @@ jobs:
       - name: Check invocation classification freshness
         run: python3 scripts/check_invocation_freshness.py
 
+      # GitHub and strict-YAML harnesses reject frontmatter with an unquoted
+      # ": " in a value (16 descriptions shipped that way; GitHub rendered an
+      # error banner instead of the frontmatter table). This fails the build
+      # when any tracked SKILL.md frontmatter falls outside the flat
+      # strict-YAML-safe subset. Standard library only. See the docstring.
+      - name: Check SKILL.md frontmatter is strict YAML
+        run: python3 scripts/check_skill_frontmatter.py
+
       # The em dash is a reliable AI tell and skill prose style leaks into
       # model output (#226): this fails the build when any SKILL.md or
       # references file exceeds the per-file density threshold outside code.

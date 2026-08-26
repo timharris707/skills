@@ -1,6 +1,6 @@
 ---
 name: router
-description: Entry point for the team-workflow pack: names every pack skill and when to reach for it. Use when unsure which team-workflow skill applies, or to orient a new session/repo on what the pack offers.
+description: "Entry point for the team-workflow pack: names every pack skill and when to reach for it. Use when unsure which team-workflow skill applies, or to orient a new session/repo on what the pack offers."
 ---
 
 # Team-workflow router

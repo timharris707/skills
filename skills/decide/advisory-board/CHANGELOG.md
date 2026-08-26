@@ -9,6 +9,8 @@ versioned separately and do not replace the skill release version.
 
 ## [Unreleased]
 
+## [v1.18.2] - 2026-08-25 — allowlist hardening lands, frontmatter parses strict
+
 ### Security
 - **`--allow-command` entries are literal command lines now, not regexes** (CodeRabbit on
   PR #252, CWE-78): under `re.fullmatch`, allowlisting an interpreter with a pattern like
@@ -34,6 +36,12 @@ versioned separately and do not replace the skill release version.
   and `main()` layers (nothing executes, no `observed` receipt).
 
 ### Fixed
+- **Frontmatter description is strict YAML now**: the SKILL.md description carried an
+  unquoted ": ", which a strict YAML parser reads as the start of a nested mapping.
+  GitHub showed an error banner instead of the frontmatter table, and any
+  strict-parsing harness could reject the skill outright. The description is now
+  double-quoted with the wording byte-identical; `scripts/check_skill_frontmatter.py`
+  in CI is the regression tripwire.
 - **A refused or disabled re-execution pass no longer keeps a stale `observed` receipt**
   (CodeRabbit on PR #252): `resolve_command` only wrote `status_reason` on refusal, so a
   citation re-verified after an earlier authorized run could persist as `unverified` while

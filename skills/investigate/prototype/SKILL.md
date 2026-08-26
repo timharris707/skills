@@ -1,6 +1,6 @@
 ---
 name: prototype
-description: Build throwaway prototype code that answers a design question: UI variants on a live route, or a terminal UI or single shareable HTML file over a pure logic module. Use when a question is "how should this look / behave / feel in action" and discussion or static artifacts cannot settle it.
+description: "Build throwaway prototype code that answers a design question: UI variants on a live route, or a terminal UI or single shareable HTML file over a pure logic module. Use when a question is \"how should this look / behave / feel in action\" and discussion or static artifacts cannot settle it."
 ---
 
 # Prototype

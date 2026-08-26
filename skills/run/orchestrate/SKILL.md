@@ -1,6 +1,6 @@
 ---
 name: orchestrate
-description: Run a session as the orchestrator of parallel agent-assisted work: routing items to working sessions, auditing results, and owning integration, instead of implementing. Use when the user says "orchestration mode", asks one session to coordinate several lanes/sessions, or hands over an orchestrator role.
+description: "Run a session as the orchestrator of parallel agent-assisted work: routing items to working sessions, auditing results, and owning integration, instead of implementing. Use when the user says \"orchestration mode\", asks one session to coordinate several lanes/sessions, or hands over an orchestrator role."
 ---
 
 # Orchestrate

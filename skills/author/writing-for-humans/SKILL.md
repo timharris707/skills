@@ -1,6 +1,6 @@
 ---
 name: writing-for-humans
-description: Write copy a human reads: a landing page, a README's front half, a launch post, a profile page. Use when drafting or revising public-facing prose, when a page reads like agent documentation, or when a finished draft needs its last-mile scrub for AI tells.
+description: "Write copy a human reads: a landing page, a README's front half, a launch post, a profile page. Use when drafting or revising public-facing prose, when a page reads like agent documentation, or when a finished draft needs its last-mile scrub for AI tells."
 ---
 
 # Writing for Humans

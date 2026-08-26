@@ -1,6 +1,6 @@
 ---
 name: diagnose
-description: The disciplined bug-fixing loop: no fix ships without a cause the fixer can state in one plain sentence, with evidence. Use when any fix is about to ship without a nameable cause, when a bug resists its first fix attempt, or when a bug-shaped lane brief points here.
+description: "The disciplined bug-fixing loop: no fix ships without a cause the fixer can state in one plain sentence, with evidence. Use when any fix is about to ship without a nameable cause, when a bug resists its first fix attempt, or when a bug-shaped lane brief points here."
 ---
 
 # Diagnose

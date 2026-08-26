@@ -1,6 +1,6 @@
 ---
 name: domain-memory
-description: Keep per-repo institutional memory: a domain glossary plus lightweight decision records, written as side effects of work. Use when a grilling closes, a review rejection or declined finding is dispositioned, the decider corrects a session's wrong assumption, a session starts in a repo whose binding names a memory home, or the store passes its size bound.
+description: "Keep per-repo institutional memory: a domain glossary plus lightweight decision records, written as side effects of work. Use when a grilling closes, a review rejection or declined finding is dispositioned, the decider corrects a session's wrong assumption, a session starts in a repo whose binding names a memory home, or the store passes its size bound."
 ---
 
 # Domain memory

@@ -1,6 +1,6 @@
 ---
 name: huh
-description: Decode a message that didn't land: restate it in plain sentences, expand invented shorthand, split report from request, and flag claims stated without evidence. Use when the user signals your last message didn't land ("huh?", "what do you mean"), or pastes agent output from another session to translate.
+description: "Decode a message that didn't land: restate it in plain sentences, expand invented shorthand, split report from request, and flag claims stated without evidence. Use when the user signals your last message didn't land (\"huh?\", \"what do you mean\"), or pastes agent output from another session to translate."
 ---
 
 # Huh
