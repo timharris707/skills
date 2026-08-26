@@ -62,6 +62,22 @@ def value_error(value: str) -> str | None:
     return None
 
 
+def decoded(value: str):
+    """The value a YAML parser would produce for a subset-valid token."""
+    if value.startswith('"'):
+        return json.loads(value)
+    if value.startswith("'"):
+        return value[1:-1].replace("''", "'")
+    lowered = value.lower()
+    if lowered in ("", "~", "null"):
+        return None
+    if lowered in ("true", "false"):
+        return lowered == "true"
+    if re.fullmatch(r"[-+]?\d+(\.\d+)?", value):
+        return float(value) if "." in value else int(value)
+    return value
+
+
 def check_file(path: str) -> list:
     with open(path, encoding="utf-8") as fh:
         text = fh.read()
@@ -87,13 +103,15 @@ def check_file(path: str) -> list:
         if problem:
             errors.append(f"{path}: '{key}': {problem}")
             continue
-        fields[key] = value
+        fields[key] = decoded(value)
 
-    name = fields.get("name", "")
-    if not SLUG.match(name.strip("\"'")):
+    name = fields.get("name")
+    if not isinstance(name, str) or not SLUG.match(name):
         errors.append(f"{path}: frontmatter 'name' {name!r} is not a slug")
-    if not fields.get("description"):
-        errors.append(f"{path}: frontmatter lacks a non-empty 'description'")
+    description = fields.get("description")
+    if not isinstance(description, str) or not description.strip():
+        errors.append(f"{path}: frontmatter lacks a non-empty string "
+                      "'description'")
     return errors
 
 
