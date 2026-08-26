@@ -26,7 +26,9 @@ export async function GET(_request: Request, context: { params: Promise<{ slug: 
   const source = [
     "---",
     `name: ${skill.name}`,
-    `description: ${skill.description}`,
+    // JSON string quoting is valid YAML, so the twin's frontmatter stays
+    // parseable even when the description contains colons or quotes.
+    `description: ${JSON.stringify(skill.description)}`,
     "---",
     "",
     skill.body.trimStart(),

@@ -1,6 +1,6 @@
 ---
 name: wizard
-description: Generate an interactive bash wizard that walks a human through a procedure only they can perform: third-party dashboards, credentials, DNS records, CI secrets, one-off cutovers. Use when a task stalls on steps an agent cannot take, or when a manual setup is tedious to re-explain every time. Not for steps the agent can perform itself.
+description: "Generate an interactive bash wizard that walks a human through a procedure only they can perform: third-party dashboards, credentials, DNS records, CI secrets, one-off cutovers. Use when a task stalls on steps an agent cannot take, or when a manual setup is tedious to re-explain every time. Not for steps the agent can perform itself."
 ---
 
 # Wizard

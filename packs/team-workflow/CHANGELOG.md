@@ -14,7 +14,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [v1.5.3] - 2026-08-25 — frontmatter descriptions parse as strict YAML
+
 ### Fixed
+- **Frontmatter descriptions are strict YAML now**: twelve pack SKILL.mds (router, setup,
+  domain-memory, grilling, decision-map, prototype, codebase-review, wizard, orchestrate,
+  adversarial-review, diagnose, implement) carried an unquoted ": " inside the
+  description, which a strict YAML parser reads as the start of a nested mapping. GitHub
+  showed an error banner instead of the frontmatter table, and any strict-parsing harness
+  could reject the skill outright. The descriptions are now double-quoted with the wording
+  byte-identical; `scripts/check_skill_frontmatter.py` in CI is the regression tripwire.
 - **setup: glossary + non-negotiables Done-when bullet admits the sync-managed pending
   state** (#192, found during #168's review): the bullet accepted only the carried
   section, the memory-home pointer, or a recorded decline, unsatisfiable on a

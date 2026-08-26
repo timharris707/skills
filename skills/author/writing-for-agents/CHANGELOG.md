@@ -8,6 +8,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [v1.0.2] - 2026-08-25 — frontmatter description parses as strict YAML
+
+### Fixed
+- **Frontmatter description is strict YAML now**: the SKILL.md description carried an
+  unquoted ": ", which a strict YAML parser reads as the start of a nested mapping.
+  GitHub showed an error banner instead of the frontmatter table, and any
+  strict-parsing harness could reject the skill outright. The description is now
+  double-quoted with the wording byte-identical; `scripts/check_skill_frontmatter.py`
+  in CI is the regression tripwire.
+
 ### Changed
 - **Description names the rules-file case** (#266): the frontmatter trigger now says
   "recording a decision as a rule agents will follow" with the concrete file names an
@@ -20,6 +30,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Context-pointers definition gets a readable lead** (#227, Theo-video takeaways): the
   paragraph defining a context pointer now opens with a plain-English sentence carrying the
   examples, with the precise definition kept verbatim after it. No rule changed.
+- **Em-dash sweep** (#226): SKILL.md and `references/skill-mechanics.md` rewrote
+  their em-dash constructions into periods, commas, and colons, meaning-preserving;
+  the frontmatter description's trigger wording is unchanged. The description-shape
+  example in skill-mechanics now demonstrates the swept form. Part of the
+  catalog-wide sweep guarded by `scripts/check_emdash_density.py` in CI.
 
 ### Added
 - **Punctuation rule** (#226): a compact section stating that skill prose carries
@@ -27,13 +42,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   tell and the style of prose an agent reads leaks into what it writes; rationale
   pointed at plainspoken's tell catalog, pattern 13. A matching Done-when bullet
   ("No em dash appears outside a code block") makes it checkable.
-
-### Changed
-- **Em-dash sweep** (#226): SKILL.md and `references/skill-mechanics.md` rewrote
-  their em-dash constructions into periods, commas, and colons, meaning-preserving;
-  the frontmatter description's trigger wording is unchanged. The description-shape
-  example in skill-mechanics now demonstrates the swept form. Part of the
-  catalog-wide sweep guarded by `scripts/check_emdash_density.py` in CI.
 
 ## [v1.0.1] - 2026-08-13 — fidelity and invariant corrections
 

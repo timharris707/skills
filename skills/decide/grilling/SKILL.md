@@ -1,6 +1,6 @@
 ---
 name: grilling
-description: Interview the decider relentlessly to turn a half-formed plan, design, or idea into shared understanding: a design tree worked in rounds until nothing is silently assumed. Use when asked to grill, stress-test, or pressure-test thinking, and before charting a decision map or writing a spec off a conversation nobody has pressure-tested.
+description: "Interview the decider relentlessly to turn a half-formed plan, design, or idea into shared understanding: a design tree worked in rounds until nothing is silently assumed. Use when asked to grill, stress-test, or pressure-test thinking, and before charting a decision map or writing a spec off a conversation nobody has pressure-tested."
 ---
 
 # Grilling

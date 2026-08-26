@@ -1,6 +1,6 @@
 ---
 name: implement
-description: How a working lane builds an item: seam-scoped test-first, tracer-first sequencing, a green checkpoint per slice, and file-don't-fix scope discipline. Use when a build-shaped lane brief points here, when implementing a spec or tracked item, or when mid-build discoveries tempt a lane beyond its brief.
+description: "How a working lane builds an item: seam-scoped test-first, tracer-first sequencing, a green checkpoint per slice, and file-don't-fix scope discipline. Use when a build-shaped lane brief points here, when implementing a spec or tracked item, or when mid-build discoveries tempt a lane beyond its brief."
 ---
 
 # Implement

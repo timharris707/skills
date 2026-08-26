@@ -1,6 +1,6 @@
 ---
 name: decision-map
-description: Chart or work a decision map for genuinely foggy work before any build slice is written: a new primitive, a milestone charter, an integration nobody can spec in one sitting. Use when asked to chart a decision map, work a map ticket, or plan a decision-heavy effort whose open questions gate each other.
+description: "Chart or work a decision map for genuinely foggy work before any build slice is written: a new primitive, a milestone charter, an integration nobody can spec in one sitting. Use when asked to chart a decision map, work a map ticket, or plan a decision-heavy effort whose open questions gate each other."
 ---
 
 # Decision Map

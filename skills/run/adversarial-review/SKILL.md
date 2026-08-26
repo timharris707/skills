@@ -1,6 +1,6 @@
 ---
 name: adversarial-review
-description: Run an adversarial review of a change before it ships: isolated finders trying to break it, a skeptic pass that kills unproven findings, and a gate on confirmed blockers. Use before committing substantial work, at lane close-out, when the user asks for an adversarial or red-team review of a diff/branch/PR, or before external reviewers see the change.
+description: "Run an adversarial review of a change before it ships: isolated finders trying to break it, a skeptic pass that kills unproven findings, and a gate on confirmed blockers. Use before committing substantial work, at lane close-out, when the user asks for an adversarial or red-team review of a diff/branch/PR, or before external reviewers see the change."
 ---
 
 # Adversarial review

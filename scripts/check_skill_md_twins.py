@@ -9,7 +9,8 @@ asserts, so a serving regression fails CI instead of shipping silently:
      trailer — is byte-identical to the source SKILL.md body (the route
      strips leading whitespace, so the comparison allows only that).
   2. The regenerated frontmatter carries the source's name and description
-     verbatim, modulo the quote-stripping the site's parser applies. That
+     verbatim, modulo the unquoting the site's parser applies and the
+     JSON-style requoting the route emits to keep the twin strict YAML. That
      regeneration and the appended install trailer are the only sanctioned
      differences.
 
@@ -84,7 +85,9 @@ def split_source(raw: str) -> tuple[dict[str, str], str]:
         if not match:
             continue
         value = match.group(2).strip()
-        if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+        if len(value) >= 2 and value[0] == value[-1] == '"':
+            value = re.sub(r'\\(["\\])', r"\1", value[1:-1])
+        elif len(value) >= 2 and value[0] == value[-1] == "'":
             value = value[1:-1]
         fields[match.group(1)] = value
     body = "\n".join(lines[close + 1 :])
@@ -100,7 +103,13 @@ def check_twin(slug: str, skill_file: Path, base: str) -> list[str]:
         return [f"{slug}: served twin has no frontmatter block"]
 
     failures = []
-    expected_head = ["---", f"name: {fields.get('name', '')}", f"description: {fields.get('description', '')}"]
+    # The route emits the description JSON-quoted so the twin's frontmatter
+    # stays strict YAML; json.dumps mirrors JSON.stringify for these strings.
+    expected_head = [
+        "---",
+        f"name: {fields.get('name', '')}",
+        f"description: {json.dumps(fields.get('description', ''), ensure_ascii=False)}",
+    ]
     if head.split("\n") != expected_head:
         failures.append(f"{slug}: regenerated frontmatter does not match the source's name/description")
 

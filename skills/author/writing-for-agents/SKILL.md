@@ -1,6 +1,6 @@
 ---
 name: writing-for-agents
-description: Write and prune documents an agent consumes: a SKILL.md, an AGENTS.md or CLAUDE.md, a rules file, a reference file reached by a pointer. Use when authoring or revising a skill, editing standing agent instructions or recording a decision as a rule agents will follow (a CLAUDE.md, AGENTS.md, CODE-RULES, or conduct-rules entry), or diagnosing why a document fires unreliably or gets skimmed.
+description: "Write and prune documents an agent consumes: a SKILL.md, an AGENTS.md or CLAUDE.md, a rules file, a reference file reached by a pointer. Use when authoring or revising a skill, editing standing agent instructions or recording a decision as a rule agents will follow (a CLAUDE.md, AGENTS.md, CODE-RULES, or conduct-rules entry), or diagnosing why a document fires unreliably or gets skimmed."
 ---
 
 # Writing for Agents
