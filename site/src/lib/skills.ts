@@ -65,10 +65,16 @@ function parseFrontmatter(raw: string): { data: Record<string, string>; body: st
     const match = line.match(/^([A-Za-z][\w-]*):\s*(.*)$/);
     if (!match) continue;
     let value = match[2].trim();
-    // Descriptions containing a colon are quoted in some skills; quoted
-    // values may carry \" and \\ escapes.
+    // Descriptions containing a colon are quoted in some skills. CI's
+    // check_skill_frontmatter.py guarantees double-quoted values are JSON
+    // strings, so JSON.parse decodes every escape; fall back to a bare
+    // unquote rather than crash the build on a file CI hasn't seen yet.
     if (value.startsWith('"') && value.endsWith('"')) {
-      value = value.slice(1, -1).replace(/\\(["\\])/g, "$1");
+      try {
+        value = JSON.parse(value);
+      } catch {
+        value = value.slice(1, -1);
+      }
     } else if (value.startsWith("'") && value.endsWith("'")) {
       value = value.slice(1, -1);
     }

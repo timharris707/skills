@@ -86,7 +86,10 @@ def split_source(raw: str) -> tuple[dict[str, str], str]:
             continue
         value = match.group(2).strip()
         if len(value) >= 2 and value[0] == value[-1] == '"':
-            value = re.sub(r'\\(["\\])', r"\1", value[1:-1])
+            try:
+                value = json.loads(value)
+            except ValueError:
+                value = value[1:-1]
         elif len(value) >= 2 and value[0] == value[-1] == "'":
             value = value[1:-1]
         fields[match.group(1)] = value
