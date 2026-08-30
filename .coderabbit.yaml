@@ -31,6 +31,10 @@ reviews:
     - "!design/**"
   auto_review:
     enabled: true
+    # One review per PR (timharris707/insight-chat#574 cost audit): no
+    # re-review on later pushes or rebases — the first automatic review is
+    # the only one. A human can still ask with `@coderabbitai review`.
+    auto_incremental_review: false
     # Docs-only PRs merge in minutes; skip them rather than produce post-merge
     # commentary. CodeRabbit matches the keyword ANYWHERE in the title
     # (case-insensitive), so keep the substring "docs:" out of code-PR titles.
