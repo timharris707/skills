@@ -14,6 +14,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [v1.5.4] - 2026-08-30 — orchestrate names the context-pointer briefing principle
+
+### Changed
+- **orchestrate: lane briefs name the context-pointer principle** (#279): the lane-brief
+  bullet now states that everything beyond the template's named contents travels by
+  context pointer (to the item, notes, and prior commits), never duplicating what a
+  pointer reaches. The briefs already practiced this; the rule was unstated. Phrasing
+  adapted from Matt Pocock's `implement-spec` (MIT).
+
 ## [v1.5.3] - 2026-08-25 — frontmatter descriptions parse as strict YAML
 
 ### Fixed
