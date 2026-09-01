@@ -31,7 +31,7 @@ Copy `references/decision-log-template.tsv` (the header row) to start a clean lo
 
 An example, plain-spoken so a reviewer reads it at a glance. This is illustration only; don't copy these rows into a real log.
 
-```
+```text
 ts	phase	decision	why	evidence	result
 2026-05-24T09:02:00Z	frame	counted the work first, about 100 components and roughly 75 hours	wanted to know the size before starting a long run	commit 3a9f1c2	found 5 things to sort out before starting
 2026-05-24T09:40:00Z	harness	took screenshots of the old version before changing anything	so we can compare old against new and catch any visual change	scripts/snapshot.sh, baseline/	saved 120 reference screenshots
