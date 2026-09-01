@@ -14,6 +14,23 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [v1.6.0] - 2026-09-01 — show-me-your-work joins the pack
+
+### Added
+- **show-me-your-work** (promoted from `in-progress/`): a reviewable decision trail for
+  long-running or unattended work. One canonical append-only TSV (`ts, phase, decision,
+  why, evidence, result`), one row per decision, local by default and committed only when
+  a reviewer needs the trail to trust the result, with a closing self-audit against the
+  session's own record and an optional cross-model review gate routed through
+  advisory-board's CLI-seat runners (same-family subagent fallback, stated as weaker).
+  Adapted from Lauren Tan's pstack `show-me-your-work` (github.com/cursor/plugins, MIT),
+  keeping its `log.sh` spreadsheet-formula-injection hardening. Positions itself as the
+  pack's third record type: handoff is the resume pointer, domain-memory the
+  institutional why, this the per-run audit ledger.
+- **orchestrate: lanes keep decision logs**: unattended lane runs route their audit
+  trail to show-me-your-work, so the human reviews a decision table instead of asking
+  for a recap.
+
 ## [v1.5.4] - 2026-08-30 — orchestrate names the context-pointer briefing principle
 
 ### Changed

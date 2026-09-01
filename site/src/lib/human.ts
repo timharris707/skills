@@ -142,6 +142,12 @@ export const HUMAN: Record<string, HumanCopy> = {
     intro:
       "Yesterday's session knew the plan, the constraints, and the half-finished thread, and this morning's session knows nothing. handoff ends a session by writing where the work stands into one small file, so the next session picks up mid-stride instead of interviewing you about the last one. It's a pointer, not a transcript: the deep history stays in the records the file points to.",
   },
+  "show-me-your-work": {
+    card:
+      "While an agent works unattended, it writes down each decision as it makes it: what, why, and a pointer to the proof. You come back and read a table instead of asking for a recap you'd have to take on faith.",
+    intro:
+      "Step away from a working agent and your options on return are bad: scroll the whole transcript, or ask for a summary and trust it. show-me-your-work is the third option. During the run the agent keeps one append-only log, one row per decision: what it chose, why, a link to the evidence, how it turned out. Wrong calls stay in the table with the row that superseded them, and before handing back the agent checks the log against what actually happened. You skim the table, follow the pointers you don't trust, and skip the recap entirely. It has to be running from the start; it can't reconstruct a trail after the fact.",
+  },
 
   // ── Author ─────────────────────────────────────────────────────────────────
   "writing-for-agents": {

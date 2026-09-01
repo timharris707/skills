@@ -156,6 +156,7 @@ Get decided work onto the board, through the lanes, and handed on.
 | [to-tickets](./skills/run/to-tickets/SKILL.md) | Turns a plan or closed map into tracer-bullet work items with blocking edges wired. | team-workflow pack | fires itself |
 | [wizard](./skills/run/wizard/SKILL.md) | Generates an interactive bash wizard for the steps only a human can take. | team-workflow pack | fires itself |
 | [handoff](./skills/run/handoff/SKILL.md) | Writes a structured session handoff so a fresh session resumes losslessly. | team-workflow pack | fires itself |
+| [show-me-your-work](./skills/run/show-me-your-work/SKILL.md) | Keeps an append-only decision log during unattended work, so the human back from stepping away audits a table, not a recap. | team-workflow pack | fires itself |
 | [orchestrate](./skills/run/orchestrate/SKILL.md) | Runs one session as the orchestrator of parallel lanes: route, audit, integrate, never implement. | team-workflow pack | fires itself |
 | [adversarial-review](./skills/run/adversarial-review/SKILL.md) | Breaks the change before it ships: isolated finders, a skeptic pass, a gate only confirmed blockers hold. | team-workflow pack | fires itself |
 | [diagnose](./skills/run/diagnose/SKILL.md) | The disciplined bug loop; no fix ships without its cause named in one plain sentence, with evidence. | team-workflow pack | fires itself |
@@ -183,7 +184,7 @@ skills/
   orient/            # PROMOTED  router, setup, domain-memory
   decide/            # PROMOTED  grilling, decision-map, advisory-board
   investigate/       # PROMOTED  research, prototype, codebase-review, ingest
-  run/               # PROMOTED  to-tickets, wizard, handoff, orchestrate, adversarial-review, diagnose, implement, blast-radius
+  run/               # PROMOTED  to-tickets, wizard, handoff, show-me-your-work, orchestrate, adversarial-review, diagnose, implement, blast-radius
   author/            # PROMOTED  writing-for-agents, writing-for-humans, plainspoken, huh
   in-progress/       # unpromoted: half-built, kept but not shipped
   misc/              # unpromoted: one-offs too repo-specific to publish
