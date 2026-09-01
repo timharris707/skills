@@ -1,0 +1,3 @@
+interface:
+  display_name: "Show Me Your Work"
+  short_description: "Append-only decision trail a human audits after stepping away"
