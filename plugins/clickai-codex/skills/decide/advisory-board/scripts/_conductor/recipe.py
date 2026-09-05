@@ -189,7 +189,7 @@ def load_recipe(text: str) -> dict:
             if not child.startswith("- "):
                 die(f"run-recipe: expected list item under {key!r}, got {child!r}")
             body = child[2:].strip()
-            if ":" in body and not (body.startswith('"') and body.endswith('"')):
+            if ": " in body and not (body.startswith('"') and body.endswith('"')):
                 # Mapping item: this line is its first key; deeper non-'- ' lines continue it.
                 mapping: dict = {}
                 mk, _, mv = body.partition(":")

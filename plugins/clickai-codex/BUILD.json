@@ -122,7 +122,7 @@
       "executable": false
     },
     "skills/decide/advisory-board/references/execution-harness.md": {
-      "sha256": "d38efa1dde058780f8b2c94f194b125d11b8153e4a7e625e50396ce284c8abe5",
+      "sha256": "696ab196266b5040b22396d0e72ae2e64d22c04e614e2c40ce4cbb96f165f4bc",
       "executable": false
     },
     "skills/decide/advisory-board/references/handoff-template.html": {
@@ -202,7 +202,7 @@
       "executable": false
     },
     "skills/decide/advisory-board/scripts/_conductor/constants.py": {
-      "sha256": "5a2f497fbba84a60302ed1e5640ec11fc7f0327e41c71357a0442ebc9b7852e3",
+      "sha256": "9bd2cba87ebf7a017863cdd56f2486370343e3ad71877c3643ae1bc8cecefb30",
       "executable": false
     },
     "skills/decide/advisory-board/scripts/_conductor/convergence.py": {
@@ -250,7 +250,7 @@
       "executable": false
     },
     "skills/decide/advisory-board/scripts/_conductor/recipe.py": {
-      "sha256": "13bef8a825e37587f54d64d8860d88c599f826731386069c56ea9b93c31a0b0e",
+      "sha256": "cbf9098d389af1261afbe25d4dd88c155de65c73c3257b0f5c0206e573feed7a",
       "executable": false
     },
     "skills/decide/advisory-board/scripts/_conductor/redline.py": {
@@ -394,11 +394,11 @@
       "executable": false
     },
     "skills/investigate/ingest/CHANGELOG.md": {
-      "sha256": "56f8f5a3dff76658404fd78366c125451c49d075c9e4660f5ead9f54006ead2f",
+      "sha256": "623254cb5b111c5bc9dbb7d55da95b814ee7d1b4f99756a6bb047393e1187a21",
       "executable": false
     },
     "skills/investigate/ingest/SKILL.md": {
-      "sha256": "3f974ec5479e54ce38170ac6ffba14762c8de50a1a1534a47d2cbf10e68e5871",
+      "sha256": "f863dc041a770913a8ee37c8eb46e6c9411fff70ccd1cda460d3816b4370e5bd",
       "executable": false
     },
     "skills/investigate/ingest/agents/openai.yaml": {
@@ -406,7 +406,7 @@
       "executable": false
     },
     "skills/investigate/ingest/references/pipeline.md": {
-      "sha256": "e0f428be962ba8692c2b9892f3fe148cebaeb2c810cd55e62660d0813fdb883e",
+      "sha256": "b7a6aa2913df67a6a21f062c54b7a935eb282e4d464ad278a838597723f5d1b8",
       "executable": false
     },
     "skills/investigate/ingest/scripts/ingest.py": {
@@ -486,7 +486,7 @@
       "executable": false
     },
     "skills/orient/setup/references/tracker-discipline.md": {
-      "sha256": "dc69661c67e7ef45de93f85129c42e84d4f2c5fa7ac65099be466fffaaeb2385",
+      "sha256": "86a787737a6b6f2f12ff1dfb61547493794a7256189be99a504dad321063de13",
       "executable": false
     },
     "skills/run/adversarial-review/SKILL.md": {
@@ -594,7 +594,7 @@
       "executable": false
     },
     "skills/run/wizard/template.sh": {
-      "sha256": "f2632ccb11df431f8419ed94665272861f1563f5efa2142cfd07678e73c14857",
+      "sha256": "e8eb3f6b8be31cb20b63202eac63ccaedcde2d9eac9476ccc487f3f4f58a61d0",
       "executable": true
     }
   }

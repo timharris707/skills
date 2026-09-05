@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import sys
 from datetime import date, datetime
+from typing import NoReturn, Optional
 
 __all__ = [
     "RECIPE_SCHEMA",

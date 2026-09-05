@@ -62,6 +62,8 @@ def query(env, cwd, method, params):
 
 def verify(marketplace, profiles):
     expected = {'clickai-codex:' + Path(p).name for p in json.loads((ROOT / '.codex-plugin/plugin.json').read_text())['skills']}
+    if not expected:
+        raise ValueError('The installation check requires a nonempty skill roster')
     with tempfile.TemporaryDirectory(prefix='clickai-install-') as tmp:
         home = Path(tmp); project = home / 'project'; project.mkdir()
         (project / 'AGENTS.md').write_text('Fixture project rules remain unchanged.\n')

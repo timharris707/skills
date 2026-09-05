@@ -212,6 +212,7 @@ export function getEditionSkill(slug: string, edition: Edition): Skill | undefin
   if (!original || edition === "claude") return original;
   const rel = `plugins/clickai-codex/skills/${original.bucket}/${slug}`;
   const dir = path.join(REPO_ROOT, rel);
+  // A catalog skill missing its generated edition is a broken publication, so fail the build.
   const { data, body } = parseFrontmatter(fs.readFileSync(path.join(dir, "SKILL.md"), "utf8"));
   const plugin = getCodexPlugin();
   return { ...original, name: data.name ?? slug, description: data.description ?? "", body,

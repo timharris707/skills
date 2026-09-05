@@ -243,6 +243,17 @@
  
  ## Seats
  
+--- a/skills/decide/advisory-board/references/execution-harness.md
++++ b/skills/decide/advisory-board/references/execution-harness.md
+@@ -70,7 +70,7 @@
+ ## Gate before continuing
+ 
+ ```bash
+-ran=$(grep -cE '\bran\b|\bdegraded\b' run-metadata.tsv)
++ran=$(awk -F'\t' '$3 ~ /^(ran|degraded)( |$)/ { seen[$1]=1 } END { for (seat in seen) n++; print n+0 }' run-metadata.tsv)
+ [ "$ran" -ge 2 ] || { echo "fewer than two seats produced a review — stop, don't synthesize a one-voice board"; exit 1; }
+ ```
+ 
 --- a/skills/decide/advisory-board/references/intake-interview.md
 +++ b/skills/decide/advisory-board/references/intake-interview.md
 @@ -1,12 +1,12 @@
@@ -328,6 +339,27 @@
  
  ```
  # Claude
+--- a/skills/decide/advisory-board/scripts/_conductor/constants.py
++++ b/skills/decide/advisory-board/scripts/_conductor/constants.py
+@@ -5,6 +5,7 @@
+ import os
+ import sys
+ from datetime import date, datetime
++from typing import NoReturn, Optional
+ 
+ __all__ = [
+     "RECIPE_SCHEMA",
+--- a/skills/decide/advisory-board/scripts/_conductor/recipe.py
++++ b/skills/decide/advisory-board/scripts/_conductor/recipe.py
+@@ -189,7 +189,7 @@
+             if not child.startswith("- "):
+                 die(f"run-recipe: expected list item under {key!r}, got {child!r}")
+             body = child[2:].strip()
+-            if ":" in body and not (body.startswith('"') and body.endswith('"')):
++            if ": " in body and not (body.startswith('"') and body.endswith('"')):
+                 # Mapping item: this line is its first key; deeper non-'- ' lines continue it.
+                 mapping: dict = {}
+                 mk, _, mv = body.partition(":")
 --- a/skills/decide/advisory-board/scripts/render_tracker.py
 +++ b/skills/decide/advisory-board/scripts/render_tracker.py
 @@ -259,7 +259,7 @@
@@ -529,37 +561,6 @@
  - The lane changed no code and filed no tickets itself.
  
  ## Attribution
---- a/skills/investigate/ingest/SKILL.md
-+++ b/skills/investigate/ingest/SKILL.md
-@@ -1,15 +1,17 @@
- ---
- name: ingest
--description: Turn a video, recording, voice memo, or media URL into an evidence packet of authoritative transcript, timestamped frames, and manifest, plus a routing recommendation. Use when the user shares a media file or URL with a goal, asks to process or transcribe a recording, or wants takeaways from a call, demo, playtest, or video.
-+description: "Turn a recording or media URL into transcript and visual evidence for the user's stated goal."
- ---
- 
- # Ingest
-+
-+Read the [Codex desktop binding](../../../CODEX.md) when this workflow needs harness mechanics, model routing, or recovery.
- 
- Media in, evidence out. A run converts a recording or URL into a **packet** of transcript, frames, and manifest, reads it, and ends with a **routing recommendation**: what in this media looks like tickets, what needs a grilling session, what is strategy for the decider. The recommendation is where a run stops. Filing, claiming, and building are separate acts that follow it. A run is stateful on disk: it writes the packet into its own run directory under a persistent output home (both defined under "Run the pipeline"), where the evidence outlives the session.
- 
- ## The purpose gate
- 
--Every run carries a **purpose**: a named intent plus the user's goal in their own words. The intent picks the pipeline; the goal steers the recommendation. Invoked without one, the first step is asking for it: "why am I getting this media?" is the decider's to answer, never inferred from content. Both are arguments to the run (`--intent`, `--goal`) and both are recorded in the manifest, so the packet always states what it was made to answer.
-+Every run carries a **purpose**: a named intent plus the user's goal in their own words. The intent picks the pipeline; the goal steers the recommendation. Reuse the goal already supplied in the conversation and derive the appropriate processing intent from it. Only when the purpose remains missing or materially ambiguous, ask: "why am I getting this media?" is the decider's to answer, never inferred from content. Both are arguments to the run (`--intent`, `--goal`) and both are recorded in the manifest, so the packet always states what it was made to answer.
- 
- | Intent | Media | Frames | The recommendation leans toward |
- | --- | --- | --- | --- |
-@@ -85,7 +87,7 @@
- 
- ## Done when (checkable: verify each line before reporting complete)
- 
--- The purpose was stated by the user, intent and goal, before the pipeline ran, and `manifest.json` records both.
-+- The purpose came from the user's stated goal, with the corresponding processing intent established before the pipeline ran, and `manifest.json` records both.
- - The run reported `packet complete`: every stage carries a status of `ok` or `skipped` and every artifact it claims exists and is non-empty. (The script re-checks this from disk before saying so, and refuses to say it otherwise.)
- - The transcript covers the recording: the run's validation compares its last timestamp against the probed duration and fails the packet on an unexplained gap, so a clean `packet complete` is the check. Trailing silence and a declared `no_speech` packet are legitimate and pass.
- - The whole transcript was read, and a frame was opened at every reaction and every load-bearing claim.
 --- a/skills/investigate/ingest/scripts/ingest.py
 +++ b/skills/investigate/ingest/scripts/ingest.py
 @@ -86,7 +86,7 @@
@@ -873,6 +874,64 @@
    merging is the reviewer/integrator's move, not the lane's.
  - Where this lane itself files a PR (e.g. a cross-repo lane): it must follow the orchestrate
    skill's pr-writing reference: problem-first description, no implementation inventory,
+--- a/skills/orient/setup/references/tracker-discipline.md
++++ b/skills/orient/setup/references/tracker-discipline.md
+@@ -14,16 +14,16 @@
+ 
+ Claiming is a read-modify-write with the read mandatory:
+ 
+-1. **Read the item's comments first.** A claim is LIVE when the latest comment matching
+-   `Lane-start: workspace=<name> branch=<branch>`
+-   has no later `Lane-start-retracted: workspace=<same-name>` marker after it (a later `Lane-start` supersedes an earlier one; takeover chains post a new one).
++1. **Read the item's comments first.** A `Lane-start: workspace=<name> branch=<branch>` claim remains LIVE until a later `Lane-start-retracted: workspace=<same-name>` marker. Check all unretracted claims; only a takeover backed by the death evidence in step 5 supersedes another workspace.
+ 2. **A live claim refuses your claim.** No external pointer ever overrides a live Lane-start: not a handoff note, a stale to-do list, or a plan doc. Those pointers go stale the moment anyone else claims; the tracker comment is the truth.
+-3. **On clear: claim atomically.** Set yourself assignee AND post the marker in one pass:
++3. **On clear: post an optimistic claim.** Set yourself assignee and post the marker. These are separate remote writes, not a lock:
+ 
+    ```bash
+    gh issue edit <N> --repo <owner>/<repo> --add-assignee "@me"
+    gh issue comment <N> --repo <owner>/<repo> --body "Lane-start: workspace=<name> branch=<branch>"
+    ```
++
++   Re-read claims after posting and before building. If another unretracted workspace claimed the item, pause and resolve ownership with the coordinator or decider; a later timestamp alone never grants takeover. Coordinators serialize claims for their workers.
+ 
+    `<name>` is a machine-matchable token identifying your working copy (worktree, clone, or machine+dir); the retraction scanner matches on it literally, so pick something unique and reuse it exactly.
+ 4. **Releasing your OWN claim** posts the machine-recognized marker and unassigns:
+@@ -48,15 +48,25 @@
+ The frontier is the set of grabbable items: ready-labeled, unassigned, and **not blocked, read blocking two ways**: native dependency edges OR a `blocked` label. A query that checks only the label misses edge-blocked items; one that checks only edges misses non-ticket blockers.
+ 
+ ```bash
+-# One JSON object per open issue, with the dependency summary the plain issue list omits.
+-# <owner>/<repo> is the bound tracker repo, written literally — {owner}/{repo} would
+-# resolve implicitly and mis-target in forks:
+-gh api 'repos/<owner>/<repo>/issues?state=open&per_page=100' --paginate --jq '.[]
+-  | select(has("pull_request") | not)
+-  | {number, title,
+-     labels: [.labels[].name],
+-     assignees: [.assignees[].login],
+-     blockedBy: (.issue_dependencies_summary.blocked_by // 0)}'
++# GraphQL exposes native dependency counts; missing data stays unknown and is not eligible.
++# Set owner/name to the literal tracker binding, not the working directory's remote.
++gh api graphql --paginate -F owner='<owner>' -F name='<repo>' -f query='
++  query($owner: String!, $name: String!, $endCursor: String) {
++    repository(owner: $owner, name: $name) {
++      issues(first: 100, after: $endCursor, states: OPEN) {
++        nodes {
++          number title
++          labels(first: 100) { nodes { name } }
++          assignees(first: 100) { nodes { login } }
++          issueDependenciesSummary { blockedBy }
++        }
++        pageInfo { hasNextPage endCursor }
++      }
++    }
++  }' --jq '.data.repository.issues.nodes[]
++    | {number, title, labels: [.labels.nodes[].name],
++       assignees: [.assignees.nodes[].login],
++       blockedBy: .issueDependenciesSummary.blockedBy}'
+ ```
+ 
+ Grabbable = has the ready label (per your label binding) AND `assignees == []` AND `blockedBy == 0` AND no `blocked` label. When the frontier is empty, report WHY (all claimed vs. triage stalled vs. everything blocked); an empty answer with no breakdown sends people guessing.
 --- a/skills/run/adversarial-review/SKILL.md
 +++ b/skills/run/adversarial-review/SKILL.md
 @@ -1,9 +1,11 @@
@@ -1395,3 +1454,27 @@
  
  **Done when:** every stage is named in order, and for each value you know (a) where the human gets it, (b) where it is written (`.env`, a CI secret, both, or nowhere, since some stages are pure actions) and (c) whether it is secret.
  
+--- a/skills/run/wizard/template.sh
++++ b/skills/run/wizard/template.sh
+@@ -148,10 +148,19 @@
+ 
+ # write_env KEY VALUE — idempotent upsert into ENV_FILE.
+ write_env() {
+-  local key="$1" value="$2" tmp
++  local key="$1" value="$2" tmp status
+   touch "$ENV_FILE"
+   tmp=$(mktemp)
+-  grep -vE "^${key}=" "$ENV_FILE" > "$tmp" || true
++  if grep -vE "^${key}=" "$ENV_FILE" > "$tmp"; then
++    :
++  else
++    status=$?
++    if (( status != 1 )); then
++      rm -f "$tmp"
++      bad "cannot read $ENV_FILE"
++      return "$status"
++    fi
++  fi
+   printf '%s=%s\n' "$key" "$value" >> "$tmp"
+   mv "$tmp" "$ENV_FILE"
+   # Re-writing a key on a later stage or a re-run must not double-count it in

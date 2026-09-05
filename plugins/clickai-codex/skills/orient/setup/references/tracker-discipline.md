@@ -14,16 +14,16 @@ The work item's body IS the spec: destination, acceptance criteria, out-of-scope
 
 Claiming is a read-modify-write with the read mandatory:
 
-1. **Read the item's comments first.** A claim is LIVE when the latest comment matching
-   `Lane-start: workspace=<name> branch=<branch>`
-   has no later `Lane-start-retracted: workspace=<same-name>` marker after it (a later `Lane-start` supersedes an earlier one; takeover chains post a new one).
+1. **Read the item's comments first.** A `Lane-start: workspace=<name> branch=<branch>` claim remains LIVE until a later `Lane-start-retracted: workspace=<same-name>` marker. Check all unretracted claims; only a takeover backed by the death evidence in step 5 supersedes another workspace.
 2. **A live claim refuses your claim.** No external pointer ever overrides a live Lane-start: not a handoff note, a stale to-do list, or a plan doc. Those pointers go stale the moment anyone else claims; the tracker comment is the truth.
-3. **On clear: claim atomically.** Set yourself assignee AND post the marker in one pass:
+3. **On clear: post an optimistic claim.** Set yourself assignee and post the marker. These are separate remote writes, not a lock:
 
    ```bash
    gh issue edit <N> --repo <owner>/<repo> --add-assignee "@me"
    gh issue comment <N> --repo <owner>/<repo> --body "Lane-start: workspace=<name> branch=<branch>"
    ```
+
+   Re-read claims after posting and before building. If another unretracted workspace claimed the item, pause and resolve ownership with the coordinator or decider; a later timestamp alone never grants takeover. Coordinators serialize claims for their workers.
 
    `<name>` is a machine-matchable token identifying your working copy (worktree, clone, or machine+dir); the retraction scanner matches on it literally, so pick something unique and reuse it exactly.
 4. **Releasing your OWN claim** posts the machine-recognized marker and unassigns:
@@ -48,15 +48,25 @@ Also on the claimer, before any of the above: check for other active sessions al
 The frontier is the set of grabbable items: ready-labeled, unassigned, and **not blocked, read blocking two ways**: native dependency edges OR a `blocked` label. A query that checks only the label misses edge-blocked items; one that checks only edges misses non-ticket blockers.
 
 ```bash
-# One JSON object per open issue, with the dependency summary the plain issue list omits.
-# <owner>/<repo> is the bound tracker repo, written literally — {owner}/{repo} would
-# resolve implicitly and mis-target in forks:
-gh api 'repos/<owner>/<repo>/issues?state=open&per_page=100' --paginate --jq '.[]
-  | select(has("pull_request") | not)
-  | {number, title,
-     labels: [.labels[].name],
-     assignees: [.assignees[].login],
-     blockedBy: (.issue_dependencies_summary.blocked_by // 0)}'
+# GraphQL exposes native dependency counts; missing data stays unknown and is not eligible.
+# Set owner/name to the literal tracker binding, not the working directory's remote.
+gh api graphql --paginate -F owner='<owner>' -F name='<repo>' -f query='
+  query($owner: String!, $name: String!, $endCursor: String) {
+    repository(owner: $owner, name: $name) {
+      issues(first: 100, after: $endCursor, states: OPEN) {
+        nodes {
+          number title
+          labels(first: 100) { nodes { name } }
+          assignees(first: 100) { nodes { login } }
+          issueDependenciesSummary { blockedBy }
+        }
+        pageInfo { hasNextPage endCursor }
+      }
+    }
+  }' --jq '.data.repository.issues.nodes[]
+    | {number, title, labels: [.labels.nodes[].name],
+       assignees: [.assignees.nodes[].login],
+       blockedBy: .issueDependenciesSummary.blockedBy}'
 ```
 
 Grabbable = has the ready label (per your label binding) AND `assignees == []` AND `blockedBy == 0` AND no `blocked` label. When the frontier is empty, report WHY (all claimed vs. triage stalled vs. everything blocked); an empty answer with no breakdown sends people guessing.

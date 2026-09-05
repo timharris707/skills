@@ -142,9 +142,10 @@ jobs:
           python3 scripts/build_codex_plugin.py --check --archive "dist/clickai-codex-$VERSION.zip"
           python3 scripts/check_codex_publication.py
           mkdir -p existing-assets
+          gh release view "$TAG" --json assets --jq '.assets[].name' > release-assets.txt
           for asset in "dist/clickai-codex-$VERSION.zip" "dist/clickai-codex-$VERSION.zip.sha256"; do
             name="${asset##*/}"
-            if gh release view "$TAG" --json assets --jq '.assets[].name' | grep -Fxq "$name"; then
+            if grep -Fxq "$name" release-assets.txt; then
               gh release download "$TAG" --pattern "$name" --dir existing-assets
               cmp "$asset" "existing-assets/$name"
             else

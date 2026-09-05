@@ -3,6 +3,7 @@
 import argparse
 import hashlib
 import json
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -21,7 +22,13 @@ def files(root):
 
 def build(target):
     """Fail on upstream drift; copy only public, tracked resources."""
-    for relative, expected in json.loads((EDITION / 'upstream.json').read_text()).items():
+    upstream = json.loads((EDITION / 'upstream.json').read_text())
+    overrides = files(EDITION / 'overrides')
+    patched = set(re.findall(r'^--- a/(.+)$', (EDITION / 'skills.patch').read_text(), re.M))
+    adapted = patched | overrides.keys()
+    if not upstream or set(upstream) != adapted:
+        raise ValueError('Upstream hashes must cover every adapted source, with no empty or missing entries')
+    for relative, expected in upstream.items():
         if hashlib.sha256((ROOT / relative).read_bytes()).hexdigest() != expected:
             raise ValueError(f'Review Codex adaptation after upstream change: {relative}')
     roster = json.loads((ROOT / '.codex-plugin/plugin.json').read_text())['skills']
@@ -44,6 +51,10 @@ def build(target):
         subprocess.run(['git', 'apply', str(EDITION / 'skills.patch')], cwd=target, check=True)
     finally:
         shutil.rmtree(target / '.git')
+    for relative, source in overrides.items():
+        if not relative.startswith('skills/') or not (target / relative).is_file():
+            raise ValueError(f'Override must replace an existing skill resource: {relative}')
+        shutil.copy2(source, target / relative)
     for name in ['CODEX.md', 'README.md']:
         shutil.copy2(EDITION / name, target / name)
     shutil.copy2(ROOT / 'LICENSE.md', target / 'LICENSE.md')

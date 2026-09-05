@@ -32,10 +32,18 @@ def check():
     plugin = json.loads((PACKAGE / '.codex-plugin/plugin.json').read_text())
     if plugin['skills'] != legacy:
         failures.append('Codex catalog identity differs from the original catalog')
+    if not legacy or len(legacy) != len(set(legacy)):
+        failures.append('Original catalog must contain a nonempty set of unique skill paths')
+    promoted = {f'./skills/{b["id"]}/{p.name}'
+                for b in json.loads((ROOT / 'skills/buckets.json').read_text())['buckets'] if b['promoted']
+                for p in (ROOT / 'skills' / b['id']).iterdir() if (p / 'SKILL.md').is_file()}
+    if set(plugin['skills']) != promoted:
+        failures.append('Codex catalog must contain every promoted skill directory')
     source_meta = json.loads((ROOT / 'editions/codex/plugin.json').read_text())
     if plugin['version'] != source_meta['version'] or plugin['name'] != 'clickai-codex':
         failures.append('Codex release identity differs from its source')
-    denied = load_denylist()
+    denied = load_denylist() | {line.strip() for line in (ROOT / 'editions/codex/disclosure-denylist.txt').read_text().splitlines()
+                                if line.strip() and not line.startswith('#')}
     for p in sorted(set((ROOT / 'editions/codex').rglob('*')) | set(PACKAGE.rglob('*'))):
         if not p.is_file() or '__pycache__' in p.parts or p.suffix == '.pyc': continue
         rel = p.relative_to(ROOT)
@@ -69,4 +77,5 @@ if __name__ == '__main__':
     if failures:
         print('\n'.join(failures), file=sys.stderr)
         raise SystemExit(1)
-    print('Codex publication: 23 skills, resource links, metadata, receipt, and privacy checks pass')
+    count = len(json.loads((PACKAGE / '.codex-plugin/plugin.json').read_text())['skills'])
+    print(f'Codex publication: {count} skills, resource links, metadata, receipt, and privacy checks pass')

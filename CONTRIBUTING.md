@@ -71,7 +71,9 @@ to `main`** — not on every PR. Keep the skill's `CHANGELOG.md` current as you 
 The original catalog remains under `skills/`. The Codex desktop adaptation lives
 in `editions/codex/skills.patch` with hashes of the exact upstream files it adapts.
 Review each affected contract when those sources change, then refresh the patch
-and its `upstream.json` hashes. Common helpers are copied from their original
+and its `upstream.json` hashes. When original provenance should not be repeated
+in a public diff, keep a sanitized replacement under `editions/codex/overrides/`
+at the original repository-relative path. Its original source hash is reviewed too. Common helpers are copied from their original
 source; the generated package is not an independent place to edit them.
 
 Run `python3 scripts/build_codex_plugin.py` to update the complete distributable
