@@ -30,6 +30,7 @@ import {
 /** The twin route for a pathname, or null when the page has none. */
 export function twinFor(pathname: string): string | null {
   if (pathname === "/") return "/llms.txt";
+  if (/^\/codex\/skills\/[^/]+$/.test(pathname)) return `${pathname}.md`;
   if (pathname === "/work") return "/work.md";
   if (pathname === "/legend") return "/legend.md";
   if (pathname === "/instruments") return "/instruments.md";
@@ -166,7 +167,7 @@ export function FlipView({ children }: { children: React.ReactNode }) {
           color: "var(--sounding)",
         }}
       >
-        This is verbatim what an agent installs.
+        Skill text matches the selected edition. Installation guidance follows.
       </p>
       <pre
         style={{

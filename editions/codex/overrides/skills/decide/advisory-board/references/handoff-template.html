@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<!--
+  ============================================================================
+  PANELY ADVISORY BOARD — HANDOFF TEMPLATE
+  ============================================================================
+  A SELF-CONTAINED HTML template for rendering a finished multi-model advisory
+  board review into a clean, human-readable, Panely-branded handoff page.
+
+  Design intent (v1.18): an editorial document, not a dashboard. One colored
+  moment (the verdict banner); everything else is typography — headings, prose,
+  hairline rules, one table. No badge pills, no per-item card boxes. The page
+  must read top-to-bottom like a memo: bottom line first, then the record.
+
+  Brand: a light, readable body (the "Boardroom" light theme) bookended by dark
+  ("Signal") masthead and footer bands carrying the Panely Advisory Board mark.
+  Brand tokens: cobalt #2347FF signature accent, gold #E2B658 secondary / lead
+  seat; muted verdict colors.
+
+  OUTPUT CONTRACT (read first)
+  ----------------------------
+  The file you produce MUST:
+    - contain ZERO "{{...}}" placeholders and ZERO authoring comments (the
+      BEGIN/END and OPTIONAL notes below) — strip every one. The "====="
+      section dividers may stay.
+    - be a faithful VIEW of final-consensus.md — the Markdown handoff is the
+      source of truth; the HTML must not contradict it.
+    - stay fully self-contained: inline CSS + inline SVG only, no external
+      fonts, CDNs, JS, <link>, or <script src>. It MUST render offline.
+    - HTML-escape every injected string ( & -> &amp;  < -> &lt;  > -> &gt; );
+      wrap inline code in <code>...</code>.
+
+  TWO KINDS OF PLACEHOLDER
+  ------------------------
+  1. SINGLE TOKEN  — "{{TOKEN}}" appearing once. Replace it in place with text.
+  2. REPEATABLE BLOCK — markup between "BEGIN X" / "END X" comments. Duplicate
+     the whole block once per item and fill its tokens. If there are zero
+     items, delete the sample block (don't leave an empty shell).
+
+  Repeatable blocks here: SEAT VOTE (per seat — the votes table) ; SEAT CARD
+  (per seat with recovered prose, appendix) > ROUND (per round, nested) ;
+  BLOCKER (per consensus finding) > BLOCKER EVIDENCE (per receipt) + BLOCKER
+  SEVERITY NOTE (per human note) ; DISSENT ; CAVEAT ; QUESTION ; ACTION ;
+  AMENDMENT.
+
+  SINGLE TOKENS
+  -------------
+  {{TITLE}}          Page + banner title (what the board was asked).
+  {{SUBTITLE}}       One-line description of what was reviewed.
+  {{DATE}}           Review date, e.g. "2026-06-24".
+  {{BOARD}}          Board roster: models + lenses (HTML allowed).
+  {{ROUNDS}}         Number of rounds, e.g. "2".
+  {{VERDICT}}        Final verdict headline, in PLAIN language — a directive a
+                     reader acts on ("Don't rely on this as evidence yet"), never
+                     a coined slug.
+  {{VERDICT_CLASS}}  One of: ship | caution | block  (colors the banner).
+  {{CONFIDENCE}}     OPTIONAL, e.g. "high confidence" (or "... (amended)").
+                     Empty -> dropped.
+  {{VERDICT_NOTE}}   One-line plain-language explanation under the headline.
+  {{SUMMARY}}        The bottom line: 3-6 plain sentences a reader who reads
+                     nothing else still understands. Empty -> dropped.
+  {{BLOCKERS_HEADING}}  Findings-section header, lens-aware.
+  {{DISCLAIMER}}     OPTIONAL lens-aware professional-advice caveat (footer).
+  {{PLAN}}           What was reviewed — the material itself, described plainly.
+                     Empty -> the whole section drops (never echo the title).
+  {{METADATA}}       Footer provenance (board, rounds, date).
+  ============================================================================
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{TITLE}}</title>
+<style>
+  :root {
+    --maxw: 760px;
+    /* light "Boardroom" body */
+    --page: #faf8f3;
+    --surface: #ffffff;
+    --surface-soft: #faf7f0;
+    --vellum: #f3eee3;
+    --ink: #11192b;
+    --ink-soft: #3a4459;
+    --ink-faint: #6e768a;
+    --line: #e4ddce;
+    --line-strong: #d8cfb8;
+    /* brand accents (both themes) */
+    --accent: #2347ff;          /* cobalt — signature */
+    --accent-deep: #0f2bc2;
+    --accent-tint: #eaedff;
+    --gold: #a8843c;            /* secondary — the human/chair color */
+    /* dark "Signal" bands */
+    --dark: #0a0e1a;
+    --dark-line: #232b3e;
+    --on-dark: #fbfaf7;
+    --on-dark-soft: #b9c0d0;
+    --on-dark-faint: #8a93a8;
+    --accent-bright: #5b8cff;
+    /* verdict palettes (muted — counsel, not error toasts) */
+    --ship-bg: #e9f1ec;     --ship-edge: #2f6f57;   --ship-ink: #235540;
+    --caution-bg: #fbf1de;  --caution-edge: #b07a1e; --caution-ink: #7a5410;
+    --block-bg: #f7e9e9;    --block-edge: #9e3636;  --block-ink: #7a2525;
+    --font-sans: "Panely Grotesk","Söhne","Inter","Helvetica Neue",Helvetica,Arial,"Segoe UI",system-ui,sans-serif;
+    --font-mono: "Berkeley Mono","JetBrains Mono",ui-monospace,"Menlo","Consolas",monospace;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--page);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: 17px;
+    line-height: 1.65;
+  }
+
+  /* ---- dark masthead band ---- */
+  header.masthead { background: var(--dark); color: var(--on-dark); padding: 34px 20px 30px; }
+  .band-inner { max-width: var(--maxw); margin: 0 auto; }
+  .brand-lockup { display: flex; align-items: center; gap: 11px; margin-bottom: 26px; }
+  .brand-mark { width: 34px; height: 34px; border-radius: 8px; overflow: hidden; flex: 0 0 auto; }
+  .brand-mark svg { display: block; width: 100%; height: 100%; }
+  .brand-name { font-size: 14px; font-weight: 700; letter-spacing: -0.01em; color: var(--on-dark); }
+  .brand-name .by { font-weight: 400; color: var(--on-dark-faint); font-size: 12.5px; margin-left: 6px; }
+  header.masthead h1 { font-size: 30px; line-height: 1.2; font-weight: 700; margin: 0 0 8px; letter-spacing: -0.015em; color: var(--on-dark); }
+  .subtitle { font-size: 16px; color: var(--on-dark-soft); margin: 0 0 14px; max-width: 62ch; }
+  .masthead-meta { margin: 0; font-size: 13.5px; color: var(--on-dark-faint); }
+  .masthead-meta b { font-weight: 600; color: var(--on-dark-soft); }
+
+  /* ---- body column ---- */
+  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 36px 20px 64px; }
+
+  /* ---- verdict banner: the page's one colored moment ---- */
+  .verdict {
+    border-radius: 10px; padding: 24px 26px; margin: 0 0 40px;
+    border: 1px solid transparent; border-left-width: 5px;
+  }
+  .verdict .label {
+    font-size: 12px; letter-spacing: 0.09em; text-transform: uppercase;
+    font-weight: 700; margin: 0 0 8px; opacity: 0.8;
+  }
+  .verdict .conf-badge { font-weight: 600; text-transform: none; letter-spacing: 0; }
+  .verdict .conf-badge::before { content: " · "; }
+  .verdict .headline { font-size: 24px; font-weight: 700; margin: 0; line-height: 1.3; letter-spacing: -0.01em; }
+  .verdict .note { margin: 8px 0 0; font-size: 16px; line-height: 1.55; }
+  .verdict .bottom-line {
+    margin: 14px 0 0; padding-top: 14px; font-size: 16px; line-height: 1.65;
+    border-top: 1px solid rgba(0,0,0,0.1);
+  }
+  .verdict.ship    { background: var(--ship-bg);    border-color: var(--ship-edge);    color: var(--ship-ink); }
+  .verdict.caution { background: var(--caution-bg); border-color: var(--caution-edge); color: var(--caution-ink); }
+  .verdict.block   { background: var(--block-bg);   border-color: var(--block-edge);   color: var(--block-ink); }
+
+  /* ---- delta vs previous run (revise runs only; section drops when absent) ---- */
+  .delta-revises { margin: 0 0 6px; font-size: 13.5px; color: var(--ink-faint); }
+  .delta-traj { margin: 0 0 12px; font-size: 17px; font-weight: 700; }
+  .delta-note { margin: 0 0 12px; font-size: 14px; font-style: italic; color: var(--ink-faint); }
+  .delta-cols { display: flex; gap: 18px; flex-wrap: wrap; }
+  .delta-col { flex: 1 1 180px; }
+  .delta-col h4 {
+    font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--ink-faint); margin: 0 0 6px;
+  }
+  .delta-list { margin: 0; padding-left: 18px; font-size: 14px; line-height: 1.5; }
+
+  /* ---- sections ---- */
+  section { margin: 0 0 40px; }
+  h2 {
+    font-size: 12.5px; letter-spacing: 0.1em; text-transform: uppercase;
+    font-weight: 700; color: var(--ink-faint); margin: 0 0 16px;
+    padding-bottom: 8px; border-bottom: 1px solid var(--line-strong);
+  }
+
+  /* ---- what was reviewed: plain prose, no panel ---- */
+  .plan { font-size: 16.5px; color: var(--ink-soft); }
+  .plan p { margin: 0 0 10px; } .plan p:last-child { margin: 0; }
+
+  /* ---- how the board voted: one quiet table ---- */
+  table.votes { width: 100%; border-collapse: collapse; font-size: 15px; }
+  table.votes th {
+    text-align: left; font-size: 12px; letter-spacing: 0.05em; text-transform: uppercase;
+    color: var(--ink-faint); font-weight: 600; padding: 0 12px 8px 0;
+    border-bottom: 1px solid var(--line-strong);
+  }
+  table.votes td { padding: 9px 12px 9px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+  table.votes .vote-seat { font-weight: 600; white-space: nowrap; }
+  table.votes .vote-lens { color: var(--ink-soft); }
+  table.votes .vote-model { font-family: var(--font-mono); font-size: 12.5px; color: var(--ink-faint); }
+  table.votes .vote-rounds { white-space: nowrap; font-weight: 600; }
+  table.votes .vote-rounds.ship    { color: var(--ship-edge); }
+  table.votes .vote-rounds.caution { color: var(--caution-edge); }
+  table.votes .vote-rounds.block   { color: var(--block-edge); }
+  table.votes .vote-status { font-style: italic; color: var(--block-ink); font-weight: 400; white-space: nowrap; }
+
+  /* ---- findings: a numbered editorial list, not cards ---- */
+  ol.blockers { list-style: none; counter-reset: blk; margin: 0; padding: 0; }
+  ol.blockers > li {
+    counter-increment: blk; position: relative;
+    padding: 0 0 22px 44px; margin: 0 0 22px;
+    border-bottom: 1px solid var(--line);
+  }
+  ol.blockers > li:last-child { border-bottom: 0; margin-bottom: 0; padding-bottom: 6px; }
+  ol.blockers > li::before {
+    content: counter(blk); position: absolute; left: 2px; top: 1px;
+    font-size: 19px; font-weight: 700; color: var(--line-strong);
+    font-variant-numeric: tabular-nums;
+  }
+  ol.blockers .b-title { display: block; font-weight: 650; font-size: 17px; line-height: 1.45; }
+  ol.blockers .b-body { font-size: 15.5px; color: var(--ink-soft); margin-top: 6px; line-height: 1.6; }
+
+  /* receipts: the finding's evidence, collapsed so mechanics don't drown prose */
+  details.receipts { margin-top: 10px; }
+  details.receipts > summary {
+    cursor: pointer; font-size: 13px; font-weight: 600; color: var(--ink-faint);
+    list-style: none; display: inline-block;
+  }
+  details.receipts > summary::-webkit-details-marker { display: none; }
+  details.receipts > summary::before { content: "▸ "; }
+  details.receipts[open] > summary::before { content: "▾ "; }
+  details.receipts ul {
+    margin: 8px 0 0; padding: 10px 14px; list-style: none;
+    background: var(--surface-soft); border: 1px solid var(--line); border-radius: 8px;
+  }
+  details.receipts li {
+    font-family: var(--font-mono); font-size: 12.5px; line-height: 1.6;
+    color: var(--ink-soft); margin: 4px 0; word-break: break-word;
+  }
+  code {
+    font-family: var(--font-mono);
+    font-size: 0.86em; background: var(--vellum); border: 1px solid var(--line);
+    border-radius: 5px; padding: 1px 5px;
+  }
+
+  /* ---- dissent / minority report: set-off prose, no box ---- */
+  .dissent { border-left: 3px solid var(--caution-edge); padding: 2px 0 2px 18px; }
+  .dissent .d-flag {
+    display: block; font-size: 12px; font-weight: 700;
+    letter-spacing: 0.07em; text-transform: uppercase; color: var(--caution-ink);
+    margin-bottom: 6px;
+  }
+  .dissent p { margin: 8px 0; font-size: 15.5px; color: var(--ink-soft); }
+  .dissent .who { font-weight: 700; color: var(--ink); }
+
+  /* ---- what the board couldn't verify ---- */
+  .caveats ul { margin: 0; padding-left: 20px; }
+  .caveats li { margin: 8px 0; font-size: 15.5px; color: var(--ink-soft); }
+  .caveats .c-claim { color: var(--ink); }
+
+  /* ---- severity-filter elision line (v1.14 P1); present only on a filtered render ---- */
+  .filter-note {
+    margin: 0 0 18px; font-size: 13.5px; font-style: italic; color: var(--ink-soft);
+  }
+
+  /* ---- independence / echo-risk pill (v1.14 #9 / P2); present only on a ≥2-round
+     run whose run dir carries echo-score.json. Coarse band, band-tinted; the text
+     already says it flags echo, it does not prove independence. ---- */
+  .echo-pill {
+    margin: 0 0 18px; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--line);
+    font-size: 13.5px; color: var(--ink-soft); background: var(--surface-soft);
+  }
+  .echo-pill.echo-low      { border-color: var(--ship-edge);    background: var(--ship-bg);    color: var(--ship-ink); }
+  .echo-pill.echo-moderate { border-color: var(--caution-edge); background: var(--caution-bg); color: var(--caution-ink); }
+  .echo-pill.echo-high     { border-color: var(--block-edge);   background: var(--block-bg);   color: var(--block-ink); }
+
+  /* ---- rubric scorecard (v1.15 P4; --rubric runs only) — informational, never gates ---- */
+  .scorecard-sec { margin: 26px 0; }
+  .sc-intro { margin: 0 0 12px; font-size: 14px; color: var(--ink-soft); }
+  .sc-contra {
+    margin: 0 0 14px; padding: 10px 14px; border-radius: 8px;
+    border: 1px solid var(--block-edge); background: var(--block-bg); color: var(--block-ink);
+    font-size: 14px; font-weight: 600;
+  }
+  table.sc-crit-table, table.sc-seat-table {
+    width: 100%; border-collapse: collapse; margin: 0 0 16px; font-size: 14px;
+  }
+  .sc-crit-table th, .sc-crit-table td, .sc-seat-table th, .sc-seat-table td {
+    text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line); vertical-align: top;
+  }
+  .sc-crit-table th, .sc-seat-table th { color: var(--ink-soft); font-weight: 600; font-size: 12.5px; }
+  .sc-band { font-weight: 600; }
+  .sc-band-weak   { color: var(--block-ink); }
+  .sc-band-mixed  { color: var(--caution-ink); }
+  .sc-band-strong { color: var(--ship-ink); }
+  .sc-notes { margin: 0; }
+  .sc-note { margin: 6px 0; font-size: 13.5px; color: var(--ink-soft); }
+
+  /* ---- simple lists ---- */
+  ul.plain { margin: 0; padding-left: 20px; }
+  ul.plain li { margin: 8px 0; font-size: 15.5px; color: var(--ink-soft); }
+
+  .actions ol { margin: 0; padding-left: 22px; }
+  .actions li { margin: 9px 0; font-size: 15.5px; }
+
+  /* ---- a note a person added by hand, attached to a finding (amendment) ---- */
+  ol.blockers .blocker-sev-notes { margin: 8px 0 0; padding-left: 18px; }
+  ol.blockers .blocker-sev-notes li {
+    font-size: 14px; color: var(--accent-deep); margin: 3px 0; font-style: italic;
+  }
+
+  /* ---- changes a person made after the board reported (amendments) ----
+     Deliberately set apart from the board's own words: a gold left edge (the
+     human/chair color) says "a person changed this", not "the board said this". */
+  ol.amend-list { list-style: none; margin: 0; padding: 0; }
+  .amend-intro { margin: -6px 0 14px; font-size: 14px; font-style: italic; color: var(--ink-faint); }
+  ol.amend-list > li {
+    border-left: 3px solid var(--gold);
+    padding: 4px 0 4px 18px; margin: 0 0 14px;
+  }
+  ol.amend-list .amend-who { font-weight: 700; }
+  ol.amend-list .amend-when { color: var(--ink-faint); font-size: 13px; }
+  ol.amend-list .amend-reason { margin: 4px 0 0; font-size: 15px; color: var(--ink-soft); }
+  ol.amend-list .amend-effect {
+    display: inline-block; margin-top: 6px; font-size: 13.5px; font-weight: 600;
+    color: var(--gold);
+  }
+
+  /* ---- the board's revised copy: redline (prose) OR unified patch (code) ----
+     A line-by-line VIEW of the change the revision seat produced. Deletions ride
+     the block/red family, insertions the ship/green family — the same verdict
+     tints used elsewhere, so the page stays two-color. The applied file itself is
+     the byte-clean revised-draft.* artifact; this is orientation only. */
+  .rl-body, .patch-pre {
+    font-family: var(--font-mono); font-size: 13px; line-height: 1.55;
+    background: var(--surface-soft); border: 1px solid var(--line);
+    border-radius: 8px; padding: 12px 14px; margin: 10px 0 0; overflow-x: auto;
+  }
+  .rl-row { white-space: pre-wrap; word-break: break-word; padding: 0 4px; }
+  .rl-ctx { color: var(--ink-faint); }
+  .rl-gap { color: var(--ink-faint); font-style: italic; text-align: center; }
+  .rl-del { background: var(--block-bg);  color: var(--block-ink); }
+  .rl-ins { background: var(--ship-bg);   color: var(--ship-ink); }
+  .rl-del del { text-decoration: line-through; background: #f2cccc; }
+  .rl-ins ins { text-decoration: none; font-weight: 700; background: #cfe8d8; }
+  .patch-pre { white-space: pre; }
+  .rl-note, .patch-note { margin: 8px 0 0; font-size: 13px; font-style: italic; color: var(--ink-faint); }
+
+  /* ---- board endorsement summary (v1.13 P4) ----
+     A compact per-edit position tally + objection notes, above the redline/patch
+     body. Present only when changes.json carries endorsement rows; the whole block
+     is absent (byte-identical) on a --no-endorse run. */
+  .endorse-summary {
+    margin: 10px 0 0; padding: 10px 14px; font-size: 13.5px;
+    background: var(--surface-soft); border: 1px solid var(--line); border-radius: 8px;
+  }
+  .endorse-summary .endorse-head, .endorse-summary .endorse-obj-head {
+    margin: 0 0 4px; font-weight: 700;
+  }
+  .endorse-summary .endorse-obj-head { margin-top: 10px; }
+  .endorse-summary ul { margin: 0; padding-left: 20px; }
+  .endorse-summary .endorse-obj li { color: var(--block-ink); }
+
+  /* ---- appendix: full seat reviews (only seats with recovered prose) ---- */
+  .appendix-reviews .seat { margin: 0 0 30px; padding: 0 0 8px; border-bottom: 1px solid var(--line); }
+  .appendix-reviews .seat:last-of-type { border-bottom: 0; }
+  .seat-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px; margin-bottom: 2px; }
+  .seat-name { font-size: 18px; font-weight: 700; margin: 0; }
+  .seat-lens { font-size: 13.5px; font-weight: 600; color: var(--accent-deep); }
+  .seat-model { font-size: 12.5px; color: var(--ink-faint); font-family: var(--font-mono); }
+  .seat-status { font-size: 12.5px; font-weight: 600; font-style: italic; }
+  .seat-status.ran      { color: var(--ink-faint); }
+  .seat-status.degraded { color: var(--caution-ink); }
+  .seat-status.dropped  { color: var(--block-ink); }
+  .round { margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--line); }
+  .round:first-of-type { margin-top: 10px; border-top: 0; padding-top: 0; }
+  .round-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; margin-bottom: 6px; }
+  .round-tag { font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-faint); }
+  .vpill { font-size: 13px; font-weight: 600; }
+  .vpill.ship    { color: var(--ship-edge); }
+  .vpill.caution { color: var(--caution-edge); }
+  .vpill.block   { color: var(--block-edge); }
+  .vpill.moved::after { content: " ↓"; }
+  .conf { font-size: 12.5px; color: var(--ink-faint); }
+
+  .review-body { font-size: 15px; color: var(--ink-soft); }
+  .review-body strong { font-weight: 600; color: var(--ink); }
+  .review-body em { font-style: italic; }
+  .review-body a { color: var(--accent); text-decoration: underline; }
+  .review-body ul, .review-body ol { margin: 6px 0; padding-left: 22px; }
+  .review-body li { margin: 5px 0; }
+  .review-body p { margin: 6px 0; }
+  .review-body p.r-title { font-weight: 600; margin-top: 12px; color: var(--ink); }
+  .review-body blockquote {
+    margin: 8px 0; padding: 2px 0 2px 14px;
+    border-left: 3px solid var(--line-strong); color: var(--ink-soft);
+  }
+  .review-body pre {
+    background: var(--surface-soft); border: 1px solid var(--line);
+    border-radius: 8px; padding: 10px 12px; margin: 8px 0;
+    overflow-x: auto; font-size: 13px; line-height: 1.5;
+  }
+  .review-body pre code { background: none; border: 0; padding: 0; font-size: inherit; }
+
+  /* highlight callout (e.g. a seat that changed its verdict) */
+  .highlight {
+    border-left: 3px solid var(--caution-edge);
+    padding: 4px 0 4px 16px; margin: 14px 0 0; font-size: 14.5px; color: var(--caution-ink);
+  }
+  .highlight b { color: var(--ink); }
+
+  /* ---- dark footer / colophon band ---- */
+  footer.colophon { background: var(--dark); color: var(--on-dark-soft); padding: 26px 20px 30px; }
+  footer.colophon .disclaimer {
+    display: block; margin: 0 0 16px; font-style: italic;
+    color: var(--on-dark-faint); font-size: 13.5px;
+  }
+  .colophon-grid { display: flex; flex-wrap: wrap; gap: 24px; align-items: baseline; justify-content: space-between; }
+  .colophon-about { flex: 1 1 320px; }
+  .footer-lockup { display: flex; align-items: center; gap: 9px; font-weight: 700; color: var(--on-dark); font-size: 14px; margin-bottom: 8px; }
+  .footer-lockup svg { width: 22px; height: 22px; display: block; }
+  .colophon-about p { margin: 0; font-size: 13.5px; line-height: 1.6; color: var(--on-dark-soft); max-width: 54ch; }
+  .colophon-cta { flex: 0 0 auto; }
+  .cta { color: var(--accent-bright); font-weight: 600; font-size: 14px; text-decoration: none; }
+  .cta::after { content: " →"; }
+  footer.colophon .prov { display: block; margin-top: 14px; font-size: 11.5px; color: var(--on-dark-faint); font-family: var(--font-mono); }
+
+  /* ---- responsive ---- */
+  @media (max-width: 560px) {
+    body { font-size: 16px; }
+    .wrap { padding: 24px 15px 44px; }
+    header.masthead, footer.colophon { padding-left: 15px; padding-right: 15px; }
+    header.masthead h1 { font-size: 25px; }
+    .verdict { padding: 18px 18px; }
+    .verdict .headline { font-size: 20px; }
+    ol.blockers > li { padding-left: 32px; }
+    table.votes .vote-model { display: none; }
+  }
+
+  /* ---- print / PDF (Print -> Save as PDF) ---- */
+  @media print {
+    body { background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    header.masthead, footer.colophon { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .wrap { max-width: none; }
+    .verdict, ol.blockers > li, .dissent, .seat, .round { break-inside: avoid; }
+    a { color: inherit; text-decoration: none; }
+  }
+</style>
+</head>
+<body>
+
+  <!-- ===================== MASTHEAD (Panely / dark band) ===================== -->
+  <header class="masthead">
+    <div class="band-inner">
+      <div class="brand-lockup">
+        <span class="brand-mark"><svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect x="2" y="2" width="96" height="96" rx="22" fill="#0a0e1a"/><circle cx="50" cy="50" r="30" fill="none" stroke="#3a5fd9" stroke-width="3" opacity="0.55"/><circle cx="50" cy="20" r="10" fill="#0a0e1a" stroke="#e2b658" stroke-width="4"/><circle cx="50" cy="20" r="4" fill="#e2b658"/><circle cx="76" cy="65" r="10" fill="#0a0e1a" stroke="#3d6bff" stroke-width="4"/><circle cx="76" cy="65" r="4" fill="#3d6bff"/><circle cx="24" cy="65" r="10" fill="#0a0e1a" stroke="#3d6bff" stroke-width="4"/><circle cx="24" cy="65" r="4" fill="#3d6bff"/><circle cx="50" cy="50" r="13" fill="#5b8cff"/><circle cx="50" cy="50" r="5.5" fill="#ffffff"/></svg></span>
+        <span class="brand-name">Advisory Board <span class="by">powered by Panely</span></span>
+      </div>
+      <h1>{{TITLE}}</h1>
+      <p class="subtitle">{{SUBTITLE}}</p>
+      <p class="masthead-meta"><b>{{DATE}}</b> · {{ROUNDS}} rounds · {{BOARD}}</p>
+    </div>
+  </header>
+
+  <main class="wrap">
+
+  <!-- ===================== VERDICT BANNER ===================== -->
+  <!-- {{VERDICT_CLASS}} = ship | caution | block  (controls color) -->
+  <div class="verdict {{VERDICT_CLASS}}">
+    <p class="label">The board's verdict<span class="conf-badge">{{CONFIDENCE}}</span></p>
+    <p class="headline">{{VERDICT}}</p>
+    <p class="note">{{VERDICT_NOTE}}</p>
+    <!-- {{SUMMARY}}: the bottom line — plain prose for a reader who reads nothing
+         else. Empty on an older verdict.json — the paragraph drops. -->
+    <p class="bottom-line">{{SUMMARY}}</p>
+  </div>
+
+  <!-- {{FILTER_NOTE}}: OPTIONAL severity-filter elision line (v1.14 P1). Empty on a
+       full (--filter all / no filter) render — the line is dropped when blank, so the
+       page is byte-identical. When a filter dropped a findings section, this states
+       which and how many; the verdict banner above is never filtered. -->
+  <p class="filter-note">{{FILTER_NOTE}}</p>
+
+  <!-- {{ECHO_PILL}}: OPTIONAL independence/echo-risk pill (v1.14 #9 / P2). Empty on a
+       single-round run and any run whose run dir carries no echo-score.json (old run
+       dirs / pre-P2 handoff-data) — the pill is dropped when blank, so the page is byte-
+       identical. When present it shows the coarse band (low/moderate/high) + a one-line
+       explanation naming the sub-signals; it FLAGS possible echo, it does not prove
+       independence (see epistemics.md). The band class colors it. -->
+  <p class="echo-pill {{ECHO_CLASS}}">{{ECHO_PILL}}</p>
+
+  <!-- ============== RUBRIC SCORECARD (--rubric runs only; v1.15 P4) =============
+       The renderer drops this WHOLE section when the run carries no scorecard.json
+       (the sc-intro line renders empty) — a non-rubric run is byte-identical. The
+       scores are INFORMATIONAL: they never move the verdict or the gate (D17). A
+       token↔band self-contradiction is surfaced loudly (the sc-contra block, which
+       drops when there is no contradiction). This comment is eaten with the section
+       when it drops, so no blank-line residue is left. -->
+  <section class="scorecard-sec">
+    <h2>Rubric scorecard</h2>
+    <p class="sc-intro">{{SCORECARD_INTRO}}</p>
+    <p class="sc-contra">{{SCORECARD_CONTRADICTION}}</p>
+    <table class="sc-crit-table">
+      <thead><tr><th>#</th><th>Criterion</th><th>Weight</th></tr></thead>
+      <tbody><!-- BEGIN SC CRITERION (duplicate per criterion) -->
+        <tr><td>{{SC_CRIT_ID}}</td><td>{{SC_CRIT_TITLE}}</td><td>{{SC_CRIT_WEIGHT}}</td></tr>
+      <!-- END SC CRITERION --></tbody>
+    </table>
+    <table class="sc-seat-table">
+      <thead><tr><th>Seat</th><th>Weighted total</th><th>Band</th><th>Coverage</th><th>History</th></tr></thead>
+      <tbody><!-- BEGIN SC SEAT (duplicate per seat) -->
+        <tr><td>{{SC_SEAT}}</td><td>{{SC_SEAT_TOTAL}}</td><td class="sc-band sc-band-{{SC_SEAT_BAND_CLASS}}">{{SC_SEAT_BAND}}</td><td>{{SC_SEAT_COVERAGE}}</td><td>{{SC_SEAT_HISTORY}}</td></tr>
+      <!-- END SC SEAT --></tbody>
+    </table>
+    <div class="sc-notes"><!-- BEGIN SC NOTE (duplicate per rubric note) -->
+      <p class="sc-note">{{SC_NOTE}}</p>
+    <!-- END SC NOTE --></div>
+  </section>
+
+  <!-- ============== DELTA VS THE PREVIOUS RUN (revise runs only) ==============
+       The renderer drops this whole section when the verdict carries no
+       previous_run (the delta-revises line renders empty). On a revise verdict:
+       trajectory line, then the cleared / still-open / new buckets; a bucket
+       with no items drops, and delta-note carries the honest reason when the
+       prior run isn't reachable to diff. -->
+  <section class="delta-sec">
+    <h2>Delta vs the previous run</h2>
+    <p class="delta-revises">{{DELTA_REVISES}}</p>
+    <p class="delta-traj">{{DELTA_TRAJECTORY}}</p>
+    <p class="delta-note">{{DELTA_NOTE}}</p>
+    <div class="delta-cols">
+      <div class="delta-col">
+        <h4>Cleared</h4>
+        <ul class="delta-list"><!-- BEGIN DELTA CLEARED (duplicate per cleared item) -->
+          <li>{{DELTA_ITEM}}</li>
+        <!-- END DELTA CLEARED --></ul>
+      </div>
+      <div class="delta-col">
+        <h4>Still open</h4>
+        <ul class="delta-list"><!-- BEGIN DELTA OPEN (duplicate per still-open item) -->
+          <li>{{DELTA_ITEM}}</li>
+        <!-- END DELTA OPEN --></ul>
+      </div>
+      <div class="delta-col">
+        <h4>New</h4>
+        <ul class="delta-list"><!-- BEGIN DELTA NEW (duplicate per new item) -->
+          <li>{{DELTA_ITEM}}</li>
+        <!-- END DELTA NEW --></ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============== THE BOARD'S REVISED COPY — REDLINE (prose sources) ==========
+       Rendered ONLY for a --output revised-draft run whose --run dir carries a
+       sha-coherent revised-draft chain and a PROSE source. The renderer drops
+       this whole section when no redline rows rendered (the rl-body div is
+       empty), and eats this comment with it so no blank-line residue is left. -->
+  <section class="redline-sec">
+    <h2>The board's revised copy — redline</h2>
+    <p class="delta-note">A word-level view of the revision seat's changes to {{REDLINE_SOURCE_NAME}}. Deletions are red, insertions green; the applied bytes are the byte-clean revised-draft artifact. Applying it is your act.</p>
+    {{ENDORSEMENT_SUMMARY}}
+    <div class="rl-body"><!-- BEGIN REDLINE (duplicate per redline line) -->{{REDLINE_HTML}}<!-- END REDLINE --></div>
+    <p class="rl-note">{{REDLINE_NOTE}}</p>
+  </section>
+
+  <!-- ============== THE BOARD'S REVISED COPY — PATCH (code sources) ============
+       The code-source sibling of the redline above: a git-apply-able unified
+       diff, rendered as an escaped <pre>. At most ONE of these two sections is
+       ever populated (prose → redline, code → patch). The renderer drops the
+       whole section when the <pre> body is empty, eating this comment too. -->
+  <section class="patch-sec">
+    <h2>The board's revised copy — patch</h2>
+    <p class="delta-note">A git-apply-able unified diff of the revision seat's changes (also written as revised-draft.patch — apply with <code>git apply -p1</code>). The applied bytes are the byte-clean revised-draft artifact; applying it is your act.</p>
+    {{ENDORSEMENT_SUMMARY}}
+    <pre class="patch-pre">{{PATCH_PRE}}</pre>
+    <p class="patch-note">{{PATCH_NOTE}}</p>
+  </section>
+
+  <!-- ===================== WHAT WAS REVIEWED =====================
+       {{PLAN}} is the authored plain description of the material itself. The
+       renderer drops this whole section when it rendered empty (an older
+       verdict.json with no `reviewed` field) — never an echo of the title. -->
+  <section class="plan-sec">
+    <h2>What was reviewed</h2>
+    <div class="plan">
+      {{PLAN}}
+    </div>
+  </section>
+
+  <!-- ===================== HOW THE BOARD VOTED ===================== -->
+  <section class="votes-sec">
+    <h2>How the board voted</h2>
+    <table class="votes">
+      <thead><tr><th>Seat</th><th>Lens</th><th>Model</th><th>Round votes</th><th>Status</th></tr></thead>
+      <tbody>
+        <!-- BEGIN SEAT VOTE (duplicate per seat) -->
+        <tr>
+          <td class="vote-seat">{{VOTE_SEAT}}</td>
+          <td class="vote-lens">{{VOTE_LENS}}</td>
+          <td class="vote-model">{{VOTE_MODEL}}</td>
+          <td class="vote-rounds {{VOTE_FINAL_CLASS}}">{{VOTE_ROUNDS}}</td>
+          <td class="vote-status">{{VOTE_STATUS}}</td>
+        </tr>
+        <!-- END SEAT VOTE -->
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ===================== CONSENSUS FINDINGS ===================== -->
+  <section>
+    <h2>{{BLOCKERS_HEADING}}</h2>
+    <ol class="blockers">
+      <!-- BEGIN BLOCKER (duplicate per blocker; the number is added automatically) -->
+      <li>
+        <span class="b-title">{{BLOCKER_TITLE}}</span>
+        <div class="b-body">{{BLOCKER_BODY}}</div>
+        <!-- OPTIONAL: notes a person added by hand about this item (amendments).
+             The whole list is dropped when there are none. -->
+        <ul class="blocker-sev-notes"><!-- BEGIN BLOCKER SEVERITY NOTE (duplicate per note) -->
+          <li>{{BLOCKER_SEVERITY_NOTE}}</li>
+        <!-- END BLOCKER SEVERITY NOTE --></ul>
+        <details class="receipts">
+          <summary>{{BLOCKER_EVIDENCE_LABEL}}</summary>
+          <ul><!-- BEGIN BLOCKER EVIDENCE (duplicate per receipt) -->
+            <li>{{BLOCKER_EVIDENCE_LINE}}</li>
+          <!-- END BLOCKER EVIDENCE --></ul>
+        </details>
+      </li>
+      <!-- END BLOCKER -->
+    </ol>
+  </section>
+
+  <!-- ===================== DISSENT / MINORITY REPORT ===================== -->
+  <!-- Records disagreement that survived the debate. If the board was UNANIMOUS, this
+       holds the minority report — the strongest case against the verdict (see
+       references/epistemics.md); set {{DISSENT_FLAG}} to "Minority report". The
+       renderer drops the whole section when there is genuinely neither. -->
+  <section class="dissent-sec">
+    <h2>Dissent &amp; minority report</h2>
+    <div class="dissent">
+      <span class="d-flag">{{DISSENT_FLAG}}</span>
+      <!-- BEGIN DISSENT (duplicate per point; name the seat in .who, or use "Minority report") -->
+      <p><span class="who">{{DISSENT_WHO}}:</span> {{DISSENT_BODY}}</p>
+      <!-- END DISSENT -->
+    </div>
+  </section>
+
+  <!-- ===================== WHAT THE BOARD COULDN'T VERIFY ===================== -->
+  <!-- Claims the board relied on but did NOT check, and shared blind spots: facts every
+       seat assumed, things outside what any seat could see (live data, prod config, the
+       real code when only a plan was reviewed), and what would flip the verdict if false.
+       Guards against a confident, unanimous, wrong call (see references/epistemics.md).
+       The renderer drops the whole section when there are no items; if the board truly
+       verified everything load-bearing, say so in the verdict note. -->
+  <section class="caveats-sec">
+    <h2>What the board couldn't verify</h2>
+    <div class="caveats">
+      <ul>
+        <!-- BEGIN CAVEAT (duplicate per couldn't-verify item) -->
+        <li><span class="c-claim">{{CAVEAT_CLAIM}}</span></li>
+        <!-- END CAVEAT -->
+      </ul>
+    </div>
+  </section>
+
+  <!-- ===================== OPEN QUESTIONS ===================== -->
+  <section class="questions-sec">
+    <h2>Open questions</h2>
+    <ul class="plain">
+      <!-- BEGIN QUESTION (duplicate per open question) -->
+      <li>{{QUESTION}}</li>
+      <!-- END QUESTION -->
+    </ul>
+  </section>
+
+  <!-- ===================== NEXT ACTIONS ===================== -->
+  <section class="actions-sec">
+    <h2>Next actions</h2>
+    <div class="actions">
+      <ol>
+        <!-- BEGIN ACTION (duplicate per next action) -->
+        <li>{{ACTION}}</li>
+        <!-- END ACTION -->
+      </ol>
+    </div>
+  </section>
+
+  <!-- ===================== AMENDMENTS (human-owned; v1.12 P4) ==============
+       Changes a person made to this review AFTER the board reported — a lower
+       confidence, an added caveat, a note on a finding. The board's own words
+       above are untouched; these are set apart (gold edge) as the human record.
+       The renderer drops this whole section when there are no amendments. -->
+  <section class="amend-sec">
+    <h2>Amendments</h2>
+    <p class="amend-intro">Applied by a person after the board reported — the board's own words above are unchanged.</p>
+    <ol class="amend-list">
+      <!-- BEGIN AMENDMENT (duplicate per amendment, in order) -->
+      <li>
+        <span class="amend-who">{{AMEND_WHO}}</span>
+        <span class="amend-when">· {{AMEND_WHEN}}</span>
+        <p class="amend-reason">{{AMEND_REASON}}</p>
+        <span class="amend-effect">{{AMEND_EFFECT}}</span>
+      </li>
+      <!-- END AMENDMENT -->
+    </ol>
+  </section>
+
+  <!-- ===================== APPENDIX: FULL SEAT REVIEWS =====================
+       Each seat's own words, round by round — ONLY seats whose round prose was
+       recovered from the run dir. The renderer drops the whole section when no
+       seat carries prose (the vote table above is then the seat record). -->
+  <section class="appendix-reviews">
+    <h2>Appendix — each seat in its own words</h2>
+
+    <!-- BEGIN SEAT CARD (duplicate per seat) -->
+    <article class="seat">
+      <div class="seat-head">
+        <h3 class="seat-name">{{SEAT_NAME}}</h3>
+        <span class="seat-lens">{{SEAT_LENS}}</span>
+        <span class="seat-model">{{SEAT_MODEL}}</span>
+        <!-- OPTIONAL seat status: class ran | degraded | dropped. Show only for a degraded or dropped seat; delete for a clean run. -->
+        <span class="seat-status {{SEAT_STATUS_CLASS}}">{{SEAT_STATUS}}</span>
+      </div>
+
+      <!-- BEGIN ROUND (duplicate per round) -->
+      <div class="round">
+        <div class="round-head">
+          <span class="round-tag">{{ROUND_LABEL}}</span>
+          <!-- vpill class: ship | caution | block ; add "moved" to show a ↓ when the verdict shifted -->
+          <span class="vpill {{ROUND_VERDICT_CLASS}}">{{ROUND_VERDICT}}</span>
+          <!-- OPTIONAL confidence chip: low | medium | high. Delete if confidence wasn't tracked. -->
+          <span class="conf">confidence: {{ROUND_CONFIDENCE}}</span>
+        </div>
+        <div class="review-body">
+          <!-- {{ROUND_REVIEW}}: this seat's findings, authored as raw Markdown and
+               converted to HTML by render_handoff.py (_md) — headings -> <p class="r-title">,
+               **bold**/*italic*, -/1. lists, `code`/```fences```. -->
+          {{ROUND_REVIEW}}
+        </div>
+      </div>
+      <!-- END ROUND -->
+
+      <!-- OPTIONAL per-seat highlight (e.g. a verdict change). Delete if unused. -->
+      <div class="highlight">{{SEAT_HIGHLIGHT}}</div>
+
+    </article>
+    <!-- END SEAT CARD -->
+
+  </section>
+
+  </main>
+
+  <!-- ===================== FOOTER / COLOPHON (Panely / dark band) ===================== -->
+  <!-- {{DISCLAIMER}}: OPTIONAL lens-aware professional-advice caveat. Empty for a
+       software-lens board — the line is dropped when blank. {{METADATA}} = provenance. -->
+  <footer class="colophon">
+    <div class="band-inner">
+      <span class="disclaimer">{{DISCLAIMER}}</span>
+      <div class="colophon-grid">
+        <div class="colophon-about">
+          <div class="footer-lockup">
+            <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect x="2" y="2" width="96" height="96" rx="22" fill="#0a0e1a"/><circle cx="50" cy="50" r="30" fill="none" stroke="#3a5fd9" stroke-width="3" opacity="0.55"/><circle cx="50" cy="20" r="10" fill="#0a0e1a" stroke="#e2b658" stroke-width="4"/><circle cx="50" cy="20" r="4" fill="#e2b658"/><circle cx="76" cy="65" r="10" fill="#0a0e1a" stroke="#3d6bff" stroke-width="4"/><circle cx="76" cy="65" r="4" fill="#3d6bff"/><circle cx="24" cy="65" r="10" fill="#0a0e1a" stroke="#3d6bff" stroke-width="4"/><circle cx="24" cy="65" r="4" fill="#3d6bff"/><circle cx="50" cy="50" r="13" fill="#5b8cff"/><circle cx="50" cy="50" r="5.5" fill="#ffffff"/></svg>
+            <span>Advisory Board <span style="font-weight:400; color:var(--on-dark-soft); font-size:11.5px; letter-spacing:0.02em;">powered by Panely</span></span>
+          </div>
+          <p>Convene Claude, Codex, Gemini, and Grok through their installed provider CLIs to review the same material and reach one clear verdict.</p>
+        </div>
+        <div class="colophon-cta">
+          <a class="cta" href="https://panely.ai">panely.ai</a>
+        </div>
+      </div>
+      <span class="prov">{{METADATA}}</span>
+    </div>
+  </footer>
+
+</body>
+</html>

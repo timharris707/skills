@@ -27,6 +27,10 @@ export default function sitemap(): MetadataRoute.Sitemap {
       url: `${BASE}/skills/${skill.slug}`,
       priority: 0.8,
     })),
+    ...getSkills().map((skill) => ({
+      url: `${BASE}/codex/skills/${skill.slug}`,
+      priority: 0.8,
+    })),
     ...ENTRIES.map((entry) => ({
       url: `${BASE}/legend/${entry.slug}`,
       lastModified: LEGEND_REVISED,

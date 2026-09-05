@@ -1,0 +1,706 @@
+"""The seat-adapter registry (design §6) — the single place that knows each
+CLI's quirks: argv builders, version/update/install argv, the model-answered
+and model-not-found parsers, semver helpers, and the REGISTRY itself."""
+from __future__ import annotations
+
+import json
+import re
+from dataclasses import dataclass
+from typing import Callable, Optional
+
+__all__ = [
+    "SeatAdapter",
+    "_model_answered_none",
+    "_MODEL_JSON_RE",
+    "_MODEL_BANNER_RE",
+    "_PROMPT_ECHO_MARKER",
+    "parse_model_answered",
+    "_usage_unknown",
+    "claude_usage",
+    "codex_usage",
+    "claude_argv",
+    "claude_version",
+    "codex_argv",
+    "codex_version",
+    "gemini_argv",
+    "gemini_version",
+    "grok_argv",
+    "grok_version",
+    "antigravity_argv",
+    "antigravity_version",
+    "ollama_argv",
+    "ollama_version",
+    "claude_latest_argv",
+    "claude_update_argv",
+    "claude_install_argv",
+    "codex_latest_argv",
+    "codex_update_argv",
+    "codex_install_argv",
+    "gemini_latest_argv",
+    "gemini_update_argv",
+    "gemini_install_argv",
+    "grok_latest_argv",
+    "grok_update_argv",
+    "grok_install_argv",
+    "antigravity_latest_argv",
+    "antigravity_update_argv",
+    "antigravity_install_argv",
+    "ollama_latest_argv",
+    "ollama_update_argv",
+    "ollama_install_argv",
+    "_SEMVER_RE",
+    "parse_semver",
+    "parse_npm_latest",
+    "parse_brew_latest",
+    "parse_brew_cask_latest",
+    "version_tuple",
+    "version_is_current",
+    "_MODEL_NOT_FOUND_SIGNALS",
+    "model_not_found",
+    "REGISTRY",
+]
+
+
+# Seat-adapter registry (design §6) — the only place that knows a CLI's quirks.
+#
+# Each adapter's build_argv produces the exact argv for a seat. The gate-mode
+# isolation flags live HERE, in code, where they are testable:
+#   * stdin handling (codex must run with stdin closed or `codex exec` hangs);
+#   * read-only enforcement (claude plan mode / codex and grok read-only sandboxes /
+#     gemini approval-mode plan);
+#   * network removal for gate mode (claude --disallowed-tools WebSearch/WebFetch;
+#     codex read-only sandbox already has no network, plus --ephemeral so no
+#     session files are written; grok disables web search/fetch; Gemini cannot
+#     enforce network isolation and is disclosed as networked).
+#
+# CLI flag drift stays localized here instead of becoming a multi-file hunt.
+# Re-verify the adapters before a large run; provider CLIs move fast.
+
+
+def _usage_unknown(stdout: str, stderr: str) -> tuple:
+    """Deliberately-unknown token-usage parser: (tokens_in, tokens_out, tokens_total).
+
+    Returns (None, None, None) — "unknown, flag it" — never a guessed count. The
+    default for every seat whose CLI does not print its own usage in the captured
+    output (mirrors _model_answered_none below: honest absence over fabrication).
+    """
+    return (None, None, None)
+
+
+@dataclass(frozen=True)
+class SeatAdapter:
+    name: str
+    default_model: str
+    provider: str
+    default_reasoning: str
+    build_argv: Callable[..., list]      # (model, prompt, *, reasoning, workdir, network, grounded) -> argv
+    version_argv: Callable[[], list]     # () -> argv for the binary-present check
+    prompt_on_stdin: bool                # True: feed prompt via stdin; False: it is in argv
+    close_stdin: bool                    # True: stdin=DEVNULL when not feeding a prompt (codex hang fix)
+    stderr_is_fatal: bool                # False for Gemini (router noise on stderr is normal); consumed at M3 fan-out
+    supports_isolation: bool             # can this CLI run scoped-dir in gate mode (via -C or cwd)?
+    isolates_network: bool               # can gate mode actually REMOVE this seat's network via a flag?
+    model_answered: Callable[[str, str], Optional[str]]  # (stdout, stderr) -> real model id | None
+    timeout_s: int = 900                 # hard cap; §13 default is 15 min (overridden per call)
+    # (stdout, stderr) -> (tokens_in, tokens_out, tokens_total), each Optional[int].
+    # Best-effort token capture (v1.11 #3a): parse ONLY what the CLI unambiguously
+    # reports about ITS OWN usage — a miss is (None, None, None) ("unknown — flag
+    # it"), never a number mined from review prose. Defaults to always-unknown.
+    parse_usage: Callable[[str, str], tuple] = _usage_unknown
+    # --- toolchain currency + model self-heal (all optional; a seat without a
+    #     package manager simply reports "unknown" and is never auto-updated) ---
+    latest_argv: Optional[Callable[[], list]] = None     # () -> argv that prints the latest version
+    parse_latest: Optional[Callable[[str], Optional[str]]] = None  # stdout -> version str
+    update_argv: Optional[Callable[[], list]] = None     # () -> argv that updates this CLI
+    install_argv: Optional[Callable[[], list]] = None    # () -> argv that installs this CLI when absent
+    auth_hint: str = ""                  # how to authenticate after install (no secrets)
+    pkg_label: str = ""                  # human label for the manager, e.g. "brew gemini-cli"
+    flags_verified_version: str = ""     # CLI version build_argv's flags were last grounded against
+    fallback_models: tuple = ()          # ordered ids to PROBE + PROPOSE if a selector/pin 404s
+                                         # (never auto-applied to an explicit user pin)
+    has_effort_knob: bool = True         # False when build_argv ignores `reasoning` (no CLI flag);
+                                         # an explicit --effort on such a seat is REFUSED loudly
+                                         # rather than silently ignored (config.resolve_board)
+
+
+def _model_answered_none(stdout: str, stderr: str) -> Optional[str]:
+    """Deliberately-unknown model-answered parser.
+
+    Returns None ("unknown — flag it"), never "assume the requested model
+    answered". Used where the CLI cannot report the answering model reliably:
+    antigravity silently SUBSTITUTES an unknown model id (rc 0, no banner), so the
+    requested model can never be trusted to have answered (design §16, handoff
+    GOTCHA). The honest provenance is "unknown", surfaced as such everywhere.
+    """
+    return None
+
+
+# Best-effort "which model actually answered" parser (design §12 provenance, §16
+# "a model_answered miss is 'unknown — flag it', never assume requested"). We scan
+# ONLY stderr: the review prose on stdout routinely contains the word "model" and
+# must never be mined for a false id. Most CLIs do not print the answering model in
+# plain text, so None is the common, honest v1 outcome — never a fabricated id.
+_MODEL_JSON_RE = re.compile(r'"model"\s*:\s*"([^"]+)"')
+_MODEL_BANNER_RE = re.compile(
+    r'^\s*(?:using\s+model|model)\s*[:=]\s*["\']?([A-Za-z0-9][\w.\-/()]*(?: [\w.\-/()]+)*?)["\']?\s*$',
+    re.IGNORECASE | re.MULTILINE,
+)
+# A CLI like codex echoes its prompt to stderr, and the cross-reading packet inside
+# that prompt can carry `model:` / `"model": "…"` lines (e.g. a quoted CLI example) —
+# which must NEVER be mined as the answering model. The conductor wraps every prompt's
+# payload in this marker, so a CLI's own banner is always in the text BEFORE the first
+# occurrence. Scanning only that head keeps echoed content out of the provenance.
+_PROMPT_ECHO_MARKER = "MATERIAL UNDER REVIEW"
+
+
+def parse_model_answered(stdout: str, stderr: str) -> Optional[str]:
+    """Return the model id a CLI *reports* having used (from stderr), or None.
+
+    Scans only the banner region — the stderr BEFORE the echoed prompt — so a
+    `model:` line inside the (echoed) cross-reading packet can't be mistaken for the
+    CLI's own banner. Round 2 of a `--cross-reading full` run is exactly this case.
+    """
+    banner = stderr.split(_PROMPT_ECHO_MARKER, 1)[0]
+    m = _MODEL_JSON_RE.search(banner) or _MODEL_BANNER_RE.search(banner)
+    if not m:
+        return None
+    cand = m.group(1).strip()
+    if cand.lower() in ("unknown", "auto", "default"):
+        return None
+    return cand or None
+
+
+# Per-CLI token-usage parsers (v1.11 #3a). Grounded live on 2026-07-01 against the
+# installed CLIs with the streams captured separately. The poisoning rule from
+# parse_model_answered applies with more force here: review prose (stdout) and the
+# echoed prompt (stderr) can legitimately QUOTE usage lines/JSON — e.g. when the
+# material under review is this very skill or a CLI transcript — so a parser may
+# only accept usage from a position review content cannot occupy. Anything less
+# anchored returns unknown; never guess numbers.
+
+
+def claude_usage(stdout: str, stderr: str) -> tuple:
+    """claude: usage from the --output-format json result envelope ONLY.
+
+    Plain `claude -p` (the board's argv, text mode) emits NO usage anywhere —
+    stdout is the review text, stderr is empty; --verbose adds nothing in text
+    mode (verified live on claude 2.1.191, 2026-07-01). Usage exists only in the
+    `--output-format json` result envelope: the ENTIRE stdout is one JSON object
+    carrying usage.input_tokens / usage.output_tokens. Parse only that
+    whole-document shape — a review merely quoting such JSON is embedded in prose
+    and fails the full-stdout json.loads, so it can never be mined. Today's
+    text-mode spawns therefore honestly return unknown; if the invocation ever
+    adopts the json envelope, capture lights up with no further change. Counts
+    are AS REPORTED: the envelope's input_tokens excludes cache reads/writes
+    (they ride separate usage fields, billed at different rates) — one more
+    reason every downstream dollar figure stays labeled an estimate.
+    """
+    try:
+        data = json.loads(stdout)
+    except (ValueError, RecursionError):   # not JSON — or adversarially deep nesting
+        return (None, None, None)
+    if not isinstance(data, dict):
+        return (None, None, None)
+    usage = data.get("usage")
+    if not isinstance(usage, dict):
+        return (None, None, None)
+    tin, tout = usage.get("input_tokens"), usage.get("output_tokens")
+    if (isinstance(tin, int) and not isinstance(tin, bool) and tin >= 0
+            and isinstance(tout, int) and not isinstance(tout, bool) and tout >= 0):
+        return (tin, tout, tin + tout)
+    return (None, None, None)
+
+
+# `codex exec` ends stderr with a token footer. Two shapes seen in the wild:
+# the current two-line form ("tokens used" newline "13,976" — verified live on
+# codex-cli 0.142.2, 2026-07-01) and the older one-line "tokens used: 13,976".
+_CODEX_TOKENS_USED_LINE_RE = re.compile(r"^tokens used:\s*([\d,]+)$", re.IGNORECASE)
+_CODEX_COUNT_RE = re.compile(r"^\d{1,3}(?:,\d{3})*$|^\d+$")
+
+
+def codex_usage(stdout: str, stderr: str) -> tuple:
+    """codex: the TOTAL from the "tokens used" footer that terminates stderr.
+
+    codex reports one combined count (input+output+reasoning), never a split —
+    so tokens_in/tokens_out stay None and only tokens_total is filled. Anchored
+    to the TAIL of stderr on purpose: codex mirrors the echoed prompt AND the
+    reply onto stderr, either of which could quote a "tokens used" line, but the
+    CLI's own footer is always the last thing printed. Only the final line pair
+    (or final one-line form) is trusted; anything else is unknown.
+    """
+    lines = [ln.strip() for ln in stderr.splitlines() if ln.strip()]
+    if not lines:
+        return (None, None, None)
+    if (len(lines) >= 2 and lines[-2].lower() == "tokens used"
+            and _CODEX_COUNT_RE.match(lines[-1])):
+        return (None, None, int(lines[-1].replace(",", "")))
+    m = _CODEX_TOKENS_USED_LINE_RE.match(lines[-1])
+    if m:
+        return (None, None, int(m.group(1).replace(",", "")))
+    return (None, None, None)
+
+
+# v1 is always read-only — every adapter hardcodes its provider's read-only mode
+# below (claude plan / codex read-only sandbox / gemini approval-mode plan). There
+# is intentionally no `read_only` parameter: an edit-capable seat is out of scope
+# until M3+, and a silently-ignored flag is a worse footgun than its absence.
+
+
+def claude_argv(model, prompt, *, reasoning="max", workdir=None, network=False, grounded=False):
+    # claude -p reads the prompt from stdin; plan mode is read-only. fs scoping is
+    # the subprocess cwd (applied at spawn), since claude has no dir-scoping flag.
+    # `grounded` is accepted for a uniform signature: claude reads the repo via its
+    # cwd (the snapshot, set at spawn) with no flag to change, so its argv is the
+    # same grounded or not.
+    # --effort sets the session's reasoning depth (levels low|medium|high|xhigh|max,
+    # verified on claude 2.1.191). The board forwards the seat's reasoning here so the
+    # Claude seat actually runs at its configured effort (default "max").
+    argv = ["claude", "-p", "--model", model, "--effort", reasoning,
+            "--permission-mode", "plan"]
+    if not network:
+        # Cut the seat's network reach in gate mode. Note: NOT --bare, which would
+        # force ANTHROPIC_API_KEY auth and break subscription/OAuth login.
+        argv += ["--disallowed-tools", "WebSearch", "WebFetch"]
+    return argv
+
+
+def claude_version():
+    return ["claude", "--version"]
+
+
+def codex_argv(model, prompt, *, reasoning="xhigh", workdir=None, network=False, grounded=False):
+    # --skip-git-repo-check is UNCONDITIONAL: codex exec refuses a non-git working dir
+    # otherwise, and both gate mode's throwaway tempdir AND a --repo snapshot (which
+    # excludes .git, P1) are non-git. So the flag is required either way — keeping it
+    # here unconditionally also means an ungrounded codex argv is byte-identical to
+    # before. `grounded` is threaded for a uniform adapter signature and to make the
+    # snapshot-as-cwd dependency explicit at the call site; codex reads the snapshot
+    # via -C <workdir> (set to the snapshot when grounded), needing no extra flag.
+    argv = ["codex", "exec", "--sandbox", "read-only", "--skip-git-repo-check"]
+    # `auto` delegates model choice to Codex's provider-maintained recommended
+    # model. This is the default-board policy; an explicit --model override still
+    # pins an exact id and is emitted here.
+    if model != "auto":
+        argv += ["--config", f"model={model}"]
+    argv += ["--config", f"model_reasoning_effort={reasoning}"]
+    if not network:
+        # read-only sandbox already has no network and no disk writes; --ephemeral
+        # also keeps the run from persisting session files to disk.
+        argv += ["--ephemeral"]
+    if workdir:
+        argv += ["-C", workdir]   # scoped working directory (gate mode)
+    argv += [prompt]  # codex takes the prompt as a positional arg (stdin stays closed)
+    return argv
+
+
+def codex_version():
+    return ["codex", "--version"]
+
+
+def gemini_argv(model, prompt, *, reasoning="HIGH", workdir=None, network=False, grounded=False):
+    # approval-mode plan is read-only (no edit/exec tools). HONEST LIMITATION:
+    # the installed gemini CLI exposes no flag that reliably disables the built-in
+    # GoogleSearch grounding, so gate mode CANNOT remove this seat's network (see
+    # isolates_network=False below). fs scoping is the subprocess cwd at spawn.
+    # `network`/`workdir` are accepted for a uniform signature but not enforceable
+    # here — do not pretend otherwise in the consent surface.
+    #
+    # --skip-trust: gemini-cli >= 0.46 added "trusted folders" — headless runs in
+    # an untrusted dir get approval-mode forced to default and exit 55 with NO
+    # output (verified on 0.46.0). We run read-only (plan) in a scoped throwaway
+    # dir, so trusting that session is safe and required for the board to work.
+    return ["gemini", "-p", prompt, "-m", model, "--approval-mode", "plan", "--skip-trust"]
+
+
+def gemini_version():
+    return ["gemini", "--version"]
+
+
+def grok_argv(model, prompt, *, reasoning="high", workdir=None, network=False, grounded=False):
+    """Build a non-interactive, read-only invocation of xAI's official Grok CLI.
+
+    Grok Build exposes the same core controls in headless mode that the board needs:
+    a single prompt, an optional exact model id, reasoning effort, a read-only sandbox, and
+    plan-mode permissions.  Keep sessions stateless and automation-friendly by
+    disabling memory and subagents (the `--no-auto-update` flag was removed
+    upstream by CLI 0.2.111; headless single-turn runs do not self-update).  In gate mode also
+    remove Grok's built-in web-search/fetch surface; model inference still reaches
+    xAI, exactly like every other hosted seat.
+    """
+    argv = [
+        "grok", "-p", prompt,
+        "--effort", reasoning,
+        "--output-format", "plain",
+        "--permission-mode", "plan",
+        "--sandbox", "read-only",
+        "--no-subagents",
+        "--no-memory",
+    ]
+    # `grok-4.5` is the only model the CLI now lists, and its default. Explicit
+    # --model overrides remain exact pins; `auto` is accepted as an escape hatch
+    # for whatever the CLI defaults to.
+    if model != "auto":
+        argv += ["--model", model]
+    if workdir:
+        argv += ["--cwd", workdir]
+    if not network:
+        argv += ["--disable-web-search", "--disallowed-tools", "WebFetch"]
+    return argv
+
+
+def grok_version():
+    return ["grok", "version"]
+
+
+def antigravity_argv(model, prompt, *, reasoning="High", workdir=None, network=False, grounded=False):
+    # Antigravity CLI (`agy`) is Google's agent-first successor to gemini-cli
+    # (gemini-cli sunset for consumer tiers 2026-06-18). `-p` runs a single prompt
+    # non-interactively and prints the response. --sandbox enables terminal
+    # restrictions for a read-only-ish posture; fs scoping is the subprocess cwd.
+    #
+    # Two verified gotchas (grounded on agy 1.0.12, 2026-06-25):
+    #  * stdin is read to EOF — without close_stdin/DEVNULL the call HANGS (codex-style).
+    #  * an unknown --model is SILENTLY substituted (no error, no 404), so pin an exact
+    #    display name from `agy models` ("Gemini 3.5 Flash (High)") and never trust that
+    #    the requested model answered without a model_answered check (fallback probing is
+    #    pointless here — it never fails loudly).
+    # Effort is baked into the model display name ("... (High)"), so `reasoning` is not
+    # a separate flag. Like gemini, this is an agentic harness whose web/grounding is
+    # not removable, mirrored honestly as isolates_network=False.
+    return ["agy", "-p", prompt, "--model", model, "--sandbox"]
+
+
+def antigravity_version():
+    return ["agy", "--version"]
+
+
+def ollama_argv(model, prompt, *, reasoning="default", workdir=None, network=False, grounded=False):
+    # Ollama runs the model entirely on-machine, so there is NO external egress —
+    # which is exactly why a local seat is the privacy lever for sensitive material
+    # (references/data-handling.md), reflected as provider="local" + isolates_network=True.
+    # `ollama run <model>` reads the prompt on STDIN to EOF, prints the completion,
+    # and exits (the non-interactive form; a piped stdin suppresses the REPL). The
+    # prompt rides stdin (prompt_on_stdin=True), so it never lands in argv and never
+    # needs shell-escaping.
+    #
+    # `network`/`workdir`/`reasoning` are accepted for a uniform adapter signature but
+    # are NOT flags here: a local model has no web/grounding tools to remove (network
+    # isolation is intrinsic), no dir-scoping flag (fs scoping is the subprocess cwd at
+    # spawn), and no reasoning-effort knob.
+    #
+    # NOTE: grounded against Ollama's documented/stable CLI, NOT a live local install
+    # (ollama was absent on the dev box). The `ollama run <model>` stdin form has been
+    # stable across releases; flags_verified_version is left empty (no live grounding to
+    # claim) — re-verify `ollama run --help` before a large run.
+    return ["ollama", "run", model]
+
+
+def ollama_version():
+    return ["ollama", "--version"]
+
+
+# Toolchain currency (design §7a). Each seat CLI is installed by a different
+# package manager, so "what is the latest version" and "update it" live here,
+# per seat, next to that CLI's other quirks. The whole point is self-healing: a
+# stale CLI is a common reason a provider-maintained frontier selector stops
+# resolving. Grounded against the installed managers on 2026-07-15: npm for
+# claude/codex/grok, Homebrew for gemini (formula), antigravity (cask), and
+# ollama (formula).
+
+def claude_latest_argv():  return ["npm", "view", "@anthropic-ai/claude-code", "version"]
+def claude_update_argv():  return ["claude", "update"]
+def claude_install_argv(): return ["npm", "install", "-g", "@anthropic-ai/claude-code"]
+
+def codex_latest_argv():   return ["npm", "view", "@openai/codex", "version"]
+def codex_update_argv():   return ["codex", "update"]
+def codex_install_argv():  return ["npm", "install", "-g", "@openai/codex"]
+
+def gemini_latest_argv():  return ["brew", "info", "--json=v2", "gemini-cli"]
+def gemini_update_argv():  return ["brew", "upgrade", "gemini-cli"]
+def gemini_install_argv(): return ["brew", "install", "gemini-cli"]
+
+def grok_latest_argv():  return ["npm", "view", "@xai-official/grok", "version"]
+def grok_update_argv():  return ["grok", "update"]
+def grok_install_argv(): return ["npm", "install", "-g", "@xai-official/grok"]
+
+def antigravity_latest_argv():  return ["brew", "info", "--json=v2", "--cask", "antigravity-cli"]
+def antigravity_update_argv():  return ["brew", "upgrade", "--cask", "antigravity-cli"]
+def antigravity_install_argv(): return ["brew", "install", "--cask", "antigravity-cli"]
+
+def ollama_latest_argv():  return ["brew", "info", "--json=v2", "ollama"]   # ships as a brew formula
+def ollama_update_argv():  return ["brew", "upgrade", "ollama"]
+def ollama_install_argv(): return ["brew", "install", "ollama"]
+
+
+_SEMVER_RE = re.compile(r"\d+(?:\.\d+)+")
+
+
+def parse_semver(text: str) -> Optional[str]:
+    """Pull the first dotted-numeric version out of mixed CLI banner text.
+
+    Robust across the formats the seats actually print: "2.1.177 (Claude Code)",
+    "codex-cli 0.135.0", a bare "0.38.2", or "0.46.0" from a manager.
+    """
+    if not text:
+        return None
+    m = _SEMVER_RE.search(text)
+    return m.group(0) if m else None
+
+
+def parse_npm_latest(stdout: str) -> Optional[str]:
+    # `npm view <pkg> version` prints the bare version on its own line.
+    return parse_semver(stdout)
+
+
+def parse_brew_latest(stdout: str) -> Optional[str]:
+    # `brew info --json=v2 <formula>` -> formulae[0].versions.stable. stdlib json,
+    # no jq. Any shape surprise degrades to "unknown" rather than crashing preflight.
+    try:
+        data = json.loads(stdout)
+        return data["formulae"][0]["versions"]["stable"]
+    except (ValueError, KeyError, IndexError, TypeError):
+        return None
+
+
+def parse_brew_cask_latest(stdout: str) -> Optional[str]:
+    # `brew info --json=v2 --cask <cask>` -> casks[0].version (e.g. "1.0.12,6156..."),
+    # so reduce to the dotted-numeric head. antigravity-cli ships as a cask.
+    try:
+        data = json.loads(stdout)
+        return parse_semver(data["casks"][0]["version"])
+    except (ValueError, KeyError, IndexError, TypeError):
+        return None
+
+
+def version_tuple(version: Optional[str]) -> tuple:
+    if not version:
+        return ()
+    try:
+        return tuple(int(p) for p in version.split("."))
+    except ValueError:
+        return ()
+
+
+def version_is_current(installed: Optional[str], latest: Optional[str]) -> Optional[bool]:
+    """True if installed >= latest, False if behind, None if either is unknown.
+
+    None ("can't judge") is deliberate: a missing package manager or an offline
+    box must NOT read as "stale" and trigger a spurious update prompt.
+    """
+    iv, lv = version_tuple(installed), version_tuple(latest)
+    if not iv or not lv:
+        return None
+    width = max(len(iv), len(lv))
+    iv += (0,) * (width - len(iv))
+    lv += (0,) * (width - len(lv))
+    return iv >= lv
+
+
+# Model-not-found signatures, grounded against live CLI output on 2026-06-25:
+#   claude (stdout): "...may not exist or you may not have access to it."
+#   codex  (stderr): {"type":"invalid_request_error","message":"The '...' model is not supported..."}
+#   gemini (stderr): "ModelNotFoundError: Requested entity was not found."
+# A pinned id that trips one of these on a smoke ping means the id is stale for
+# the installed CLI — the trigger to update the CLI and/or propose a fallback id.
+_MODEL_NOT_FOUND_SIGNALS = (
+    "modelnotfound",
+    "requested entity was not found",
+    "may not exist or you may not have access",
+    "issue with the selected model",
+    "model is not supported",
+    "is not supported when using codex",
+    "model not found",
+    "no such model",
+    "unknown model",
+)
+
+
+def model_not_found(result: "SpawnResult", *, include_stdout: bool = False) -> bool:
+    # Scan stderr ONLY by default — mirroring auth_failed(): never read the review
+    # on stdout, which may legitimately quote a model-not-found string when the
+    # material under review is this very skill's source (e.g. a seat reviewing the
+    # board's own code echoing the literal "ModelNotFound"). A genuine stale/renamed
+    # id surfaces on stderr (codex/gemini emit it there). The ONE exception is the
+    # smoke-ping path (preflight / propose_model): claude prints its "model may not
+    # exist" notice to stdout with exit 1 there, and that path answers a fixed
+    # SMOKE_PROMPT, so its stdout cannot be poisoned by material under review —
+    # those callers opt in with include_stdout=True.
+    blob = result.stderr
+    if include_stdout:
+        blob = result.stdout + "\n" + blob
+    blob = blob.lower()
+    return any(sig in blob for sig in _MODEL_NOT_FOUND_SIGNALS)
+
+
+REGISTRY: dict = {
+    "claude": SeatAdapter(
+        name="claude",
+        # Anthropic's maintained `fable` alias selects Fable 5, the Mythos-class
+        # tier above Opus — the strongest generally available Anthropic model
+        # (v1.17). `opus` is the ordered fallback preflight PROBES + PROPOSES
+        # (never silently applies) on builds/accounts where `fable` doesn't
+        # resolve. Maintained aliases keep a fresh run advancing with the
+        # provider.
+        default_model="fable",
+        provider="Anthropic",
+        default_reasoning="max",   # forwarded via --effort; deepest level the CLI exposes
+        build_argv=claude_argv,
+        version_argv=claude_version,
+        prompt_on_stdin=True,
+        close_stdin=False,
+        stderr_is_fatal=True,
+        supports_isolation=True,
+        isolates_network=True,   # --disallowed-tools WebSearch WebFetch removes web reach
+        model_answered=parse_model_answered,
+        parse_usage=claude_usage,   # json result envelope only; text mode (today) → unknown
+        latest_argv=claude_latest_argv,
+        parse_latest=parse_npm_latest,
+        update_argv=claude_update_argv,
+        install_argv=claude_install_argv,
+        auth_hint="run `claude` once and sign in (Claude subscription, or set ANTHROPIC_API_KEY)",
+        pkg_label="npm @anthropic-ai/claude-code",
+        flags_verified_version="2.1.191",   # --model/--effort/--permission-mode plan verified here
+        fallback_models=("opus",),   # proposed (never silently applied) where `fable` doesn't resolve
+    ),
+    "codex": SeatAdapter(
+        name="codex",
+        # Omitting an exact model makes Codex choose its current recommended
+        # model; xhigh then requests the deepest standard reasoning posture.
+        default_model="auto",
+        provider="OpenAI",
+        default_reasoning="xhigh",
+        build_argv=codex_argv,
+        version_argv=codex_version,
+        prompt_on_stdin=False,
+        close_stdin=True,   # the </dev/null fix — codex exec reads stdin to EOF
+        stderr_is_fatal=True,
+        supports_isolation=True,
+        isolates_network=True,   # --sandbox read-only has no network (verified: DNS fails inside)
+        model_answered=parse_model_answered,
+        parse_usage=codex_usage,   # "tokens used" stderr footer — a TOTAL only, never a split
+        latest_argv=codex_latest_argv,
+        parse_latest=parse_npm_latest,
+        update_argv=codex_update_argv,
+        install_argv=codex_install_argv,
+        auth_hint="run `codex` once and sign in with your ChatGPT account (subscription preferred)",
+        pkg_label="npm @openai/codex",
+        flags_verified_version="0.135.0",
+        fallback_models=(),
+    ),
+    "gemini": SeatAdapter(
+        name="gemini",
+        # Google documents `pro` as the provider-maintained alias for its
+        # highest-reasoning Gemini model. It advances as the CLI's catalog does.
+        default_model="pro",
+        provider="Google",
+        default_reasoning="HIGH",
+        has_effort_knob=False,   # gemini_argv ignores `reasoning` — thinking level lives in CLI settings
+        build_argv=gemini_argv,
+        version_argv=gemini_version,
+        prompt_on_stdin=False,
+        close_stdin=True,
+        stderr_is_fatal=False,   # router retries on stderr are normal; judge by the artifact
+        supports_isolation=True,    # fs scoping via cwd; network is NOT removable (below)
+        isolates_network=False,  # no known flag disables GoogleSearch grounding — surfaced loudly
+        model_answered=parse_model_answered,
+        # parse_usage stays _usage_unknown: `gemini -p` prints no usage on either
+        # stream (verified live on gemini-cli 0.46.0, 2026-07-01) — never guess.
+        latest_argv=gemini_latest_argv,
+        parse_latest=parse_brew_latest,
+        update_argv=gemini_update_argv,
+        install_argv=gemini_install_argv,
+        auth_hint="run `gemini` once and authenticate (Google account; consumer tiers sunset 2026-06-18 — enterprise/API only)",
+        pkg_label="brew gemini-cli",
+        flags_verified_version="0.46.0",   # -m/-p/--approval-mode plan/--skip-trust verified on 0.46.0 (2026-06-25)
+        fallback_models=(),
+    ),
+    "grok": SeatAdapter(
+        name="grok",
+        # xAI's frontier model for coding, agentic work, and knowledge work. The
+        # official CLI and API both expose low|medium|high effort; high is the
+        # deepest supported setting and is also the model default.
+        # `grok models` on 0.2.111 lists only `grok-4.5` (the default); the older
+        # `grok-build` alias was dropped and no longer resolves.
+        default_model="grok-4.5",
+        provider="xAI",
+        default_reasoning="high",
+        build_argv=grok_argv,
+        version_argv=grok_version,
+        prompt_on_stdin=False,
+        close_stdin=True,
+        stderr_is_fatal=True,
+        supports_isolation=True,
+        # --sandbox read-only blocks child network on supported hosts, while
+        # --disable-web-search + disallowed WebFetch remove model web access.
+        isolates_network=True,
+        model_answered=parse_model_answered,
+        latest_argv=grok_latest_argv,
+        parse_latest=parse_npm_latest,
+        update_argv=grok_update_argv,
+        install_argv=grok_install_argv,
+        auth_hint="run `grok login` (or `grok login --device-code` headlessly); "
+                  "XAI_API_KEY is also supported",
+        pkg_label="npm @xai-official/grok",
+        flags_verified_version="0.2.117",  # -p/--effort/--output-format/--permission-mode plan/--sandbox read-only/--no-memory/--no-subagents re-verified on 0.2.117 (2026-08-05); --no-auto-update absent, `grok models` lists grok-4.5 only
+        fallback_models=(),
+    ),
+    "antigravity": SeatAdapter(
+        name="antigravity",
+        # Exact display name from `agy models` — agy silently substitutes an unknown
+        # name, so this must match a listed model verbatim (verified on agy 1.0.12).
+        default_model="Gemini 3.5 Flash (High)",
+        provider="Google",
+        default_reasoning="High",   # effort is part of the model name, not a flag
+        has_effort_knob=False,
+        build_argv=antigravity_argv,
+        version_argv=antigravity_version,
+        prompt_on_stdin=False,
+        close_stdin=True,        # agy reads stdin to EOF — verified to hang without DEVNULL
+        stderr_is_fatal=False,
+        supports_isolation=True,    # cwd scoping + --sandbox terminal restrictions
+        isolates_network=False,  # agent-first harness; web/grounding not removable — surfaced loudly
+        model_answered=_model_answered_none,
+        # parse_usage stays _usage_unknown: `agy -p` prints no usage on either
+        # stream (verified live on agy 1.0.15, 2026-07-01) — never guess.
+        latest_argv=antigravity_latest_argv,
+        parse_latest=parse_brew_cask_latest,
+        update_argv=antigravity_update_argv,
+        install_argv=antigravity_install_argv,
+        auth_hint="run `agy` once and sign in (Google account; the gemini-cli successor)",
+        pkg_label="brew --cask antigravity-cli",
+        flags_verified_version="1.0.12",
+        fallback_models=(),      # agy never 404s a model (it silently substitutes) — no probe to do
+    ),
+    "ollama": SeatAdapter(
+        name="ollama",
+        # A local model is user-chosen — this is a sensible, broadly-pullable default
+        # to override with `--model ollama=<your pulled model>` (see `ollama list`).
+        # Pinned inline per the model-id policy; no fallback probing, because what
+        # resolves depends entirely on what the user has pulled locally, not on a
+        # renamable hosted id (fallback_models=()).
+        default_model="llama3.3",
+        provider="local",          # NOT external egress — the privacy lever (data-handling.md)
+        default_reasoning="default",   # local models have no reasoning-effort knob
+        has_effort_knob=False,
+        build_argv=ollama_argv,
+        version_argv=ollama_version,
+        prompt_on_stdin=True,      # `ollama run <model>` reads the prompt on stdin (like claude)
+        close_stdin=False,
+        stderr_is_fatal=False,     # ollama prints model-load / pull progress to stderr — not fatal
+        supports_isolation=True,   # fs scoping via cwd; a local model has nothing external to scope
+        isolates_network=True,     # local model: no external network at all (intrinsic, not a flag)
+        model_answered=_model_answered_none,
+        # parse_usage stays _usage_unknown: plain `ollama run` prints only the
+        # completion (eval counts appear only under --verbose, which the board
+        # doesn't pass). Local seat, so the cost is $0 either way — never guess.
+        latest_argv=ollama_latest_argv,
+        parse_latest=parse_brew_latest,
+        update_argv=ollama_update_argv,
+        install_argv=ollama_install_argv,
+        auth_hint="no account needed — local models stay on your machine; pull one with "
+                  "`ollama pull <model>` (see `ollama list`)",
+        pkg_label="brew ollama",
+        flags_verified_version="",  # ollama absent on the dev box — no live grounding to claim
+        fallback_models=(),
+    ),
+}

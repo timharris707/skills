@@ -26,9 +26,9 @@ export function GET() {
     "",
     "## Runtimes",
     "",
-    "Every skill runs natively on BOTH Claude Code and Codex, from the same SKILL.md.",
-    "Neither is a port or a second-class path: the instructions are the portable part,",
-    "and CI fails the build if the two runtimes would ship a different set of skills.",
+    "Two editions cover the same catalog: original Claude Code and Codex desktop, tuned for Astra.",
+    "The harness instructions differ. Select the matching skill URL below; do not substitute editions.",
+    "Codex uses same-task checkpoints through compaction and respects selected model settings.",
     "Any other harness can read each SKILL.md directly.",
     "",
     "## Install — Claude Code",
@@ -40,12 +40,18 @@ export function GET() {
     "",
     "## Install — Codex",
     "",
-    "Codex allows one plugin per repository root, so the whole catalog is a single plugin.",
+    `The complete ${codex.name} plugin ships all ${codex.skills} adapted skills and their resources.`,
     "",
     "```",
     "codex plugin marketplace add timharris707/skills",
     `codex plugin add ${codex.name}@${codex.marketplace}`,
     "```",
+    "",
+    "Start a new task after installation. Disable the legacy clickai-skills plugin in the",
+    "same Codex profile to avoid duplicate skill names. This edition installs no automatic",
+    "hooks and changes no global instructions, model settings, or Claude configuration.",
+    "Refresh and update through the Codex Plugins panel, then start a new task.",
+    "Python 3 and Git run the bundled checkpoint helper. See https://clickai.dev/install#codex.",
     "",
     "## If you are an agent installing this for someone",
     "",
@@ -65,7 +71,7 @@ export function GET() {
     "installed skills appear namespaced (e.g. team-workflow:grilling), then have your",
     "user run the pack's setup skill once in each repo.",
     "",
-    "Third-party marketplaces do not auto-update by default. Ask your user for the",
+    "For Claude Code, third-party marketplaces do not auto-update by default. Ask your user for the",
     "go-ahead, then turn it on: set `\"autoUpdate\": true` on the skills entry in",
     "~/.claude/plugins/known_marketplaces.json — the same field the /plugin panel's",
     "Enable auto-update toggle writes. If that file isn't where their setup keeps it,",
@@ -79,7 +85,7 @@ export function GET() {
     lines.push(`## ${region.name}`, "", region.blurb, "");
     for (const skill of region.entries) {
       lines.push(
-        `- [${skill.name}](https://clickai.dev/skills/${skill.slug}.md): ${skill.description}`,
+        `- ${skill.name}: [Claude Code](https://clickai.dev/skills/${skill.slug}.md) | [Codex desktop](https://clickai.dev/codex/skills/${skill.slug}.md). ${skill.description}`,
       );
     }
     lines.push("");

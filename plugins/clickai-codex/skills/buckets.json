@@ -1,0 +1,53 @@
+{
+  "$comment": "Buckets are the catalog's one source of truth for two things at once: what a skill is for, and whether it ships. A directory under skills/ IS a bucket; everything inside a bucket is a skill. Only promoted buckets may appear in .claude-plugin/marketplace.json, and only promoted buckets appear on clickai.dev — so parking a half-built skill in in-progress/ removes it from both without deleting it. scripts/check_router_freshness.py enforces this.",
+  "buckets": [
+    {
+      "id": "orient",
+      "name": "Orient",
+      "promoted": true,
+      "blurb": "Bind the discipline to a repo, and find your way around it."
+    },
+    {
+      "id": "decide",
+      "name": "Decide",
+      "promoted": true,
+      "blurb": "Settle what is still open before anyone writes a line of it."
+    },
+    {
+      "id": "investigate",
+      "name": "Investigate",
+      "promoted": true,
+      "blurb": "Answer what discussion cannot — from sources, or from running code."
+    },
+    {
+      "id": "run",
+      "name": "Run",
+      "promoted": true,
+      "blurb": "Get decided work onto the board, through the lanes, and handed on."
+    },
+    {
+      "id": "author",
+      "name": "Author",
+      "promoted": true,
+      "blurb": "Standards for writing — documents agents consume, and pages humans read."
+    },
+    {
+      "id": "in-progress",
+      "name": "In progress",
+      "promoted": false,
+      "blurb": "Half-built. Real enough to keep, not real enough to ship."
+    },
+    {
+      "id": "misc",
+      "name": "Misc",
+      "promoted": false,
+      "blurb": "One-offs too repo-specific or too narrow to publish."
+    },
+    {
+      "id": "deprecated",
+      "name": "Deprecated",
+      "promoted": false,
+      "blurb": "Superseded. Kept for the record until nothing points at them."
+    }
+  ]
+}

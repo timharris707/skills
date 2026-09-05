@@ -1489,3 +1489,8 @@ h2 {
     scroll-behavior: auto !important;
   }
 }
+
+/* Edition choice stays visible beside the skill it changes. */
+.edition-switch { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 1rem 0; }
+.edition-switch a { padding: 0.4rem 0.8rem; border: var(--hairline); border-radius: 999px; font-size: 0.85rem; }
+.edition-switch a[aria-current="page"] { background: var(--ink); color: var(--paper); }

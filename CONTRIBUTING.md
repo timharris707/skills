@@ -35,6 +35,8 @@ Buckets are declared in [`skills/buckets.json`](./skills/buckets.json), and each
 4. Write `agents/openai.yaml` with a `display_name` and `short_description`
 5. Add it to the router roster if it joins the `team-workflow` pack
 6. Give it a position in `site/src/lib/catalog.ts` so the hero chart can draw it
+7. Adapt it for Codex and run `python3 scripts/build_codex_plugin.py`; commit the
+   generated `plugins/clickai-codex/` package. `--check` verifies it in CI.
 
 Retiring one is the same in reverse. Run the freshness check and it names whichever step you missed:
 
@@ -65,3 +67,19 @@ e.g. `advisory-board/v0.5.0`). Pushing a version tag triggers the `release` work
 publishes the release from that skill's `CHANGELOG.md`. Cut a release when a **milestone PR merges
 to `main`** — not on every PR. Keep the skill's `CHANGELOG.md` current as you work. See
 [`RELEASING.md`](./RELEASING.md) for the scheme, cadence, and exact commands.
+
+## Maintaining the Codex edition
+
+The original catalog remains under `skills/`. The Codex desktop adaptation lives
+in `editions/codex/skills.patch` with hashes of the exact upstream files it adapts.
+Review each affected contract when those sources change, then refresh the patch
+and its `upstream.json` hashes. When original provenance should not be repeated
+in a public diff, keep a sanitized replacement under `editions/codex/overrides/`
+at the original repository-relative path. Its original source hash is reviewed too. Common helpers are copied from their original
+source; the generated package is not an independent place to edit them.
+
+Run `python3 scripts/build_codex_plugin.py` to update the complete distributable
+at `plugins/clickai-codex/`. CI checks a fresh generation against every published
+byte and executable permission, catalog identity, resource links, and privacy.
+Keep personal installations and organization policy outside these public inputs.
+For release steps, see [Releasing](RELEASING.md#codex-desktop-edition).

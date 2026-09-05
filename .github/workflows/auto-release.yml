@@ -26,6 +26,7 @@ on:
       - main
     paths:
       - ".claude-plugin/marketplace.json"
+      - "plugins/clickai-codex/.codex-plugin/plugin.json"
   workflow_dispatch:
 
 concurrency:
@@ -61,6 +62,7 @@ jobs:
           import sys
 
           plugins = json.load(open(".claude-plugin/marketplace.json"))["plugins"]
+          plugins.append(json.load(open("plugins/clickai-codex/.codex-plugin/plugin.json")))
           released = set(open("released.txt").read().split())
           work = []
           bad = []
@@ -77,7 +79,17 @@ jobs:
                   capture_output=True,
               ).returncode == 0
               if tag_exists and tag in released:
-                  continue
+                  if name != "clickai-codex":
+                      continue
+                  # Release creation precedes uploads. A failed upload must remain
+                  # eligible for reconciliation even when its release exists.
+                  release = json.loads(subprocess.check_output(
+                      ["gh", "release", "view", tag, "--json", "assets"], text=True,
+                  ))
+                  asset_names = {asset["name"] for asset in release["assets"]}
+                  archive = f"clickai-codex-v{version}.zip"
+                  if {archive, archive + ".sha256"} <= asset_names:
+                      continue
               # Validate the changelog section NOW, before anything is tagged:
               # a red run with nothing tagged retries cleanly; a pushed tag
               # with no publishable notes would be skipped by every future

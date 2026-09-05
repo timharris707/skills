@@ -97,9 +97,10 @@ def split_source(raw: str) -> tuple[dict[str, str], str]:
     return fields, body
 
 
-def check_twin(slug: str, skill_file: Path, base: str) -> list[str]:
+def check_twin(slug: str, skill_file: Path, base: str, edition: str = "claude") -> list[str]:
     fields, source_body = split_source(skill_file.read_text(encoding="utf-8"))
-    served = fetch_when_up(f"{base}/skills/{slug}.md").decode("utf-8")
+    prefix = "/codex" if edition == "codex" else ""
+    served = fetch_when_up(f"{base}{prefix}/skills/{slug}.md").decode("utf-8")
 
     head, sep, rest = served.partition("\n---\n\n")
     if not sep:
@@ -130,6 +131,11 @@ def check_twin(slug: str, skill_file: Path, base: str) -> list[str]:
             f"{slug}: served body diverges from {skill_file.relative_to(REPO_ROOT)} "
             f"around body line {line} (want {want[at:at + 40]!r}, got {got[at:at + 40]!r})"
         )
+    trailer = rest[cut:]
+    if edition == "codex" and "codex plugin add clickai-codex@clickai" not in trailer:
+        failures.append(f"{slug}: Codex twin has incorrect installation guidance")
+    if edition == "claude" and "claude plugin install" not in trailer:
+        failures.append(f"{slug}: Claude twin has incorrect installation guidance")
     return failures
 
 
@@ -148,11 +154,18 @@ def main() -> None:
     failures = []
     for slug, skill_file in skills:
         failures.extend(check_twin(slug, skill_file, args.base))
+        codex_file = REPO_ROOT / "plugins/clickai-codex" / skill_file.relative_to(REPO_ROOT)
+        failures.extend(check_twin(slug, codex_file, args.base, "codex"))
+
+    if not args.slug or args.slug == "handoff":
+        page = fetch_when_up(f"{args.base}/codex/skills/handoff").decode("utf-8")
+        if "handoff ends a session" in page or "current Codex task can recover after compaction" not in page:
+            failures.append("Codex handoff page must describe same-task recovery")
 
     if failures:
         print("\n".join(failures), file=sys.stderr)
         raise SystemExit(1)
-    print(f"markdown twins byte-identical for all {len(skills)} promoted skills")
+    print(f"markdown twins byte-identical for both editions of all {len(skills)} promoted skills")
 
 
 if __name__ == "__main__":

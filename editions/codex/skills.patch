@@ -1,0 +1,1588 @@
+--- a/skills/author/huh/SKILL.md
++++ b/skills/author/huh/SKILL.md
+@@ -1,11 +1,13 @@
+ ---
+ name: huh
+-description: "Decode a message that didn't land: restate it in plain sentences, expand invented shorthand, split report from request, and flag claims stated without evidence. Use when the user signals your last message didn't land (\"huh?\", \"what do you mean\"), or pastes agent output from another session to translate."
++description: "Explain an unclear message in plain language, distinguishing results, requests, and unsupported claims."
+ ---
+ 
+ # Huh
+ 
+-Decode one message that failed its reader. The output is a translation, nothing more: perform no new work, and add no facts the target does not carry.
++Read the [Codex desktop binding](../../../CODEX.md) when this workflow needs harness mechanics, model routing, or recovery.
++
++Decode one message that failed its reader. The explanation translates the target and adds no unsupported facts. If this is a side question during authorized work, answer it first and then continue that work unless the user paused or canceled it. The explanation itself authorizes no new changes.
+ 
+ ## Target
+ 
+@@ -30,7 +32,7 @@
+ - Every coined term is expanded or marked unknown; none is silently dropped.
+ - The reader can quote what is being asked of them, or the answer says nothing is.
+ - Every settled-sounding claim either carried its evidence in the target or is flagged.
+-- The answer performed no new work and added no fact the target does not carry.
++- The explanation added no unsupported fact or new scope; any ongoing work respected the latest user instructions.
+ 
+ ## Attribution
+ 
+--- a/skills/author/plainspoken/SKILL.md
++++ b/skills/author/plainspoken/SKILL.md
+@@ -1,9 +1,11 @@
+ ---
+ name: plainspoken
+-description: Write like a person in everything you emit. Plain words, concrete claims, no AI tells. Use when writing any chat reply, status update, close-out, review comment, or commit message (always on for those), when a passage you drafted reads generated, or when reviewing prose another agent wrote.
++description: "Use plain, concrete language in messages, reviews, and commits; remove AI phrasing without inventing facts."
+ ---
+ 
+ # Plainspoken
++
++Read the [Codex desktop binding](../../../CODEX.md) when this workflow needs harness mechanics, model routing, or recovery.
+ 
+ Every message you send is prose someone reads. This skill governs how that prose sounds, everywhere: chat replies, status updates, close-outs, review comments, commit messages. It fires on its own. Nobody has to ask you to write like a person.
+ 
+--- a/skills/author/writing-for-agents/SKILL.md
++++ b/skills/author/writing-for-agents/SKILL.md
+@@ -1,9 +1,11 @@
+ ---
+ name: writing-for-agents
+-description: "Write and prune documents an agent consumes: a SKILL.md, an AGENTS.md or CLAUDE.md, a rules file, a reference file reached by a pointer. Use when authoring or revising a skill, editing standing agent instructions or recording a decision as a rule agents will follow (a CLAUDE.md, AGENTS.md, CODE-RULES, or conduct-rules entry), or diagnosing why a document fires unreliably or gets skimmed."
++description: "Write or refine skills and agent instructions for reliable triggers, clear scope, and checkable completion."
+ ---
+ 
+ # Writing for Agents
++
++Read the [Codex desktop binding](../../../CODEX.md) when this workflow needs harness mechanics, model routing, or recovery.
+ 
+ Every document an agent reads is a **behavior lever**, not prose. The packaging differs across a skill, a standing instruction file, and a reference reached by a pointer, but the writing does not: the same levers make each one predictable. Predictable means the agent takes the same *process* every run. It does not mean the agent produces the same output.
+ 
+--- a/skills/author/writing-for-agents/references/skill-mechanics.md
++++ b/skills/author/writing-for-agents/references/skill-mechanics.md
+@@ -21,7 +21,7 @@
+ 
+ Optional fields, used sparingly:
+ 
+-- `disable-model-invocation: true`: the skill fires only when the user names it. Correct for skills whose whole value is a deliberate human act (a live interview, a wrap-up). Wrong for skills the agent should notice it needs.
++- Claude's `disable-model-invocation: true` is not the Codex invocation control. Codex uses `policy.allow_implicit_invocation: false` in `agents/openai.yaml` when explicitly requested. With explicit-only invocation, the skill fires only when the user names it. Correct for skills whose whole value is a deliberate human act (a live interview, a wrap-up). Wrong for skills the agent should notice it needs.
+ - `argument-hint`: the placeholder shown after the skill name for user-invoked skills.
+ 
+ ## Choosing the invocation mode
+@@ -29,7 +29,7 @@
+ | The skill should fire… | Mode |
+ | --- | --- |
+ | whenever the agent recognizes the situation | agent-invoked (default); spend the description on branch triggers |
+-| only when the user decides it is time | user-invoked (`disable-model-invocation: true`); the description is a menu entry, and can be short |
++| only when the user decides it is time | explicit-only (Codex: `agents/openai.yaml` invocation policy); the description is a menu entry, and can be short |
+ | both, through a thin user-facing alias | two skills: the reference skill agent-invoked, plus a one-line invoker |
+ 
+ The third row is a real pattern, not a workaround: an agent-invoked reference skill holds the process and a short user-invoked skill exists purely so a person can name it. Keep the process in exactly one of them: the alias points, it does not restate. That pointing link is also how the catalog reads the pattern: a SKILL.md link from a user-invoked skill to another promoted skill's SKILL.md is an alias claim (the target classifies as invocable either way), so a user-invoked skill that merely wants to mention a sibling links to its directory or names it in plain text, not its SKILL.md.
+@@ -65,7 +65,7 @@
+ 
+ ## Running on Codex as well as Claude
+ 
+-A skill is a `SKILL.md`, and both runtimes read it directly, so the *instructions* are already portable. What differs is packaging, and it takes two files plus one per skill:
++A skill is a `SKILL.md`, and both runtimes read it directly, but tool names, lifecycle, and approval assumptions must still be checked for the active harness. What differs is packaging, and it takes two files plus one per skill:
+ 
+ | | Claude Code | Codex |
+ | --- | --- | --- |
+@@ -74,7 +74,7 @@
+ | Per-skill metadata | frontmatter only | frontmatter **plus** `agents/openai.yaml` |
+ | Plugins per repo | many | **one per plugin root** |
+ 
+-The **one-plugin-per-root** rule is the only real asymmetry: a Codex plugin root is the directory holding `.codex-plugin/`, and skill paths are relative to it, so a repo root can host exactly one Codex plugin. This catalog therefore ships five Claude plugins (`advisory-board`, `team-workflow`, `ingest`, `writing-for-agents`, `writing-for-humans`) and one Codex plugin (`clickai-skills`) containing the same nineteen skills. Different shape, identical contents; CI enforces the "identical contents" half.
++This edition installs as `clickai-codex` through the Codex marketplace. Resolve the installed plugin root from the actual skill path; cache locations can vary by client and profile. The original catalog remains the maintained source inventory, and reviewed adaptations generate the complete published package while preserving the Claude edition. Skill counts come from the manifest rather than a copied number. UI metadata makes a skill discoverable; actual harness mechanics belong in the desktop reference and its adapted instructions.
+ 
+ **`skills` in `.codex-plugin/plugin.json` accepts an array of paths, and Codex exposes only those paths.** This is worth stating plainly because the widely-cited constraint says otherwise: that Codex accepts only a single path string and discovers `SKILL.md` recursively beneath it, which would make a curated subset impossible in a bucketed repo. Verified against **Codex CLI 0.146.0** with a control: a scratch plugin containing one promoted and one unpromoted skill, both carrying the same marker string.
+ 
+--- a/skills/author/writing-for-humans/SKILL.md
++++ b/skills/author/writing-for-humans/SKILL.md
+@@ -1,9 +1,11 @@
+ ---
+ name: writing-for-humans
+-description: "Write copy a human reads: a landing page, a README's front half, a launch post, a profile page. Use when drafting or revising public-facing prose, when a page reads like agent documentation, or when a finished draft needs its last-mile scrub for AI tells."
++description: "Write public copy in the project's voice, with clear structure and supported claims."
+ ---
+ 
+ # Writing for Humans
++
++Read the [Codex desktop binding](../../../CODEX.md) when this workflow needs harness mechanics, model routing, or recovery.
+ 
+ The sibling skill [writing-for-agents](../writing-for-agents/SKILL.md) makes documents predictable enough that an agent runs the same process every time. This skill makes pages worth a stranger's next minute: the reader is free to leave at any sentence, and the page earns each one. The compression that serves an agent reads cold to a human; when the document is a SKILL.md, an AGENTS.md, or a reference an agent consumes, use the sibling instead.
+ 
+@@ -45,9 +47,9 @@
+ - **Checkable claims only.** Every claim hands the reader a way to verify it: a link, a sourced number, or a behavior they can try. A claim that offers none is absent.
+ - **No stale numbers.** A count or date that will rot either lives where the release process updates it, or is written so it cannot rot ("the catalog table below is the current list").
+ - **Facts sacred.** Never invent a user, an anecdote, or a metric to sound human. Where a fact is missing, leave a visible placeholder and go get the fact.
+-- **Names only in praise.** A person or company is named in your copy only when the mention flatters them.
+-- **Dashes on a budget.** The em dash is one of the most recognized AI tells, and the clause-spliced rhythm it builds is the reason. A handful per page at most, each an earned interruption. Fix an overage by restructuring: split the sentence, subordinate with a comma, or cut the aside. Never swap a dash for another mark in place; the swap keeps the AI rhythm and only changes its costume.
+-- **Positioning is canon, reused verbatim.** The identity hook "I don't write code. I direct agents." and the wedge "I don't write code. I've shipped four products in five months." are standing first-person lines, never paraphrased (the wedge's numbers fall under no-stale-numbers: verify before use). The positioning stands on two legs, and copy carries both: interesting because the writer is not a coder, believable because the work is shown. The skills catalog is always positioned as the method that let a non-coder ship four products, never as generic portable skills. The canon lives in personal-marketing PLAN.md §1 and §7; when this skill and that doc disagree, the doc wins and this rule gets amended.
++- **Names need a purpose and evidence.** Name a person or company when relevant to the requested copy, with accurate and supported claims. Follow the project's recorded brand policy where one exists.
++- **Punctuation follows the requested voice.** The default plainspoken rule avoids em dashes. A project-specific voice sample can govern public copy when explicitly selected; do not let a generic dash allowance contradict the active voice rule.
++- **Use the project's actual positioning.** Read the project's current positioning before using autobiographical claims or numbers. Use its own voice, audience, and evidence.
+ 
+ ## Last-mile scrub
+ 
+@@ -67,7 +69,7 @@
+ - Hook first, quickest start second, reference last; every section leaves a visible next action.
+ - No insider term appears before the sentence that teaches it: the page teaches its vocabulary or drops it.
+ - Every claim is checkable or absent, every number has a live source or cannot rot, and nothing was invented to sound human.
+-- The dash budget was spent deliberately, and no over-budget dash was fixed by an in-place swap.
++- Punctuation follows the selected project voice; The default voice avoids em dashes, and flagged passages were restructured.
+ - The scrub ran last, whole clusters were rewritten, and the voice sample (when one exists) won every conflict with the tell rules.
+ - Every line of "It's working if" was checked against the final text, not assumed.
+ 
+--- a/skills/author/writing-for-humans/references/last-mile-scrub.md
++++ b/skills/author/writing-for-humans/references/last-mile-scrub.md
+@@ -9,18 +9,18 @@
+ ## Artifact-only additions (read before hunting)
+ 
+ - **The catalog's voice-sample rule does the artifact work here.** Its precedence over every pattern is defined in the catalog; this pass adds one clarification: the standing voice rules in [SKILL.md](../SKILL.md) are never outranked, even by a sample.
+-- **A dash budget, not the ban.** The catalog drops em dashes from agent prose outright. Shipped pages keep [SKILL.md](../SKILL.md)'s budget instead: roughly a handful per page, each one earning its place, with density alone enough to fire the tell. A voice sample that uses em dashes is the one exception: match the sample's frequency even past the budget. When a page runs over otherwise, restructure: split the sentence, subordinate the aside with a comma, or cut it. A mechanical in-place swap of a dash for any other mark preserves the exact rhythm the budget exists to break, which is the anti-pattern the catalog's redraft rule already names.
++- **Follow the selected voice.** The default voice avoids em dashes. When a project-specific voice sample was explicitly selected, follow its punctuation. Restructure a flagged sentence rather than mechanically swapping punctuation; preserve the facts and intended action.
+ 
+ ## The pass
+ 
+-1. Read the draft aloud (or as if aloud). Mark passages the catalog's method flags, and judge the dash count per page; when it runs over budget, mark the stretches carrying the least-earned dashes; that tell needs no company.
++1. Read the draft aloud (or as if aloud). Mark passages the catalog flags and punctuation that conflicts with the selected voice.
+ 2. Redraft each marked passage per the catalog's redraft rule, keeping its facts and its next-action.
+ 3. Reread once end-to-end for rhythm: sentence lengths should vary, and no two adjacent paragraphs should open the same way.
+ 
+ ## Done when
+ 
+ - Every passage where tells clustered was redrafted whole, and no new facts entered.
+-- The page ends inside its dash budget (a handful at most), or matching its voice sample's dash frequency where one exists, and no over-budget dash was fixed by an in-place swap.
++- Punctuation matches the selected voice, and flagged passages were restructured rather than mechanically swapped.
+ - The voice sample, when one exists, won every conflict with the catalog.
+ - One read-through end-to-end found varied rhythm and no chatbot artifacts.
+ 
+--- a/skills/decide/advisory-board/CHANGELOG.md
++++ b/skills/decide/advisory-board/CHANGELOG.md
+@@ -3,7 +3,7 @@
+ All notable changes to the `advisory-board` skill are documented here.
+ 
+ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Releases are
+-cut as **skill-scoped semver tags** `advisory-board/vX.Y.Z` (see [`RELEASING.md`](../../../RELEASING.md)).
++cut as **skill-scoped semver tags** `advisory-board/vX.Y.Z` (see [`RELEASING.md`](https://github.com/timharris707/skills/blob/main/RELEASING.md)).
+ The skill follows SemVer; its artifact schemas (for example `advisory-board/verdict@N`) are
+ versioned separately and do not replace the skill release version.
+ 
+--- a/skills/decide/advisory-board/README.md
++++ b/skills/decide/advisory-board/README.md
+@@ -14,7 +14,7 @@
+ 
+ Default behavior: two rounds of review and rebuttal; read-only unless edits are explicitly requested; you see exactly what would be sent to each provider and approve it before anything leaves your machine — redact what's sensitive, or run a fully local board where nothing is sent at all.
+ 
+-**Run it your way.** Advisory Board is a provider-agnostic agent skill — convene the board through Claude Code, Codex, or whatever harness you prefer. Install it from the [repo root](../../../README.md#install-claude-code), or read [`SKILL.md`](./SKILL.md) directly.
++**Run it your way.** Advisory Board is a provider-agnostic agent skill — convene the board through Claude Code, Codex, or whatever harness you prefer. Install it from the [repo root](../../../README.md), or read [`SKILL.md`](./SKILL.md) directly.
+ 
+ > **Prefer a polished app instead?** [Panely](https://github.com/timharris707/panely) is a sibling product built around the same idea — a local-first advisory room. Advisory Board is the open agent skill; Panely is the app. Same maker.
+ 
+@@ -28,15 +28,15 @@
+ 
+ - **The 30-second brief:** [quick-verdict for the relocation decision](https://htmlpreview.github.io/?https://github.com/timharris707/skills/blob/main/examples/should-we-relocate-our-family-across-the-country-for-this-job-offer/quick-verdict.html) — the verdict, the must-resolve blockers as one-liners, the top next steps. The teaser you'd forward.
+ - **The full handoff:** [the complete record](https://htmlpreview.github.io/?https://github.com/timharris707/skills/blob/main/examples/should-we-relocate-our-family-across-the-country-for-this-job-offer/final-consensus.html) — the round-by-round debate, every consensus blocker, and preserved cross-model dissent (Gemini: *"you're shorting your marital operating system"*).
+-- **See the input, too:** [the decision brief](../../../examples/should-we-relocate-our-family-across-the-country-for-this-job-offer/decision.md) the board reviewed — good input in, good output out.
++- **See the input, too:** [the decision brief](https://github.com/timharris707/skills/tree/main/examples/should-we-relocate-our-family-across-the-country-for-this-job-offer/decision.md) the board reviewed — good input in, good output out.
+ 
+ Every run ends in a single, self-contained HTML handoff that opens offline in any browser with no dependencies.
+ 
+-**Also built for engineers:** point the board at a real codebase and advisors cite exact `path:line` evidence. Every run also emits a machine-readable [`verdict.json`](../../../examples/payments-idempotency-review/verdict.json); [`scripts/board_verdict.py`](./scripts/board_verdict.py) `--gate` turns the board's `ship | caution | block` call into a CI exit code, and [`scripts/format_output.py`](./scripts/format_output.py) reshapes it into a PR comment, Slack message, or TL;DR. See the technical [payments idempotency review](https://htmlpreview.github.io/?https://github.com/timharris707/skills/blob/main/examples/payments-idempotency-review/final-consensus.html) for a code-grounded run.
++**Also built for engineers:** point the board at a real codebase and advisors cite exact `path:line` evidence. Every run also emits a machine-readable [`verdict.json`](https://github.com/timharris707/skills/tree/main/examples/payments-idempotency-review/verdict.json); [`scripts/board_verdict.py`](./scripts/board_verdict.py) `--gate` turns the board's `ship | caution | block` call into a CI exit code, and [`scripts/format_output.py`](./scripts/format_output.py) reshapes it into a PR comment, Slack message, or TL;DR. See the technical [payments idempotency review](https://htmlpreview.github.io/?https://github.com/timharris707/skills/blob/main/examples/payments-idempotency-review/final-consensus.html) for a code-grounded run.
+ 
+-**More runs to browse:** the [side-project go-full-time decision](../../../examples/side-project-go-full-time-review/), the [API rate-limiter readiness review](../../../examples/ratelimiter-readiness-review/), and the board [dogfooding the design of its own next feature](https://htmlpreview.github.io/?https://github.com/timharris707/skills/blob/main/examples/dogfood-fixit-design-roundtable/final-consensus.html) — a 3-seat design roundtable with preserved cross-model dissent.
++**More runs to browse:** the [side-project go-full-time decision](https://github.com/timharris707/skills/tree/main/examples/side-project-go-full-time-review/), the [API rate-limiter readiness review](https://github.com/timharris707/skills/tree/main/examples/ratelimiter-readiness-review/), and the board [dogfooding the design of its own next feature](https://htmlpreview.github.io/?https://github.com/timharris707/skills/blob/main/examples/dogfood-fixit-design-roundtable/final-consensus.html) — a 3-seat design roundtable with preserved cross-model dissent.
+ 
+-**The board reviewing its own PRs:** during the v1.13→v1.15 release train, every substantial PR got a 2-seat board review (Claude Opus + Codex gpt-5.5) on a frozen review packet, then a `--revise` re-review of the fixes — each pair linked by directory suffix (the revise run appends the next numeric suffix to the original run's directory name). Browse the committed rulings: the [endorsement-pass review](../../../examples/v1-13-p4-endorsement-pass-pr-review-2026-07-02/) (`block` → `caution` across the revise pass), the [echo-score review](../../../examples/v1-14-p2-echo-score-pr-review-2026-07-02/) (the board ruled `block` where a solo review agent had said ship — divergence with recorded dissent), the [live-progress review](../../../examples/v1-14-p3-live-progress-pr-review-2026-07-02/) (`caution` → a clean `ship`), and the [rubric-round review](../../../examples/v1-15-p2-rubric-round-pr-review-2026-07-02-2/) (a split `block` with preserved cross-seat dissent; [the revise pass](../../../examples/v1-15-p2-rubric-round-pr-review-2026-07-02-3/) confirmed both blockers fixed and surfaced a new one). There's also a second design roundtable: the [rubric-first deliberation brief](../../../examples/v1-15-rubric-first-design-brief-2026-07-02/) — 3 seats, unanimous `caution`, three preserved dissents.
++**The board reviewing its own PRs:** during the v1.13→v1.15 release train, every substantial PR got a 2-seat board review (Claude Opus + Codex gpt-5.5) on a frozen review packet, then a `--revise` re-review of the fixes — each pair linked by directory suffix (the revise run appends the next numeric suffix to the original run's directory name). Browse the committed rulings: the [endorsement-pass review](https://github.com/timharris707/skills/tree/main/examples/v1-13-p4-endorsement-pass-pr-review-2026-07-02/) (`block` → `caution` across the revise pass), the [echo-score review](https://github.com/timharris707/skills/tree/main/examples/v1-14-p2-echo-score-pr-review-2026-07-02/) (the board ruled `block` where a solo review agent had said ship — divergence with recorded dissent), the [live-progress review](https://github.com/timharris707/skills/tree/main/examples/v1-14-p3-live-progress-pr-review-2026-07-02/) (`caution` → a clean `ship`), and the [rubric-round review](https://github.com/timharris707/skills/tree/main/examples/v1-15-p2-rubric-round-pr-review-2026-07-02-2/) (a split `block` with preserved cross-seat dissent; [the revise pass](https://github.com/timharris707/skills/tree/main/examples/v1-15-p2-rubric-round-pr-review-2026-07-02-3/) confirmed both blockers fixed and surfaced a new one). There's also a second design roundtable: the [rubric-first deliberation brief](https://github.com/timharris707/skills/tree/main/examples/v1-15-rubric-first-design-brief-2026-07-02/) — 3 seats, unanimous `caution`, three preserved dissents.
+ 
+ The look comes from one template, [`handoff-template.html`](./references/handoff-template.html), so any agent that installs the skill renders the same clean output.
+ 
+--- a/skills/decide/advisory-board/SKILL.md
++++ b/skills/decide/advisory-board/SKILL.md
+@@ -1,9 +1,11 @@
+ ---
+ name: advisory-board
+-description: "Convene a multi-model advisory board: subscription-backed Claude, Codex, Gemini, and Grok CLIs reviewing the same material in formal, roundtable, or competitive mode. Use when the user asks for an advisory board, roundtable, panel, or idea tournament; a multi-model or cross-provider review or debate; a red-team of a plan, design, decision, or document by several models; or a consensus handoff from several frontier models."
++description: "Run an explicitly authorized multi-model review or debate with recorded seats, costs, and evidence."
+ ---
+ 
+ # Advisory Board
++
++Read the [Codex desktop binding](../../../CODEX.md) when this workflow needs harness mechanics, model routing, or recovery.
+ 
+ Bring an idea, problem, plan, or architecture to a board of frontier models sitting in different roles. The board runs in one of three **modes**, the interaction topology chosen with the user at intake (`references/modes.md`). **Formal Board Review** is the default and the protocol this document defines: an independent first round, then rebuttal, then a structured verdict. **Roundtable** is collaborative, on a shared transcript, with an optional moderator. **Competitive** runs pitch, then critique, then a blind vote. Whatever the mode, you leave with the strongest conclusion the board can reach together and a clean takeaway, not disconnected opinions.
+ 
+@@ -17,7 +19,7 @@
+ - **Never skip the data-handling disclosure** for non-public material, not even when the user says "use defaults." Disclose what leaves the machine and to whom, and get a go-ahead, before any external seat runs (`references/data-handling.md`).
+ - **Never present a degraded or dropped seat as a full board**: label it on the seat card and in `verdict.json` (`dropped: true`) on a Formal Board Review run; Roundtable and Competitive, which emit no `verdict.json`, record it in `run-metadata.md` and name it in `synthesis.md`/`results.md` (`references/modes.md`). A board needs at least two seats that actually ran.
+ - **Never print or store secrets** in prompts, packets, artifacts, logs, or metadata: no keys, tokens, cookies, or private environment values.
+-- **Never launch a run the user hasn't confirmed.** The guided intake (`references/intake-interview.md`) is mandatory: mode, seats, lenses, effort, rounds, and output are the user's choices, made on the record. "Use defaults" collapses the intake to a single confirm-summary card, never to zero questions.
++- **Never launch a run the user hasn't confirmed.** The guided intake (`references/intake-interview.md`) is mandatory: mode, seats, lenses, effort, rounds, and output are the user's choices, made on the record. An already explicit approval of a complete plan satisfies its confirmation; reuse it. "Use defaults" still needs a concrete plan when seats, cost, or data scope have not yet been established.
+ 
+ ## Core Defaults
+ 
+@@ -36,27 +38,27 @@
+ 
+ Every run opens with the wizard in `references/intake-interview.md`, presented as selection cards like the `grilling` skill's rounds, recommendation first. The sequence, in order:
+ 
+-1. **Doctor first.** Probe every registered seat (`run_board.py doctor`); report per-seat GO/NO-GO in plain terms; for each broken seat offer fix-now (installs/updates only with an explicit yes; auth is always the user's hands), continue-without, or abort. Never offer a seat you haven't confirmed.
++1. **Preflight first, within authorization.** Read the registered CLI capabilities before offering seats. Doctor includes model smoke calls, so announce their count and rough usage and obtain any required provider authorization before running it. A Claude smoke call counts as Anthropic work. Check only authorized providers when the installed command supports selection; otherwise use individual version/auth checks and authorized smoke calls. Report GO/NO-GO without contacting an unapproved seat.
+ 2. **Goal → mode.** Hear the goal in the user's words, recommend a mode (and lens preset) from `references/modes.md` §Choosing a mode, and let the user pick from all three.
+ 3. **Seats.** Any 2–10 of the GO providers ("latest frontier of each" is the shortcut); show the seat→provider→lens table before launch; warn on cost for big or deep boards.
+ 4. **Reasoning depth.** Highest available (default) / Standard / Quick via `--tier`; per-seat overrides on request.
+ 5. **Rounds and output.** With defaults marked.
+ 6. **Confirm-summary.** The resolved plan as one card; nothing launches without this yes.
+ 
+-"Use defaults" resolves steps 2-5 to defaults and goes to step 6, but only after step 1 completes and its findings are applied to the card: doctor still runs, a seat that is not GO is never a default, and below two GO seats there is no defaults board (step 3's fallbacks are settled with the user first). It never skips the confirmation, and it never waives data-handling consent: if the material isn't clearly public, still disclose which providers will receive it and get an explicit go-ahead before launching any external seat (`references/data-handling.md`).
++"Use defaults" resolves steps 2-5 to defaults and goes to step 6, but only after step 1 completes and its findings are applied to the card: doctor still runs, a seat that is not GO is never a default, and below two GO seats there is no defaults board (step 3's fallbacks are settled with the user first). An existing explicit confirmation of the same resolved plan remains valid, and it never waives data-handling consent: if the material isn't clearly public, still disclose which providers will receive it and get an explicit go-ahead before launching any external seat (`references/data-handling.md`).
+ 
+ ## Model Lineup
+ 
+ Target the strongest reasoning model each provider offers **at run time**. Defaults use provider-maintained selectors so new frontier releases do not require a skill edit; explicit `--model seat=id` overrides pin exact IDs.
+ 
+ - Claude seat: Anthropic's maintained `fable` alias at `--effort max`. Where `fable` doesn't resolve (older CLI or account), preflight proposes the `opus` fallback and never applies it silently.
+-- Codex seat: the Codex CLI's recommended model (no exact model pin) with `model_reasoning_effort="xhigh"`.
++- Codex seat: use an explicit `--model codex=gpt-6-astra` when Astra is requested, with the approved effort. Confirm `CODEX_HOME` and the resolved model from the actual CLI output; an unpinned `auto` seat follows that CLI profile's configuration and is not proof of a particular model.
+ - Gemini seat: Google's maintained `pro` alias (latest highest-reasoning Pro model) with the CLI's highest available thinking level.
+ - Grok seat: `grok-4.5` through the official `grok` CLI at `--effort high`, the only model the CLI currently lists.
+ 
+ The selector (`fable`, `pro`, `grok-4.5`, or Codex `auto`) and the model that actually answered are separate provenance fields. If a CLI cannot report the resolved ID, record `unknown` rather than pretending. Use an exact `--model` override for an eval or replay that must not float.
+ 
+-**Preflight.** Run `references/preflight.md` before launching: for each seat, check the CLI is present, auth is active (subscription-backed where possible), the requested model resolves, and a one-token smoke ping returns. First run or new machine: `run_board.py doctor` sweeps **every** registered provider with per-provider fix-it steps and a viable-board summary: probes and smoke-pings only, it never reads or sends your material; `run_board.py toolchain` checks CLI currency and (consent-gated) updates or installs. Proceed only with at least two seats GO; fewer isn't a dead end: preflight distinguishes *not installed* from *installed-but-unauthed* and names the fallbacks: a same-provider multi-lens board or a local/human seat (`references/board-composition.md`). Label any degraded or dropped seat in the handoff.
++**Preflight.** Run `references/preflight.md` before launching: for each seat, check the CLI is present, auth is active (subscription-backed where possible), the requested model resolves, and a one-token smoke ping returns. First run or new machine: after authorizing its smoke calls, `run_board.py doctor` sweeps **every** registered provider with per-provider fix-it steps and a viable-board summary: probes and smoke-pings only, it never reads or sends your material; `run_board.py toolchain` checks CLI currency and (consent-gated) updates or installs. Proceed only with at least two seats GO; fewer isn't a dead end: preflight distinguishes *not installed* from *installed-but-unauthed* and names the fallbacks: a same-provider multi-lens board or a local/human seat (`references/board-composition.md`). Label any degraded or dropped seat in the handoff.
+ 
+ ## Seats
+ 
+--- a/skills/decide/advisory-board/references/execution-harness.md
++++ b/skills/decide/advisory-board/references/execution-harness.md
+@@ -70,7 +70,7 @@
+ ## Gate before continuing
+ 
+ ```bash
+-ran=$(grep -cE '\bran\b|\bdegraded\b' run-metadata.tsv)
++ran=$(awk -F'\t' '$3 ~ /^(ran|degraded)( |$)/ { seen[$1]=1 } END { for (seat in seen) n++; print n+0 }' run-metadata.tsv)
+ [ "$ran" -ge 2 ] || { echo "fewer than two seats produced a review — stop, don't synthesize a one-voice board"; exit 1; }
+ ```
+ 
+--- a/skills/decide/advisory-board/references/intake-interview.md
++++ b/skills/decide/advisory-board/references/intake-interview.md
+@@ -1,12 +1,12 @@
+ # Guided Intake: the wizard
+ 
+-Every board run opens with this intake. It is **mandatory**: the run's shape is chosen by the user on the record, never by the agent on the user's behalf: mode, seats, lenses, effort, rounds, output. The one fast path is `use defaults`, which collapses steps 2-5 into a single confirm-summary card (step 6); it never skips step 1, it never collapses below two GO seats (step 3's fallbacks are the user's call), it never skips confirmation, and it never waives data-handling consent.
++Every board run has a user-authorized plan covering mode, seats, lenses, effort, rounds, output, and data handling. Reuse a complete plan already approved in the current request or a recorded decision. Ask only for material missing or changed choices. `use defaults` resolves choices only after the user can review the concrete seats and costs; it never waives the two-seat minimum or data-handling authorization.
+ 
+-Present choices the way the `grilling` skill does: choice-shaped questions as selection cards with your recommendation first and marked `(Recommended)`, at most four cards per round; open questions as ❓/➡️ text. Where cards aren't available, ask the same questions as numbered text.
++Use the available Codex question tool and its current schema, as described by grilling. Present small coherent batches with the recommendation first. Use free-text questions for missing facts and honor pending required answers; elapsed time is not consent.
+ 
+-## Step 1: Doctor first
++## Step 1: Authorized preflight
+ 
+-Run `run_board.py doctor` (or the manual preflight, `references/preflight.md`) before proposing anything. Never offer the user a seat you have not confirmed is GO today.
++Inspect CLI capabilities first. Doctor performs smoke calls across registered providers, so announce the call count and rough usage and check provider authorization before running it. For a subset, use individual version/auth checks and one authorized smoke call per proposed provider unless the installed command supports selection. Every offered seat must be verified GO; an unapproved provider is not contacted, including Anthropic smoke calls.
+ 
+ Report per-seat status in plain terms, e.g. `grok: installed but not logged in` or `gemini: CLI missing`, and for each broken seat offer exactly three choices:
+ 
+@@ -16,7 +16,7 @@
+ 
+ ## Step 2: Goal, then mode
+ 
+-Ask for the goal in the user's own words (❓ text, not a card), then classify it into an intent and recommend a mode from the table in `references/modes.md` §Choosing a mode. Show the recommendation as a card with the other two modes and their one-liners beside it: the user picks; a goal never silently implies a mode.
++Reuse the user's stated goal and chosen mode. If either is missing, ask for the goal or recommend a mode with its alternatives from `references/modes.md` §Choosing a mode; the user resolves a materially open choice.
+ 
+ The stated goal also settles the lens preset recommendation (`references/lens-presets.md`) and, when it names a repo or code, whether to offer `--repo` grounding.
+ 
+@@ -35,7 +35,7 @@
+ 
+ ## Step 4: Reasoning depth
+ 
+-One card: **Highest available** (the default: Claude `fable` at `max`, Codex `xhigh`, Gemini highest thinking, Grok `high`) / **Standard** / **Quick**, resolved through the `--tier` machinery (`SKILL.md` §Core Defaults). Note that any single seat can be overridden on request; don't table every seat unless asked.
++Reuse approved effort. When unresolved, offer **Highest available** (the default: Claude `fable` at `max`, Codex `xhigh`, Gemini highest thinking, Grok `high`) / **Standard** / **Quick**, resolved through the `--tier` machinery (`SKILL.md` §Core Defaults). Note that any single seat can be overridden on request; don't table every seat unless asked.
+ 
+ ## Step 5: Rounds and output
+ 
+@@ -45,13 +45,13 @@
+ 
+ ## Step 6: Confirm-summary, then consent
+ 
+-Play back the fully resolved plan as one card the user approves before anything runs: mode (on Competitive, with `graft-and-verify close: on/off` as resolved), seats with lenses, effort, rounds, output, and where artifacts land. **Nothing launches without this yes.** `use defaults` reaches this card only through step 1: run doctor first, resolve each broken seat with the user (fix, continue without, or abort), and only then resolve steps 2-5 to defaults and build this card from what doctor confirmed. A seat that is not GO never appears on the card as a default, and below two GO seats defaults cannot fill the board: walk step 3's fallbacks with the user before this card (`references/board-composition.md` sets the two-seat minimum).
++Show the resolved plan before launch: mode, any optional phases, seats and lenses, effort, rounds, output, costs, and artifact location. Reuse an existing explicit approval of this same plan; otherwise obtain it. Build defaults from authorized GO seats, resolve unavailable seats, and keep the two-seat minimum. A changed provider, expanded data scope, or materially increased cost needs its applicable authorization before launch.
+ 
+-Data-handling consent (`references/data-handling.md`) is separate and unwaivable: for non-public material, disclose what leaves the machine and to whom, and get the explicit go-ahead; `use defaults` and the confirm-summary never cover it.
++Data-handling authorization (`references/data-handling.md`) remains required for non-public material: disclose what leaves the machine and to which providers. Reuse an explicit grant only for that same data and recipient scope; a generic defaults choice does not supply it.
+ 
+ ## Done when
+ 
+-- Doctor ran and every offered seat was GO (or the user chose fix/continue/abort per broken seat).
+-- The user picked the mode from a recommendation card; the agent never selected it for them.
++- Authorized preflight ran and every offered seat is GO; unavailable seats were resolved or reported.
++- The user selected the mode, in the current request, a recorded plan, or an answer to the open choice.
+ - The seat→provider→lens table was shown and confirmed; effort, rounds, and output each got an explicit answer or the confirmed default.
+-- The confirm-summary got a yes, and data-handling consent (where required) got its own yes.
++- The resolved plan and any required data handling have explicit authorization, reused where the same scope was already approved.
+--- a/skills/decide/advisory-board/references/lens-presets.md
++++ b/skills/decide/advisory-board/references/lens-presets.md
+@@ -61,7 +61,7 @@
+ - **Unimagined-failure hunter.** The failure class the author's framing excludes: wrong assumptions about the environment, scale, users, or time.
+ 
+ ### `stakeholder-panel`
+-"The room this decision would face": three distinct stakeholder archetypes, one per seat, in a fixed **seat-order binding**:
++"The room this decision would face": four distinct stakeholder archetypes, one per seat, in a fixed **seat-order binding**:
+ - **The decision owner.** The executive who must answer for the outcome: does it deliver, at what cost, what do we tell the board.
+ - **The end user.** The person this lands on: does it actually help them, what friction or harm does it create, would they choose it.
+ - **The compliance & risk reviewer.** The gatekeeper who signs off: what rule, obligation, or downside does this trip, and can we defend it.
+--- a/skills/decide/advisory-board/references/preflight.md
++++ b/skills/decide/advisory-board/references/preflight.md
+@@ -4,7 +4,7 @@
+ 
+ Goal: a go/no-go table. Proceed only when at least two seats are **GO** (a board needs at least two voices). Label any seat that is degraded or dropped in the final handoff.
+ 
+-> **New machine?** `run_board.py doctor` runs this whole preflight proactively across **every** registered provider (not just a chosen board): installed → version currency → auth → default model, with per-provider fix-it steps, a viable-board summary (≥ 2 seats GO), and a suggested first command. Probes and smoke-pings only: it never reads or sends your material.
++> **Doctor contacts providers.** `run_board.py doctor` includes model smoke calls across every registered provider. Announce the call count and rough usage and verify provider authorization first. If only a subset is approved, use the per-seat checks below or a supported provider filter; do not run a broad doctor that would contact an unapproved provider. A smoke prompt sends no project material but still consumes model usage.
+ 
+ ## Step 0: toolchain currency (run this first)
+ 
+@@ -35,7 +35,7 @@
+ 
+ ## What to check, per seat
+ 
+-For each seat in the lineup (Claude, Codex, Gemini, or whatever you're running):
++For each authorized provider in the proposed lineup:
+ 
+ 1. **CLI present.** The binary exists and runs.
+    - `claude --version` · `codex --version` · `gemini --version`
+@@ -50,7 +50,7 @@
+ 
+ ## Smoke-ping templates
+ 
+-Read-only, one-token answers. Adapt flags to the installed CLI.
++One-word answers from authorized providers only. These consume model usage even though they do not edit project files. Adapt flags to the installed CLI.
+ 
+ ```
+ # Claude
+--- a/skills/decide/advisory-board/scripts/_conductor/constants.py
++++ b/skills/decide/advisory-board/scripts/_conductor/constants.py
+@@ -5,6 +5,7 @@
+ import os
+ import sys
+ from datetime import date, datetime
++from typing import NoReturn, Optional
+ 
+ __all__ = [
+     "RECIPE_SCHEMA",
+--- a/skills/decide/advisory-board/scripts/_conductor/echo_score.py
++++ b/skills/decide/advisory-board/scripts/_conductor/echo_score.py
+@@ -167,7 +167,7 @@
+     for r in overlap_seats:
+         prev_v = prev_by[r.seat].verdict
+         curr_v = r.verdict
+-        if prev_v != curr_v:
++        if prev_v is not None and curr_v is not None and prev_v != curr_v:
+             flippers += 1
+             if majority is not None and curr_v == majority and prev_v != majority:
+                 flippers_toward_majority += 1
+@@ -225,7 +225,7 @@
+     """The coarse band from the sub-signals. Explainable rules, not a tuned score.
+ 
+     Two "echo" signals are recognized:
+-      * strong_flip — a majority of the considered seats flipped ONTO the emerging
++      * strong_flip — at least half of the considered seats flipped ONTO the emerging
+                       majority verdict in the final round (the convergence fingerprint);
+       * any_deference — at least one seat self-reported `deference` (self-reported echo).
+     Citation overlap CORROBORATES those signals but never stands alone: high overlap
+--- a/skills/decide/advisory-board/scripts/_conductor/recipe.py
++++ b/skills/decide/advisory-board/scripts/_conductor/recipe.py
+@@ -189,7 +189,7 @@
+             if not child.startswith("- "):
+                 die(f"run-recipe: expected list item under {key!r}, got {child!r}")
+             body = child[2:].strip()
+-            if ":" in body and not (body.startswith('"') and body.endswith('"')):
++            if ": " in body and not (body.startswith('"') and body.endswith('"')):
+                 # Mapping item: this line is its first key; deeper non-'- ' lines continue it.
+                 mapping: dict = {}
+                 mk, _, mv = body.partition(":")
+--- a/skills/decide/advisory-board/scripts/_conductor/redline.py
++++ b/skills/decide/advisory-board/scripts/_conductor/redline.py
+@@ -106,6 +106,7 @@
+     Returns `(rows, truncated, total)`:
+       * rows: a list of dicts, each one of —
+           {"kind": "context", "text": <line>}
++          {"kind": "gap",     "text": <omission note>}
+           {"kind": "delete",  "text": <line>}
+           {"kind": "insert",  "text": <line>}
+           {"kind": "replace", "del_segments": [...], "ins_segments": [...],
+--- a/skills/decide/advisory-board/scripts/_conductor/revision.py
++++ b/skills/decide/advisory-board/scripts/_conductor/revision.py
+@@ -1061,7 +1061,7 @@
+         "# Black-box recorder — revision",
+         "",
+         f"command         : {rr.argv_preview}",
+-        f"prompt-source   : prompts/revision.prompt",
++        "prompt-source   : prompts/revision.prompt",
+         f"prompt-template : {REVISION_TEMPLATE_VERSION} "
+         f"(sha256:{revision_template_sha()[:12]}…)",
+         f"prompt-hash     : sha256:{rr.prompt_hash}   (the exact bytes the revision seat received)",
+--- a/skills/decide/advisory-board/scripts/_conductor/rounds.py
++++ b/skills/decide/advisory-board/scripts/_conductor/rounds.py
+@@ -76,6 +76,7 @@
+     # cannot conjure an id the chair did not merge). None on a non-rubric run, so the
+     # score properties are empty/None and nothing about a plain run changes.
+     criterion_ids: Optional[tuple] = None
++    post_consent_rubric: bool = False  # Same predicate used by the egress guard.
+ 
+     @property
+     def usable(self) -> bool:
+@@ -368,6 +369,7 @@
+                                      round_packet_hash=round_packet_hash,
+                                      workdir=workdir, timeout=timeout, classify=classify,
+                                      criterion_ids=criterion_ids)
++            result.post_consent_rubric = scored_round1
+             # Map the seat's outcome to a live-view state. A retried-but-usable seat
+             # still reports its terminal usable state; a "retry" event would need a
+             # hook inside the retry loop — deferred (the two-attempt window is short
+@@ -416,7 +418,7 @@
+     prove same-material independence and bind it to the round's packet. Honestly
+     'falsifiable-by-inspection', not tamper-proof — it catches empty/lazy/drifted
+     runs, not a determined forger using the same orchestrator."""
+-    if r.round_no == 1 and not r.criterion_ids:
++    if r.round_no == 1 and not r.post_consent_rubric:
+         packet_note = "(egress consent was bound to this)"
+     elif r.round_no == 1:
+         # A rubric-SCORED round 1 injects the post-consent merged rubric, so it is NOT
+--- a/skills/decide/advisory-board/scripts/_embed_fonts.py
++++ b/skills/decide/advisory-board/scripts/_embed_fonts.py
+@@ -1,4 +1,5 @@
+ import urllib.request, re, base64, sys
++from pathlib import Path
+ 
+ UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+       "(KHTML, like Gecko) Chrome/120.0 Safari/537.36")
+@@ -43,7 +44,7 @@
+         )
+         print(f"  {fam:8} {style:7} {weight}  woff2={len(data)//1024}KB  b64={len(b64)//1024}KB", file=sys.stderr)
+ 
+-dest = "skills/advisory-board/references/plan-fonts.css"
++dest = str(Path(__file__).resolve().parent.parent / "references" / "plan-fonts.css")
+ header = ("/* Self-contained Claude brand fonts for the plan view — generated, do not hand-edit.\n"
+           "   Poppins (headings/labels) + Lora (body), latin subset, OFL-licensed, base64-embedded.\n"
+           "   Regenerate with scripts/_embed_fonts.py. */\n")
+--- a/skills/decide/advisory-board/scripts/render_handoff.py
++++ b/skills/decide/advisory-board/scripts/render_handoff.py
+@@ -330,7 +330,7 @@
+     return out
+ 
+ 
+-_ZW = "​"  # zero-width space
++_ZW = "\u200b"  # zero-width space
+ 
+ 
+ def _md_review(markdown: str) -> str:
+--- a/skills/decide/advisory-board/scripts/render_tracker.py
++++ b/skills/decide/advisory-board/scripts/render_tracker.py
+@@ -259,7 +259,7 @@
+ 
+   <p class="foot">Status derives from the plan's checkboxes: a feature is SHIPPED when
+   every checkbox of its phase(s) is ticked (work in flight shows as PENDING until its
+-  PR merges and the plan is ticked). Releases wait for Tim's explicit go at each gate.</p>
++  PR merges and the plan is ticked). Releases wait for the decision maker's explicit approval at each gate.</p>
+ </div>
+ </body>
+ </html>
+--- a/skills/decide/decision-map/SKILL.md
++++ b/skills/decide/decision-map/SKILL.md
+@@ -1,9 +1,11 @@
+ ---
+ name: decision-map
+-description: "Chart or work a decision map for genuinely foggy work before any build slice is written: a new primitive, a milestone charter, an integration nobody can spec in one sitting. Use when asked to chart a decision map, work a map ticket, or plan a decision-heavy effort whose open questions gate each other."
++description: "Map interdependent open decisions when a project cannot yet be specified in one sitting."
+ ---
+ 
+ # Decision Map
++
++Read the [Codex desktop binding](../../../CODEX.md) when this workflow needs harness mechanics, model routing, or recovery.
+ 
+ A decision map turns fog into recorded decisions. It is for work nobody can spec in one sitting, where the open questions gate each other. It produces decisions, not deliverables: when the map's frontier is empty, the scope specs and builds as ordinary tracked work.
+ 
+--- a/skills/decide/decision-map/references/protocol.md
++++ b/skills/decide/decision-map/references/protocol.md
+@@ -7,7 +7,7 @@
+ ## Standing invariants (every map, every weight)
+ 
+ - **The map doc lives tracked in the repo's docs** (`docs/<scope>-decision-map.md`, or the docs home the binding doc names), so it is reviewable like any other source-of-truth doc.
+-- **Child tickets ride the existing tracker machinery**: a `gate-decision` type label, the repo's claim recipe, one session per ticket. A map invents no parallel tracker.
++- **Child tickets ride the existing tracker machinery**: a `gate-decision` type label, the repo's claim recipe, one clearly owned work unit per ticket; a new conversation is not required. A map invents no parallel tracker.
+ - **Adjudication authority is unchanged: sessions brief the decision, the decider decides.** A session that reaches a decision point records its recommendation on the ticket and waits. A grilling ticket is answered by the decider, on the record, before anything downstream builds on it.
+ - **A map produces decisions, not deliverables.** When the map's frontier is empty, the scope specs and builds normally; deviations from a recorded decision go back to the decider, never into a build brief.
+ - **Refer by name.** In anything the human reads, tickets go by their titles, never bare numbers; that covers round briefs, map narration, verdict lines, and close-out comments. A wall of `#42, #43, #44` is illegible; a name reads at a glance. The id and URL ride *inside* the name as its link, canonical form `[<ticket title> (#<id>)](<url>)`, and a bare id outside that form never appears in human-facing text.
+@@ -17,9 +17,9 @@
+ 1. **State the destination** before surveying anything: one paragraph on what "decided" looks like for this scope (a speccable milestone, a buildable primitive, an adjudicated slate). The destination bounds every later out-of-scope call.
+ 2. **Survey the fog against current code**: every open question gets a cluster section with the question, why it is foggy, code pins (file:line evidence of what exists today), options with costs, and what it gates.
+ 3. **Choose the weight by fog density**:
+-   - **Deep fog** (the questions gate each other; a wrong guess reshapes schemas, interfaces, or writer sets): each cluster becomes a child `gate-decision` ticket ("<SCOPE> DECISION: …", body mirroring its map section), resolved **one per session** in most-gating-first order. Child tickets are claimed via the repo's claim recipe like any work item.
++   - **Deep fog** (the questions gate each other; a wrong guess reshapes schemas, interfaces, or writer sets): each cluster becomes a child `gate-decision` ticket ("<SCOPE> DECISION: …", body mirroring its map section), resolved as separately owned decisions in most-gating-first order, continuing in the same task where appropriate. Child tickets are claimed via the repo's claim recipe like any work item.
+    - **Shallow fog** (questions are independent and briefing-sized): adjudicate the whole map **single-sitting** with the decider, verdicts inlined directly in the map doc.
+-4. **No-fog early exit**: when the survey finds every question answerable from existing decisions, code, or evidence, stop: write a normal work-item spec and file it on the tracker. A map with nothing undecided is overhead, not planning.
++4. **No-fog early exit**: when the survey finds every question answerable from existing decisions, code, or evidence, stop: draft a normal work-item spec, and file it when the user has authorized filing. A map with nothing undecided is overhead, not planning.
+ 
+ ## The map doc carries two ledgers (never merged)
+ 
+@@ -43,7 +43,7 @@
+ 
+ ## Grilling runs in frontier rounds
+ 
+-A grilling ticket defaults to **rounds, not one question at a time**: each round briefs the decider with the **entire settled frontier** of open decisions: numbered, each with a recommended answer and the evidence behind it. Sequencing rules:
++A grilling ticket keeps the entire settled frontier in the working record and asks it in small coherent batches. Each presented decision carries a recommended answer and supporting evidence. Use the current question-tool schema and wait for required answers. Sequencing rules:
+ 
+ - A question whose answer depends on another question still open **this round** waits for a later round.
+ - A background fact-lookup blocks only its own downstream questions; the rest of the round proceeds.
+--- a/skills/decide/grilling/SKILL.md
++++ b/skills/decide/grilling/SKILL.md
+@@ -1,9 +1,11 @@
+ ---
+ name: grilling
+-description: "Interview the decider relentlessly to turn a half-formed plan, design, or idea into shared understanding: a design tree worked in rounds until nothing is silently assumed. Use when asked to grill, stress-test, or pressure-test thinking, and before charting a decision map or writing a spec off a conversation nobody has pressure-tested."
++description: "Pressure-test a plan with the decision maker through small rounds of unresolved decisions backed by facts."
+ ---
+ 
+ # Grilling
++
++Read the [Codex desktop binding](../../../CODEX.md) when this workflow needs harness mechanics, model routing, or recovery.
+ 
+ A grilling session converts a half-formed idea into **shared understanding** by interviewing the decider until nothing load-bearing is still assumed. It is the pack's live, single-session instrument: no tickets, no map doc, no branch: the deliverable is agreement, reached out loud and then written down (see the closing record below).
+ 
+@@ -11,7 +13,7 @@
+ 
+ ## Rounds and the frontier
+ 
+-The **frontier** is every decision whose prerequisites are already settled: the questions askable *now* without guessing at answers you have not heard. Ask the whole frontier in one round, then wait. Where the repo binds [domain-memory](../../orient/domain-memory/SKILL.md), read the relevant decision records before composing the first round; a recorded decision is settled, not frontier, and reopens on new evidence, never on repetition.
++The **frontier** is every decision whose prerequisites are already settled: the questions askable *now* without guessing at answers you have not heard. Record the whole frontier, then ask it in manageable independent batches. Where the repo binds [domain-memory](../../orient/domain-memory/SKILL.md), read the relevant decision records before composing the first round; a recorded decision is settled, not frontier, and reopens on new evidence, never on repetition.
+ 
+ The word means the same thing here as it does on the tracker, the edge of what is takeable, where [decision-map](../decision-map/SKILL.md) works a frontier of gated tickets. A question whose answer depends on another question still open in this round belongs to a *later* round. Putting it in this round forces the decider to answer twice: once on a guess, once for real.
+ 
+@@ -19,23 +21,20 @@
+ 
+ ## How to ask a round
+ 
+-Two presentations, chosen per question rather than per session.
++Use the available Codex question tool and its current schema. In Default mode,
++`request_user_input_async` can present choices and free-text questions while
++independent fact gathering continues. Put the recommendation first with a short
++reason. Use a Plan-only question tool only in Plan mode.
+ 
+-**Choice-shaped questions go to the harness's structured question tool** where one exists. In Claude Code that is `AskUserQuestion`, which renders each question as selectable cards. Put your recommendation first and mark its label `(Recommended)`. Give each question two to four real options, keep the header under twelve characters, and set multi-select only where the choices genuinely combine. The tool always appends an "Other" escape, so the card format never costs the decider the ability to answer in their own words.
++Ask a small, coherent batch of independent decisions. Keep a wide frontier in the
++working record and present the next manageable batch after answers arrive; do not
++dump every open question at once or assume Claude's four-card limit. Open questions
++can use the same tool without invented answer choices. If no question tool is
++available, use a concise numbered text round.
+ 
+-That tool takes at most four questions per call. **A wide frontier is split across consecutive calls, never deferred to the next round.** Frontier questions are mutually independent by construction, which is what being on the frontier means, so answering four of them cannot change what the remaining three should be. The tree reshapes when the frontier is answered, not between calls.
+-
+-**Open questions stay in text.** "Which failure mode worries you most" has no option list that is not an invention, and inventing one narrows the answer to whatever you happened to think of. Ask those so a round stays scannable and answerable by number:
+-
+-```text
+-❓ **Q1** — **<short title>**: <the question, with options where options exist>
+-
+-➡️ <your recommended answer, and the one-line reason>
+-```
+-
+-One round may mix both presentations, and usually will. Where the harness offers no structured tool, every question uses the text block and the round is no different for it.
+-
+-Always give the recommendation, in either presentation. A question without one makes the decider do your thinking as well as their own; a wrong recommendation is *more* useful than none, because disagreeing with a concrete claim is faster than composing an answer from nothing.
++Use the user's recorded answers and decisions. A preselected choice, silence, or
++elapsed time does not answer a required question. Ask only questions whose
++prerequisites are settled; keep unrelated fact gathering moving while waiting.
+ 
+ ## Facts are yours, decisions are theirs
+ 
+@@ -69,7 +68,7 @@
+ ## Hard guardrails
+ 
+ - **Do not act on the understanding.** Grilling produces agreement, not changes: no code, no specs, no new tickets filed off the session. The writes are the closing record and, where the repo binds domain-memory, the records that closing mints and the glossary updates it makes; an existing driving ticket may, and per the closing step should, receive the record as a comment. Building, speccing, and filing happen after the decider confirms, as their own moves.
+-- **One round at a time.** Asking the next round before the current one is answered collapses the tree into a questionnaire and loses the reshaping that makes the rounds worth running. Splitting a single frontier across consecutive structured-question calls is still one round; asking anything whose prerequisite is unanswered is not, however it is presented.
++- **One round at a time.** Asking the next round before the current one is answered collapses the tree into a questionnaire and loses the reshaping that makes the rounds worth running. Splitting a frontier across manageable question batches is still one round; asking anything whose prerequisite is unanswered is not, however it is presented.
+ - **Relentless means relentless.** Stopping at the first coherent answer is the failure mode this skill exists to prevent. An unasked question is a decision made silently, by you.
+ 
+ ## Attribution
+--- a/skills/investigate/codebase-review/SKILL.md
++++ b/skills/investigate/codebase-review/SKILL.md
+@@ -1,11 +1,13 @@
+ ---
+ name: codebase-review
+-description: "Run a state review of the codebase: the counterpart to adversarial-review's change review. Use before building against an upcoming spec (make the change easy first), when lanes merged since the last review cross the repo's threshold, or when lanes or the orchestrator report the code fighting them."
++description: "Review codebase structure before a feature or after demonstrated change friction, with independent skepticism."
+ ---
+ 
+ # Codebase review
+ 
+-A review of what the codebase **is**, where [adversarial-review](../../run/adversarial-review/SKILL.md) reviews what a diff changes. It hunts **deepening opportunities**: places where structure taxes every change that passes through. It ends only when the decider has dispositioned every surviving candidate.
++Read the [Codex desktop binding](../../../CODEX.md) when this workflow needs harness mechanics, model routing, or recovery.
++
++A review of what the codebase **is**, where [adversarial-review](../../run/adversarial-review/SKILL.md) reviews what a diff changes. It hunts **deepening opportunities**: places where structure taxes every change that passes through. The review completes with an evidence-backed report; adoption decisions can remain pending on the tracker.
+ 
+ This skill is the portable protocol: an entry gate, a read-only review lane of finders each named for the lens it looks through, a skeptic pass that kills candidates before the report exists, and the disposition loop. Everything repo-specific lives in **binding slots** the team-workflow setup interview fills: where reports land, the trigger threshold, where rejections are remembered, how the lane is run.
+ 
+@@ -23,11 +25,11 @@
+ 
+ ## 2. Execution: a read-only lane
+ 
+-The review runs as a **delegated lane**, claimed and tracked like any work item; how it is launched and tracked is the executor binding slot. Its contract is read-only: it changes no code and files no tickets; its deliverable is the report, and ticket filing belongs to the disposition loop (§5).
++The review uses independent read-only reviewers. For a bounded review, coordinate them within the current task and return the report here. For existing tracked work, follow its claim and executor binding. Reviewers change no code and file no tickets; any later filing follows the user's authorization and disposition loop (§5).
+ 
+ **Before any finder runs, the lane reads the repo's rejection memory** (binding slot). Where the slot points at the domain-memory home, that means reading the decision records, since a rejection carries its nature in the record's own text, not in a separate ledger. A candidate the decider rejected reopens on new evidence, never on repetition. A rerun that re-proposes a recorded rejection without new evidence has ignored the decider once and the memory twice.
+ 
+-Finder agents run as parallel subagents that never see each other's output: isolation is what makes two lenses landing on the same code a signal instead of an echo. Each holds **one named lens** from the menu, stated in the report. All five lenses run by default; a scoped run may drop a lens its scope cannot reach, naming the drop and the reason in the report:
++Finder agents run as parallel subagents that never see each other's output: isolation is what makes two lenses landing on the same code a signal instead of an echo. Each holds **one named lens** from the menu, stated in the report. Schedule separate reviewer contexts within the available agent slots, in batches if needed. All five lenses run by default; a scoped run may drop a lens its scope cannot reach, naming the drop and the reason in the report:
+ 
+ - **shallow modules / seams**: interfaces nearly as complex as the implementations behind them; seams placed where nothing varies, or missing where something does.
+ - **duplicated concepts**: one concept implemented in several places, so one change must be made N times and is made N−1.
+@@ -47,7 +49,7 @@
+ 
+ ## 4. The report
+ 
+-Plain markdown, posted on the tracker item the binding names. It carries:
++Plain Markdown, delivered in the current task for a bounded review or posted to the bound tracker item when authorized. It carries:
+ 
+ - **Every open gate, the scope they set, and any dropped lens with the reason its scope could not reach it.**
+ - **Deferred candidates from the previous run, at the top**: deferral means carried forward, not quietly dropped.
+@@ -56,7 +58,7 @@
+ 
+ ## 5. The disposition loop
+ 
+-The run is **not finished at report time**: an undispositioned report is a review that changed nothing. The orchestrator (or whoever ran the review) presents every survivor to the decider as a structured question card, [grilling](../../decide/grilling/SKILL.md)-style: the claim, the skeptic's verdict, cost and payoff, with the recommendation marked on an option; numbered-text fallback where no card tool exists. The decider dispositions each:
++The report can be complete while decisions remain pending. Keep the tracker item open for those decisions; never force answers merely to end the reviewing turn. The orchestrator (or whoever ran the review) presents every survivor to the decider as a structured question card, [grilling](../../decide/grilling/SKILL.md)-style: the claim, the skeptic's verdict, cost and payoff, with the recommendation marked on an option; numbered-text fallback where no card tool exists. The decider dispositions each:
+ 
+ - **Adopt**: becomes a tracker ticket ([to-tickets](../../run/to-tickets/SKILL.md) where bound) and rides normal lane flow.
+ - **Reject**: recorded in rejection memory with the load-bearing reason. The reason is the record's value: a future run needs to know *why*, so it can tell new evidence from repetition.
+@@ -66,12 +68,12 @@
+ 
+ ## 6. Binding slots (the setup interview fills these per-repo)
+ 
+-- **Report destination**: the tracker item each run posts its report to and closes: a standing item, or the rule that creates one per run. It must be writable and closable: §4 posts to it and §5 closes it, so a read-only query cannot fill this slot.
++- **Report destination**: the tracker item a tracked review can post to and eventually close when authorized, or the current task for a bounded review. A query can discover a tracked destination but cannot receive the report itself.
+ - **Lane-count threshold (N)**: merged lanes since the last review that open gate 2.
+ - **Rejection memory**: where rejected candidates and their load-bearing reasons live. In repos also bound to [domain-memory](../../orient/domain-memory/SKILL.md), this slot points at its memory home and rejections land as decision records there: one store, never two.
+ - **Executor mechanics**: how the review lane is launched, claimed, and tracked (in repos running the [orchestrate](../../run/orchestrate/SKILL.md) skill, its lane-launch machinery is the natural answer).
+ 
+-On a first run before the setup interview has filled these, the executor creates the tracker item itself and the report names the unbound slots.
++Before a tracker binding exists, report in the current task and name the unbound slots. Create a tracking item only when the user authorizes it; a read-only review does not grant publication permission.
+ 
+ ## Done when (checkable)
+ 
+@@ -81,7 +83,7 @@
+ - Every candidate went through the skeptic: the report contains survivors only.
+ - Every survivor carries claim, file/line evidence, the attempted kill and why it failed, cost, and payoff; a zero-survivor run states the "codebase is fine" verdict.
+ - Deferred candidates from the previous run appear at the top, each re-dispositioned or re-deferred.
+-- Every survivor is dispositioned and the run's tracker item is closed; a disposition is adopt to a ticket, reject into memory with its reason, or defer.
++- Every survivor has a recorded disposition or is explicitly pending. Close an existing tracker item only after its required decisions are recorded; pending answers do not prevent delivering the completed review report.
+ - The lane changed no code and filed no tickets itself.
+ 
+ ## Attribution
+--- a/skills/investigate/prototype/SKILL.md
++++ b/skills/investigate/prototype/SKILL.md
+@@ -1,15 +1,17 @@
+ ---
+ name: prototype
+-description: "Build throwaway prototype code that answers a design question: UI variants on a live route, or a terminal UI or single shareable HTML file over a pure logic module. Use when a question is \"how should this look / behave / feel in action\" and discussion or static artifacts cannot settle it."
++description: "Build a disposable interactive experiment when a design question needs seeing or trying."
+ ---
+ 
+ # Prototype
++
++Read the [Codex desktop binding](../../../CODEX.md) when this workflow needs harness mechanics, model routing, or recovery.
+ 
+ A prototype is throwaway code that answers a question. It is the most expensive way to get an answer, so the cheap ways come first: a question with a simple frame resolves in discussion, and a question answerable from existing screenshots or artifacts resolves from those. Reach for a prototype the moment the question is "I need to see/feel this in action." It runs two ways: as the engine of a `prototype` ticket inside a decision map (see the decision-map skill), and standalone for UI-heavy or state-model-heavy work outside any map.
+ 
+ ## Pick the branch
+ 
+-- "How should it **look / behave on screen**?" → [references/UI.md](references/UI.md): three structurally different variants mounted on the live route.
++- "How should it **look / behave on screen**?" → [references/UI.md](references/UI.md): the smallest set of structurally distinct variants needed to answer the question, previewed on the relevant route.
+ - "Does this **logic / state model feel right**?" → [references/LOGIC.md](references/LOGIC.md): a pure candidate module behind a disposable shell: a lightweight terminal UI, or a single shareable HTML file when the demo must travel.
+ 
+ ## Bindings (both branches)
+--- a/skills/investigate/prototype/references/UI.md
++++ b/skills/investigate/prototype/references/UI.md
+@@ -1,11 +1,11 @@
+ # UI prototype branch
+ 
+-Answer "how should it look / behave" by mounting **three structurally different variants on the LIVE route** and letting the decider react to real renders over real data.
++Answer "how should it look / behave" by mounting **the smallest useful set of structurally different variants on the relevant route** and letting the decider react to real renders over real data.
+ 
+ ## Build
+ 
+ 1. **Live route first.** Mount the variants on the actual route behind a `?variant=` query param: real shell, real data, real navigation. This is the honest representation of how the code will work; a throwaway route is the last resort, only when the live route structurally cannot host the experiment.
+-2. **Three variants, structurally different.** Each variant encodes a different layout / information hierarchy, a different answer to the design question. Recolors and spacing tweaks are iteration feedback, never a variant. Name them A/B/C; iteration mints D, E… encoding the feedback so far.
++2. **Choose a useful count.** Start with the smallest number that can resolve the stated question, often one or two. Use three when comparing three real alternatives; announce multiplied model work before generating it. Each alternative changes structure or behavior, not just color and spacing.
+ 3. **Floating switcher pill**, dev-gated: render it only in development builds, floating over the page, showing the active variant, with `←`/`→` cycling variants. The default (no `?variant=`) renders the route exactly as the default branch does.
+ 4. **Variants are READ-ONLY.** Every control that would mutate points at a stub (local state, a no-op handler with a visible "prototype" affordance), never at a real writer. The question is layout and behavior; real mutations belong to the real implementation.
+ 5. Use the repo's shared design system inside every variant: the question is structure, and off-system styling makes the winner unshippable as observed.
+@@ -17,3 +17,5 @@
+ ## Iterate
+ 
+ Walk each variant with the decider (or record a walkthrough for async reaction). Collect concrete reactions ("search box from A, layout from C"), encode them into the next variant, repeat until one render answers the question. Then return to [SKILL.md](../SKILL.md) "Done when".
++
++Use the desktop browser or file preview when available to show the result. A prototype request can authorize a necessary local preview; record and stop only the server process you started.
+--- a/skills/investigate/research/SKILL.md
++++ b/skills/investigate/research/SKILL.md
+@@ -1,27 +1,33 @@
+ ---
+ name: research
+-description: Run an autonomous research lane against primary sources, ending in cited findings and, when the missing facts are human-held, a questionnaire. Use for investigations of vendor materials, regulations, upstream repos, recorded calls, or any fact-finding that should run fire-and-report.
++description: "Investigate a factual question using primary sources and return cited findings at the requested scope."
+ ---
+ 
+ # Research
+ 
+-A research lane runs **autonomously** (fire-and-report): it investigates against primary sources (vendor materials, regulations, upstream repos, recorded calls, live systems you have access to) and ends in a **cited findings file** linked from the driving ticket. It runs two ways: as a `research` ticket inside a decision map (see the decision-map skill), and standalone for any investigation worth a recorded answer.
++Read the [Codex desktop binding](../../../CODEX.md) when this workflow needs harness mechanics, model routing, or recovery.
++
++Research investigates autonomously against primary sources: vendor materials, regulations, upstream repositories, recorded calls, and accessible live systems. Deliver cited findings in the current task for a bounded question, or in the agreed findings file for durable project research. Existing research tickets retain their tracking contract.
+ 
+ ## Contract
+ 
+ 1. **Primary sources only.** Read the actual material: the vendor doc, the upstream code, the regulation text, the recording. Secondary summaries are leads, not evidence.
+-2. **The deliverable is a findings file**, tracked in the repo's docs (default `docs/research/<topic>.md`, or the findings home the team-workflow binding doc names). Material that is PII-bearing or otherwise local-only goes in a git-ignored location instead; the findings file there is still linked from the ticket by path.
++2. **Match the requested destination.** For durable research, save to the bound findings home (default `docs/research/<topic>.md`). PII-bearing or local-only material belongs in an ignored location. For a bounded answer, keep the cited result in the current task.
+ 3. **Findings cite their sources inline.** A claim without a source is a hypothesis and is labeled as one. Distinguish clearly: what the source says, what you infer, what remains unknown.
+-4. **Link the findings file from the ticket** and summarize the feature-level answers in a ticket comment, so downstream decision rounds can cite it without opening the file.
++4. **Link durable findings from an existing ticket when that publication is authorized.** Otherwise deliver the cited answer or file link in the current task.
+ 5. Multiple research lanes may run in parallel: they share no state beyond the tracker.
+ 
+-## Standalone lanes still ride the tracker
++## Standalone research
+ 
+-A research lane outside a map follows the same discipline a map ticket would: **claim the driving ticket per the repo's claim recipe before investigating**, and **title the session with the item** (default `#<N> — <short item name>`, per the [orchestrate skill's](../../run/orchestrate/SKILL.md) lane titling), so parallel lanes stay legible on the picker and the tracker alike. An investigation with no driving ticket gets one filed first: the findings need somewhere durable to land.
++For a bounded question or read-only audit, deliver the cited findings in the
++current task. Do not create a tracker item solely to satisfy this skill. When
++the user requests durable project research, save to the agreed findings home.
++For an existing tracked research item, use its claim and title conventions and
++link the findings back when posting is authorized.
+ 
+ ## The skeptic pass
+ 
+-Findings that will drive a build decision face a skeptic before they are reported: dispatch an independent subagent whose brief is to **kill each load-bearing claim**: re-read the cited source, hunt the contradicting primary material, check versions and dates. A claim the skeptic kills is corrected or relabeled a hypothesis; the findings file records that the pass ran and what it changed. When nothing downstream builds on the findings, the pass is optional; say which way you called it in the ticket summary.
++Findings that will drive a build decision face a skeptic before they are reported: dispatch an independent subagent whose brief is to **kill each load-bearing claim**: re-read the cited source, hunt the contradicting primary material, check versions and dates. A claim the skeptic kills is corrected or relabeled a hypothesis; the findings file records that the pass ran and what it changed. When nothing downstream builds on the findings, the pass is optional; say which way you called it in the delivered summary.
+ 
+ ## When the facts are human-held
+ 
+@@ -29,10 +35,10 @@
+ 
+ ## Done when (checkable: verify each line before reporting complete)
+ 
+-- The findings file exists at the named location, every claim cited or labeled a hypothesis.
+-- The driving ticket links the file and carries the feature-level summary.
+-- Standalone lane: the discipline in "Standalone lanes still ride the tracker" held: check the claim and the title on the tracker and picker, not your memory of doing it.
+-- The skeptic pass ran or was skipped per its section above, and the call is recorded in the ticket summary.
++- Findings were delivered in the current task or saved at the agreed location, every claim cited or labeled a hypothesis.
++- An existing driving ticket received the link and summary when that publication was authorized; otherwise the current task carries the result.
++- Standalone research: the result was delivered at the requested scope and destination, without an unsolicited tracker item.
++- The skeptic pass ran or was skipped per its section above, and the call is recorded in the delivered summary.
+ - Any human-held gaps are covered by an emitted questionnaire (per the terminal move), not by silent assumptions.
+ 
+ ## Attribution
+--- a/skills/orient/domain-memory/SKILL.md
++++ b/skills/orient/domain-memory/SKILL.md
+@@ -1,9 +1,11 @@
+ ---
+ name: domain-memory
+-description: "Keep per-repo institutional memory: a domain glossary plus lightweight decision records, written as side effects of work. Use when a grilling closes, a review rejection or declined finding is dispositioned, the decider corrects a session's wrong assumption, a session starts in a repo whose binding names a memory home, or the store passes its size bound."
++description: "Record or retrieve project terms and settled decisions during design, review, corrections, and recovery."
+ ---
+ 
+ # Domain memory
++
++Read the [Codex desktop binding](../../../CODEX.md) when this workflow needs harness mechanics, model routing, or recovery.
+ 
+ Per-repo institutional memory: what the repo's words mean, and why its settled decisions went the way they did. It is written as **side effects of work**, never as a documentation chore. [router](../router/SKILL.md) and [setup](../setup/SKILL.md) orient a session on the pack and the repo's bindings; this skill is the third orientation instrument beside them, and it orients the session on the domain.
+ 
+@@ -34,10 +36,10 @@
+ 
+ ## 3. Read moments
+ 
+-1. **Session start**: the orchestrator's startup checklist reads the glossary and skims recent decision records; any other session reaches the store through the binding doc's memory-home pointer.
++1. **Session start or compaction recovery**: the orchestrator's startup checklist reads the glossary and skims recent decision records; any other session reaches the store through the binding doc's memory-home pointer.
+ 2. **Grilling pre-round**: the griller reads the relevant records before asking, so a settled question is never re-asked; it reopens on new evidence, never on repetition.
+ 3. **Lane briefs**: briefs point at the memory home, so a lane starts on the repo's terms and settled decisions instead of rediscovering them.
+-4. **Review layers**: finders and skeptics consult the decision records, so a review reads the why before contesting the what.
++4. **Review layers**: finders and skeptics read the relevant active decision records, so a review reads the why before contesting the what.
+ 
+ At every read moment, follow the supersession chain: only the latest unsuperseded record is **active**; a superseded decision or rejection is history, never authority.
+ 
+--- a/skills/orient/router/SKILL.md
++++ b/skills/orient/router/SKILL.md
+@@ -1,17 +1,19 @@
+ ---
+ name: router
+-description: "Entry point for the team-workflow pack: names every pack skill and when to reach for it. Use when unsure which team-workflow skill applies, or to orient a new session/repo on what the pack offers."
++description: "Find the TeamWorkflow skill for planning, research, building, review, or recovery in Codex."
+ ---
+ 
+ # Team-workflow router
+ 
++Read the [Codex desktop binding](../../../CODEX.md) when this workflow needs harness mechanics, model routing, or recovery.
++
+ One entry point for the **team-workflow** pack. The pack is a portable discipline for running tracked, multi-session, agent-assisted development: pressure-test an idea, build it in parallel lanes, ship it reviewed and merged. The table below names every skill and its moment. Everything repo-specific lives in, or is pointed at from, one binding doc seeded by the setup skill; every skill defers decisions to **the decider**, the role that doc names.
+ 
+-**First run in a repo? Run `setup` before anything else.** The other skills read the bindings it seeds.
++**First use in a repo:** read an existing binding when the task needs the pack. Run setup when the user requests installation or a missing binding actually gates tracked work; a bounded question or review can proceed read-only.
+ 
+ ## The main flow
+ 
+-Most work travels one route: **idea → grill → map → tickets → lanes → review → merge.** An idea is pressure-tested in [grilling](../../decide/grilling/SKILL.md); when real fog surfaces, [decision-map](../../decide/decision-map/SKILL.md) charts and works it until nothing gating is undecided (no fog means skipping the map entirely); [to-tickets](../../run/to-tickets/SKILL.md) turns what was decided into tracer-bullet items; [orchestrate](../../run/orchestrate/SKILL.md) routes those items into parallel lanes, each building under [implement](../../run/implement/SKILL.md)'s discipline; [adversarial-review](../../run/adversarial-review/SKILL.md) tries to break each change before it merges. [prototype](../../investigate/prototype/SKILL.md) and [research](../../investigate/research/SKILL.md) are detours off any point of the route, taken when a question needs seeing or reading rather than deciding, and [handoff](../../run/handoff/SKILL.md) carries state across every session boundary along it.
++Most work travels one route: **idea → grill → map → tickets → lanes → review → merge.** An idea is pressure-tested in [grilling](../../decide/grilling/SKILL.md); when real fog surfaces, [decision-map](../../decide/decision-map/SKILL.md) charts and works it until nothing gating is undecided (no fog means skipping the map entirely); [to-tickets](../../run/to-tickets/SKILL.md) turns what was decided into tracer-bullet items; [orchestrate](../../run/orchestrate/SKILL.md) routes those items into parallel lanes, each building under [implement](../../run/implement/SKILL.md)'s discipline; [adversarial-review](../../run/adversarial-review/SKILL.md) tries to break each change before it merges. [prototype](../../investigate/prototype/SKILL.md) and [research](../../investigate/research/SKILL.md) are detours off any point of the route, taken when a question needs seeing or reading rather than deciding, and [handoff](../../run/handoff/SKILL.md) preserves the current task across checkpoints and compaction.
+ 
+ **On-ramps** merge onto that route rather than starting a new one: [ingest](../../investigate/ingest/SKILL.md) turns a recording or media URL into evidence plus a recommendation for where it enters the flow (tickets, a grilling session, strategy for the decider); [research](../../investigate/research/SKILL.md) findings and returned questionnaires flow back to the stage that owns them: the map ticket, the driving ticket, or the grilling session that spawned them; [wizard](../../run/wizard/SKILL.md) clears the human-only steps a lane stalls on and hands the flow back.
+ 
+@@ -19,7 +21,7 @@
+ 
+ | Skill | Reach for it when |
+ | --- | --- |
+-| [setup](../setup/SKILL.md) | Installing the pack into a repo, or refreshing its bindings. Once-per-repo interview: confirms the tracker, verify commands, the decider, and the binding-doc home; seeds the binding doc, templates, and the session-start handoff hook; re-runs are idempotent diffs, never overwrites. |
++| [setup](../setup/SKILL.md) | Bind or refresh a repo using recorded decisions, then ask about new or changed bindings. Audit actual installed skills, continuity targets, and duplicate personal copies. |
+ | [domain-memory](../domain-memory/SKILL.md) | The repo's institutional memory needs writing or reading: a grilling just closed, a review disposition landed, the decider corrected a wrong assumption, or a session is starting and wants the settled terms and decisions. One store, two artifacts: a small domain glossary plus supersede-never-edit decision records, written as side effects of work at the memory home the binding names; consolidation and backfill happen only by decider disposition. |
+ | [grilling](../../decide/grilling/SKILL.md) | An idea or plan is half-formed and nobody has pressure-tested it. Interviews the decider in rounds over a design tree, where the frontier is every decision whose prerequisites are settled, until nothing load-bearing is still assumed. Facts are the agent's job; decisions are the decider's. Run it before charting a map or writing a spec off a conversation. |
+ | [decision-map](../../decide/decision-map/SKILL.md) | The work is genuinely foggy: open questions gate each other and nobody can spec it in one sitting. Charts a map (destination, clusters, two ledgers), files gate-decision tickets, and runs briefed decision rounds with the decider. Not for work you could already spec: a map with nothing undecided is overhead. |
+@@ -28,13 +30,13 @@
+ | [codebase-review](../../investigate/codebase-review/SKILL.md) | The codebase itself needs review: a spec is about to land in an area, enough lanes have merged since the last look, or lanes report the code fighting them. A read-only lane: lens-named finders, a built-in skeptic that kills unproven candidates, a plain-markdown report on the tracker, and a disposition loop where the decider adopts, rejects into rejection memory, or defers every survivor. Zero survivors is a success verdict, not a failure. |
+ | [to-tickets](../../run/to-tickets/SKILL.md) | The decision is made and the work needs to be on the board. Turns a plan, a closed decision map, or a pressure-tested conversation into tracer-bullet items: issue-as-spec bodies filed in one pass, blocking edges wired in a second. Files and labels; never claims, never decides. |
+ | [wizard](../../run/wizard/SKILL.md) | The next step is one only a human can take: a vendor dashboard, a registrar's DNS panel, a credential that must not enter an agent's context. Generates an interactive bash wizard that opens each URL, says what to click, captures the values, verifies what it can, and reports what still needs doing by hand. |
+-| [handoff](../../run/handoff/SKILL.md) | Context is filling (around half the window), the session is wrapping up, or someone says "checkpoint" / "save state". Writes the structured session handoff (overwrite-don't-append, pointer-not-transcript, NEXT points at the tracker query) so a fresh session resumes losslessly. |
++| [handoff](../../run/handoff/SKILL.md) | Save or recover a task-owned checkpoint at a meaningful boundary or measured context threshold. Continue through compaction; transfer ownership only when requested. |
+ | [show-me-your-work](../../run/show-me-your-work/SKILL.md) | A run will be reviewed by a human who stepped away: an unattended stretch, a long autonomous build, a loop. Keeps one append-only TSV decision log, one row per decision with its why, evidence pointer, and result, audited against the run's record before handback. The pack's third record type: handoff is the resume pointer, domain-memory the institutional why, this the per-run audit ledger. |
+ | [orchestrate](../../run/orchestrate/SKILL.md) | One session should coordinate several instead of implementing: routing tracked items into parallel working lanes, auditing results, owning integration. Principles plus per-repo binding slots; the single-orchestrator rule applies. |
+ | [adversarial-review](../../run/adversarial-review/SKILL.md) | A substantial change is about to be committed, a lane is at close-out, or someone asks to break a diff before it ships. Three isolated finders (correctness, a fitting lens, a spec axis), a skeptic pass that kills unproven findings, a gate only confirmed blockers may hold; run before external reviewers see the change. |
+-| [implement](../../run/implement/SKILL.md) | A build-shaped item is being implemented in a lane. The discipline the lane follows inline: first commit proves the thinnest end-to-end slice, red-before-code at every seam the item's verification set names, a green checkpoint commit per slice, and adjacent discoveries filed to the tracker rather than built. Bugs route to diagnose; ambiguity goes back to the decider; human-only steps get a wizard. |
++| [implement](../../run/implement/SKILL.md) | A build-shaped item is being implemented in a lane. The discipline the lane follows inline: first verified checkpoint proves the thinnest end-to-end slice, red-before-code at every seam the item's verification set names, a green checkpoint per slice within the user's commit instructions, and adjacent discoveries filed to the tracker rather than built. Bugs route to diagnose; ambiguity goes back to the decider; human-only steps get a wizard. |
+ | [diagnose](../../run/diagnose/SKILL.md) | A bug is being fixed and the cause is not yet nameable in one plain sentence with evidence. The disciplined loop a lane follows inline: reproduce red with a test written before the fix, minimize until tight, falsifiable hypotheses, instrument before fixing, and close on the named cause plus the regression test. Structural causes report as friction; standing facts feed domain-memory. |
+-| [ingest](../../investigate/ingest/SKILL.md) | A recording, voice memo, or media URL arrives with a goal. Converts it into an evidence packet of transcript, timestamped frames, and manifest, and ends with a routing recommendation into the flow: what looks like tickets, what needs a grilling session, what is strategy for the decider. Ships as its own plugin, installed beside the pack. |
++| [ingest](../../investigate/ingest/SKILL.md) | A recording, voice memo, or media URL arrives with a goal. Converts it into an evidence packet of transcript, timestamped frames, and manifest, and ends with a routing recommendation into the flow: what looks like tickets, what needs a grilling session, what is strategy for the decider. Included in this Codex plugin with the workflow pack. |
+ 
+ ## Not skills, but in the pack
+ 
+--- a/skills/orient/setup/SKILL.md
++++ b/skills/orient/setup/SKILL.md
+@@ -1,13 +1,15 @@
+ ---
+ name: setup
+-description: "Once-per-repo binding interview for the team-workflow pack: records how the pack composes with this repo and seeds the binding doc the other skills read. Use when installing the pack into a repo, refreshing an existing installation's bindings, or auditing a consuming repo for drift after a pack release (audit mode)."
++description: "Bind or audit TeamWorkflow in a project; inspect installation drift and reuse recorded decisions."
+ ---
+ 
+ # Setup
+ 
++Read the [Codex desktop binding](../../../CODEX.md) when this workflow needs harness mechanics, model routing, or recovery.
++
+ This skill binds the team-workflow pack to a specific repo, once, through an interview, and refreshes that binding on re-run. Everything the other pack skills call "the binding doc" is what this skill seeds. Nothing here rewrites the repo's CI or processes; it records how the pack composes with what is already there.
+ 
+-**Posture: infer first, confirm everything.** Scan the repo before asking anything: the tracker in use, CI config, verify/test commands, existing agent-context files (CLAUDE.md, AGENTS.md, docs conventions), existing templates, and any config-distribution pipeline that syncs or ignores dotfiles. Present every inferred binding for confirmation; never silently assume one. Exactly two bindings always require a live human answer regardless of what the scan finds: **the decider** and **the binding-doc home**.
++**Posture: inspect first, reuse decisions.** Scan the tracker, verification commands, instruction files, templates, installed skill paths, and configuration ownership. Reuse the recorded decider, binding home, grants, and prior answers. Ask only about a new binding, material drift, or an unresolved choice. A read-only installation audit needs no setup interview or tracker write.
+ 
+ ## The four mandatory bindings
+ 
+@@ -19,8 +21,8 @@
+ 
+    **Label vocabulary on a fresh tracker:** the pack's recipes assume the labels they query already exist: a frontier query against labels nobody created returns empty forever, and nothing downstream ever creates them. When binding a tracker that lacks them, setup enumerates the pack's reference vocabulary (state: `needs-triage`, `ready-for-agent`, `ready-for-human`, `blocked`; type: `slice`, `bug`, `gate-decision`, `process`) and, on confirmation, creates the missing ones (on GitHub: `gh label create "<label>" --repo <owner>/<repo>`, one per missing label, a declared write) or records the creation instruction in the binding doc for trackers setup cannot drive. A repo with existing labels maps them instead via the optional label-vocabulary binding; nothing gets renamed.
+ 2. **Verify commands.** The exact commands that constitute "verified" in this repo (typecheck, lint, test, build, whatever the repo runs), recorded so every brief and template can name them instead of guessing. A repo with no toolchain yet records an explicit **`none yet`**, never a guessed or aspirational command that would let briefs claim a verification nobody can run.
+-3. **The decider.** Who adjudicates decisions in this repo. Always asked, never inferred. Every pack skill says "the decider"; this binding is where that role gets a name. A repo without a clear answer here is not ready for the pack's decision discipline; surface that honestly.
+-4. **The binding-doc home.** Where the anchor binding doc lives. Default: `docs/agents/team-workflow.md`. The home is **confirmed in the interview, never assumed**: repos with config-distribution pipelines can make the default location wrong in ways only a human knows.
++3. **The decider.** Who adjudicates decisions in this repo. Reuse the recorded decider; ask if unbound or changed. Every pack skill says "the decider"; this binding is where that role gets a name. A repo without a clear answer here is not ready for the pack's decision discipline; surface that honestly.
++4. **The binding-doc home.** Where the anchor binding doc lives. Default: `docs/agents/team-workflow.md`. Reuse the confirmed home, and ask only when it is new or changing: repos with config-distribution pipelines can make the default location wrong in ways only a human knows.
+ 
+    The home must be **git-tracked and outside anything a sync pipeline manages**, stated so a config-pipeline owner can sign off from reading alone: (a) bindings are shared, per-repo team decisions, so they belong in version control where edits are reviewed and history survives, not in per-machine synced files; (b) sync pipelines republish and checksum what they manage, so a binding doc inside a synced tree is either clobbered on the next sync or turns every team edit into a fight with the pipeline.
+ 
+@@ -33,18 +35,23 @@
+   - Issue/work-item spec: [references/templates/issue-slice-spec.md](references/templates/issue-slice-spec.md) (on GitHub: `.github/ISSUE_TEMPLATE/`).
+   - Lane brief shape: [references/templates/lane-brief.md](references/templates/lane-brief.md).
+   - Defect-class checklist for the adversarial-review skill: [references/templates/defect-classes.md](references/templates/defect-classes.md): seeded only when the repo has no equivalent; a repo with an existing review-standards document adopts it as the binding unchanged.
+-  - Session handoffs are the [handoff skill's](../../run/handoff/SKILL.md) job (its reference template ships with it); what setup seeds is the hook wiring below, plus the confirmed handoff location in the binding doc.
+-- **The session-start handoff hook**, seeded **by default** (documented as removable): wiring that auto-loads the repo's handoff file (default `.claude/handoff.md`) into every fresh session, so a new session resumes from the last one's handoff without anyone pasting context back in. For Claude Code that is a `SessionStart` hook in the repo's settings file; other runtimes get their equivalent or a note in the binding doc. Seeding goes wherever the repo's agent settings are managed, which is exactly where the sync-managed branch below applies. **No settings file at all** is the simplest case, not a blocker: when the scan finds neither a settings file nor a sync pipeline claiming its path, setup creates the runtime's conventional one (for Claude Code, `.claude/settings.json`) carrying just the hook.
+-- **The handoff-file ignore entry**, seeded alongside the hook: the handoff file is declared untracked by contract, but a fresh repo has no ignore rule saying so: seed the entry (default: `.claude/handoff.md` in the repo's `.gitignore`) so the first handoff doesn't land in someone's commit. The `.gitignore` is a repo-owned, tracked file, so the sync-managed settings branch doesn't apply to it. If the repo relocates the handoff (or already ignores it), the entry follows the confirmed location or is skipped as already-satisfied.
++  - Session handoffs are the [handoff skill's](../../run/handoff/SKILL.md) job (its reference template ships with it); setup records the bundled checkpoint resolver or an existing harness-owned checkpoint policy.
++- **Codex continuity.** Use the task-owned checkpoint instructions in the desktop reference. Verify that the bundled resolver runs with the actual project and task ID, or verify the existing harness-owned policy if present. This package requires no hooks. Do not create `.claude/settings.json` or alter another harness's handoff. New hook definitions require the runtime's actual trust process; never forge trust state.
++- **Checkpoint storage.** Codex task checkpoints live outside the repository at the path returned by the checkpoint resolver. No project ignore entry or Claude handoff relocation is needed. If the user explicitly chooses a project-owned checkpoint, record and ignore that exact path.
+ 
+-## Sync-managed settings: detect, never write
++## Configuration ownership
+ 
+-Part of the initial scan is detecting whether the repo's agent settings file (e.g. `.claude/settings.json`) is **owned by a config-distribution pipeline**: republished from a stub on every install/update, listed in a sync manifest, or marked as managed. Local edits to such a file are silently clobbered on the next sync.
++Inspect configuration ownership before proposing changes. Existing hooks and
++master instructions belong to their current owners; this plugin supplies neither.
++Project setup records an existing checkpoint policy when one is present. Other tools' settings
++and preserved output homes stay unchanged. Seed project bindings and templates
++only in locations the project owns.
+ 
+-- **Sync-managed settings: NEVER write the file directly**, even when the file is currently absent. Emit the proposed hook as a ready-to-paste snippet, record it in the binding doc as *pending with the settings owner*, and route it through the pipeline owner's own channel (a PR or ask against the upstream stub). The default-on seeding applies **only** to repos whose settings are not sync-managed.
+-- **Sync-owned directories and other tools' preserved homes are never write targets** for anything this skill seeds: a synced `.ai/` tree, a distributed settings stub, or a preserved output home owned by another skill (a review-decision wiki such as `docs/review-wiki/`). Seeded files land only in locations the repo itself owns and tracks.
+-
+-**Approval-before-edit repos:** invoking setup **is** the approval. The skill declares its writes up front: the binding doc at the confirmed home, the confirmed templates, the hook wiring (non-sync-managed repos only, including creating the conventional settings file where none exists), the handoff-file ignore entry, any confirmed label creation on the bound tracker, and the confirmed agent-context edits (glossary/non-negotiables and the session-scope conduct pointer, next sections). The interview's per-item confirmations are the standing approval for exactly those writes and nothing else. Repos whose guardrails require explicit approval before any file edit should read the interview that way; setup never edits outside its declared, confirmed list.
++An instruction to configure this project authorizes the requested binding doc,
++selected templates, agreed tracker labels, and agreed project-instruction edits.
++Reuse recorded confirmations for that same scope. Ask only about new or changed
++bindings that remain material; an audit request is read-only. Codex continuity
++requires no `.claude/settings.json`, Claude handoff, or project ignore write.
+ 
+ ## Glossary and non-negotiables (optional binding)
+ 
+@@ -77,7 +84,7 @@
+ 4. **Machine portability.** The workflow artifacts the binding governs (the binding doc itself, helper scripts it names, seeded docs and templates, contract validators and their tests and fixtures) must not hard-code one machine's filesystem: an absolute home path works for the author and walls out the first contributor on a second machine. The boundary is what the binding governs: application code and repo-local ignored files are out of scope. Report each occurrence as drift, proposing the portable derivation in the artifact's own mechanism (`$HOME` in shell, the home/repo-root resolution its language provides elsewhere).
+ 5. **Session-scope conduct reachability.** A binding doc that pins the pack's pr-writing reference while the agent-context file carries no pointer to it: conduct the decider intends as universal is reachable only from sessions the pack machinery launched; an ad-hoc session never sees it. Report as drift, proposing the conduct-pointer section above.
+ 
+-Deliberately not checked: hook-target existence. Whether the files a seeded hook points at still exist stays the repo's own concern.
++Also verify the installed checkpoint resolver or existing harness policy and actual checkpoint location. A configured name alone is not evidence that saving and loading reach the same file.
+ 
+ Execution follows the house pattern: a lane per consuming repo produces the drift report; the orchestrator presents each finding to the decider as a disposition card: **update the binding** (a normal re-run confirms the change), **accept the drift** as a recorded choice, or **defer**. Accepted drifts are recorded, in the binding doc's Accepted drift section or as a decision record where the repo binds domain-memory (with a pointer from the Accepted drift section so the audit knows where to read), and the next audit reads the record and does not re-flag them.
+ 
+@@ -89,12 +96,12 @@
+ - On a freshly bound tracker, the pack's label vocabulary exists (created by setup) or its creation instruction is recorded in the binding doc: the frontier query has labels to match.
+ - On a GitHub tracker: the implicit-repo check ran, and any mismatch between `gh repo view`'s resolution and the bound repo is recorded in the tracker binding (a match needs no record).
+ - Confirmed templates are seeded at their confirmed locations; declined ones are recorded as declined in the binding doc (so a re-run doesn't re-ask from scratch).
+-- The handoff hook is seeded (non-sync-managed settings; creating the conventional settings file if none existed), or recorded as a pending snippet with the settings owner (sync-managed), or recorded as declined; the handoff-file ignore entry is seeded (or recorded as already-satisfied or declined).
+-- The human confirmed every binding, including the inferred ones, and answered decider + home directly.
++- The checkpoint resolver or existing harness policy was verified, or the missing capability was reported. Checkpoints resolve outside the project unless an explicit project-owned location was selected.
++- Every new or materially changed binding was confirmed or authorized in the current request; unchanged recorded answers were reused, including the decider and home.
+ - Where the domain-memory binding repoints an existing rejection-memory path at the memory home: the old records were moved into the store (as decision records, provenance noted) or the old path is recorded as read-until-migrated; the binding is accepted only when the old store is empty or its path is recorded.
+ - Where the glossary + non-negotiables binding was accepted: the agent-context file carries the confirmed never-compromise section, or a sync-managed agent-context file has the approved snippet recorded as pending with the settings owner (or the binding doc records its decline); the glossary is the confirmed agent-context section, or, where domain-memory is bound, the memory-home pointer with the harvested candidates drafted as backfill cards, or on a sync-managed agent-context file the approved snippet recorded as pending with the settings owner (the snippet carries the confirmed glossary, or, where domain-memory is bound, only the memory-home pointer, never a second glossary), or a recorded decline; and every harvested candidate's disposition (`accepted`/`corrected`/`declined`) is in the binding doc for a directly-written glossary, or with the backfill cards where domain-memory is bound (the binding doc recording the routing).
+ - Where the session-scope conduct pointer was accepted: the agent-context file carries the pointer section (binding-doc location plus the pr-writing read-before-writing line), or a sync-managed agent-context file has the approved snippet recorded as pending with the settings owner; otherwise the binding doc records the decline.
+-- On an audit run: all five checks ran against the repo, every drift finding was dispositioned by the decider (updated, accepted, or deferred) and accepted drifts are recorded where the next audit reads them. Zero drift is an explicit "bindings current" verdict in the report, never a silent finish.
++- On an audit run: all five checks ran against the repo, every drift finding was reported with a recommendation; any decisions the decider has made are recorded, and remaining decisions are explicitly pending. Reporting the audit does not require manufacturing a decision. Zero drift is an explicit "bindings current" verdict in the report, never a silent finish.
+ 
+ ## Attribution
+ 
+--- a/skills/orient/setup/references/templates/binding-doc.md
++++ b/skills/orient/setup/references/templates/binding-doc.md
+@@ -61,9 +61,9 @@
+ 
+ ## Handoff
+ 
+-- **Handoff location**: <where the handoff skill writes, e.g. `.claude/handoff.md`, untracked>
+-- **Ignore entry**: <seeded in `.gitignore` | already present | declined; the entry that keeps the handoff file untracked>
+-- **Session-start auto-load hook**: <seeded in `<settings file>` (created fresh if the repo had none) | pending as a snippet with the settings owner (sync-managed settings) | declined>
++- **Codex checkpoint**: task-owned path returned by the bundled `checkpoint.py` resolver (see the Codex desktop binding); owning task only.
++- **Checkpoint policy**: <bundled resolver verified | existing harness-owned policy and path; any missing capability>
++- **Recovery**: continue the current authorized task through compaction; legacy project handoffs remain read-only background.
+ 
+ ## Adversarial review (optional; repos running the adversarial-review skill)
+ 
+@@ -82,7 +82,7 @@
+      bound the skill. Rejection memory must survive across runs: reruns read it before
+      proposing, so a rejected candidate reopens on new evidence, never on repetition. -->
+ 
+-- **Report destination**: <the tracker item each run posts its report to and closes: a standing item, or the rule that creates one per run; must be writable and closable, never a read-only query>
++- **Report destination**: <current task for bounded reviews; authorized writable tracker item for tracked reviews; close only after required dispositions>
+ - **Lane-count threshold (N)**: <merged lanes since the last review that trigger a run>
+ - **Rejection memory**: <where rejected candidates and their load-bearing reasons live>
+ - **Executor mechanics**: <how the read-only review lane is launched, claimed, and tracked; in orchestrated repos, usually the lane-launch machinery below>
+--- a/skills/orient/setup/references/templates/lane-brief.md
++++ b/skills/orient/setup/references/templates/lane-brief.md
+@@ -35,7 +35,7 @@
+ - Check every verification command's own exit code: piped or filtered output is not
+   evidence (a pipeline reports the last command's status, so `<cmd> | tail` reads green
+   whenever `tail` does).
+-- Commit discipline: checkpoint commits on the lane branch, short imperative subjects;
++- Commit discipline: verified checkpoints; commits on the worker branch when authorized, otherwise preserve the working diff and verification;
+   merging is the reviewer/integrator's move, not the lane's.
+ - Where this lane itself files a PR (e.g. a cross-repo lane): it must follow the orchestrate
+   skill's pr-writing reference: problem-first description, no implementation inventory,
+--- a/skills/orient/setup/references/tracker-discipline.md
++++ b/skills/orient/setup/references/tracker-discipline.md
+@@ -14,16 +14,16 @@
+ 
+ Claiming is a read-modify-write with the read mandatory:
+ 
+-1. **Read the item's comments first.** A claim is LIVE when the latest comment matching
+-   `Lane-start: workspace=<name> branch=<branch>`
+-   has no later `Lane-start-retracted: workspace=<same-name>` marker after it (a later `Lane-start` supersedes an earlier one; takeover chains post a new one).
++1. **Read the item's comments first.** A `Lane-start: workspace=<name> branch=<branch>` claim remains LIVE until a later `Lane-start-retracted: workspace=<same-name>` marker. Check all unretracted claims; only a takeover backed by the death evidence in step 5 supersedes another workspace.
+ 2. **A live claim refuses your claim.** No external pointer ever overrides a live Lane-start: not a handoff note, a stale to-do list, or a plan doc. Those pointers go stale the moment anyone else claims; the tracker comment is the truth.
+-3. **On clear: claim atomically.** Set yourself assignee AND post the marker in one pass:
++3. **On clear: post an optimistic claim.** Set yourself assignee and post the marker. These are separate remote writes, not a lock:
+ 
+    ```bash
+    gh issue edit <N> --repo <owner>/<repo> --add-assignee "@me"
+    gh issue comment <N> --repo <owner>/<repo> --body "Lane-start: workspace=<name> branch=<branch>"
+    ```
++
++   Re-read claims after posting and before building. If another unretracted workspace claimed the item, pause and resolve ownership with the coordinator or decider; a later timestamp alone never grants takeover. Coordinators serialize claims for their workers.
+ 
+    `<name>` is a machine-matchable token identifying your working copy (worktree, clone, or machine+dir); the retraction scanner matches on it literally, so pick something unique and reuse it exactly.
+ 4. **Releasing your OWN claim** posts the machine-recognized marker and unassigns:
+@@ -48,15 +48,25 @@
+ The frontier is the set of grabbable items: ready-labeled, unassigned, and **not blocked, read blocking two ways**: native dependency edges OR a `blocked` label. A query that checks only the label misses edge-blocked items; one that checks only edges misses non-ticket blockers.
+ 
+ ```bash
+-# One JSON object per open issue, with the dependency summary the plain issue list omits.
+-# <owner>/<repo> is the bound tracker repo, written literally — {owner}/{repo} would
+-# resolve implicitly and mis-target in forks:
+-gh api 'repos/<owner>/<repo>/issues?state=open&per_page=100' --paginate --jq '.[]
+-  | select(has("pull_request") | not)
+-  | {number, title,
+-     labels: [.labels[].name],
+-     assignees: [.assignees[].login],
+-     blockedBy: (.issue_dependencies_summary.blocked_by // 0)}'
++# GraphQL exposes native dependency counts; missing data stays unknown and is not eligible.
++# Set owner/name to the literal tracker binding, not the working directory's remote.
++gh api graphql --paginate -F owner='<owner>' -F name='<repo>' -f query='
++  query($owner: String!, $name: String!, $endCursor: String) {
++    repository(owner: $owner, name: $name) {
++      issues(first: 100, after: $endCursor, states: OPEN) {
++        nodes {
++          number title
++          labels(first: 100) { nodes { name } }
++          assignees(first: 100) { nodes { login } }
++          issueDependenciesSummary { blockedBy }
++        }
++        pageInfo { hasNextPage endCursor }
++      }
++    }
++  }' --jq '.data.repository.issues.nodes[]
++    | {number, title, labels: [.labels.nodes[].name],
++       assignees: [.assignees.nodes[].login],
++       blockedBy: .issueDependenciesSummary.blockedBy}'
+ ```
+ 
+ Grabbable = has the ready label (per your label binding) AND `assignees == []` AND `blockedBy == 0` AND no `blocked` label. When the frontier is empty, report WHY (all claimed vs. triage stalled vs. everything blocked); an empty answer with no breakdown sends people guessing.
+--- a/skills/run/adversarial-review/SKILL.md
++++ b/skills/run/adversarial-review/SKILL.md
+@@ -1,9 +1,11 @@
+ ---
+ name: adversarial-review
+-description: "Run an adversarial review of a change before it ships: isolated finders trying to break it, a skeptic pass that kills unproven findings, and a gate on confirmed blockers. Use before committing substantial work, at lane close-out, when the user asks for an adversarial or red-team review of a diff/branch/PR, or before external reviewers see the change."
++description: "Review a substantial change with independent finders and a skeptic before commit or integration."
+ ---
+ 
+ # Adversarial review
++
++Read the [Codex desktop binding](../../../CODEX.md) when this workflow needs harness mechanics, model routing, or recovery.
+ 
+ Reviewers whose job is to find what is **wrong** with a change before it ships, not to summarize it, not to appreciate it. This skill is the portable protocol: isolated finders, a skeptic pass that separates proven defects from plausible ones, and a gate that only skeptic-confirmed blockers may hold. Everything a repo does differently (its defect history, its probe policy, its stakes) lives in **binding slots** the team-workflow setup interview fills.
+ 
+@@ -18,7 +20,7 @@
+ 
+ ## 2. Composition: three finders, isolated
+ 
+-Three reviewers that **never see each other's reasoning**: isolation is what makes agreement between finders meaningful. Each loads the diff, the repo's defect-class checklist (§5), the repo's decision records where [domain-memory](../../orient/domain-memory/SKILL.md) is bound, and nothing of the others' output. The execution shape follows where the review runs: a reviewer in the harness's main loop launches the finders as parallel subagents, whose completions re-invoke it; a review that itself runs as a delegated subagent runs the finder passes **sequentially in one context**: nested subagents' completions do not re-invoke a parent subagent, so a spawn-and-wait reviewer there stalls. Sequential passes keep the isolation between passes rather than between processes: a fresh perspective per pass, no shared candidate list until the skeptic.
++Three reviewers that **never see each other's reasoning**. Give each a fresh context, the raw change/spec, applicable project rules and decisions, and its named lens. Use `fork_turns="none"` for independent Codex reviewers. Schedule within live capacity, in separate batches if needed. A parent that cannot launch reviewers returns the request to its coordinator. Sequential passes in one context are multiple perspectives, not isolated reviews; report that limitation rather than claiming independent agreement.
+ 
+ 1. **The correctness finder.** Logic, edge cases, error paths, invariants; the defect-class checklist is its opening moves, not its limit.
+ 2. **The fitting lens.** One perspective chosen to match the change, from the menu:
+@@ -76,7 +78,7 @@
+ 
+ **The gate:** a confirmed BLOCKER must be fixed before the commit (floor layer) or merge (close-out layer). Only **the decider** may waive one, with the reason recorded where the report lives. The implementer never waives its own blocker; the orchestrator surfaces it to the decider, never absorbs it. Everything below BLOCKER advises: the implementer or orchestrator dispositions each finding, fixed or declined with a reason, at their own judgment. Where the repo binds [domain-memory](../../orient/domain-memory/SKILL.md), a declined finding lands as a decision record with its reason, which is what stops the next review from re-raising settled ground.
+ 
+-**Do not loop the review until "clean."** Re-run after fixing what was found; a review re-run on an unchanged diff generates new plausible-sounding findings indefinitely. Two consecutive runs with nothing new confirmed is a stop signal, not a challenge.
++**Bound re-review to evidence.** After fixing confirmed findings, verify those fixes and the affected behavior. Run another independent pass only when changed scope, a failure, or unresolved evidence justifies it. Stop when the required review and verification are complete; do not require two clean runs or review an unchanged diff to manufacture confidence.
+ 
+ ## 5. The defect-class checklist (binding slot)
+ 
+--- a/skills/run/blast-radius/SKILL.md
++++ b/skills/run/blast-radius/SKILL.md
+@@ -1,9 +1,11 @@
+ ---
+ name: blast-radius
+-description: Find what a change breaks somewhere else before it ships, beyond the diff and past where grep stops, and prove the one fact it is safe because of by running real code. Use when asked for the blast radius of a change, when deciding whether an in-flight change is safe to merge, or when reviewing a small diff you do not trust yet.
++description: "Trace what a change can break outside its diff and test the facts its safety depends on."
+ ---
+ 
+ # Blast radius
++
++Read the [Codex desktop binding](../../../CODEX.md) when this workflow needs harness mechanics, model routing, or recovery.
+ 
+ Find what a change breaks somewhere else, before it ships. Listing the callers is not the job: any agent can grep those in a second. The job is the breakage grep will not show you.
+ 
+@@ -23,7 +25,7 @@
+ 4. **You ran it.** A script or test that calls the real code and fails loud if you are wrong.
+ 5. **You reproduced it in the running app.**
+ 
+-Any safety fact that stops short of rung 4 is said out loud as unproven, never written up as settled. Rung 4 is usually one small script that imports the same library the app ships and calls the exact function you are worried about.
++Any safety fact that stops short of rung 4 is said out loud as unproven, never written up as settled. Rung 4 is usually a small script that exercises the actual behavior. For configuration, test the real loader; for skill or documentation changes, use the relevant parser and a realistic workflow check. Do not invent application code merely to test prose.
+ 
+ ## Steps
+ 
+--- a/skills/run/diagnose/SKILL.md
++++ b/skills/run/diagnose/SKILL.md
+@@ -1,9 +1,11 @@
+ ---
+ name: diagnose
+-description: "The disciplined bug-fixing loop: no fix ships without a cause the fixer can state in one plain sentence, with evidence. Use when any fix is about to ship without a nameable cause, when a bug resists its first fix attempt, or when a bug-shaped lane brief points here."
++description: "Reproduce a reported bug, prove its cause, and preserve a regression check before shipping the fix."
+ ---
+ 
+ # Diagnose
++
++Read the [Codex desktop binding](../../../CODEX.md) when this workflow needs harness mechanics, model routing, or recovery.
+ 
+ A fix may not ship without a **named cause**: one plain sentence stating what was wrong, backed by evidence, readable by a non-engineer decider. This skill is the discipline a working lane follows inline when fixing bugs. It is not a lane type of its own, and it deliberately has no binding slots: everything repo-specific already arrived in the lane's brief.
+ 
+--- a/skills/run/handoff/SKILL.md
++++ b/skills/run/handoff/SKILL.md
+@@ -1,42 +1,76 @@
+ ---
+ name: handoff
+-description: Write a structured session handoff so a fresh session resumes losslessly. Use when context is filling up (around half the window), when wrapping a work session, or when the user says "handoff", "checkpoint", "wrap up", or "save state".
++description: "Save or recover the current Codex task at a checkpoint, compaction boundary, or requested handoff."
+ ---
+ 
+ # Handoff
+ 
+-Capture where the work stands into one small file so the next session, or a fresh one after a context reset, resumes with zero re-explanation. The handoff is a **pointer, not a transcript**: it says where things are and where the durable records live; it never becomes a running log or a second copy of the plan.
++Read the [Codex desktop binding](../../../CODEX.md) when this workflow needs harness mechanics, model routing, or recovery.
+ 
+-## When to write one
++Save a compact, task-owned checkpoint that lets Codex recover the current work
++with its authorization and worker ownership intact. Checkpointing and replacing
++the task are separate actions. Continue in the same task through automatic
++compaction unless the user requests a transfer.
+ 
+-**At roughly half the context window, write the handoff; don't wait for the window to fill.** A context window is the fixed amount of conversation an agent session can hold; as it fills, the oldest details fall away and the quality of long-chain reasoning degrades before the hard limit is ever hit. Writing the handoff at the halfway point captures state while the session can still summarize it accurately, and makes the succession clean instead of a scramble.
++## Resolve the checkpoint
+ 
+-Also write one at any natural wrap-up: end of a work session, before a deliberate context reset, or whenever the user asks for a checkpoint.
++Read [checkpoint recovery](../../../runtime/CONTINUITY.md). Resolve the bundled
++helper from this installed skill's directory. Pass the current project directory
++and actual task ID, available as `CODEX_THREAD_ID` when the harness exposes it:
+ 
+-## Where it goes
++```sh
++python3 "<installed-plugin>/runtime/checkpoint.py" --project "$PWD" --task "$CODEX_THREAD_ID"
++```
+ 
+-The repo's confirmed handoff location, recorded in the team-workflow binding doc at setup time. Default: `.claude/handoff.md` at the project root, untracked, with a session-start hook auto-loading it into fresh sessions (the setup skill seeds that wiring). Never write the handoff under a directory owned by a config-sync pipeline (a synced `.ai/` tree, a distributed settings stub) or inside another tool's preserved output home (a review-decision wiki such as `docs/review-wiki/`): those locations are spoken for, and sync pipelines can silently overwrite or orphan what you put there.
++Replace `<installed-plugin>` with the real plugin root, three levels above this
++SKILL.md. The helper prints JSON with the canonical project root, task ID, and
++checkpoint path. It creates no files. Use the returned path; only its owning task
++writes it. A worker returns its own evidence to its parent. If the task ID is not
++exposed, obtain it from the current task's app metadata or ask for a dedicated
++location. Never guess another task's ID or overwrite a coordinator's checkpoint.
+ 
+-In repos with an approval-before-edit guardrail: invoking this skill **is** the approval. The skill declares exactly one write, the handoff file at the confirmed location, and an explicit user invocation constitutes approval for that write and nothing else.
++Existing project handoffs, including `.claude/handoff.md`, may provide background
++on startup. Leave them unchanged. Loading one never authorizes stale NEXT work.
+ 
+-## The rules
++## When and what to save
+ 
+-1. **Overwrite, don't append.** The handoff always represents "where we are right now". Version control and the tracker hold history; an appended handoff decays into a transcript nobody reads.
+-2. **Pointer, not transcript.** Two to four sentences of state, links into the durable records (the tracker, the plan doc, the changed files); never pasted code blocks, never a recap of the conversation. If the repo has a living plan or status doc, that stays the durable record; the handoff is the short "resume here" pointer into it.
+-3. **The stale-NEXT rule.** NEXT points at the tracker query, never enumerates work items. The queue lives on the tracker; a handoff that lists item numbers goes stale the moment any other session claims one, and a session starting from that stale list collides with the claimer. Corollary: **reading a handoff never authorizes starting an item**; the claim recipe always runs first.
+-4. **GOTCHAS carry the expensive lessons.** Traps, dead ends already ruled out, environment facts that look wrong but aren't: the things a fresh session would otherwise re-pay for.
+-5. **No secrets, ever.** The session-start hook replays the handoff into every fresh session, so a captured credential replays forever, into every future session's context. Name where a secret lives (the env var, the secret-store path, the wizard stage that produces it), never its value; scan the composed handoff for anything that looks like a token, key, or password and replace it with its pointer *before* the write, then confirm the saved file carries pointers, not values.
++Save at meaningful milestones, before an explicit transfer, when the user asks,
++and when the harness reports impending compaction. Use active
++context usage rather than cumulative usage. Finish the current atomic step, save
++and verify, then continue. Do not wait for a manual restart after compaction.
+ 
+-## Steps
++Use [the template](references/template.md). Keep a pointer to the recorded
++agreement and current state rather than a transcript. Preserve:
+ 
+-1. Resolve the target path from the binding doc (default `.claude/handoff.md`; create the directory if needed).
+-2. Fill the [reference template](references/template.md), STATE / DONE / NEXT / GOTCHAS, overwriting any existing handoff.
+-3. Keep it tight and high-signal; apply the five rules above.
+-4. Tell the user it's saved and that a fresh session (or a context reset) is now safe.
++- The current objective, accepted decisions, authorization, and hard stop points.
++- Branch/worktree and any uncommitted work; respect no-commit instructions.
++- Worker/task IDs and owned process IDs, with status and the check that proves it.
++- Completed work and verification evidence for its current revision.
++- Pending questions, blockers, and the immediate next step on the current task.
++- The tracker query for discovering new work, only when new work is authorized.
++- Expensive lessons and pointers to durable decisions.
+ 
+-## Done when (checkable: verify each line before reporting complete)
++Overwrite this task's checkpoint. Never append a conversation recap or capture
++secret values. Keep the ownership and authorization fields even when trimming.
+ 
+-- The handoff file exists at the binding doc's confirmed location, overwriting any previous one, no appended history.
+-- All four template sections are filled; NEXT contains the tracker query and enumerates no specific work items.
+-- The saved file was re-read after writing: every entry is a pointer into a durable record with no pasted code blocks, and rule 5's secret scan ran against the saved text; any candidate value it flagged was replaced with its pointer and the file re-saved before reporting.
+-- The user was told the handoff is saved and a fresh session or context reset is now safe.
++## Recover and verify
++
++Re-read the saved file and confirm paths and evidence resolve. Check live git,
++worker, tracker, and process state before continuing; a saved status is not a
++current liveness check. A fork's inherited checkpoint is background until the
++new task's authority and ownership are established.
++
++Report the saved path and what was verified. Do not promise lossless recovery:
++an unresolved worker, stale evidence, or missing record remains explicitly
++unverified. No checkpoint alone permits creating a successor task or archiving
++the current one.
++
++## Done when (checkable)
++
++- The resolved task-owned file exists and was re-read after writing.
++- Objective, authorization, stop points, ownership, state, next step, verification,
++  and pending questions are preserved, with explicit none values where applicable.
++- Evidence and paths were checked; stale or unavailable state is labeled.
++- Secret values and transcripts are absent; Claude handoffs were not overwritten.
++- The user received the path and verification result; current authorized work
++  continues unless they requested a stop or transfer.
+--- a/skills/run/handoff/references/template.md
++++ b/skills/run/handoff/references/template.md
+@@ -1,33 +1,34 @@
+-# Session handoff template
+-
+-<!-- The handoff skill's reference template. Written at session wrap-up to the repo's
+-     confirmed handoff location (conventionally an untracked, auto-loaded file like
+-     .claude/handoff.md; the binding doc names it) so a fresh session resumes without
+-     re-explanation. Overwrite on each wrap-up; it is "where we are right now", never
+-     a running log. The tracker and the repo's tracked docs remain the durable record;
+-     the handoff is only the hot pointer. -->
+-
+-# Handoff: <short task name>
+-_Updated: <date> · Branch: <branch>_
++# Handoff: <current objective>
++_Updated: <date> · Task: <actual task ID> · Workspace: <absolute path>_
+ 
+ ## STATE
+ 
+-<2–4 sentences: exactly where things stand right now.>
++<Current state, branch, and uncommitted work.>
+ 
+-## DONE (this session)
++## AUTHORIZATION
+ 
+-- <what actually shipped/changed, with file paths>
++<Latest user agreement or pointer; permitted work; explicit stop points.>
++
++## OWNERSHIP
++
++<Coordinator ID; worker IDs/worktrees/branches; owned process IDs and last verified status. Explicit none if absent.>
++
++## DONE
++
++<Completed results with durable evidence pointers.>
+ 
+ ## NEXT
+ 
+-<!-- THE STALE-NEXT RULE: NEXT points at the tracker query, never enumerates items.
+-     The work queue lives on the tracker; a handoff that lists specific item numbers
+-     goes stale the moment any other session claims one, and a session that starts
+-     from that stale list collides with the claimer. Reading a handoff never
+-     authorizes starting an item; the claim recipe always runs. -->
++<Immediate next step for this task. Include a tracker query only for authorized new work.>
+ 
+-1. Run the frontier query (see the team-workflow binding doc) and claim from it.
++## PENDING
+ 
+-## GOTCHAS / DON'T-REPEAT
++<Unanswered questions, blockers, and required decisions, or none.>
+ 
+-- <traps, dead ends already ruled out, things that look right but aren't>
++## VERIFY
++
++<Current revision and completed checks; remaining verification and unresolved evidence.>
++
++## GOTCHAS
++
++<Expensive lessons, with pointers to durable records.>
+--- a/skills/run/implement/SKILL.md
++++ b/skills/run/implement/SKILL.md
+@@ -1,28 +1,30 @@
+ ---
+ name: implement
+-description: "How a working lane builds an item: seam-scoped test-first, tracer-first sequencing, a green checkpoint per slice, and file-don't-fix scope discipline. Use when a build-shaped lane brief points here, when implementing a spec or tracked item, or when mid-build discoveries tempt a lane beyond its brief."
++description: "Build a specified work item in thin verified steps while respecting scope and commit instructions."
+ ---
+ 
+ # Implement
++
++Read the [Codex desktop binding](../../../CODEX.md) when this workflow needs harness mechanics, model routing, or recovery.
+ 
+ How a working lane builds an item. The item's body is the spec, the brief's verification set defines done, and this skill is the discipline between those two points. It is not a lane type of its own, and it deliberately has no binding slots: everything repo-specific (verify commands, constraints, the tracker) already arrived in the lane's brief.
+ 
+ ## Tracer first
+ 
+-**The first commit proves the thinnest end-to-end slice**: the path that goes all the way through, one field wide, before anything widens. Widening follows, slice by slice, each responding to what the last one taught. This pairs with [to-tickets](../to-tickets/SKILL.md)' slicing: tickets sliced tracer-style are built tracer-style. An item with no thin end-to-end slice in it is a slicing problem: report it back through the orchestrator rather than building horizontal layers and calling the stack a tracer.
++**The first verified checkpoint proves the thinnest end-to-end slice**: the path that goes all the way through, one field wide, before anything widens. Widening follows, slice by slice, each responding to what the last one taught. This pairs with [to-tickets](../to-tickets/SKILL.md)' slicing: tickets sliced tracer-style are built tracer-style. An item with no thin end-to-end slice in it is a slicing problem: report it back through the orchestrator rather than building horizontal layers and calling the stack a tracer.
+ 
+ ## Seam-scoped test-first
+ 
+ A **seam** is a public boundary where behavior is observed without reaching inside, and the seams under test are the ones **the item's verification set names**, agreed upstream when the ticket was filed, not invented mid-lane. Two bars, by whether a seam is named:
+ 
+ - **At every named seam: red before code.** The failing test is written first, watched failing, and stays in the suite after it goes green. One seam, one test, one minimal implementation per cycle.
+-- **Code at no named seam ships WITH its tests, in the same commit**: tests still travel with the code, just not necessarily before it.
++- **Outside named seams, validate the actual risk.** Use relevant existing checks for small reversible edits. Add behavioral tests when they establish new behavior or catch a reported regression; do not write tests that merely mirror implementation.
+ 
+ Tests verify behavior through the seam, never internal structure: a test that breaks under refactor while behavior held was testing the wrong thing.
+ 
+ ## Green checkpoints
+ 
+-**Each slice commits when green**: the verification relevant to the seams touched so far passing at the moment of commit. The point is survival: orchestrate's relaunch-fresh rule assumes a stopped or dead lane's completed work sits at a known-good point in the lane's workspace, and the checkpoint cadence is what makes that true. A green slice left uncommitted while the next one starts is work the next interruption deletes.
++**Save green checkpoints within the user's commit instructions.** Commit coherent slices when commits are authorized. A no-commit instruction instead preserves the working diff and its verification in the checkpoint. An interrupted Codex turn does not erase uncommitted files; inspect the workspace before recovery.
+ 
+ ## File, don't fix
+ 
+@@ -33,7 +35,7 @@
+ Enforcement is **artifacts, not forensics**: the orchestrator's close-out audit checks three things the finished lane either shows or does not:
+ 
+ 1. **Tests exist and pass at every seam the verification set names.**
+-2. **The tracer slice is identifiable**: the first commit demonstrably proves a thin end-to-end path.
++2. **The tracer slice is identifiable**: the first verified checkpoint demonstrably proves a thin end-to-end path.
+ 3. **The diff contains no out-of-scope files.**
+ 
+ No commit-by-commit reconstruction of red-before-green: the kept tests, the visible tracer, and the clean diff are the evidence.
+@@ -44,20 +46,20 @@
+ 
+ 1. **A bug surfaces mid-build** → [diagnose](../diagnose/SKILL.md). The named-cause test binds before the lane resumes building: no fix ships without a cause stated in one plain sentence, with evidence.
+ 2. **The structure fights the lane**: a change that should have been local sprawls, a test only writable past an interface → fix nothing structural; report it as **friction** in the close-out summary, [codebase-review](../../investigate/codebase-review/SKILL.md)'s third entry gate.
+-3. **The spec is ambiguous** → back through the orchestrator to the decider, and build waits on the answer for anything the ambiguity gates. A lane that resolves ambiguity silently has made a decision that was never its to make.
++3. **The spec has a material unresolved decision** → ask the decider through the coordinator and pause only dependent work. Resolve routine implementation choices from evidence and recorded decisions; do not re-ask settled questions.
+ 4. **A step only a human can take** → generate a [wizard](../wizard/SKILL.md) and put the `blocked` label on the driving item until the human clears it.
+ 
+ ## Done when (checkable: verify each line before reporting complete)
+ 
+-- The first commit proves the thinnest end-to-end slice, and every later commit widens it; no commit stacks a horizontal layer that goes nowhere alone.
+-- Every seam the item's verification set names has a test that was written red before its code, passes now, and stays in the suite; all other code shipped with its tests in the same commit.
+-- Every slice sits at a green checkpoint commit, and nothing green is uncommitted.
++- The first verified checkpoint proves the thinnest end-to-end slice, and later checkpoints widen it; no step stacks a horizontal layer that goes nowhere alone.
++- Every seam the item's verification set names has a test that was written red before its code, passes now, and stays in the suite; other changes have validation proportional to their behavior and risk.
++- Coherent work is checkpointed with its verification; commits follow the user's authorization and explicit no-commit restrictions.
+ - The diff contains only in-scope files, and every adjacent discovery is on the tracker rather than in the diff.
+-- Every mid-build bug carries diagnose's closing artifacts; structural friction is reported in the close-out summary; every spec ambiguity went to the decider through the orchestrator; every human-only step rides a wizard with the `blocked` label on the driving item, or none of these arose.
+-- The close-out summary points at the three audit artifacts: the seam tests, the tracer commit, and the diff's scope.
++- Every mid-build bug carries diagnose's closing artifacts; structural friction is reported in the close-out summary; every material unresolved decision was raised while routine choices used available evidence; every human-only step rides a wizard with the `blocked` label on the driving item, or none of these arose.
++- The close-out summary points at the three audit artifacts: the seam tests, the tracer checkpoint, and the diff's scope.
+ 
+ ## Attribution
+ 
+ Adapted from Matt Pocock's [`implement`](https://github.com/mattpocock/skills/tree/main/skills/engineering/implement) and [`tdd`](https://github.com/mattpocock/skills/tree/main/skills/engineering/tdd) (MIT). The implement-session shape is his: a session that builds from the spec or tickets, tests as it goes, and ends in review. So is the red–green loop by vertical slice: red before green, one seam, one test, one minimal implementation per cycle, each test a tracer bullet responding to what the last cycle taught (his terms), testing only at pre-agreed seams rather than everywhere, and behavior-through-public-interfaces as what a good test is.
+ 
+-What this pack changes: the seam agreement moves upstream (the item's verification set names the seams at filing time, instead of a mid-session ask) and the seam-scoped bar lets code at no named seam ship with its tests in the same commit; the tracer-first mandate on the first commit; the green-checkpoint cadence orchestrate's relaunch-fresh rule leans on; the file-don't-fix scope rule; enforcement by close-out artifacts rather than commit forensics; and the four named interlocks into diagnose, codebase-review, the decider, and wizard.
++What this pack changes: the seam agreement moves upstream (the item's verification set names the seams at filing time, instead of a mid-session ask) and the seam-scoped bar lets code at no named seam ship with its tests in the same commit; the tracer-first mandate on the first verified checkpoint; the green-checkpoint cadence orchestrate's relaunch-fresh rule leans on; the file-don't-fix scope rule; enforcement by close-out artifacts rather than commit forensics; and the four named interlocks into diagnose, codebase-review, the decider, and wizard.
+--- a/skills/run/orchestrate/SKILL.md
++++ b/skills/run/orchestrate/SKILL.md
+@@ -1,9 +1,11 @@
+ ---
+ name: orchestrate
+-description: "Run a session as the orchestrator of parallel agent-assisted work: routing items to working sessions, auditing results, and owning integration, instead of implementing. Use when the user says \"orchestration mode\", asks one session to coordinate several lanes/sessions, or hands over an orchestrator role."
++description: "Coordinate independent workers in Codex: delegate, monitor, verify, and integrate tracked work."
+ ---
+ 
+ # Orchestrate
++
++Read the [Codex desktop binding](../../../CODEX.md) when this workflow needs harness mechanics, model routing, or recovery.
+ 
+ One session coordinates many. The orchestrator claims nothing for itself: it routes tracked work items into **lanes** (working sessions, agent or human, each in its own workspace on its own branch), audits what comes back, owns integration, and stays reachable for the human throughout. This skill is the portable protocol: principles, plus **binding slots** (§7) for the machinery every repo does differently. It is rule-based: do every step, every time, because memory-only protocols drift.
+ 
+@@ -11,11 +13,11 @@
+ 
+ ## 1. The orchestrator is a router, not a worker
+ 
+-1. **Turn discipline.** End every turn within a few minutes: the human's messages arrive between turns. Anything longer (tests, builds, server boots, watches, the lanes themselves) runs as a background task or delegated session that re-invokes you; tiny mechanical steps (a commit, a comment, a merge push) stay inline.
++1. **Turn discipline.** Stay in the active Codex task while authorized work continues. User messages can arrive mid-turn. Keep waits bounded and use the live agent/task tools to stay responsive; a final answer is not a wake timer.
+ 2. **Delegate execution, keep judgment.** Long verification and mechanical fixes go to delegated sessions; you read their reports, spot-check the load-bearing claims, and own routing, adjudication-surfacing, and the merge. Delegation moves the **executor**, never the **standard**.
+ 3. **Respond first.** On any re-invocation, answer a waiting user message before resuming queued work.
+-4. **Context is the orchestrator's scarcest resource.** Delegation IS context preservation: hold judgments and state, not logs. Hands-on-keyboard past ~10 minutes is worker mode: stop, package the work into a lane or background task, end the turn.
+-5. **The idle gap has a price.** A wake past the prompt cache's ~5-minute TTL re-writes the whole context at write price ([evidence](references/evidence.md)). While lanes are live, wake gaps stay under that TTL, and an eventless poll waits at least ~4 minutes since the last; with no lanes and nothing to watch, long idle is fine. Where the harness offers wake timers or completion re-invocation, arm a **metronome**, a ~4-minute background sleep, re-armed every wake while lanes are live; the §5 cadence line audits it. A metronome wake is minimal: re-arm, one small filtered check (count-shaped or `-q`, never broad listings), a one-line status. Broad ingestion (full listings, whole comment bodies, unfiltered logs) waits for an event that needs it.
++4. **Preserve context.** Delegate substantial independent execution when useful, and hold judgments and compact state rather than full logs. A duration alone does not force a new worker or an early final answer.
++5. **Monitor actual state.** State a polling cadence for external PR/CI state, normally 2-4 minutes, and perform it while work is live. Agent completion notifications and task waits handle worker events. Bound blocking waits to 60 seconds and report meaningful changes. Use current provider evidence for cache economics; no fixed five-minute expiry or keep-warm model call is required. Continuing after the active turn needs a supported automation when the user requests it.
+ 
+ ## 2. The single-orchestrator rule
+ 
+@@ -23,7 +25,7 @@
+ 
+ ## 3. Startup checklist
+ 
+-1. Read the previous session's handoff (location in the binding doc): context, never authorization; the claim recipe still runs for everything. Where the binding names a [domain-memory](../../orient/domain-memory/SKILL.md) home, read the glossary and skim recent decision records the same way.
++1. Read the current task-owned checkpoint first, then verify its agreement and live ownership. A previous project handoff is read-only background, never authorization for old work. Run the claim recipe when taking new tracked work. Where a domain-memory home is bound, read the glossary and relevant active decisions.
+ 2. Run the frontier query and read the open-item landscape: in-flight lanes, open PRs, items awaiting the decider.
+ 3. Check for other active sessions (§2).
+ 4. **Title the session**, after the §2 check unless §8's pre-titling carve-out applies; a session that must stand down never wears the title.
+@@ -34,31 +36,31 @@
+ - **Claim first, per the tracker discipline**: read-before-write, then a fresh, item-named workspace per lane. Start and record the lane per the **lane-launch binding slot** (§7).
+ - **Pick the runner from recorded policy (§7), never habit**: before the claim, which stamps the runner. Launcher standard: [references/runner-parity.md](references/runner-parity.md).
+ - **A failed launch is a launch defect**: diagnose per the repo's launch tooling and retry on the policy-named runner; only then fall back, LOUD, never silent: launch report AND tracker item carry `runner fallback: X→Y, reason`.
+-- **Brief from the lane-brief template** ([setup's templates](../../orient/setup/references/templates/lane-brief.md)): spec verbatim, named verification set, standing constraints, and the integration rule: lanes commit on their branch and stop; the orchestrator owns review and merge. Everything else travels by context pointer, to the item, notes, and prior commits, never duplicating what a pointer reaches. It points at a bound [domain-memory](../../orient/domain-memory/SKILL.md) home; bug-shaped briefs also at [diagnose](../diagnose/SKILL.md), build-shaped at [implement](../implement/SKILL.md). A lane expected to run unattended keeps a decision trail per [show-me-your-work](../show-me-your-work/SKILL.md), named in the brief, so the close-out audit and the human read a decision table, not a recap.
++- **Brief from the lane-brief template** ([setup's templates](../../orient/setup/references/templates/lane-brief.md)): spec verbatim, named verification set, standing constraints, and the integration rule: workers save verified results within the user's commit instructions and stop; the orchestrator owns review and merge. Everything else travels by context pointer, to the item, notes, and prior commits, never duplicating what a pointer reaches. It points at a bound [domain-memory](../../orient/domain-memory/SKILL.md) home; bug-shaped briefs also at [diagnose](../diagnose/SKILL.md), build-shaped at [implement](../implement/SKILL.md). A lane expected to run unattended keeps a decision trail per [show-me-your-work](../show-me-your-work/SKILL.md), named in the brief, so the close-out audit and the human read a decision table, not a recap.
+ - **Launch reports are for the human: read, never guessed.** Every launch and lane mention names runner/model/session, item, and workspace, legibly enough to tell lanes apart. Unless the toggle (§7) records `off`, add the reasoning-effort level; the toggle governs only the additions (effort line, §5 repeats, close-out cost line), never identity. Every announced value comes from a recorded source (policy table, launch manifest/config, an explicit setting); "session-inherited" only after those were read and set nothing; a plausible guess is a protocol violation. A chip launch's model/effort are session defaults at click time, unreadable to the launcher: announce exactly that, never a specific guess. Compliance decays over long sessions ([evidence](references/evidence.md)); where tool-call hooks exist, enforce the reminder in machinery per [references/announce-hook.md](references/announce-hook.md), which also carries the launcher-manifest pattern; setup may offer wiring it.
+ - **Every picker-visible lane session is titled with its item at launch** (§8).
+-- **A session's model is fixed at launch, never switched mid-flight.** The prompt cache is per-model: a switch forces a full-context re-write ([evidence](references/evidence.md)). Work needing a different model goes to a fresh subagent or lane at that model.
++- **Honor the selected model and effort.** Use the current task selection. Fresh workers may use a policy-approved model and effort supported by the spawn tool. Full-history forks inherit both. The user can change effort in the same task; that is not succession. Do not switch models merely to run a shell check or to refresh context.
+ - **Lane count is a cost dial**: every lane pays a first-write of its whole brief and startup context. Where the tracker discipline allows, trivially-related small items ride one lane serially, or continue an existing lane by message where resuming is supported. The dial never overrides isolation where items conflict.
+-- **Subagent or separate session: by shape, not habit.** Default is an in-process subagent: lanes that fit standing permission grants, need no human input, and are short-lived cost only brief-out and report-in, no launch click. A separate session (background-task chip, where offered) pays a full session boot but keeps lane traffic out of your context; it takes what breaks that shape: expected mid-flight approvals above all, long-lived builds, work that must survive the orchestrator, work the decider wants to watch. The slot (§7) refines or overrides this default.
+-- **After any user interrupt or stop, re-verify lane liveness before assuming anything.** A stopped agent session is generally not resumable: relaunch fresh; completed work survives in the workspace (checkpoint-commit before resuming on top).
++- **Subagent or separate task.** Use a subagent for a bounded delegated work item. Create a sidebar task only when the user explicitly asks for one; otherwise keep ownership in the current task. A separate user-owned task can be coordinated through the available task tools. Read the actual permission and lifecycle support before choosing a vehicle. All concurrent writers receive explicitly provisioned worktrees because Codex subagents share the filesystem and starting directory.
++- **After an interrupt, check liveness and intent.** Inspect worker state, files, and owned processes. An interrupted Codex agent may resume through `followup_task`; an existing desktop task may resume through its message tool. Replace only a worker that cannot continue, carrying its completed work and current authorization forward. Respect a user stop before restarting anything.
+ 
+ ## 5. Close-outs (one lane at a time; never two merges racing)
+ 
+ When a lane enters close-out review, announce the hand-off per §4's announce discipline (identity unconditional, the model/effort repeat as the toggle-governed addition), naming the reviewing agent or session, never merely a review type. Every re-review round is announced the same way.
+ 
+-1. **Audit the lane's summary against its verification contract; never trust self-reported greens.** Re-run the verification in the lane's workspace, directly or via a delegated verifier (**a binding slot**), at the review-tier policy's model and effort (§7). Require per-command exit codes, zero skipped checks; piped or filtered output is not evidence. Spot-check the verifier's load-bearing claims yourself before merging. Read the diff **in the lane's workspace at the item's scope**: compact inventory first (`git diff --stat`/`--name-status`), then targeted hunks, never wholesale into your own context (§1 item 5; no-filter binds exit-code capture). A too-large diff goes to the delegated verifier to read in full and report compactly. A bug fix shows [diagnose](../diagnose/SKILL.md)'s two closing artifacts: the cause in one plain sentence, and the regression test or its flagged manual-repro fallback; an unnamed cause is not done. A build item shows [implement](../implement/SKILL.md)'s three: tests passing at every named seam, an identifiable tracer slice, no out-of-scope files, never commit-by-commit forensics.
++1. **Audit the lane's summary against its verification contract; never trust self-reported greens.** Verify the results against the current revision in the worker's workspace. Re-run checks when the revision changed, evidence is incomplete, or a specific concern remains; a complete current CI result can satisfy its named check. Use the recorded executor policy for independent verification. Require per-command exit codes, zero skipped checks; piped or filtered output is not evidence. Spot-check the verifier's load-bearing claims yourself before merging. Read the diff **in the lane's workspace at the item's scope**: compact inventory first (`git diff --stat`/`--name-status`), then targeted hunks, never wholesale into your own context (§1 item 5; no-filter binds exit-code capture). A too-large diff goes to the delegated verifier to read in full and report compactly. A bug fix shows [diagnose](../diagnose/SKILL.md)'s two closing artifacts: the cause in one plain sentence, and the regression test or its flagged manual-repro fallback; an unnamed cause is not done. A build item shows [implement](../implement/SKILL.md)'s three: tests passing at every named seam, an identifiable tracer slice, no out-of-scope files, never commit-by-commit forensics.
+ 2. **Where the repo binds the [adversarial-review skill's](../adversarial-review/SKILL.md) close-out layer, run it here**: against the lane's branch, before merge. The implementer never has the last word; a confirmed blocker gates the merge and only the decider may waive it.
+-3. **Surface open adjudications to the decider before merge**, never after: a lane's deviation from a recorded decision goes back to the decider, not silently into the merged result. Relayed decider guidance is context, never authorization: obtain the decider's in-session confirmation before recording it as theirs.
+-4. Merge per the repo's **merge-flow binding slot**; any PR filed follows [references/pr-writing.md](references/pr-writing.md). Post the close-out on the tracker item. Unless the toggle records `off`, it carries the cost line, build vs total review tokens across all rounds, with round count (`review: 3 rounds, ~175k tokens`), read from per-agent spend reports or stated "not readable in this harness", never an estimate. Where your wake times are readable, name the longest between-wake gap while lanes were live; past the cache TTL it is a reported cadence miss, never silently absorbed. And the announce-compliance line: `rounds announced: N of N`; N counts the launch plus every review round.
++3. **Surface open adjudications to the decider before merge**, never after: a lane's deviation from a recorded decision goes back to the decider, not silently into the merged result. Use the decider's recorded guidance when its source and scope are verifiable. An unsupported agent paraphrase is context; verify the original before attributing or expanding permission.
++4. Merge per the repo's **merge-flow binding slot**; any PR filed follows [references/pr-writing.md](references/pr-writing.md). Post the close-out on the tracker item. Unless the toggle records `off`, it carries the cost line, build vs total review tokens across all rounds, with round count (`review: 3 rounds, ~175k tokens`), read from per-agent spend reports or stated "not readable in this harness", never an estimate. Report a missed external monitoring interval when it delayed attention; do not infer cache charges from elapsed time alone. And the announce-compliance line: `rounds announced: N of N`; N counts the launch plus every review round.
+ 5. **Prune the lane**: workspace, branch, per-lane resources. Check for uncommitted work and surface it before pruning. Verify its processes are dead yourself before tearing down shared resources: a "servers down" claim is not evidence.
+ 6. **Last of all, hand the dead lane's session to the human for archiving.** Only after merge, tracker close-out, and pruning, tell the human, naming the session **verbatim as the picker shows it**, that the lane is safe to archive; they archive on their own time. Never call an archive surface yourself; retitle the finished lane first if useful (no confirmation needed). Archive, never delete; name only the closed-out lane's session, never a human's working session. Archiving trails everything: an unanswered notification gates no work. Native auto-archive on PR close fires at merge time: use it for PR-linked lanes only where the lane has stopped, the workspace is done with, and the tracker close-out doesn't need the session live; otherwise record `no` and notify. Subagent lanes have nothing to archive.
+ 
+-## 6. Wrap-up and succession
++## 6. Checkpoint, continue, or transfer ownership
+ 
+-1. **At roughly half the context window, wrap up**: finish the current step cleanly, start no new large work past the line (half-window rule: [handoff skill](../handoff/SKILL.md)).
+-2. Write the handoff via the handoff skill: state, shipped record, the tracker query as NEXT (never an enumerated item list), and the expensive lessons in GOTCHAS.
+-3. **Arrange the successor** (per the lane-launch slot) with a prompt saying "invoke orchestrate and follow its startup checklist" plus only what is unique to this moment; never restate the protocol. A pre-titling launch surface follows §8's carve-out.
+-4. Once the successor is confirmed live, with evidence of its startup checklist completing (the §3 step 4 title switch included; a pre-titled successor's evidence is the rest of the checklist), never merely a first message, stop your watches, **shed the orchestrator title**: retitle `Orchestrator (retired) — <repo>` (§8), go quiet, stay quiet (§2). The human archives the retired session when they see fit, never automatically, never the orchestrator (§5 step 6).
++1. At the measured context checkpoint or a meaningful milestone, finish the atomic step and write the task-owned checkpoint through [handoff](../handoff/SKILL.md). Preserve authorization, stop points, workers, processes, workspaces, evidence, and the current next step.
++2. Continue in the same task through native compaction. Re-read the checkpoint, project instructions, relevant decisions, and live state afterward. Half a context window does not retire the coordinator.
++3. A fresh task requires the user's request. On an explicit ownership transfer, give the successor the verified checkpoint and the current worker inventory. Start no competing integration while the transfer is pending.
++4. Confirm the successor completed the startup checks and accepted ownership before retiring the old coordinator. Stop only watches owned by the retiring coordinator, update its title when supported, and record the transfer. A fork or checkout handoff alone transfers no live ownership.
+ 
+ ## 7. Binding slots (the setup interview fills these per-repo)
+ 
+@@ -66,7 +68,7 @@
+ 
+ - **Lane launch**: how a working session starts; what is stamped on the tracker item (runner, model, workspace, branch); titling mechanism/actor and which surfaces pre-title (§8 governs the rest; the slot never opts a repo out of titling the harness supports); the decider's **runner policy**: available runners, launch mechanism for each, preference policy (launchers built to [references/runner-parity.md](references/runner-parity.md)); whether native auto-archive on PR close is safe per §5 step 6 (`yes`/`no`; no slot puts an archive surface in the orchestrator's hands); and the **announce toggle** (`announce model/effort: on/off`, default on) with §4's scope; only the recorded line is a valid off-switch, so audit mode can check it.
+ - **Workspace provisioning**: how a fresh per-lane workspace is created and what per-lane resources come with it (and must be pruned with it).
+-- **Monitoring**: how the orchestrator watches open PRs, inbound tracker activity, and lane liveness between turns, and how it confirms the watch is armed; the interval is the slot's to set but obeys §1 item 5's bounds.
++- **Monitoring**: how the orchestrator watches open PRs, inbound tracker activity, and lane liveness between turns, and how it confirms the watch is armed; the interval follows the observed system latency and §1 item 5.
+ - **Verification executor**: who re-runs verification at close-out (delegated verifier, CI, inline) and where per-command results land; plus the decider's **review-tier policy**: a table mapping close-out machinery (mechanical re-runs, finders and skeptics, re-probes) to model + effort. Canonical shape: mechanical verification cheap at low effort; adversarial review on real code or release-arming changes high; max only for decider-named cases, never a default. Each tier records a **floor** as well as a ceiling, what it may NOT be used for, so cost-saving never silently weakens the review bar. Tier deviation is loud in both directions, announced per §4.
+ - **Merge flow**: the repo's integration mechanics and who may push what where.
+ 
+--- a/skills/run/orchestrate/references/evidence.md
++++ b/skills/run/orchestrate/references/evidence.md
+@@ -1,4 +1,6 @@
+ # Measured evidence: the incidents behind orchestrate's cost rules
++
++Historical Claude observations follow. Their five-minute cache and launch-fixed model assumptions do not govern Codex. Use the current Codex desktop binding and runtime evidence for waiting, effort changes, compaction, and worker lifecycle. The incident history explains the old design only.
+ 
+ Reference, not protocol: the rules live in [SKILL.md](../SKILL.md); this file holds the measurements and incident history that earned them. Consult it when a rule's price tag is questioned: when a repo debates relaxing the cadence or the announce discipline.
+ 
+--- a/skills/run/orchestrate/references/pr-writing.md
++++ b/skills/run/orchestrate/references/pr-writing.md
+@@ -33,7 +33,7 @@
+ Where the repo has a resident review-response system (a disposition rule, a review wiki), that system is the authority and its precedent store stays the only one; these are the floor beneath it:
+ 
+ - **Never let review feedback expand the PR beyond the driving item's goal.** Address real shortcomings; everything else is filed as a new tracked item: tracker discipline's "discovered work gets its own item" applied to review comments.
+-- Act only on checks and comments **newer than the latest push**: everything older is already answered by the code.
++- Read every unresolved finding regardless of its age and verify its disposition against current code. Use CI results for the current commit. A push does not automatically answer an older comment.
+ - Verify every bot finding against the source before changing code. A false positive gets a reply with a written reason, then the thread resolved, never a silent dismissal, never an unverified fix.
+ - A comment an agent writes on a human's behalf says so: *"\<model\> responding on behalf of \<name\>:"*; nobody should mistake an agent's reply for the human's. The attribution line stands alone on its own line, a blank line follows, and the body starts as its own paragraph: the reader sees who is speaking before anything else. Paragraphs run roughly 2–3 sentences: the decider reads these on a phone, and a wall of prose hides the verdict. Lists do the enumerating, and long comma-chains split. Both rules hold for any tracker-visible comment written on a human's behalf (PR comments, review-thread replies, issue close-outs), not just PR bodies.
+ 
+--- a/skills/run/show-me-your-work/SKILL.md
++++ b/skills/run/show-me-your-work/SKILL.md
+@@ -1,9 +1,11 @@
+ ---
+ name: show-me-your-work
+-description: "Keep a reviewable decision trail for long-running or unattended work: one append-only TSV log, one row per decision with its why, evidence, and result. Use when starting an autonomous, multi-phase, or loop run a human reviews after stepping away, when a reviewer needs the trail to trust a result without rerunning it, or when the user asks for a decision log or says show your work."
++description: "Keep an append-only decision and evidence log for substantial autonomous or unattended work."
+ ---
+ 
+ # Show me your work
++
++Read the [Codex desktop binding](../../../CODEX.md) when this workflow needs harness mechanics, model routing, or recovery.
+ 
+ For work a human reviews after the fact, a decision trail lets them reconstruct what was decided, why, and on what evidence, without rerunning the work or reading the whole transcript. Keep one canonical log so the trail is consistent and a future agent can find it.
+ 
+@@ -63,12 +65,12 @@
+ 
+ At the end of the run, before handing back, check the log told the truth. Audit it against the session's own record: the transcript or session log if your harness exposes one, otherwise the run's observable traces (git history, tool outputs, produced artifacts) plus your own record of the session. Read only this run's record; other sessions' transcripts are private and irrelevant. Walk the log against what actually happened:
+ 
+-- Every row maps to a real action. Cut invented or aspirational entries.
++- Every row maps to a real action. Append a correction identifying any invented or aspirational row; retain the original history.
+ - Each row's evidence resolves and shows what the row claims.
+ - A fork, pivot, or abandoned approach that shaped the work but isn't logged is a gap. Add it.
+-- Drop padding. If nobody would audit a row, it doesn't earn its place.
++- Avoid padding in new entries. If an existing row misleads, append a correction rather than deleting it.
+ 
+-Fix the log, not the story. If the work diverged from what a row claims, the row is wrong.
++Correct the record by appending the observed result and citing the superseded row. Do not rewrite a past row to match the eventual outcome.
+ 
+ ## Optional gate: cross-model review of the trail
+ 
+--- a/skills/run/to-tickets/SKILL.md
++++ b/skills/run/to-tickets/SKILL.md
+@@ -1,9 +1,11 @@
+ ---
+ name: to-tickets
+-description: Turn a plan, a spec, a closed decision map, or a pressure-tested conversation into tracer-bullet work items on the repo's tracker, each an issue-as-spec with its blocking edges wired. Use when asked to file tickets, break work down, or move from "we've decided" to "it's on the board".
++description: "Turn an approved plan into verifiable work items with their real dependencies on the project tracker."
+ ---
+ 
+ # To Tickets
++
++Read the [Codex desktop binding](../../../CODEX.md) when this workflow needs harness mechanics, model routing, or recovery.
+ 
+ The pack's bridge from **decided** to **takeable**. [decision-map](../../decide/decision-map/SKILL.md) produces decisions; [orchestrate](../orchestrate/SKILL.md) routes tracked items into lanes. This skill is what stands between them: it turns settled intent into work items a lane can claim without asking anyone what was meant.
+ 
+@@ -19,7 +21,7 @@
+ 2. **PR-sized.** One session, one branch, one review. An item nobody can finish in a sitting is a plan wearing a ticket's clothes.
+ 3. **Ordered by what it unblocks**, not by architectural tidiness. The first bullet should retire the most risk.
+ 
+-The slicing binds downstream: [implement](../implement/SKILL.md) mandates that a lane's first commit prove the thinnest end-to-end slice (tickets sliced tracer-style are built tracer-style), and the seams an item's verification names at filing time are where implement's test-first bar lands.
++The slicing binds downstream: [implement](../implement/SKILL.md) mandates that a lane's first verified checkpoint prove the thinnest end-to-end slice (tickets sliced tracer-style are built tracer-style), and the seams an item's verification names at filing time are where implement's test-first bar lands.
+ 
+ ## The wide-refactor exception
+ 
+@@ -27,7 +29,7 @@
+ 
+ ## The sign-off gate
+ 
+-Before Pass 1 files anything, put the slice list in front of the decider: each item's title, what it delivers end to end, and what blocks it, in plain English, no bodies yet. Ask whether the granularity is right, whether every edge is a real gate, and what should merge or split; iterate until they approve. The approval is recorded, not remembered: post the exact approved list as a comment on the plan-source or driving item before Pass 1, so what gets filed can be checked against what was approved. Filing first and asking after is the wrong order: a batch on the board is already colliding with other lanes' frontier queries while it is being argued about.
++Reuse an exact breakdown already approved in the current request or recorded decision. For a new or materially changed breakdown, before Pass 1 files anything, put the slice list in front of the decider: each item's title, what it delivers end to end, and what blocks it, in plain English, no bodies yet. Ask whether the granularity is right, whether every edge is a real gate, and what should merge or split; iterate until they approve. The approval is recorded, not remembered: post the exact approved list as a comment on the plan-source or driving item before Pass 1, so what gets filed can be checked against what was approved. Filing first and asking after is the wrong order: a batch on the board is already colliding with other lanes' frontier queries while it is being argued about.
+ 
+ ## The two passes
+ 
+@@ -63,7 +65,7 @@
+ - Every filed item passes all three tracer-bullet tests (or rides an expand–contract sequence under the wide-refactor exception): verifiable alone, PR-sized, ordered by what it unblocks.
+ - The decider approved the slice list before anything was filed, and Pass 1 matches the approved list recorded on the plan-source or driving item.
+ - Every item body carries destination, plan source link, checkable acceptance criteria, named verification, and out-of-scope.
+-- Pass 2 ran: every ticket-blocker is a native edge, every non-ticket blocker is the `blocked` label, and no item carries both.
++- Pass 2 ran: every ticket-blocker is a native edge, every non-ticket blocker is the `blocked` label, and an item with both ticket and non-ticket blockers carries both until the respective blockers clear.
+ - Every item is labeled, and every ready-labeled item could be handed to a stranger as-is.
+ - The frontier query returns the items you expect to be takeable now; run it and read the result rather than assuming.
+ - Every item filed from an [ingest](../../investigate/ingest/SKILL.md) evidence packet is recorded in that packet's `derived_items`: the `link` command from the recommendation ran at filing time.
+--- a/skills/run/wizard/SKILL.md
++++ b/skills/run/wizard/SKILL.md
+@@ -1,13 +1,15 @@
+ ---
+ name: wizard
+-description: "Generate an interactive bash wizard that walks a human through a procedure only they can perform: third-party dashboards, credentials, DNS records, CI secrets, one-off cutovers. Use when a task stalls on steps an agent cannot take, or when a manual setup is tedious to re-explain every time. Not for steps the agent can perform itself."
++description: "Create a guided script for setup steps that still require a human after checking available tools."
+ ---
+ 
+ # Wizard
+ 
++Read the [Codex desktop binding](../../../CODEX.md) when this workflow needs harness mechanics, model routing, or recovery.
++
+ A **wizard** is a bash script that walks a human through a manual procedure one step at a time. It opens each URL, says exactly what to click and copy, captures the values, writes them where they belong, verifies what it can, and shows how much is left.
+ 
+-It exists for the class of work that blocks agents outright: a dashboard behind someone's SSO, a registrar's DNS panel, a secret that must never enter an agent's context. The alternative is a wall of numbered prose the human loses their place in on step four. A build lane that hits such a step mid-item routes it here per [implement](../implement/SKILL.md)'s interlock: the wizard carries the human steps while the `blocked` label carries the wait.
++Check the available connector, browser, and CLI capabilities first. Generate a wizard only for the remaining human-only steps, such as: a dashboard behind someone's SSO, a registrar's DNS panel, a secret that must never enter an agent's context. The alternative is a wall of numbered prose the human loses their place in on step four. A build lane that hits such a step mid-item routes it here per [implement](../implement/SKILL.md)'s interlock: the wizard carries the human steps while the `blocked` label carries the wait.
+ 
+ The UX is already solved by [template.sh](template.sh): progress with time remaining, confirmation gates, cross-platform URL opening, hidden secret entry, idempotent `.env` upserts, `gh secret` writes, live verification, and a closing summary of what still needs doing by hand. **Your job is to scope the procedure and author its stages.** The library above the `STAGES` marker is identical in every wizard; that consistency is the point.
+ 
+@@ -20,7 +22,7 @@
+ - **Setup**: `.env`, `.env.example`, `README`, `docker-compose*`, framework config, and `.github/workflows/*` (every `secrets.*` and `vars.*` reference is a value the wizard must produce).
+ - **Migration or cutover**: the current state, the target state, and every irreversible action between them.
+ 
+-Then show the decider the ordered stage list and the values each produces, and confirm. They may add, drop, or reorder.
++Reuse a procedure already approved in the user's request. For new or materially changed human steps, show the ordered stage list and what each produces before the user runs it. They may add, drop, or reorder.
+ 
+ **Done when:** every stage is named in order, and for each value you know (a) where the human gets it, (b) where it is written (`.env`, a CI secret, both, or nowhere, since some stages are pure actions) and (c) whether it is secret.
+ 
+--- a/skills/run/wizard/template.sh
++++ b/skills/run/wizard/template.sh
+@@ -148,10 +148,19 @@
+ 
+ # write_env KEY VALUE — idempotent upsert into ENV_FILE.
+ write_env() {
+-  local key="$1" value="$2" tmp
++  local key="$1" value="$2" tmp status
+   touch "$ENV_FILE"
+   tmp=$(mktemp)
+-  grep -vE "^${key}=" "$ENV_FILE" > "$tmp" || true
++  if grep -vE "^${key}=" "$ENV_FILE" > "$tmp"; then
++    :
++  else
++    status=$?
++    if (( status != 1 )); then
++      rm -f "$tmp"
++      bad "cannot read $ENV_FILE"
++      return "$status"
++    fi
++  fi
+   printf '%s=%s\n' "$key" "$value" >> "$tmp"
+   mv "$tmp" "$ENV_FILE"
+   # Re-writing a key on a later stage or a re-run must not double-count it in

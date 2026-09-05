@@ -34,7 +34,11 @@ The fix is the **team-workflow** pack: [handoff](./skills/run/handoff/SKILL.md) 
 
 ## Installation (30-second setup)
 
-One marketplace, native on two harnesses. The same `SKILL.md` runs on Claude Code and Codex with no port and no second-class path: this repo is both a [Claude Code plugin marketplace](./.claude-plugin/marketplace.json) and a [Codex plugin](./.codex-plugin/plugin.json), and CI fails the build if the two would ship a different set of skills.
+One repository, two editions: the original [Claude Code packages](./.claude-plugin/marketplace.json)
+and [Click AI for Codex](./plugins/clickai-codex/README.md), tuned for Astra in Codex desktop.
+Both cover the same catalog; their harness instructions differ. Common resources stay
+in `skills/`, and the complete Codex package is generated and checked before release.
+The [legacy Codex plugin](./.codex-plugin/plugin.json) remains available unchanged.
 
 <details>
 <summary><strong>Claude Code</strong></summary>
@@ -58,20 +62,32 @@ You don't need all of them. [Start with these](#start-with-these) is my short li
 </details>
 
 <details>
-<summary><strong>Codex</strong></summary>
+<summary><strong>Codex desktop, tuned for Astra</strong></summary>
 
-Every skill in the catalog below, native. Codex allows one plugin per repository
-root, so the whole catalog arrives as a single plugin rather than one per skill:
+The complete catalog in one native plugin:
 
 ```bash
 codex plugin marketplace add timharris707/skills
-codex plugin add clickai-skills@clickai
+codex plugin add clickai-codex@clickai
 ```
 
-Each skill carries a Codex adapter at `agents/openai.yaml` supplying the display
-name and one-line description Codex shows in its picker. CI enforces that Claude
-and Codex ship exactly the same set, so a skill can never exist on one runtime
-and silently not on the other.
+Use a current Codex CLI with plugin support, or select **Click AI for Codex** in
+the desktop Plugins panel after adding the marketplace. Start a new task, then
+ask for `clickai-codex:setup` in your project. Disable the legacy `clickai-skills`
+plugin in that Codex profile if present, to avoid duplicate skill names.
+
+Astra at medium and extra high is the tuning target, not a required model or a
+benchmark claim. The plugin respects your selected model, effort, and project
+rules. It keeps work in the same task through compaction, uses native subagents,
+and bundles a portable checkpoint resolver. It installs no automatic hooks and
+changes no global agent files, model settings, accounts, or Claude configuration.
+
+Teammates install this same public package and keep organization rules in their
+project's `AGENTS.md`. For multiple Codex homes, install the same version in each.
+Refresh/update through the Plugins panel and start a new task to pick up changes.
+See the [Codex guide](./plugins/clickai-codex/README.md),
+[edition-specific skills](https://clickai.dev/codex/skills/orchestrate), and
+[independent releases](./packs/clickai-codex/CHANGELOG.md).
 
 </details>
 

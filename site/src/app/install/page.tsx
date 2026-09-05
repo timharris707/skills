@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { openGraph } from "@/lib/meta";
 import Terminal from "@/components/Terminal";
 import Runtimes, { RuntimeMark } from "@/components/Runtimes";
-import { getCodexPlugin, getPlugins, getSkills } from "@/lib/skills";
+import { getCodexPlugin, getPlugins } from "@/lib/skills";
 
 export const metadata: Metadata = {
   title: "Install",
@@ -13,7 +13,6 @@ export const metadata: Metadata = {
 
 export default function Install() {
   const plugins = getPlugins();
-  const skills = getSkills();
   const codex = getCodexPlugin();
 
   return (
@@ -21,20 +20,20 @@ export default function Install() {
       <p className="eyebrow">Install</p>
       <h1 style={{ maxWidth: "18ch" }}>Add the marketplace once.</h1>
       <p className="lede">
-        Then install whichever plugins you want. Nothing here is locked to one runtime — every
-        skill is a <code>SKILL.md</code> any agent can read.
+        Choose the edition for your app. Both cover the same catalog; each carries
+        instructions for its own tools and task lifecycle.
       </p>
 
       <Runtimes lead="Runs natively on" />
 
       <div className="prose" style={{ maxWidth: "none" }}>
-        <h2 className="runtime-head">
+        <h2 id="claude" className="runtime-head">
           <RuntimeMark id="claude" size={22} />
           Claude Code
         </h2>
         <p>
           Claude Code installs plugins one at a time, so the catalog is split into {plugins.length} —
-          take the pack on its own, the standalone skills on their own, or all three.
+          take the pack on its own, individual skills, or the full set.
         </p>
         <Terminal
           lines={[
@@ -51,14 +50,15 @@ export default function Install() {
           until you run <code>claude plugin update</code> yourself.
         </p>
 
-        <h2 className="runtime-head">
+        <h2 id="codex" className="runtime-head">
           <RuntimeMark id="codex" size={22} />
-          Codex
+          Codex desktop, tuned for Astra
         </h2>
         <p>
-          The same {skills.length} skills ship as a native Codex plugin. Codex allows one plugin per
-          repository root, so the whole catalog arrives as a single plugin instead of being split
-          across several.
+          All {codex.skills} skills arrive in <code>{codex.name}</code> v{codex.version}, adapted
+          for Codex desktop. Use Astra at medium for everyday work and extra high when
+          you want more reasoning. The plugin respects your selection; these are workflow
+          recommendations, not benchmark results.
         </p>
         <Terminal
           lines={[
@@ -70,9 +70,33 @@ export default function Install() {
           ]}
         />
         <p>
-          Every skill carries an adapter at <code>agents/openai.yaml</code> giving Codex the display
-          name and one-line description it shows in its picker. CI enforces that both runtimes ship
-          the same set, so a skill can never exist on one and silently not on the other.
+          Use a current Codex CLI with plugin support. In the desktop app, open Plugins,
+          select the Click AI marketplace, and install <strong>Click AI for Codex</strong>.
+          Start a new task to load it, then ask for <code>clickai-codex:setup</code> in your project.
+        </p>
+
+        <p>
+          Already using <code>clickai-skills</code> in Codex? Disable that legacy plugin
+          in the same profile when installing this edition to avoid duplicate skill names.
+          Its original package remains available. Claude Code installations keep their
+          existing commands and versions.
+        </p>
+        <p>
+          This edition keeps checkpoints in the current task through compaction. It installs
+          no automatic hooks and changes no global instructions, model settings, accounts,
+          or Claude configuration. Python 3 and Git run its bundled checkpoint helper.
+          The individual skills explain any additional tools they need.
+        </p>
+        <p>
+          Teams use the same public plugin. Keep organization rules in each project&apos;s
+          <code> AGENTS.md</code>. Workspace admins can import the GitHub marketplace.
+          If you use several Codex homes, install the same version in each.
+          To update, refresh the marketplace and update the plugin in Codex&apos;s Plugins
+          panel, then start a new task.
+        </p>
+        <p>
+          <a href="/codex/skills/orchestrate">Read Codex orchestration →</a>{" · "}
+          <a href="https://github.com/timharris707/skills/releases?q=clickai-codex">Versioned downloads →</a>
         </p>
 
         <h2>Any other runtime</h2>

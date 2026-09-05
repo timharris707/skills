@@ -1,0 +1,445 @@
+"""The restricted-YAML codec for run-recipe.yaml plus the recipe<->config
+conversion and validation."""
+from __future__ import annotations
+
+import json
+from typing import Optional
+
+from _conductor.constants import (
+    RECIPE_SCHEMA,
+    die,
+)
+from _conductor.registry import REGISTRY
+from _conductor.config import RunConfig
+from _conductor.prompts import (
+    prompt_template_version,
+    prompt_template_sha,
+    round2_template_version,
+    round2_template_sha,
+)
+from _conductor.synthesizer import (
+    SYNTHESIZER_TEMPLATE_VERSION,
+    synthesizer_template_sha,
+)
+from _conductor.revision import (
+    REVISION_TEMPLATE_VERSION,
+    revision_template_sha,
+)
+from _conductor.endorsement import (
+    ENDORSEMENT_TEMPLATE_VERSION,
+    endorsement_template_sha,
+)
+from _conductor.rubric import (
+    RUBRIC_CHAIR_TEMPLATE_VERSION,
+    rubric_proposal_template_sha,
+    rubric_proposal_template_version,
+    rubric_chair_template_sha,
+)
+
+__all__ = [
+    "_scalar_to_yaml",
+    "_looks_numeric",
+    "_scalar_from_yaml",
+    "dump_recipe",
+    "load_recipe",
+    "RECIPE_COMMENTS",
+    "config_to_recipe",
+    "_RECIPE_ENUMS",
+    "validate_recipe",
+    "recipe_to_config",
+]
+
+
+# Restricted YAML codec for run-recipe.yaml.
+#
+# stdlib only -> no PyYAML. We emit and consume a deliberately small, regular
+# subset: top-level `key: scalar`, top-level `key:` followed by a list of
+# scalars, and top-level `key:` followed by a list of mappings (each mapping has
+# scalar children only). That is exactly what the recipe needs and nothing more.
+# Contract: load_recipe() consumes recipes produced by dump_recipe(); it is not a
+# general YAML parser. Round-trip is covered by tests.
+#
+# Quoted scalars use JSON string encoding (json.dumps/json.loads): a YAML
+# double-quoted flow scalar is JSON-compatible, so this round-trips embedded
+# newlines, tabs, quotes, and backslashes losslessly and is read identically by a
+# real YAML reader. This closes the "the tool emits a file it cannot read back"
+# class of bug for values like a multi-line --title.
+
+
+def _scalar_to_yaml(value) -> str:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, int):
+        return str(value)
+    if value is None:
+        return "null"
+    text = str(value)
+    needs_quote = (
+        text == ""
+        or text.strip() != text
+        or text[:1] in "#&*!|>%@`\"'[]{},"
+        or ": " in text
+        or text.endswith(":")
+        or any(ord(c) < 0x20 for c in text)   # control chars (newline, tab, CR ...)
+        # Reserved words a YAML 1.1 reader (e.g. PyYAML) would coerce to bool/null;
+        # quote them so the recipe means the same string to any parser.
+        or text.lower() in ("true", "false", "null", "yes", "no", "on", "off", "~")
+        or _looks_numeric(text)
+    )
+    if needs_quote:
+        return json.dumps(text, ensure_ascii=False)
+    return text
+
+
+def _looks_numeric(text: str) -> bool:
+    try:
+        int(text)
+        return True
+    except ValueError:
+        pass
+    try:
+        float(text)
+        return True
+    except ValueError:
+        return False
+
+
+def _scalar_from_yaml(token: str):
+    token = token.strip()
+    if len(token) >= 2 and token[0] == '"' and token[-1] == '"':
+        try:
+            return json.loads(token)
+        except json.JSONDecodeError:
+            return token[1:-1].replace('\\"', '"').replace("\\\\", "\\")
+    if len(token) >= 2 and token[0] == "'" and token[-1] == "'":
+        return token[1:-1].replace("''", "'")   # tolerate hand-edited single quotes
+    if token in ("true", "false"):
+        return token == "true"
+    if token == "null":
+        return None
+    try:
+        return int(token)
+    except ValueError:
+        pass
+    return token
+
+
+def dump_recipe(recipe: dict, *, comments: Optional[dict] = None) -> str:
+    """Serialize a recipe dict to the restricted YAML subset.
+
+    comments maps a key -> a comment line emitted just before that key (used for
+    human-readable section grouping; ignored on load).
+    """
+    comments = comments or {}
+    lines: list = []
+    for key, value in recipe.items():
+        if key in comments:
+            lines.append("")
+            lines.append(f"# {comments[key]}")
+        if isinstance(value, list):
+            lines.append(f"{key}:")
+            for item in value:
+                if isinstance(item, dict):
+                    first = True
+                    for k, v in item.items():
+                        prefix = "  - " if first else "    "
+                        lines.append(f"{prefix}{k}: {_scalar_to_yaml(v)}")
+                        first = False
+                    if not item:
+                        lines.append("  - {}")
+                else:
+                    lines.append(f"  - {_scalar_to_yaml(item)}")
+        else:
+            lines.append(f"{key}: {_scalar_to_yaml(value)}")
+    return "\n".join(lines) + "\n"
+
+
+def load_recipe(text: str) -> dict:
+    """Parse the restricted YAML subset produced by dump_recipe()."""
+    rows: list = []
+    for raw in text.splitlines():
+        if not raw.strip() or raw.lstrip().startswith("#"):
+            continue
+        indent = len(raw) - len(raw.lstrip(" "))
+        rows.append((indent, raw.rstrip()))
+
+    result: dict = {}
+    i = 0
+    n = len(rows)
+    while i < n:
+        indent, content = rows[i]
+        if indent != 0:
+            die(f"run-recipe: unexpected indentation at {content.strip()!r}")
+        stripped = content.strip()
+        if ":" not in stripped:
+            die(f"run-recipe: expected 'key: value' at {stripped!r}")
+        key, _, inline = stripped.partition(":")
+        key = key.strip()
+        inline = inline.strip()
+        if inline:
+            result[key] = _scalar_from_yaml(inline)
+            i += 1
+            continue
+        # Block value: a list of scalars or a list of mappings.
+        items: list = []
+        i += 1
+        while i < n and rows[i][0] > 0:
+            child_indent, child = rows[i]
+            child = child.strip()
+            if not child.startswith("- "):
+                die(f"run-recipe: expected list item under {key!r}, got {child!r}")
+            body = child[2:].strip()
+            if ": " in body and not (body.startswith('"') and body.endswith('"')):
+                # Mapping item: this line is its first key; deeper non-'- ' lines continue it.
+                mapping: dict = {}
+                mk, _, mv = body.partition(":")
+                mapping[mk.strip()] = _scalar_from_yaml(mv.strip())
+                i += 1
+                while i < n and rows[i][0] > child_indent and not rows[i][1].strip().startswith("- "):
+                    cont = rows[i][1].strip()
+                    ck, _, cv = cont.partition(":")
+                    mapping[ck.strip()] = _scalar_from_yaml(cv.strip())
+                    i += 1
+                items.append(mapping)
+            else:
+                items.append(_scalar_from_yaml(body))
+                i += 1
+        result[key] = items
+    return result
+
+
+# Recipe <-> config
+
+RECIPE_COMMENTS = {
+    "mode": "run shape",
+    "prompt_template": "prompt template (bump/hash changes when the egressed prompt shape changes)",
+    "synthesize": "synthesizer (M2): spawn a no-lens seat after rounds to draft verdict.json",
+    "source_kind": "source",
+    "board": "board (seat -> provider, model, lens, reasoning)",
+    "egress_consent": "egress (consent is bound to the content hash in egress-manifest.md)",
+    "isolation_network": "isolation posture (follows mode); 'partial' = some seats not network-isolated",
+}
+
+
+def _recipe_seat(seat) -> dict:
+    """One board entry for the recipe. `seat` is the unique seat id; `registry` (the
+    REGISTRY key needed to restore an alias/duplicate) is added only when it differs
+    from the id, so a default board's recipe is byte-identical to before."""
+    entry = {"seat": seat.id}
+    if seat.id != seat.name:
+        entry["registry"] = seat.name
+    entry["provider"] = seat.provider
+    entry["model"] = seat.model
+    entry["lens"] = seat.lens
+    entry["reasoning"] = seat.reasoning
+    return entry
+
+
+def config_to_recipe(config: RunConfig) -> dict:
+    unenforced = config.unenforced_network_seats
+    if config.network_on:
+        network = "on"
+    elif unenforced:
+        network = "partial"   # gate mode, but at least one seat cannot be network-isolated
+    else:
+        network = "off"
+    recipe = {
+        "schema": RECIPE_SCHEMA,
+        "title": config.title,
+        "date": config.date,
+        "mode": config.mode,
+        "sensitivity": config.sensitivity,
+        "rounds": config.rounds,
+        "max_rounds": config.max_rounds,
+        "cross_reading": config.cross_reading,
+        "lens": config.lens,
+        "output": config.output,
+        "out_dir": config.out_dir,
+        # Conditional on grounding (P4/D6), revision (v1.12 #1), and rubric (v1.15 #P3):
+        # a plain run records @2 + the @2 sha byte-for-byte (the conditional clauses
+        # render empty there), so existing recipes/hashes never churn; a grounded run
+        # records @3, a revise run appends +revise@1, a --rubric run appends +rubric@1
+        # (the scoring block is on every round), each with the matching sha.
+        "prompt_template": prompt_template_version(config.grounded, bool(config.revise_of),
+                                                   bool(config.rubric)),
+        "prompt_template_sha256": prompt_template_sha(config.grounded, bool(config.revise_of),
+                                                      bool(config.rubric)),
+        # The round-2 template id + sha, recorded additively (v1.14 #9 fix): the surface
+        # that changed under P2 is round 2, so name it directly rather than only via the
+        # round-1 id. Old recipes without these keys still load — see recipe_to_config /
+        # the load-time sha check, which only consults the combined `prompt_template_sha256`.
+        "round2_template": round2_template_version(config.grounded, bool(config.rubric)),
+        "round2_template_sha256": round2_template_sha(config.grounded, bool(config.rubric)),
+        "synthesize": config.synthesize,
+        "synthesizer_seat": config.synthesizer_seat,
+        "synthesizer_template": SYNTHESIZER_TEMPLATE_VERSION if config.synthesize else None,
+        "synthesizer_template_sha256": synthesizer_template_sha() if config.synthesize else None,
+        "source_kind": config.source.kind,
+        "source_ref": config.source.ref,
+        "source_bytes": config.source.nbytes,
+        "source_lines": config.source.nlines,
+        "source_sha256": config.source.sha256,
+        "board": [_recipe_seat(seat) for seat in config.board],
+        "egress_consent": "tiered",
+        "egress_providers": [
+            f"{seat.id} seat -> {seat.provider}" for seat in config.board
+        ],
+        "isolation_network": network,
+        "isolation_network_unenforced": unenforced,
+        "isolation_filesystem": "scoped" if config.fs_scoped else "open",
+    }
+    # config.live_status is deliberately NOT recorded: it is a presentation flag for a
+    # NON-record artifact (status.* is a live view, not an output of record), so it
+    # follows the --strict-exit / --digest-format convention — unlike `endorse` below,
+    # which changes record-artifact presence and therefore IS persisted.
+    # Repo-grounding: persist the scope so `--from-recipe` reproduces a grounded run.
+    # Only added when grounding is on, so ungrounded recipes stay byte-identical.
+    if config.repo:
+        recipe["repo"] = config.repo
+        if config.repo_include:
+            recipe["repo_include"] = list(config.repo_include)
+        if config.repo_exclude:
+            recipe["repo_exclude"] = list(config.repo_exclude)
+    # --revise lineage: persisted so a recipe replay re-prepares the same revision
+    # context. Only added on a revise run, so non-revise recipes stay byte-identical.
+    if config.revise_of:
+        recipe["revise_of"] = config.revise_of
+    # --output revised-draft (v1.13 #2): persist the RESOLVED source_type + the
+    # revision seat + the template version/sha, so a --from-recipe replay reproduces
+    # the same redline format and template. Only added for a revised-draft run, so
+    # every other recipe stays byte-identical (source_type is None otherwise, and
+    # `output` already carried the shape).
+    if config.output == "revised-draft":
+        recipe["source_type"] = config.source_type
+        recipe["revision_seat"] = config.revision_seat
+        recipe["revision_template"] = REVISION_TEMPLATE_VERSION
+        recipe["revision_template_sha256"] = revision_template_sha()
+        # Endorsement pass (D13): the RESOLVED endorse boolean, so a replay
+        # reproduces the same posture (a --no-endorse run replays with no
+        # endorsement pass). The endorsement template version/sha are recorded only
+        # when the pass actually runs (endorse True), mirroring the synthesizer
+        # template's "only when it runs" conditional — a --no-endorse recipe stays
+        # slim and carries no endorsement template fields.
+        recipe["endorse"] = config.endorse
+        if config.endorse:
+            recipe["endorsement_template"] = ENDORSEMENT_TEMPLATE_VERSION
+            recipe["endorsement_template_sha256"] = endorsement_template_sha()
+    # Rubric-first (v1.15 #P2 — D20): --rubric changes record-artifact shape (a new
+    # rubric/ dir + rubric.json + a run-card block), so it IS persisted (the
+    # `synthesize`/`endorse` precedent, NOT the presentation-flag exemption). Only
+    # added on a rubric run, so every other recipe stays byte-identical; the chair
+    # seat + both template versions/shas land so a --from-recipe replay reproduces the
+    # same pass and template bytes.
+    if config.rubric:
+        recipe["rubric"] = True
+        recipe["chair_seat"] = config.chair_seat
+        recipe["rubric_proposal_template"] = rubric_proposal_template_version(config)
+        recipe["rubric_proposal_template_sha256"] = rubric_proposal_template_sha(config)
+        recipe["rubric_chair_template"] = RUBRIC_CHAIR_TEMPLATE_VERSION
+        recipe["rubric_chair_template_sha256"] = rubric_chair_template_sha()
+    return recipe
+
+
+_RECIPE_ENUMS = {
+    "mode": ("gate", "advisory"),
+    "sensitivity": ("public", "redacted", "local-only"),
+    "rounds": ("1", "2", "3", "auto"),
+    "cross_reading": ("none", "summaries", "full"),
+}
+
+
+def validate_recipe(recipe: dict) -> None:
+    """Structural validation for --from-recipe: a malformed recipe must fail with
+    a precise error and EXIT_USAGE, never a raw traceback."""
+    if recipe.get("schema") != RECIPE_SCHEMA:
+        die(f"recipe schema must be {RECIPE_SCHEMA!r}; got {recipe.get('schema')!r}")
+    ref = recipe.get("source_ref")
+    if not isinstance(ref, str) or not ref.strip():
+        die("recipe: 'source_ref' must be a non-empty string")
+    board = recipe.get("board")
+    if not isinstance(board, list) or not board:
+        die("recipe: 'board' must be a non-empty list of seats")
+    seen_ids: set = set()
+    for index, seat in enumerate(board):
+        if not isinstance(seat, dict):
+            die(f"recipe: board[{index}] must be a mapping (seat/model/...)")
+        sid = seat.get("seat")
+        if not isinstance(sid, str) or not sid.strip():
+            die(f"recipe: board[{index}].seat must be a non-empty seat id; got {sid!r}")
+        if sid in seen_ids:
+            die(f"recipe: duplicate board seat id {sid!r}")
+        seen_ids.add(sid)
+        # The provider (REGISTRY key) is `registry` when present, else the id itself
+        # (a default/bare seat where id == provider).
+        registry = seat.get("registry", sid)
+        if not isinstance(registry, str) or registry not in REGISTRY:
+            die(f"recipe: board[{index}] provider must be one of {', '.join(sorted(REGISTRY))}; "
+                f"got {registry!r}")
+        if "model" in seat and not isinstance(seat["model"], str):
+            die(f"recipe: board[{index}].model must be a string")
+    for key, allowed in _RECIPE_ENUMS.items():
+        if key in recipe and str(recipe[key]) not in allowed:
+            die(f"recipe: {key} must be one of {', '.join(allowed)}; got {recipe[key]!r}")
+    if "max_rounds" in recipe:
+        mr = recipe["max_rounds"]
+        if not isinstance(mr, int) or isinstance(mr, bool) or mr < 1:
+            die(f"recipe: 'max_rounds' must be an integer >= 1; got {mr!r}")
+    if "synthesize" in recipe and not isinstance(recipe["synthesize"], bool):
+        die(f"recipe: 'synthesize' must be true or false; got {recipe['synthesize']!r}")
+    if recipe.get("synthesizer_seat") is not None:
+        ss = recipe["synthesizer_seat"]
+        if not isinstance(ss, str) or ss not in REGISTRY:
+            die(f"recipe: 'synthesizer_seat' must be one of {', '.join(sorted(REGISTRY))} or null; "
+                f"got {ss!r}")
+        # The synth seat must egress to a provider ON the board (same rule as
+        # resolve_config). It's named by provider, so check the board's providers
+        # (each entry's `registry`, or its `seat` id when that IS the provider).
+        board_providers = {s.get("registry", s.get("seat")) for s in board if isinstance(s, dict)}
+        if ss not in board_providers:
+            pretty = ", ".join(sorted(n for n in board_providers if isinstance(n, str)))
+            die(f"recipe: 'synthesizer_seat' {ss!r} is not a provider in this recipe's board "
+                f"({pretty}); the synthesizer egresses to that seat's provider, which "
+                "the run's disclosure only covers for board seats")
+    # --output revised-draft fields (optional; present only for a revised-draft recipe).
+    if "source_type" in recipe and recipe["source_type"] not in ("prose", "code"):
+        die(f"recipe: 'source_type' must be prose or code; got {recipe['source_type']!r}")
+    if recipe.get("revision_seat") is not None:
+        rs = recipe["revision_seat"]
+        # revision_seat is a UNIQUE seat id (a provider name, or `provider#N` / an
+        # alias on a duplicate-provider board) — the same axis --model/--timeout use.
+        # Shape-only here (a non-empty string); resolve_config.resolve_revision_seat_id
+        # does the authoritative board-membership + disambiguation check once the
+        # board is resolved, so a bad selector still fails loudly there.
+        if not isinstance(rs, str) or not rs.strip():
+            die(f"recipe: 'revision_seat' must be a seat id string or null; got {rs!r}")
+    if "endorse" in recipe and not isinstance(recipe["endorse"], bool):
+        die(f"recipe: 'endorse' must be true or false; got {recipe['endorse']!r}")
+    # Rubric-first fields (optional; present only for a --rubric recipe).
+    if "rubric" in recipe and not isinstance(recipe["rubric"], bool):
+        die(f"recipe: 'rubric' must be true or false; got {recipe['rubric']!r}")
+    if recipe.get("chair_seat") is not None:
+        cs = recipe["chair_seat"]
+        # chair_seat is a UNIQUE seat id (the same axis --model/--timeout/--revision-seat
+        # use). Shape-only here; resolve_config.resolve_chair_seat_id does the
+        # authoritative board-membership + disambiguation check once the board is
+        # resolved, so a bad selector still fails loudly there.
+        if not isinstance(cs, str) or not cs.strip():
+            die(f"recipe: 'chair_seat' must be a seat id string or null; got {cs!r}")
+    # Repo-grounding fields (optional; present only for a grounded recipe).
+    if "repo" in recipe and not (isinstance(recipe["repo"], str) and recipe["repo"].strip()):
+        die(f"recipe: 'repo' must be a non-empty string path; got {recipe['repo']!r}")
+    for key in ("repo_include", "repo_exclude"):
+        if key in recipe:
+            val = recipe[key]
+            if not isinstance(val, list) or not all(isinstance(x, str) for x in val):
+                die(f"recipe: '{key}' must be a list of glob strings; got {val!r}")
+
+
+def recipe_to_config(path: str) -> dict:
+    try:
+        with open(path, encoding="utf-8") as handle:
+            recipe = load_recipe(handle.read())
+    except FileNotFoundError:
+        die(f"recipe not found: {path}")
+    validate_recipe(recipe)
+    return recipe

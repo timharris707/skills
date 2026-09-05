@@ -1,0 +1,3 @@
+interface:
+  display_name: "Diagnose"
+  short_description: "The disciplined bug-fixing loop — no fix ships without a named cause"

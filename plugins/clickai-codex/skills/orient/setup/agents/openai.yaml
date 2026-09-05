@@ -1,0 +1,3 @@
+interface:
+  display_name: "Pack Setup"
+  short_description: "Bind the team-workflow pack to this repo"

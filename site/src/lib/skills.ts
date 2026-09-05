@@ -197,15 +197,25 @@ export function getPlugins(): Plugin[] {
   return readMarketplace();
 }
 
-/**
- * The Codex plugin. Codex allows one plugin per repository root, so the whole
- * promoted catalog ships as a single plugin there where Claude splits it into
- * three. CI enforces that both ship the same skills.
- */
-export function getCodexPlugin(): { name: string; marketplace: string; skills: number } {
-  const plugin = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, ".codex-plugin", "plugin.json"), "utf8"));
-  const marketplace = JSON.parse(
-    fs.readFileSync(path.join(REPO_ROOT, ".agents", "plugins", "marketplace.json"), "utf8"),
-  );
-  return { name: plugin.name, marketplace: marketplace.name, skills: plugin.skills.length };
+/** The independent, generated Codex desktop edition. */
+export function getCodexPlugin() {
+  const plugin = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, "plugins/clickai-codex/.codex-plugin/plugin.json"), "utf8"));
+  const marketplace = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, ".agents/plugins/marketplace.json"), "utf8"));
+  return { name: plugin.name as string, version: plugin.version as string, marketplace: marketplace.name as string, skills: plugin.skills.length as number };
+}
+
+export type Edition = "claude" | "codex";
+
+/** Reuse the catalog identity while reading each edition's actual installed text. */
+export function getEditionSkill(slug: string, edition: Edition): Skill | undefined {
+  const original = getSkill(slug);
+  if (!original || edition === "claude") return original;
+  const rel = `plugins/clickai-codex/skills/${original.bucket}/${slug}`;
+  const dir = path.join(REPO_ROOT, rel);
+  // A catalog skill missing its generated edition is a broken publication, so fail the build.
+  const { data, body } = parseFrontmatter(fs.readFileSync(path.join(dir, "SKILL.md"), "utf8"));
+  const plugin = getCodexPlugin();
+  return { ...original, name: data.name ?? slug, description: data.description ?? "", body,
+    plugin: plugin.name, pluginVersion: plugin.version, shipsAs: "pack", extras: listExtras(dir),
+    githubUrl: `https://github.com/timharris707/skills/blob/main/${rel}/SKILL.md` };
 }
