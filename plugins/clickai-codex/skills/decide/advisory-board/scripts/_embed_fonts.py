@@ -1,4 +1,5 @@
 import urllib.request, re, base64, sys
+from pathlib import Path
 
 UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/120.0 Safari/537.36")
@@ -43,7 +44,7 @@ for fam, css_url in FAMILIES.items():
         )
         print(f"  {fam:8} {style:7} {weight}  woff2={len(data)//1024}KB  b64={len(b64)//1024}KB", file=sys.stderr)
 
-dest = "skills/advisory-board/references/plan-fonts.css"
+dest = str(Path(__file__).resolve().parent.parent / "references" / "plan-fonts.css")
 header = ("/* Self-contained Claude brand fonts for the plan view — generated, do not hand-edit.\n"
           "   Poppins (headings/labels) + Lora (body), latin subset, OFL-licensed, base64-embedded.\n"
           "   Regenerate with scripts/_embed_fonts.py. */\n")

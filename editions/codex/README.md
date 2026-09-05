@@ -1,6 +1,6 @@
 # Click AI for Codex
 
-The full 23-skill Click AI catalog for Codex desktop, tuned for Astra at medium
+The full Click AI catalog for Codex desktop, tuned for Astra at medium
 and extra high. The workflows respect the model and effort you select. This is
 a harness adaptation, not a measured claim of better model performance.
 

@@ -35,6 +35,8 @@ Buckets are declared in [`skills/buckets.json`](./skills/buckets.json), and each
 4. Write `agents/openai.yaml` with a `display_name` and `short_description`
 5. Add it to the router roster if it joins the `team-workflow` pack
 6. Give it a position in `site/src/lib/catalog.ts` so the hero chart can draw it
+7. Adapt it for Codex and run `python3 scripts/build_codex_plugin.py`; commit the
+   generated `plugins/clickai-codex/` package. `--check` verifies it in CI.
 
 Retiring one is the same in reverse. Run the freshness check and it names whichever step you missed:
 

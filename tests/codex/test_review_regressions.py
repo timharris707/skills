@@ -27,7 +27,8 @@ PACKAGE = ROOT / 'plugins/clickai-codex'
 class ReviewRegressionTests(unittest.TestCase):
     def test_historical_incident_sources_require_sanitized_replacements(self):
         denied = set((ROOT / 'editions/codex/disclosure-denylist.txt').read_text().splitlines())
-        for relative in ['skills/investigate/ingest/CHANGELOG.md', 'skills/investigate/ingest/scripts/ingest.py']:
+        for relative in ['skills/investigate/ingest/CHANGELOG.md', 'skills/investigate/ingest/scripts/ingest.py',
+                         'skills/decide/advisory-board/references/handoff-template.html']:
             with self.subTest(source=relative):
                 self.assertTrue(publication.private_findings((ROOT / relative).read_text(), denied))
                 self.assertFalse(publication.private_findings((PACKAGE / relative).read_text(), denied))

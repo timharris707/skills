@@ -330,7 +330,7 @@ def drop_empty_optionals(out: str) -> str:
     return out
 
 
-_ZW = "​"  # zero-width space
+_ZW = "\u200b"  # zero-width space
 
 
 def _md_review(markdown: str) -> str:

@@ -167,6 +167,15 @@
  
 --- a/skills/decide/advisory-board/README.md
 +++ b/skills/decide/advisory-board/README.md
+@@ -14,7 +14,7 @@
+ 
+ Default behavior: two rounds of review and rebuttal; read-only unless edits are explicitly requested; you see exactly what would be sent to each provider and approve it before anything leaves your machine — redact what's sensitive, or run a fully local board where nothing is sent at all.
+ 
+-**Run it your way.** Advisory Board is a provider-agnostic agent skill — convene the board through Claude Code, Codex, or whatever harness you prefer. Install it from the [repo root](../../../README.md#install-claude-code), or read [`SKILL.md`](./SKILL.md) directly.
++**Run it your way.** Advisory Board is a provider-agnostic agent skill — convene the board through Claude Code, Codex, or whatever harness you prefer. Install it from the [repo root](../../../README.md), or read [`SKILL.md`](./SKILL.md) directly.
+ 
+ > **Prefer a polished app instead?** [Panely](https://github.com/timharris707/panely) is a sibling product built around the same idea — a local-first advisory room. Advisory Board is the open agent skill; Panely is the app. Same maker.
+ 
 @@ -28,15 +28,15 @@
  
  - **The 30-second brief:** [quick-verdict for the relocation decision](https://htmlpreview.github.io/?https://github.com/timharris707/skills/blob/main/examples/should-we-relocate-our-family-across-the-country-for-this-job-offer/quick-verdict.html) — the verdict, the must-resolve blockers as one-liners, the top next steps. The teaser you'd forward.
@@ -310,6 +319,17 @@
  - The seat→provider→lens table was shown and confirmed; effort, rounds, and output each got an explicit answer or the confirmed default.
 -- The confirm-summary got a yes, and data-handling consent (where required) got its own yes.
 +- The resolved plan and any required data handling have explicit authorization, reused where the same scope was already approved.
+--- a/skills/decide/advisory-board/references/lens-presets.md
++++ b/skills/decide/advisory-board/references/lens-presets.md
+@@ -61,7 +61,7 @@
+ - **Unimagined-failure hunter.** The failure class the author's framing excludes: wrong assumptions about the environment, scale, users, or time.
+ 
+ ### `stakeholder-panel`
+-"The room this decision would face": three distinct stakeholder archetypes, one per seat, in a fixed **seat-order binding**:
++"The room this decision would face": four distinct stakeholder archetypes, one per seat, in a fixed **seat-order binding**:
+ - **The decision owner.** The executive who must answer for the outcome: does it deliver, at what cost, what do we tell the board.
+ - **The end user.** The person this lands on: does it actually help them, what friction or harm does it create, would they choose it.
+ - **The compliance & risk reviewer.** The gatekeeper who signs off: what rule, obligation, or downside does this trip, and can we defend it.
 --- a/skills/decide/advisory-board/references/preflight.md
 +++ b/skills/decide/advisory-board/references/preflight.md
 @@ -4,7 +4,7 @@
@@ -349,6 +369,26 @@
  
  __all__ = [
      "RECIPE_SCHEMA",
+--- a/skills/decide/advisory-board/scripts/_conductor/echo_score.py
++++ b/skills/decide/advisory-board/scripts/_conductor/echo_score.py
+@@ -167,7 +167,7 @@
+     for r in overlap_seats:
+         prev_v = prev_by[r.seat].verdict
+         curr_v = r.verdict
+-        if prev_v != curr_v:
++        if prev_v is not None and curr_v is not None and prev_v != curr_v:
+             flippers += 1
+             if majority is not None and curr_v == majority and prev_v != majority:
+                 flippers_toward_majority += 1
+@@ -225,7 +225,7 @@
+     """The coarse band from the sub-signals. Explainable rules, not a tuned score.
+ 
+     Two "echo" signals are recognized:
+-      * strong_flip — a majority of the considered seats flipped ONTO the emerging
++      * strong_flip — at least half of the considered seats flipped ONTO the emerging
+                       majority verdict in the final round (the convergence fingerprint);
+       * any_deference — at least one seat self-reported `deference` (self-reported echo).
+     Citation overlap CORROBORATES those signals but never stands alone: high overlap
 --- a/skills/decide/advisory-board/scripts/_conductor/recipe.py
 +++ b/skills/decide/advisory-board/scripts/_conductor/recipe.py
 @@ -189,7 +189,7 @@
@@ -360,6 +400,82 @@
                  # Mapping item: this line is its first key; deeper non-'- ' lines continue it.
                  mapping: dict = {}
                  mk, _, mv = body.partition(":")
+--- a/skills/decide/advisory-board/scripts/_conductor/redline.py
++++ b/skills/decide/advisory-board/scripts/_conductor/redline.py
+@@ -106,6 +106,7 @@
+     Returns `(rows, truncated, total)`:
+       * rows: a list of dicts, each one of —
+           {"kind": "context", "text": <line>}
++          {"kind": "gap",     "text": <omission note>}
+           {"kind": "delete",  "text": <line>}
+           {"kind": "insert",  "text": <line>}
+           {"kind": "replace", "del_segments": [...], "ins_segments": [...],
+--- a/skills/decide/advisory-board/scripts/_conductor/revision.py
++++ b/skills/decide/advisory-board/scripts/_conductor/revision.py
+@@ -1061,7 +1061,7 @@
+         "# Black-box recorder — revision",
+         "",
+         f"command         : {rr.argv_preview}",
+-        f"prompt-source   : prompts/revision.prompt",
++        "prompt-source   : prompts/revision.prompt",
+         f"prompt-template : {REVISION_TEMPLATE_VERSION} "
+         f"(sha256:{revision_template_sha()[:12]}…)",
+         f"prompt-hash     : sha256:{rr.prompt_hash}   (the exact bytes the revision seat received)",
+--- a/skills/decide/advisory-board/scripts/_conductor/rounds.py
++++ b/skills/decide/advisory-board/scripts/_conductor/rounds.py
+@@ -76,6 +76,7 @@
+     # cannot conjure an id the chair did not merge). None on a non-rubric run, so the
+     # score properties are empty/None and nothing about a plain run changes.
+     criterion_ids: Optional[tuple] = None
++    post_consent_rubric: bool = False  # Same predicate used by the egress guard.
+ 
+     @property
+     def usable(self) -> bool:
+@@ -368,6 +369,7 @@
+                                      round_packet_hash=round_packet_hash,
+                                      workdir=workdir, timeout=timeout, classify=classify,
+                                      criterion_ids=criterion_ids)
++            result.post_consent_rubric = scored_round1
+             # Map the seat's outcome to a live-view state. A retried-but-usable seat
+             # still reports its terminal usable state; a "retry" event would need a
+             # hook inside the retry loop — deferred (the two-attempt window is short
+@@ -416,7 +418,7 @@
+     prove same-material independence and bind it to the round's packet. Honestly
+     'falsifiable-by-inspection', not tamper-proof — it catches empty/lazy/drifted
+     runs, not a determined forger using the same orchestrator."""
+-    if r.round_no == 1 and not r.criterion_ids:
++    if r.round_no == 1 and not r.post_consent_rubric:
+         packet_note = "(egress consent was bound to this)"
+     elif r.round_no == 1:
+         # A rubric-SCORED round 1 injects the post-consent merged rubric, so it is NOT
+--- a/skills/decide/advisory-board/scripts/_embed_fonts.py
++++ b/skills/decide/advisory-board/scripts/_embed_fonts.py
+@@ -1,4 +1,5 @@
+ import urllib.request, re, base64, sys
++from pathlib import Path
+ 
+ UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+       "(KHTML, like Gecko) Chrome/120.0 Safari/537.36")
+@@ -43,7 +44,7 @@
+         )
+         print(f"  {fam:8} {style:7} {weight}  woff2={len(data)//1024}KB  b64={len(b64)//1024}KB", file=sys.stderr)
+ 
+-dest = "skills/advisory-board/references/plan-fonts.css"
++dest = str(Path(__file__).resolve().parent.parent / "references" / "plan-fonts.css")
+ header = ("/* Self-contained Claude brand fonts for the plan view — generated, do not hand-edit.\n"
+           "   Poppins (headings/labels) + Lora (body), latin subset, OFL-licensed, base64-embedded.\n"
+           "   Regenerate with scripts/_embed_fonts.py. */\n")
+--- a/skills/decide/advisory-board/scripts/render_handoff.py
++++ b/skills/decide/advisory-board/scripts/render_handoff.py
+@@ -330,7 +330,7 @@
+     return out
+ 
+ 
+-_ZW = "​"  # zero-width space
++_ZW = "\u200b"  # zero-width space
+ 
+ 
+ def _md_review(markdown: str) -> str:
 --- a/skills/decide/advisory-board/scripts/render_tracker.py
 +++ b/skills/decide/advisory-board/scripts/render_tracker.py
 @@ -259,7 +259,7 @@
@@ -725,7 +841,7 @@
  | [domain-memory](../domain-memory/SKILL.md) | The repo's institutional memory needs writing or reading: a grilling just closed, a review disposition landed, the decider corrected a wrong assumption, or a session is starting and wants the settled terms and decisions. One store, two artifacts: a small domain glossary plus supersede-never-edit decision records, written as side effects of work at the memory home the binding names; consolidation and backfill happen only by decider disposition. |
  | [grilling](../../decide/grilling/SKILL.md) | An idea or plan is half-formed and nobody has pressure-tested it. Interviews the decider in rounds over a design tree, where the frontier is every decision whose prerequisites are settled, until nothing load-bearing is still assumed. Facts are the agent's job; decisions are the decider's. Run it before charting a map or writing a spec off a conversation. |
  | [decision-map](../../decide/decision-map/SKILL.md) | The work is genuinely foggy: open questions gate each other and nobody can spec it in one sitting. Charts a map (destination, clusters, two ledgers), files gate-decision tickets, and runs briefed decision rounds with the decider. Not for work you could already spec: a map with nothing undecided is overhead. |
-@@ -28,11 +30,11 @@
+@@ -28,13 +30,13 @@
  | [codebase-review](../../investigate/codebase-review/SKILL.md) | The codebase itself needs review: a spec is about to land in an area, enough lanes have merged since the last look, or lanes report the code fighting them. A read-only lane: lens-named finders, a built-in skeptic that kills unproven candidates, a plain-markdown report on the tracker, and a disposition loop where the decider adopts, rejects into rejection memory, or defers every survivor. Zero survivors is a success verdict, not a failure. |
  | [to-tickets](../../run/to-tickets/SKILL.md) | The decision is made and the work needs to be on the board. Turns a plan, a closed decision map, or a pressure-tested conversation into tracer-bullet items: issue-as-spec bodies filed in one pass, blocking edges wired in a second. Files and labels; never claims, never decides. |
  | [wizard](../../run/wizard/SKILL.md) | The next step is one only a human can take: a vendor dashboard, a registrar's DNS panel, a credential that must not enter an agent's context. Generates an interactive bash wizard that opens each URL, says what to click, captures the values, verifies what it can, and reports what still needs doing by hand. |
@@ -737,7 +853,10 @@
 -| [implement](../../run/implement/SKILL.md) | A build-shaped item is being implemented in a lane. The discipline the lane follows inline: first commit proves the thinnest end-to-end slice, red-before-code at every seam the item's verification set names, a green checkpoint commit per slice, and adjacent discoveries filed to the tracker rather than built. Bugs route to diagnose; ambiguity goes back to the decider; human-only steps get a wizard. |
 +| [implement](../../run/implement/SKILL.md) | A build-shaped item is being implemented in a lane. The discipline the lane follows inline: first verified checkpoint proves the thinnest end-to-end slice, red-before-code at every seam the item's verification set names, a green checkpoint per slice within the user's commit instructions, and adjacent discoveries filed to the tracker rather than built. Bugs route to diagnose; ambiguity goes back to the decider; human-only steps get a wizard. |
  | [diagnose](../../run/diagnose/SKILL.md) | A bug is being fixed and the cause is not yet nameable in one plain sentence with evidence. The disciplined loop a lane follows inline: reproduce red with a test written before the fix, minimize until tight, falsifiable hypotheses, instrument before fixing, and close on the named cause plus the regression test. Structural causes report as friction; standing facts feed domain-memory. |
- | [ingest](../../investigate/ingest/SKILL.md) | A recording, voice memo, or media URL arrives with a goal. Converts it into an evidence packet of transcript, timestamped frames, and manifest, and ends with a routing recommendation into the flow: what looks like tickets, what needs a grilling session, what is strategy for the decider. Ships as its own plugin, installed beside the pack. |
+-| [ingest](../../investigate/ingest/SKILL.md) | A recording, voice memo, or media URL arrives with a goal. Converts it into an evidence packet of transcript, timestamped frames, and manifest, and ends with a routing recommendation into the flow: what looks like tickets, what needs a grilling session, what is strategy for the decider. Ships as its own plugin, installed beside the pack. |
++| [ingest](../../investigate/ingest/SKILL.md) | A recording, voice memo, or media URL arrives with a goal. Converts it into an evidence packet of transcript, timestamped frames, and manifest, and ends with a routing recommendation into the flow: what looks like tickets, what needs a grilling session, what is strategy for the decider. Included in this Codex plugin with the workflow pack. |
+ 
+ ## Not skills, but in the pack
  
 --- a/skills/orient/setup/SKILL.md
 +++ b/skills/orient/setup/SKILL.md

@@ -14,7 +14,7 @@ Use it to:
 
 Default behavior: two rounds of review and rebuttal; read-only unless edits are explicitly requested; you see exactly what would be sent to each provider and approve it before anything leaves your machine — redact what's sensitive, or run a fully local board where nothing is sent at all.
 
-**Run it your way.** Advisory Board is a provider-agnostic agent skill — convene the board through Claude Code, Codex, or whatever harness you prefer. Install it from the [repo root](../../../README.md#install-claude-code), or read [`SKILL.md`](./SKILL.md) directly.
+**Run it your way.** Advisory Board is a provider-agnostic agent skill — convene the board through Claude Code, Codex, or whatever harness you prefer. Install it from the [repo root](../../../README.md), or read [`SKILL.md`](./SKILL.md) directly.
 
 > **Prefer a polished app instead?** [Panely](https://github.com/timharris707/panely) is a sibling product built around the same idea — a local-first advisory room. Advisory Board is the open agent skill; Panely is the app. Same maker.
 

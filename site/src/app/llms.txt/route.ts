@@ -40,7 +40,7 @@ export function GET() {
     "",
     "## Install — Codex",
     "",
-    "The complete clickai-codex plugin ships all 23 adapted skills and their resources.",
+    `The complete ${codex.name} plugin ships all ${codex.skills} adapted skills and their resources.`,
     "",
     "```",
     "codex plugin marketplace add timharris707/skills",

@@ -70,6 +70,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Read release content from the validated tag
+        if: steps.meta.outputs.skill == 'clickai-codex'
         env:
           TAG: ${{ steps.meta.outputs.tag }}
         run: git checkout --detach "$TAG"

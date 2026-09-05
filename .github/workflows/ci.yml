@@ -81,11 +81,20 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
       - name: Check generated package and public contents
         run: |
           python3 scripts/build_codex_plugin.py --check
           python3 scripts/check_codex_publication.py
-          python3 -m unittest discover -s tests/codex -v
+          python3 - <<'PY'
+          import unittest
+          suite = unittest.defaultTestLoader.discover('tests/codex')
+          if not suite.countTestCases():
+              raise SystemExit('No Codex publication tests discovered')
+          result = unittest.TextTestRunner(verbosity=2).run(suite)
+          raise SystemExit(not result.wasSuccessful())
+          PY
 
   site-link-previews:
     runs-on: ubuntu-latest
