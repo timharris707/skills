@@ -1,0 +1,43 @@
+# Run Metadata Template
+
+Copy into `run-metadata.md` for the run and fill it in. This is the provenance the handoff cites: record what *actually* happened, not what was requested. Never include secrets.
+
+```text
+# Run Metadata — <title>
+
+Date: <YYYY-MM-DD>   ·   Rounds run: <n>   ·   Cross-reading: none | summaries | full
+Output: quick verdict | full handoff | implementation sequence
+Lens preset: <preset, or "custom">
+Tier: <only when --tier was given — the tier name plus the base values it set; explicit flags override>
+
+## Seats
+
+| Seat   | Lens          | Model requested | Model that answered | Reasoning/effort | Auth mode    | Status            |
+| ------ | ------------- | --------------- | ------------------- | ---------------- | ------------ | ----------------- |
+| Claude | architecture  | fable           | <id returned>       | max              | subscription | ran               |
+| Codex  | impl/testing  | auto            | <id returned>       | xhigh            | subscription | ran               |
+| Gemini | product/ops   | pro             | <id returned>       | HIGH             | subscription | dropped @ round 2 |
+| Grok   | challenger    | grok-4.5        | <id returned>       | high             | subscription | ran               |
+
+Status is one of: ran · degraded · dropped @ round N. A board needs >= 2 seats that ran.
+
+## Source
+
+Access method: shared path | single source packet
+Source: <paths / repo @ commit / URL / packet file>
+Sensitivity & handling: public | redacted | local-only   (see references/data-handling.md)
+
+## Run
+
+| Stage   | Started | Finished | Wall-clock | Tokens in/out (if known) |
+| ------- | ------- | -------- | ---------- | ------------------------ |
+| Round 1 |         |          |            |                          |
+| Round 2 |         |          |            |                          |
+| Synth   |         |          |            |                          |
+
+Preflight: <go/no-go per seat>
+Commands: <the exact CLI invocations, flags included; no secrets>
+Notes: <selector resolution, exact-pin substitutions, degraded seats, or other provenance details>
+```
+
+Capture the model that *answered*, not just the one requested: model names drift and CLIs silently fall back. The verdict is only as trustworthy as knowing exactly who voted.

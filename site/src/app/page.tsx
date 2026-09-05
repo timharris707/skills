@@ -60,7 +60,7 @@ export default function Home() {
           />
           <h3 className="runtime-head">
             <RuntimeMark id="codex" size={20} />
-            Codex
+            Codex desktop, tuned for Astra
           </h3>
           <Terminal
             lines={[
@@ -70,8 +70,8 @@ export default function Home() {
           />
           <p>
             That&apos;s the install. Open a session in a real repo and you can ask for any skill
-            by name. The same {skills.length} skills ship to both runtimes. Neither is a port,
-            and CI fails the build if they would ever differ. Standalone skills and other
+            by name. Both editions cover all {skills.length} skills, with instructions adapted to each app.
+            The Codex edition keeps task ownership through compaction and respects your model settings. Standalone skills and other
             runtimes: <Link href="/install">every install option →</Link>
           </p>
         </div>

@@ -5,3 +5,8 @@
 *.jpg binary
 *.gif binary
 *.pdf binary
+
+# Unified patches require a space on empty context lines.
+editions/codex/skills.patch whitespace=-blank-at-eol,-blank-at-eof
+# Reviewed sources live in skills/ and editions/codex/; CI verifies this output.
+plugins/clickai-codex/** linguist-generated=true

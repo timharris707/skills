@@ -1,0 +1,76 @@
+---
+name: to-tickets
+description: "Turn an approved plan into verifiable work items with their real dependencies on the project tracker."
+---
+
+# To Tickets
+
+Read the [Codex desktop binding](../../../CODEX.md) when this workflow needs harness mechanics, model routing, or recovery.
+
+The pack's bridge from **decided** to **takeable**. [decision-map](../../decide/decision-map/SKILL.md) produces decisions; [orchestrate](../orchestrate/SKILL.md) routes tracked items into lanes. This skill is what stands between them: it turns settled intent into work items a lane can claim without asking anyone what was meant.
+
+Read the team-workflow binding doc first; it names the tracker, the label vocabulary, the verify commands, and the decider. The [tracker discipline](../../orient/setup/references/tracker-discipline.md) governs everything filed here.
+
+## Tracer bullets
+
+Slice by **tracer bullet**: a thin path that goes all the way through, end to end, rather than a horizontal layer that goes nowhere alone. "Wire the read path from route to store, one field" is a tracer bullet. "Build the data layer" is a layer: it cannot be verified, cannot be demoed, and its acceptance criteria are always someone else's.
+
+Three tests, all of which must pass:
+
+1. **Verifiable alone.** The item names how you would know it worked, using the repo's verify commands.
+2. **PR-sized.** One session, one branch, one review. An item nobody can finish in a sitting is a plan wearing a ticket's clothes.
+3. **Ordered by what it unblocks**, not by architectural tidiness. The first bullet should retire the most risk.
+
+The slicing binds downstream: [implement](../implement/SKILL.md) mandates that a lane's first verified checkpoint prove the thinnest end-to-end slice (tickets sliced tracer-style are built tracer-style), and the seams an item's verification names at filing time are where implement's test-first bar lands.
+
+## The wide-refactor exception
+
+One slice shape legitimately fails the tracer-bullet tests: a **wide refactor**: a single mechanical change (rename a column, retype a shared symbol) whose blast radius fans across the whole codebase, so no vertical slice can land green alone. Sequence it as **expand–contract** instead of forcing it into a bullet: an *expand* item adds the new form beside the old so nothing breaks; *migrate* items move the call sites over in batches sized by blast radius (per package, per directory), each blocked by the expand, CI staying green batch to batch because the old form still exists; a *contract* item deletes the old form once no caller remains, blocked by every migrate batch. When even the batches cannot stay green alone, keep the sequence but give them a shared integration branch that all block a final integrate-and-verify item; green is promised only there, and the contract item adds that item to its blockers: the old form never comes out before the combined verification completes.
+
+## The sign-off gate
+
+Reuse an exact breakdown already approved in the current request or recorded decision. For a new or materially changed breakdown, before Pass 1 files anything, put the slice list in front of the decider: each item's title, what it delivers end to end, and what blocks it, in plain English, no bodies yet. Ask whether the granularity is right, whether every edge is a real gate, and what should merge or split; iterate until they approve. The approval is recorded, not remembered: post the exact approved list as a comment on the plan-source or driving item before Pass 1, so what gets filed can be checked against what was approved. Filing first and asking after is the wrong order: a batch on the board is already colliding with other lanes' frontier queries while it is being argued about.
+
+## The two passes
+
+Items need ids before they can reference each other, so filing is always two passes. Doing it in one produces edges pointing at numbers that do not exist yet.
+
+**Pass 1: file the bodies** (the approved list, nothing else). Each item's body IS the spec, per the [work-item spec template](../../orient/setup/references/templates/issue-slice-spec.md) that setup seeds: destination, plan source, acceptance criteria, verification, out of scope. The **plan source** line is not optional: it links the primary source (the decision-map entry, the grilling verdict, the research findings) so review never relitigates a settled question. When items derive from an [ingest](../../investigate/ingest/SKILL.md) evidence packet, also run the `ingest.py link` command the recommendation handed you for each item as you file it; the packet's retention lifetime is measured by those links.
+
+**Pass 2: wire the edges.** Add native dependency edges for every blocker that is itself a tracker item, using the recipe's database-id form:
+
+```bash
+# <owner>/<repo> is the bound tracker repo, written literally — {owner}/{repo} would
+# resolve implicitly and mis-target in forks:
+gh api repos/<owner>/<repo>/issues/<blocker-number> --jq .id
+gh api repos/<owner>/<repo>/issues/<child-number>/dependencies/blocked_by -F issue_id=<that-id>
+```
+
+Edges are authoritative wherever the blocker is a tracker item, so the frontier unblocks itself when the blocker closes. The `blocked` label is only for **non-ticket** blockers: a vendor gate, a scheduling constraint, a pending adjudication. An item blocked purely by edges must not also carry the label, or a stale label holds it blocked after its edges clear.
+
+## Labels and readiness
+
+Apply the state and type labels the binding doc maps. An item is labeled ready **only when its body could be handed to a stranger**: every acceptance criterion checkable, every dependency wired, no "we'll figure this out in the ticket". Anything short of that is `needs-triage`, and saying so is more useful than a ready label that lies.
+
+Confirm the labels exist on the tracker before filing. A frontier query against labels nobody created returns empty forever, and nothing downstream creates them as a side effect.
+
+## What this skill does not do
+
+- **It does not claim.** Filing an item and starting it are separate acts by separate sessions. Run the claim recipe when work begins; a filer who claims their own batch has locked the board against every other lane.
+- **It does not decide.** Anything genuinely open when you reach it goes back to the decider as a question, or becomes a [decision-map](../../decide/decision-map/SKILL.md) ticket if the open questions gate each other. Filing a build slice over an undecided question buries the decision where nobody will see it until a lane hits it.
+- **It does not spec what nobody pressure-tested.** If the source is a conversation rather than a recorded decision, run [grilling](../../decide/grilling/SKILL.md) first. A ticket set derived from unexamined agreement inherits every silent assumption and multiplies it by the number of items.
+
+## Done when (checkable: verify each line before reporting complete)
+
+- Every filed item passes all three tracer-bullet tests (or rides an expand–contract sequence under the wide-refactor exception): verifiable alone, PR-sized, ordered by what it unblocks.
+- The decider approved the slice list before anything was filed, and Pass 1 matches the approved list recorded on the plan-source or driving item.
+- Every item body carries destination, plan source link, checkable acceptance criteria, named verification, and out-of-scope.
+- Pass 2 ran: every ticket-blocker is a native edge, every non-ticket blocker is the `blocked` label, and an item with both ticket and non-ticket blockers carries both until the respective blockers clear.
+- Every item is labeled, and every ready-labeled item could be handed to a stranger as-is.
+- The frontier query returns the items you expect to be takeable now; run it and read the result rather than assuming.
+- Every item filed from an [ingest](../../investigate/ingest/SKILL.md) evidence packet is recorded in that packet's `derived_items`: the `link` command from the recommendation ran at filing time.
+- Nothing filed is claimed, and every question that surfaced while slicing is recorded for the decider rather than resolved by you.
+
+## Attribution
+
+The slicing model here (tracer-bullet vertical slices, each declaring the blocking edges that gate it), the expand–contract exception for wide refactors, and the pre-filing approval round are adapted from Matt Pocock's [`to-tickets`](https://github.com/mattpocock/skills/tree/main/skills/engineering/to-tickets) (MIT); the two-pass filing order (bodies first, edges once ids exist) is his too, from [`wayfinder`](https://github.com/mattpocock/skills/tree/main/skills/engineering/wayfinder). The coupling to the binding doc and tracker discipline, the issue-as-spec body, the readiness bar, and the refusals in "What this skill does not do" are this repo's.

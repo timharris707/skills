@@ -1,0 +1,3 @@
+interface:
+  display_name: "Decision Map"
+  short_description: "Chart foggy work as gate decisions before speccing"

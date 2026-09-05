@@ -1,0 +1,3 @@
+interface:
+  display_name: "Domain Memory"
+  short_description: "Per-repo glossary + decision records, written as side effects of work"

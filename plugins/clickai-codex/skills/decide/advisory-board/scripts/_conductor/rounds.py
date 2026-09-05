@@ -1,0 +1,501 @@
+"""The round fan-out (design §11/§12/§13): run a round across the board, the
+per-seat round runner, and the per-seat round artifacts/renderers."""
+from __future__ import annotations
+
+import os
+import shutil
+import tempfile
+from dataclasses import dataclass
+from typing import Optional
+
+from _conductor.constants import (
+    EXIT_EGRESS_BLOCKED,
+    die,
+)
+from _conductor.config import (
+    RunConfig,
+    SeatConfig,
+)
+from _conductor.spawn import (
+    RETRYABLE_FAILURES,
+    classify_round1,
+    spawn,
+)
+from _conductor.egress import (
+    EgressApproval,
+    build_packet,
+    packet_hash,
+)
+from _conductor.convergence import parse_verdict, parse_basis, parse_scores, parse_rubric_note
+from _conductor.artifacts import _write
+
+__all__ = [
+    "SeatRoundResult",
+    "_run_seat_round",
+    "run_round",
+    "run_round1",
+    "_dropped_md",
+    "render_raw_record",
+    "write_round_artifacts",
+    "write_round1_artifacts",
+    "render_round_table",
+    "render_round1_table",
+    "_argv_preview",
+]
+
+
+@dataclass
+class SeatRoundResult:
+    seat: str
+    provider: str
+    round_no: int
+    model_requested: str
+    model_answered: Optional[str]
+    status: str                 # ran | degraded | dropped
+    failure_class: Optional[str]
+    attempts: int
+    elapsed_s: float
+    exit_code: int
+    timed_out: bool
+    stdout: str
+    stderr: str
+    prompt_hash: str            # sha256 of the exact bytes THIS seat received
+    source_hash: str            # sha256 of the source material (same across seats)
+    round_packet_hash: str      # sha256 of THIS round's full packet (round 1 == approval hash)
+    argv_preview: str           # the invocation, prompt elided (the black-box recorder)
+    # Token usage as REPORTED BY THE CLI in the captured output (v1.11 #3a) — all
+    # nullable, and None is the common, honest outcome today (most CLIs print no
+    # usage; see registry.py's per-seat parse_usage). tokens_total may be present
+    # while in/out are not (codex reports one combined count). Never estimated
+    # here — estimates live in constants.estimate_run and are labeled as such.
+    tokens_in: Optional[int] = None
+    tokens_out: Optional[int] = None
+    tokens_total: Optional[int] = None
+    # The merged rubric's criterion ids (c1…cN) this round scored against — set on a
+    # --rubric run so `scores`/`rubric_note` restrict parsing to real criteria (a seat
+    # cannot conjure an id the chair did not merge). None on a non-rubric run, so the
+    # score properties are empty/None and nothing about a plain run changes.
+    criterion_ids: Optional[tuple] = None
+
+    @property
+    def usable(self) -> bool:
+        return self.status in ("ran", "degraded")
+
+    @property
+    def verdict(self):
+        """The seat's machine-readable VERDICT token (ship|caution|block) parsed
+        from its review, or None if unusable or no clean token was emitted (M1).
+        The conductor only reads this token, never the prose (principle #1)."""
+        return parse_verdict(self.stdout) if self.usable else None
+
+    @property
+    def basis(self):
+        """The seat's self-reported BASIS token (independent|evidence|deference) from
+        a round-2+ review, or None if unusable or no clean token was emitted (v1.14
+        #9). Feeds the echo-score metric only — never the verdict chain; a round-1
+        reply carries no BASIS line, so this is None there by construction."""
+        return parse_basis(self.stdout) if self.usable else None
+
+    @property
+    def scores(self) -> dict:
+        """The seat's per-criterion integer scores {criterion_id: 1–5} on a --rubric run
+        (v1.15 #P3 — D17), restricted to the merged rubric's `criterion_ids`. A criterion
+        with no clean SCORE line is ABSENT (never imputed → the scorecard renders "—", the
+        seat's total is marked partial). Empty on an unusable seat or a non-rubric round
+        (criterion_ids is None). Scores COEXIST with VERDICT and never gate — this is a
+        second parsed signal for the scorecard + convergence, not a verdict signal."""
+        if not self.usable or not self.criterion_ids:
+            return {}
+        return parse_scores(self.stdout, self.criterion_ids)
+
+    @property
+    def rubric_note(self):
+        """The seat's optional `RUBRIC-NOTE:` objection to the merged rubric (D17), or
+        None. Recorded for the scorecard, never debated (the scoring reply IS acceptance,
+        D16). None on an unusable seat or a non-rubric round."""
+        if not self.usable or not self.criterion_ids:
+            return None
+        return parse_rubric_note(self.stdout)
+
+
+def _run_seat_round(seat: SeatConfig, blob: "PacketBlob", config: RunConfig, *,
+                    round_no: int, round_packet_hash: str,
+                    workdir: Optional[str], timeout: Optional[int],
+                    classify=classify_round1,
+                    criterion_ids: Optional[tuple] = None) -> SeatRoundResult:
+    """Spawn one seat on its packet blob, classify, retry once per §13.
+
+    `classify` is the (result, adapter) -> (status, failure_class) shape gate; it
+    defaults to the round-1 review gate (classify_round1) and is swapped for the
+    lighter classify_ask on an `ask` fan-out (an answer is not a 7-section review).
+
+    The prompt fed here is `blob.text` — the SAME canonical string used to compute
+    the round's packet hash — so the bytes that actually leave (codex/gemini carry
+    it in argv, claude on stdin) are exactly the recorded bytes. No re-templating
+    happens between hashing and spawn.
+    """
+    adapter = seat.adapter
+    # Timeout precedence: an explicit call-level `timeout` (tests/programmatic) wins,
+    # else the seat's resolved --timeout (per-seat id=SECONDS, or the bare default —
+    # config.resolve_board), else the adapter cap.
+    if timeout is not None:
+        seat_timeout = timeout
+    elif seat.timeout_s is not None:
+        seat_timeout = seat.timeout_s
+    else:
+        seat_timeout = adapter.timeout_s
+    prompt = blob.text
+
+    attempts = 0
+    result = None
+    status = failure = None
+    last_argv: list = []
+    for attempt in (1, 2):
+        attempts = attempt
+        last_argv = adapter.build_argv(seat.model, prompt, reasoning=seat.reasoning,
+                                       workdir=workdir, network=config.network_on,
+                                       grounded=config.grounded)
+        result = spawn(adapter, last_argv, prompt=prompt, timeout=seat_timeout, cwd=workdir)
+        status, failure = classify(result, adapter)
+        if status in ("ran", "degraded"):
+            break
+        if attempt == 1 and failure in RETRYABLE_FAILURES:
+            continue   # the one allowed retry (Timeout | InvalidOutput)
+        break
+
+    answered = adapter.model_answered(result.stdout, result.stderr) if status in ("ran", "degraded") else None
+    # Token capture runs for degraded AND dropped seats (a failed spawn may still
+    # have burned tokens) — but NOT for a timeout: the parsers' anchor guarantees
+    # ("the CLI's own footer terminates stderr" / "the envelope is the whole
+    # stdout") only hold for a process that finished printing. A killed process
+    # returns PARTIAL streams whose tail could be echoed prompt/review content
+    # quoting a usage line — exactly the poisoning the anchors exist to exclude.
+    if result.timed_out:
+        tokens_in = tokens_out = tokens_total = None
+    else:
+        tokens_in, tokens_out, tokens_total = adapter.parse_usage(result.stdout, result.stderr)
+    return SeatRoundResult(
+        seat=seat.id,
+        provider=seat.provider,
+        round_no=round_no,
+        model_requested=seat.model,
+        model_answered=answered,
+        status=status,
+        failure_class=failure,
+        attempts=attempts,
+        elapsed_s=result.elapsed_s,
+        exit_code=result.exit_code,
+        timed_out=result.timed_out,
+        stdout=result.stdout,
+        stderr=result.stderr,
+        prompt_hash=blob.sha256,
+        source_hash=config.source.sha256,
+        round_packet_hash=round_packet_hash,
+        argv_preview=_argv_preview(last_argv),
+        tokens_in=tokens_in,
+        tokens_out=tokens_out,
+        tokens_total=tokens_total,
+        criterion_ids=criterion_ids,
+    )
+
+
+def run_round(config: RunConfig, blobs: list, approval: EgressApproval, *,
+              round_no: int = 1, timeout: Optional[int] = None,
+              parallel: bool = True, classify=classify_round1,
+              on_seat=None, criterion_ids: Optional[tuple] = None,
+              rubric_criteria: Optional[list] = None,
+              rubric_pre_consent: bool = False) -> list:
+    """Fan a round out across its seats. Returns SeatRoundResult in blob order.
+
+    `on_seat` (v1.14 #10 live progress) is an optional best-effort callback fired
+    from the worker threads at each seat's start and finish:
+    `on_seat(event, seat_id, round_no, result)` where `event` is "running" (result
+    is None, the seat's spawn is about to begin) or the seat's terminal state
+    ("done" | "dropped" | "retry" ... derived from result.status; `result` is the
+    SeatRoundResult). It is called INSIDE the fan-out (parallel or serial) so a live
+    view updates as each seat transitions, not only when the whole round returns.
+    The tracker behind it serializes + swallows its own write errors — but we still
+    guard the call here so a bad callback can never break the fan-out.
+
+    Round 1 re-asserts the egress hash one last time before the first spawn: the
+    packet MUST still hash to exactly what consent was bound to, or nothing leaves
+    the machine (the pre-spawn hard stop, restated at the point of no return).
+    Round 2+ egresses only DERIVATIVES of already-approved source (the round-1
+    reviews) to the SAME providers, under the multi-round plan the run-card
+    disclosed — so it records its own packet hash for provenance but reuses the
+    run's approval rather than re-prompting.
+
+    A rubric-SCORED round 1 (`round_no == 1` AND `config.rubric`) does NOT skip the
+    re-assert — it NARROWS it into a TWO-LINK chain of custody. The merged rubric does
+    not exist at consent time (the chair merges AFTER approval), so the WHOLE scored
+    round-1 packet cannot equal the round-1 consent sub-hash; only the injected rubric
+    delta is legitimately new (a derivative of already-approved material — the proposal
+    fan-out whose prompts ARE in the consent hash, plus the chair merge covered by the
+    disclosed rubric plan). So we bind the ACTUAL outbound blobs to consent in two links:
+
+      Link A (blobs → config): the outbound packet hash MUST equal a fresh
+        `packet_hash(build_packet(config, rubric_criteria=rubric_criteria))` — the true
+        outbound blobs are exactly what THIS config (source + grounding + revision + the
+        merged rubric) deterministically re-produces, so nothing was injected between
+        build and spawn.
+      Link B (config → consent): the rubric-STRIPPED rebuild
+        `packet_hash(build_packet(config, rubric_criteria=None))` (byte-identical to the
+        pre-approval build) MUST equal `approval.round1_hash` — the exact anchor the B1
+        consent path recorded — so the config's base still matches what consent bound.
+
+    Chained, A ∘ B binds the outbound base BYTE-FOR-BYTE back to consent (blobs → config →
+    consent); only the rubric delta rides on the disclosed-plan derivation, and Link A
+    proves that delta is exactly the config's own rubric injection, not tampered bytes.
+    Either mismatch dies EXIT_EGRESS_BLOCKED like the hard path. The repo-scope guard
+    below still fires on EVERY grounded round, scored or not — the frozen tree the seats
+    read is still bound to the approved scope. See the RUBRIC_SCORING_BLOCK consent note
+    in prompts.py.
+    """
+    round_packet_hash = packet_hash(blobs)
+    # The round-1 bytes must match what consent bound. Normally the approved
+    # content_hash IS the round-1 packet hash; under --rubric (B1) the approved
+    # content_hash ALSO folds in the prebuilt rubric proposal prompts, so the round-1
+    # sub-hash is recorded separately on the approval — check against that when present.
+    #
+    # ONE predicate drives both the injection and this relaxation: a scored round 1 is
+    # exactly `round_no == 1 AND config.rubric` (the flag that triggers the post-consent
+    # rubric merge + injection). We deliberately do NOT key it on `criterion_ids` — that
+    # post-filter can disagree with the injection signal (a merged rubric whose elements
+    # all lack clean ids would inject a scoring block yet yield empty criterion_ids, and
+    # vice versa). Deriving both from `config.rubric` closes that seam (Concern: predicate
+    # split).
+    # A scored round 1 whose rubric was PRE-CONSENT (a --revise --rubric run carrying
+    # the prior rubric forward, D20) is NOT the two-link case: the criteria were injected
+    # into the round-1 packet BEFORE consent, so the WHOLE scored packet IS what consent
+    # bound and it takes the normal whole-packet assertion (approval.content_hash already
+    # carries the scoring block; approval.round1_hash is None because no proposal pass
+    # ran). Only a POST-CONSENT merged rubric (the fresh proposal + chair path) needs the
+    # stripped-base chain, because its delta didn't exist at consent time.
+    scored_round1 = (round_no == 1 and getattr(config, "rubric", False)
+                     and not rubric_pre_consent)
+    if round_no == 1 and not scored_round1:
+        # Non-rubric round 1: the exact outbound packet must equal what consent bound.
+        expected_round1 = approval.round1_hash or approval.content_hash
+        if round_packet_hash != expected_round1:
+            die("egress hash drift: the packet no longer matches the approved content "
+                "hash — refusing to spawn the board", EXIT_EGRESS_BLOCKED)
+    elif scored_round1:
+        # Scored round 1: the WHOLE packet carries the post-consent merged rubric, so it
+        # can't equal the round-1 sub-hash. We bind the ACTUAL outbound blobs to consent
+        # in TWO links (see the docstring's chain-of-custody note), both dying like the
+        # hard path on mismatch:
+        #
+        # Link A (blobs → config): the true outbound packet MUST be exactly what THIS
+        # config re-produces WITH the rubric. build_packet is deterministic over
+        # config.board/source/grounding/revision AND rubric_criteria, so a fresh rebuild
+        # equals the outbound blobs iff nothing was injected between build and spawn. This
+        # is the link that makes the "byte-for-byte" claim TRUE for the real bytes — the
+        # stripped base alone never touched the outbound blobs.
+        rebuilt_scored_hash = packet_hash(build_packet(config, rubric_criteria=rubric_criteria))
+        if round_packet_hash != rebuilt_scored_hash:
+            die("egress hash drift: the scored round-1 packet no longer matches the "
+                "config it was built from — refusing to spawn the board",
+                EXIT_EGRESS_BLOCKED)
+        # Link B (config → consent): the rubric-STRIPPED rebuild (rubric_criteria=None,
+        # byte-identical to the pre-approval build) MUST equal approval.round1_hash, the
+        # exact anchor the B1 consent path recorded — so the config's base still matches
+        # what consent bound. Chained with Link A this binds source + grounding + revision
+        # bytes back to consent BYTE-FOR-BYTE; only the legitimately-derived rubric delta
+        # rides on the disclosed plan, and Link A proved it is the config's own injection.
+        # On a scored run rubric_blobs was present, so approval.round1_hash is always set;
+        # the `or content_hash` fallback is defensive (an unexpected None must not silently
+        # pass).
+        stripped_base_hash = packet_hash(build_packet(config, rubric_criteria=None))
+        expected_round1 = approval.round1_hash or approval.content_hash
+        if stripped_base_hash != expected_round1:
+            die("egress hash drift: the scored round-1 base (rubric stripped) no longer "
+                "matches the approved round-1 hash — refusing to spawn the board",
+                EXIT_EGRESS_BLOCKED)
+    # The same hard stop for the repo scope (R7) — but on EVERY grounded round, not just
+    # round 1. The snapshot is a single frozen tree shared as the seat cwd across all
+    # rounds, so the round-1 rationale ('seats must read exactly the bytes consent was
+    # bound to') applies verbatim at every later spawn boundary. (The packet-hash guard
+    # above stays round-1-only: round 2+ packets are legitimate derivatives.) A snapshot
+    # that vanished or became unreadable is mapped to the same labeled NO-GO with the
+    # EXIT_EGRESS_BLOCKED code, never an uncaught traceback.
+    if config.grounding is not None and config.grounding.snapshot_dir:
+        from _conductor.grounding import rehash_snapshot
+        try:
+            current_scope_hash = rehash_snapshot(config.grounding.snapshot_dir)
+        except (ValueError, OSError):
+            die("repo scope snapshot is missing or unreadable — refusing to spawn the board",
+                EXIT_EGRESS_BLOCKED)
+        if current_scope_hash != approval.scope_hash:
+            die("repo scope hash drift: the snapshot no longer matches the approved scope "
+                "hash — refusing to spawn the board", EXIT_EGRESS_BLOCKED)
+    by_seat = {b.seat: b for b in blobs}                     # keyed by seat id
+    seats = [s for s in config.board if s.id in by_seat]      # round 2 drops failed seats
+
+    # Workdir policy (P3, read XOR network). When --repo is on, EVERY seat is pointed
+    # at the read-only snapshot (config.grounding.snapshot_dir) as its cwd — in BOTH
+    # gate+repo and advisory+repo — so seats verify claims against the exact frozen
+    # bytes consent bound to, and `verify` later resolves those citations. Snapshot
+    # files are 0o444 (P1) and the adapters are read-only, so this dir cannot be
+    # written. We do NOT own this dir (cmd_run created + cleans it up), so the
+    # try/finally below must NOT rmtree it — only an ephemeral tempdir we made here.
+    # Ungrounded behavior is byte-identical to before: a fresh empty tempdir in gate,
+    # None in advisory.
+    grounded_snapshot = (config.grounding.snapshot_dir
+                         if config.grounded and config.grounding is not None
+                         else None)
+    own_workdir = None
+    if grounded_snapshot:
+        workdir = grounded_snapshot
+    elif config.fs_scoped:
+        # Gate mode confines each seat to a scoped, empty cwd (same posture preflight
+        # used); advisory mode runs in the caller's cwd (your own material, by design).
+        own_workdir = tempfile.mkdtemp(prefix=f"advisory-board-round{round_no}-")
+        workdir = own_workdir
+    else:
+        workdir = None
+    try:
+        def _notify(event, seat_id, result):
+            if on_seat is None:
+                return
+            try:
+                on_seat(event, seat_id, round_no, result)
+            except Exception:
+                pass   # a live-view callback must never break the fan-out
+
+        def _one(seat: SeatConfig) -> SeatRoundResult:
+            _notify("running", seat.id, None)
+            result = _run_seat_round(seat, by_seat[seat.id], config, round_no=round_no,
+                                     round_packet_hash=round_packet_hash,
+                                     workdir=workdir, timeout=timeout, classify=classify,
+                                     criterion_ids=criterion_ids)
+            # Map the seat's outcome to a live-view state. A retried-but-usable seat
+            # still reports its terminal usable state; a "retry" event would need a
+            # hook inside the retry loop — deferred (the two-attempt window is short
+            # and the terminal state is what a watcher cares about).
+            event = "done" if result.usable else "dropped"
+            _notify(event, seat.id, result)
+            return result
+
+        results: dict = {}
+        if parallel and len(seats) > 1:
+            from concurrent.futures import ThreadPoolExecutor
+            with ThreadPoolExecutor(max_workers=len(seats)) as pool:
+                futures = {pool.submit(_one, s): s for s in seats}
+                for fut, seat in futures.items():
+                    results[seat.id] = fut.result()
+        else:
+            for seat in seats:
+                results[seat.id] = _one(seat)
+        return [results[s.id] for s in seats]
+    finally:
+        # Only tear down the ephemeral per-round tempdir WE created. The grounded
+        # snapshot is owned by cmd_run (one snapshot shared across rounds) and is
+        # cleaned up there — rmtree'ing it here would pull the read surface out from
+        # under a later round (and double-free it on cleanup).
+        if own_workdir:
+            shutil.rmtree(own_workdir, ignore_errors=True)
+
+
+def run_round1(config: RunConfig, blobs: list, approval: EgressApproval, *,
+               timeout: Optional[int] = None, parallel: bool = True) -> list:
+    """Round-1 fan-out across the board (thin wrapper over run_round)."""
+    return run_round(config, blobs, approval, round_no=1, timeout=timeout, parallel=parallel)
+
+
+def _dropped_md(r: SeatRoundResult) -> str:
+    return (f"# {r.seat} — round {r.round_no}: no usable review\n\n"
+            f"Status: **{r.status}** · failure class: **{r.failure_class or '-'}** · "
+            f"attempts: {r.attempts}.\n\n"
+            f"This seat did not return a usable round-{r.round_no} review. See "
+            f"`round-{r.round_no}/{r.seat}.raw` for the full invocation record and "
+            f"`logs/{r.seat}-round-{r.round_no}.stderr` for its stderr.\n")
+
+
+def render_raw_record(r: SeatRoundResult) -> str:
+    """The Black-Box Recorder (§12): the verbatim invocation + the hashes that
+    prove same-material independence and bind it to the round's packet. Honestly
+    'falsifiable-by-inspection', not tamper-proof — it catches empty/lazy/drifted
+    runs, not a determined forger using the same orchestrator."""
+    if r.round_no == 1 and not r.criterion_ids:
+        packet_note = "(egress consent was bound to this)"
+    elif r.round_no == 1:
+        # A rubric-SCORED round 1 injects the post-consent merged rubric, so it is NOT
+        # the bytes consent bound to — it is a derivative of already-approved source (the
+        # proposal fan-out + chair merge), exactly like round 2+. Label it honestly.
+        packet_note = ("(rubric-scored round-1 packet; reuses the run's egress approval — "
+                       "the injected rubric is a derivative of already-approved source)")
+    else:
+        packet_note = (f"(round-{r.round_no} packet; reuses the run's egress approval — "
+                       "derivatives of already-approved source to the same providers)")
+    lines = [
+        f"# Black-box recorder — {r.seat} · round {r.round_no}",
+        "",
+        f"command         : {r.argv_preview}",
+        f"prompt-source   : prompts/{r.seat}-round-{r.round_no}.prompt",
+        f"source-hash     : sha256:{r.source_hash}   (identical across seats → same-material independence)",
+        f"prompt-hash     : sha256:{r.prompt_hash}   (the exact bytes this seat received)",
+        f"packet-hash     : sha256:{r.round_packet_hash}   {packet_note}",
+        f"model-requested : {r.model_requested}",
+        f"model-answered  : {r.model_answered or 'unknown (CLI reported none — not assumed)'}",
+        f"exit-code       : {r.exit_code}",
+        f"timed-out       : {'yes' if r.timed_out else 'no'}",
+        f"elapsed-s       : {r.elapsed_s:.2f}",
+        f"attempts        : {r.attempts}",
+        f"status          : {r.status}",
+        f"failure-class   : {r.failure_class or '-'}",
+        "",
+        "----------------8<---------------- STDOUT ----------------8<----------------",
+        r.stdout.rstrip("\n"),
+        "----------------8<---------------- STDERR ----------------8<----------------",
+        r.stderr.rstrip("\n"),
+        "",
+    ]
+    return "\n".join(lines) + "\n"
+
+
+def write_round_artifacts(config: RunConfig, results: list, round_no: int) -> None:
+    out = config.out_dir
+    rdir = os.path.join(out, f"round-{round_no}")
+    os.makedirs(rdir, exist_ok=True)
+    os.makedirs(os.path.join(out, "logs"), exist_ok=True)
+    for r in results:
+        review_md = r.stdout if r.usable else _dropped_md(r)
+        _write(os.path.join(rdir, f"{r.seat}.md"), review_md)
+        _write(os.path.join(rdir, f"{r.seat}.raw"), render_raw_record(r))
+        _write(os.path.join(out, "logs", f"{r.seat}-round-{round_no}.stderr"), r.stderr)
+
+
+# Back-compat alias (M3 callers / tests).
+def write_round1_artifacts(config: RunConfig, results: list,
+                           approval: Optional[EgressApproval] = None) -> None:
+    write_round_artifacts(config, results, 1)
+
+
+def render_round_table(results: list, round_no: int) -> str:
+    rows = ["| Seat   | Status   | Model answered | Attempts | Elapsed | Failure |",
+            "| ------ | -------- | -------------- | -------- | ------- | ------- |"]
+    for r in results:
+        answered = r.model_answered or "unknown"
+        rows.append(
+            f"| {r.seat:<6} | {r.status:<8} | {answered:<14} | {r.attempts:<8} "
+            f"| {r.elapsed_s:>5.1f}s | {r.failure_class or '-'} |"
+        )
+    usable = sum(1 for r in results if r.usable)
+    rows.append("")
+    rows.append(f"{usable} of {len(results)} seats produced a usable round-{round_no} review.")
+    return "\n".join(rows)
+
+
+def render_round1_table(results: list) -> str:   # back-compat alias
+    return render_round_table(results, 1)
+
+
+def _argv_preview(argv: list) -> str:
+    # Keep golden output readable: collapse a long inlined prompt to a sentinel.
+    shown = []
+    for token in argv:
+        if len(token) > 60 and " " in token:
+            shown.append("<prompt>")
+        else:
+            shown.append(token)
+    return " ".join(shown)

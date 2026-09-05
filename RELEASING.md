@@ -112,3 +112,22 @@ only scope it needs). Two callers:
   fail the core; create that release manually from the current changelog section
   (`gh release create <tag> --notes-file …`), or delete the tag and let a dispatch re-cut it at
   current main.
+
+## Codex desktop edition
+
+`clickai-codex` releases independently as `clickai-codex/vX.Y.Z`. Change its version
+in `editions/codex/plugin.json`, write the matching section in
+`packs/clickai-codex/CHANGELOG.md`, and run `python3 scripts/build_codex_plugin.py`.
+Commit the generated `plugins/clickai-codex/` package with the source change.
+The auto-release workflow scans that generated manifest alongside the existing
+Claude manifests; a Codex release does not bump any Claude package.
+
+The shared release workflow reads content from the validated tag and attaches a
+complete `clickai-codex-vX.Y.Z.zip` plus its `.sha256` file. Reconciliation verifies
+existing assets byte for byte and uploads missing assets. Installers can use the
+GitHub marketplace directly; the ZIP needs no patching or generation step.
+
+Before publishing, run `python3 scripts/check_codex_publication.py`, inspect the
+public diff and every outgoing commit for private material, and confirm the
+branch contains only public history. Never publish a private implementation
+commit and rely on a later deletion to sanitize it.

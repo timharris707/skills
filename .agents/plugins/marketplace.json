@@ -10,6 +10,18 @@
         "source": "local",
         "path": "."
       }
+    },
+    {
+      "name": "clickai-codex",
+      "source": {
+        "source": "local",
+        "path": "./plugins/clickai-codex"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
     }
   ]
 }

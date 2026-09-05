@@ -191,3 +191,15 @@ export function human(slug: string): HumanCopy {
   }
   return copy;
 }
+
+/** Codex recovery keeps the task; Claude's existing session-transfer copy stays intact. */
+export function editionHuman(slug: string, edition: "claude" | "codex"): HumanCopy {
+  if (edition === "codex" && slug === "handoff") {
+    return {
+      ...human(slug),
+      card: "Save a checkpoint and keep the current Codex task moving through compaction.",
+      intro: "Long tasks need a reliable record of what is agreed, finished, and still running. Handoff saves a compact checkpoint so the current Codex task can recover after compaction. It preserves your instructions and worker ownership; starting a new task remains an explicit choice.",
+    };
+  }
+  return human(slug);
+}

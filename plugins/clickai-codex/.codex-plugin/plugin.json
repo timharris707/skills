@@ -1,0 +1,46 @@
+{
+  "name": "clickai-codex",
+  "version": "1.0.0",
+  "description": "23 Click AI skills for Codex desktop, tuned for Astra: planning, research, writing, implementation, independent review, and checkpoint recovery.",
+  "author": {
+    "name": "Tim Harris"
+  },
+  "homepage": "https://clickai.dev/install#codex",
+  "repository": "https://github.com/timharris707/skills",
+  "license": "MIT",
+  "interface": {
+    "displayName": "Click AI for Codex",
+    "shortDescription": "Codex desktop workflows, tuned for Astra",
+    "longDescription": "The full Click AI catalog adapted for Codex desktop: task-owned checkpoints, native subagents, capability-aware questions, and independent review. Respects your selected model, effort, and project rules.",
+    "developerName": "Tim Harris",
+    "category": "Productivity",
+    "websiteURL": "https://clickai.dev/install#codex",
+    "defaultPrompt": "Use the Click AI setup skill to bind these workflows to this project.",
+    "capabilities": []
+  },
+  "skills": [
+    "./skills/author/huh",
+    "./skills/author/plainspoken",
+    "./skills/author/writing-for-agents",
+    "./skills/author/writing-for-humans",
+    "./skills/decide/advisory-board",
+    "./skills/decide/decision-map",
+    "./skills/decide/grilling",
+    "./skills/investigate/codebase-review",
+    "./skills/investigate/ingest",
+    "./skills/investigate/prototype",
+    "./skills/investigate/research",
+    "./skills/orient/domain-memory",
+    "./skills/orient/router",
+    "./skills/orient/setup",
+    "./skills/run/adversarial-review",
+    "./skills/run/blast-radius",
+    "./skills/run/diagnose",
+    "./skills/run/handoff",
+    "./skills/run/implement",
+    "./skills/run/orchestrate",
+    "./skills/run/show-me-your-work",
+    "./skills/run/to-tickets",
+    "./skills/run/wizard"
+  ]
+}

@@ -69,6 +69,11 @@ jobs:
             echo "version=$version"
           } >> "$GITHUB_OUTPUT"
 
+      - name: Read release content from the validated tag
+        env:
+          TAG: ${{ steps.meta.outputs.tag }}
+        run: git checkout --detach "$TAG"
+
       - name: Extract release notes from the changelog
         id: notes
         env:
@@ -125,3 +130,24 @@ jobs:
           gh release view "$TAG" --json name,body > existing-release.json
           verify_existing_release
           echo "::notice::a concurrent run created $TAG with the expected title and notes"
+
+      - name: Build and attach the complete Codex plugin
+        if: steps.meta.outputs.skill == 'clickai-codex'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.meta.outputs.tag }}
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          set -euo pipefail
+          python3 scripts/build_codex_plugin.py --check --archive "dist/clickai-codex-$VERSION.zip"
+          python3 scripts/check_codex_publication.py
+          mkdir -p existing-assets
+          for asset in "dist/clickai-codex-$VERSION.zip" "dist/clickai-codex-$VERSION.zip.sha256"; do
+            name="${asset##*/}"
+            if gh release view "$TAG" --json assets --jq '.assets[].name' | grep -Fxq "$name"; then
+              gh release download "$TAG" --pattern "$name" --dir existing-assets
+              cmp "$asset" "existing-assets/$name"
+            else
+              gh release upload "$TAG" "$asset"
+            fi
+          done
