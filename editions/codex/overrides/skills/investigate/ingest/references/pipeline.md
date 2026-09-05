@@ -4,10 +4,16 @@ The portable fallback when [`scripts/ingest.py`](../scripts/ingest.py) is unavai
 
 ## Stages in order
 
-**1. Stage the media.** Copy into the run dir. On macOS, Dropbox/Documents/Downloads paths are TCC-protected: plain `cp` fails "Operation not permitted" even unsandboxed. The working route is Finder:
+**1. Stage the media.** Copy into the run dir. On macOS, Dropbox/Documents/Downloads paths are TCC-protected: plain `cp` fails "Operation not permitted" even unsandboxed. The working route is Finder. With the source and run-directory paths already stored in `src` and `run_dir`, pass them as arguments:
 
 ```bash
-osascript -e 'tell application "Finder" to duplicate (POSIX file "<src>" as alias) to (POSIX file "<run-dir>/media" as alias)'
+osascript -- - "$src" "$run_dir/media" <<'APPLESCRIPT'
+on run argv
+    set sourceFile to POSIX file (item 1 of argv) as alias
+    set mediaDirectory to POSIX file (item 2 of argv) as alias
+    tell application "Finder" to duplicate sourceFile to mediaDirectory
+end run
+APPLESCRIPT
 ```
 
 Folder names Finder shows with "/" are ":" in the POSIX path. A cloud file must be downloaded locally (not online-only) first.

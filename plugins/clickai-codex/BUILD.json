@@ -406,7 +406,7 @@
       "executable": false
     },
     "skills/investigate/ingest/references/pipeline.md": {
-      "sha256": "b7a6aa2913df67a6a21f062c54b7a935eb282e4d464ad278a838597723f5d1b8",
+      "sha256": "421573fd797756ee1fc39e3d530536e5a14546b7dfee97150b523ef7d5ae39a5",
       "executable": false
     },
     "skills/investigate/ingest/scripts/ingest.py": {

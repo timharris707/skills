@@ -25,6 +25,35 @@ PACKAGE = ROOT / 'plugins/clickai-codex'
 
 
 class ReviewRegressionTests(unittest.TestCase):
+    def test_receipt_requires_nonempty_exact_package_inventory(self):
+        receipt_path = PACKAGE / 'BUILD.json'
+        original = json.loads(receipt_path.read_text())
+        incomplete = dict(original['files']); incomplete.pop(next(iter(incomplete)))
+        extra = {**original['files'], 'missing-extra-file': {'sha256': 'unused'}}
+        read = Path.read_text
+        for entries in [{}, incomplete, extra]:
+            def altered_receipt(path, *args, **kwargs):
+                return json.dumps({**original, 'files': entries}) if path == receipt_path else read(path, *args, **kwargs)
+            with patch.object(Path, 'read_text', altered_receipt):
+                self.assertIn('Build receipt must cover every package file except BUILD.json', publication.check())
+
+    def test_finder_example_preserves_paths_as_arguments(self):
+        document = (PACKAGE / 'skills/investigate/ingest/references/pipeline.md').read_text()
+        command = re.search(r'```bash\n(.*?)\n```', document, re.S).group(1)
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp); capture = root / 'capture.json'; marker = root / 'injected'
+            source = str(root / "quote'$(touch injected)`touch injected`.mp4")
+            run_dir = str(root / "run's directory")
+            stub = '''osascript() { python3 -c 'import json,os,sys; open(os.environ["CAPTURE"],"w").write(json.dumps({"args":sys.argv[1:],"script":sys.stdin.read()}))' "$@"; }
+'''
+            subprocess.run(['bash', '-c', stub + command], cwd=root,
+                           env={**os.environ, 'src': source, 'run_dir': run_dir, 'CAPTURE': str(capture)}, check=True)
+            recorded = json.loads(capture.read_text())
+            self.assertEqual(['--', '-', source, run_dir + '/media'], recorded['args'])
+            self.assertIn('on run argv', recorded['script'])
+            self.assertNotIn(source, recorded['script'])
+            self.assertFalse(marker.exists())
+
     def test_historical_incident_sources_require_sanitized_replacements(self):
         denied = set((ROOT / 'editions/codex/disclosure-denylist.txt').read_text().splitlines())
         for relative in ['skills/investigate/ingest/CHANGELOG.md', 'skills/investigate/ingest/scripts/ingest.py',

@@ -7,6 +7,7 @@ import re
 import sys
 
 from check_site_disclosure import digest, load_denylist, ngrams
+from build_codex_plugin import files
 
 ROOT = Path(__file__).resolve().parents[1]
 PACKAGE = ROOT / 'plugins/clickai-codex'
@@ -66,6 +67,11 @@ def check():
     for name in ['AGENTS.md', 'hooks/hooks.json', 'config.toml', 'manage.py']:
         if (PACKAGE / name).exists(): failures.append(f'Unexpected global installation payload: {name}')
     receipt = json.loads((PACKAGE / 'BUILD.json').read_text())['files']
+    package_files = files(PACKAGE)
+    package_files.pop('BUILD.json', None)
+    if not isinstance(receipt, dict) or not receipt or set(receipt) != set(package_files):
+        failures.append('Build receipt must cover every package file except BUILD.json')
+        return failures
     for rel, recorded in receipt.items():
         if hashlib.sha256((PACKAGE / rel).read_bytes()).hexdigest() != recorded['sha256']:
             failures.append(f'Build receipt differs: {rel}')
