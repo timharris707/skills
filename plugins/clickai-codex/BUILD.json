@@ -394,7 +394,7 @@
       "executable": false
     },
     "skills/investigate/ingest/CHANGELOG.md": {
-      "sha256": "623254cb5b111c5bc9dbb7d55da95b814ee7d1b4f99756a6bb047393e1187a21",
+      "sha256": "f126b0ecc2dae39fc0e00164e5a93a39e664442ec98fdc975d6cf36e40df1a67",
       "executable": false
     },
     "skills/investigate/ingest/SKILL.md": {
@@ -410,7 +410,7 @@
       "executable": false
     },
     "skills/investigate/ingest/scripts/ingest.py": {
-      "sha256": "ae74097fe10a933e30497d5c0360e87745260ca3849ba56f23be004b5e4fa3b2",
+      "sha256": "31e690326701acada54ff25b71bd8876efb91e3bb23306855f83fcc2e4515146",
       "executable": false
     },
     "skills/investigate/prototype/SKILL.md": {

@@ -9,13 +9,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
-- **Loop-wedge auto-recovery in the transcription stage.** Twice on real
-  recordings (2026-08-17 and 2026-08-18 team calls) mlx-whisper wedged over
-  quiet-but-substantive spans, emitting identical-line runs the reading copy
-  collapsed as "likely a transcription loop over silence" — while the span
-  actually held conversation. The pipeline now detects identical-line runs
-  covering ≥15s in `transcript.srt` (empty zero-length cues are transparent —
-  the 8/18 wedge strewed them between its repeats), re-transcribes each span
+- **Loop-wedge auto-recovery in the transcription stage.** mlx-whisper can
+  emit identical transcript lines over quiet spans that contain conversation.
+  The reading copy can mislabel those spans as transcription loops over
+  silence. The pipeline now detects identical-line runs covering ≥15s in
+  `transcript.srt`, treating empty zero-length cues as transparent, and
+  re-transcribes each span
   (±3s padding) from the extracted audio with band-limit + loudness
   normalization and `--condition-on-previous-text False`, and splices the
   recovered cues back at absolute timestamps before deriving the reading
@@ -120,9 +119,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [v1.1.0] - 2026-08-07 — Packets that cannot lie about their source
 
-Every item here fixes a defect found by an advisory-board red-team review of
-v1.0.0 (Formal Board Review, four seats, unanimous `block`; run recorded at
-`~/.advisory-board/runs/ingest-skill-red-team-2026-08-06/`).
+These changes address identity, completion, retention, and transcript-integrity
+defects found during review of v1.0.0.
 
 ### Fixed
 

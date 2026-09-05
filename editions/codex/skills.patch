@@ -561,17 +561,6 @@
  - The lane changed no code and filed no tickets itself.
  
  ## Attribution
---- a/skills/investigate/ingest/scripts/ingest.py
-+++ b/skills/investigate/ingest/scripts/ingest.py
-@@ -86,7 +86,7 @@
- # copy collapses as "likely silence" that actually held conversation. Any
- # identical-line run of ≥2 cues covering this much wall time is re-transcribed
- # with audio normalization and conditioning off, which recovered both real
--# cases; losing more than 15s of a call is unacceptable (Tim, 2026-08-18).
-+# cases; losing more than 15s of a call is unacceptable.
- RECOVERY_MIN_SPAN_S = 15
- RECOVERY_PAD_S = 3
- # Band-limit to speech and normalize loudness: quiet spans stop reading to the
 --- a/skills/investigate/prototype/SKILL.md
 +++ b/skills/investigate/prototype/SKILL.md
 @@ -1,15 +1,17 @@

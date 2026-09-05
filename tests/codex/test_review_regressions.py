@@ -1,4 +1,5 @@
 """Retained proofs for the publication review's functional findings."""
+import ast
 import contextlib
 import importlib.util
 import io
@@ -24,6 +25,18 @@ PACKAGE = ROOT / 'plugins/clickai-codex'
 
 
 class ReviewRegressionTests(unittest.TestCase):
+    def test_historical_incident_sources_require_sanitized_replacements(self):
+        denied = set((ROOT / 'editions/codex/disclosure-denylist.txt').read_text().splitlines())
+        for relative in ['skills/investigate/ingest/CHANGELOG.md', 'skills/investigate/ingest/scripts/ingest.py']:
+            with self.subTest(source=relative):
+                self.assertTrue(publication.private_findings((ROOT / relative).read_text(), denied))
+                self.assertFalse(publication.private_findings((PACKAGE / relative).read_text(), denied))
+        relative = 'skills/investigate/ingest/scripts/ingest.py'
+        for root, should_reject in [(ROOT, True), (PACKAGE, False)]:
+            tree = ast.parse((root / relative).read_text())
+            function = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == 'wedged_spans')
+            self.assertEqual(should_reject, bool(publication.private_findings(ast.get_docstring(function), denied)))
+
     def test_empty_and_incomplete_adaptation_hashes_fail_before_build(self):
         with tempfile.TemporaryDirectory() as tmp:
             edition = Path(tmp) / 'edition'
