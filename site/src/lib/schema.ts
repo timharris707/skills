@@ -29,7 +29,7 @@ export const PERSON = {
   name: "Tim Harris",
   url: `${SITE_URL}/work`,
   description:
-    "Builds product and ships software by directing AI coding agents. Maker of ModelDeck, Panely, HiveRunner, and the Click AI skills catalog.",
+    "Never wrote the code; leads the agent team that does. Maker of ModelDeck, Panely, HiveRunner, and the Click AI skills catalog.",
   sameAs: [
     "https://github.com/timharris707",
     "https://x.com/timharris707",

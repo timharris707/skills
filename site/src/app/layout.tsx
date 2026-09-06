@@ -33,7 +33,7 @@ const mono = JetBrains_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL("https://clickai.dev"),
   title: {
-    default: "Click AI — the method that let a non-coder ship four products",
+    default: "Click AI — Skills For Real Non-Engineers",
     template: "%s — Click AI",
   },
   description:

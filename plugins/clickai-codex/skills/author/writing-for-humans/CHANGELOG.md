@@ -8,6 +8,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [v1.3.0] - 2026-09-05 — positioning canon points at the decision record
+
+### Changed
+
+- **Positioning rule repointed**: the bullet that mandated "I don't write code. I direct
+  agents." and the four-products wedge verbatim now says to read the project's recorded
+  positioning first and names decision 0005 (Skills For Real Non-Engineers) as this
+  catalog's copy of record, including the lines it bans. The old rule would have instructed
+  the next copy edit to restore retired lines.
+
 ## [v1.2.1] - 2026-08-25 — frontmatter description parses as strict YAML
 
 ### Fixed

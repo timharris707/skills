@@ -14,7 +14,7 @@ import {
 export const metadata: Metadata = {
   title: "Work",
   description:
-    "Six builds, one method: ModelDeck, Panely, HiveRunner, this catalog, and two private builds. Made by Tim Harris, who ships software by directing AI agents.",
+    `${BUILD_COUNT} builds, one method: ModelDeck, Panely, HiveRunner, this catalog, and ${PRIVATE_COUNT} private builds. Made by Tim Harris, who never wrote the code and leads the agent team that does.`,
   alternates: { canonical: "/work" },
   openGraph: openGraph("/work"),
 };
@@ -66,7 +66,7 @@ const PERSON = {
   name: "Tim Harris",
   url: "https://clickai.dev/work",
   description:
-    "Builds product and ships software by directing AI coding agents. Maker of ModelDeck, Panely, HiveRunner, and the Click AI skills catalog.",
+    "Never wrote the code; leads the agent team that does. Maker of ModelDeck, Panely, HiveRunner, and the Click AI skills catalog.",
   sameAs: [
     "https://github.com/timharris707",
     "https://x.com/TimHarris707",

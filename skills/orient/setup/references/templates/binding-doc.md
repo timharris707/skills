@@ -40,6 +40,10 @@ _Pack version: <pack version installed> · Last confirmed: <date>_
 
 Every pack skill says "the decider"; this line is where the role resolves. Sessions brief decisions with recommendations and evidence; the decider answers them on the record.
 
+## Working mode
+
+- **Working mode**: <`lead` | `read`: `lead` means the human works from the orchestrator seat, and a new session in this repo opens by invoking the orchestrate skill and following its startup checklist; `read` means the human reads code and picks skills directly>
+
 ## Docs home
 
 - **Binding doc home**: <this file's confirmed location>

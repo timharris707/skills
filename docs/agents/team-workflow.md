@@ -23,6 +23,7 @@ python3 scripts/check_router_freshness.py
 python3 scripts/check_invocation_freshness.py
 python3 scripts/check_emdash_density.py
 python3 scripts/check_site_disclosure.py
+python3 scripts/check_positioning.py
 python -m compileall -q skills/decide/advisory-board/scripts
 python -m unittest discover -s skills/decide/advisory-board/tests -p 'test*.py'
 python -m compileall -q skills/investigate/ingest/scripts
@@ -38,6 +39,10 @@ Doc-only changes keep the reviewer-run gate: every changed file's relative Markd
 - **Decider**: Tim Harris (@timharris707)
 
 Every pack skill says "the decider"; this line is where the role resolves. Sessions brief decisions with recommendations and evidence; the decider answers them on the record.
+
+## Working mode
+
+- **Working mode**: `lead`. The decider does not read code; new sessions in this repo open by invoking orchestrate and following its startup checklist. Recorded 2026-09-05 with decision 0005.
 
 ## Docs home
 
