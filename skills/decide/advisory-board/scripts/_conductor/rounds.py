@@ -76,6 +76,7 @@ class SeatRoundResult:
     # cannot conjure an id the chair did not merge). None on a non-rubric run, so the
     # score properties are empty/None and nothing about a plain run changes.
     criterion_ids: Optional[tuple] = None
+    post_consent_rubric: bool = False  # Same predicate used by the egress guard.
 
     @property
     def usable(self) -> bool:
@@ -368,6 +369,7 @@ def run_round(config: RunConfig, blobs: list, approval: EgressApproval, *,
                                      round_packet_hash=round_packet_hash,
                                      workdir=workdir, timeout=timeout, classify=classify,
                                      criterion_ids=criterion_ids)
+            result.post_consent_rubric = scored_round1
             # Map the seat's outcome to a live-view state. A retried-but-usable seat
             # still reports its terminal usable state; a "retry" event would need a
             # hook inside the retry loop — deferred (the two-attempt window is short
@@ -416,7 +418,7 @@ def render_raw_record(r: SeatRoundResult) -> str:
     prove same-material independence and bind it to the round's packet. Honestly
     'falsifiable-by-inspection', not tamper-proof — it catches empty/lazy/drifted
     runs, not a determined forger using the same orchestrator."""
-    if r.round_no == 1 and not r.criterion_ids:
+    if r.round_no == 1 and not r.post_consent_rubric:
         packet_note = "(egress consent was bound to this)"
     elif r.round_no == 1:
         # A rubric-SCORED round 1 injects the post-consent merged rubric, so it is NOT

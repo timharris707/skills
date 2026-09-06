@@ -256,17 +256,6 @@
  
  ## Seats
  
---- a/skills/decide/advisory-board/references/execution-harness.md
-+++ b/skills/decide/advisory-board/references/execution-harness.md
-@@ -70,7 +70,7 @@
- ## Gate before continuing
- 
- ```bash
--ran=$(grep -cE '\bran\b|\bdegraded\b' run-metadata.tsv)
-+ran=$(awk -F'\t' '$3 ~ /^(ran|degraded)( |$)/ { seen[$1]=1 } END { for (seat in seen) n++; print n+0 }' run-metadata.tsv)
- [ "$ran" -ge 2 ] || { echo "fewer than two seats produced a review — stop, don't synthesize a one-voice board"; exit 1; }
- ```
- 
 --- a/skills/decide/advisory-board/references/intake-interview.md
 +++ b/skills/decide/advisory-board/references/intake-interview.md
 @@ -1,12 +1,12 @@
@@ -323,17 +312,6 @@
  - The seat→provider→lens table was shown and confirmed; effort, rounds, and output each got an explicit answer or the confirmed default.
 -- The confirm-summary got a yes, and data-handling consent (where required) got its own yes.
 +- The resolved plan and any required data handling have explicit authorization, reused where the same scope was already approved.
---- a/skills/decide/advisory-board/references/lens-presets.md
-+++ b/skills/decide/advisory-board/references/lens-presets.md
-@@ -61,7 +61,7 @@
- - **Unimagined-failure hunter.** The failure class the author's framing excludes: wrong assumptions about the environment, scale, users, or time.
- 
- ### `stakeholder-panel`
--"The room this decision would face": three distinct stakeholder archetypes, one per seat, in a fixed **seat-order binding**:
-+"The room this decision would face": four distinct stakeholder archetypes, one per seat, in a fixed **seat-order binding**:
- - **The decision owner.** The executive who must answer for the outcome: does it deliver, at what cost, what do we tell the board.
- - **The end user.** The person this lands on: does it actually help them, what friction or harm does it create, would they choose it.
- - **The compliance & risk reviewer.** The gatekeeper who signs off: what rule, obligation, or downside does this trip, and can we defend it.
 --- a/skills/decide/advisory-board/references/preflight.md
 +++ b/skills/decide/advisory-board/references/preflight.md
 @@ -4,7 +4,7 @@
@@ -373,26 +351,6 @@
  
  __all__ = [
      "RECIPE_SCHEMA",
---- a/skills/decide/advisory-board/scripts/_conductor/echo_score.py
-+++ b/skills/decide/advisory-board/scripts/_conductor/echo_score.py
-@@ -167,7 +167,7 @@
-     for r in overlap_seats:
-         prev_v = prev_by[r.seat].verdict
-         curr_v = r.verdict
--        if prev_v != curr_v:
-+        if prev_v is not None and curr_v is not None and prev_v != curr_v:
-             flippers += 1
-             if majority is not None and curr_v == majority and prev_v != majority:
-                 flippers_toward_majority += 1
-@@ -225,7 +225,7 @@
-     """The coarse band from the sub-signals. Explainable rules, not a tuned score.
- 
-     Two "echo" signals are recognized:
--      * strong_flip — a majority of the considered seats flipped ONTO the emerging
-+      * strong_flip — at least half of the considered seats flipped ONTO the emerging
-                       majority verdict in the final round (the convergence fingerprint);
-       * any_deference — at least one seat self-reported `deference` (self-reported echo).
-     Citation overlap CORROBORATES those signals but never stands alone: high overlap
 --- a/skills/decide/advisory-board/scripts/_conductor/recipe.py
 +++ b/skills/decide/advisory-board/scripts/_conductor/recipe.py
 @@ -189,7 +189,7 @@
@@ -404,93 +362,6 @@
                  # Mapping item: this line is its first key; deeper non-'- ' lines continue it.
                  mapping: dict = {}
                  mk, _, mv = body.partition(":")
---- a/skills/decide/advisory-board/scripts/_conductor/redline.py
-+++ b/skills/decide/advisory-board/scripts/_conductor/redline.py
-@@ -106,6 +106,7 @@
-     Returns `(rows, truncated, total)`:
-       * rows: a list of dicts, each one of —
-           {"kind": "context", "text": <line>}
-+          {"kind": "gap",     "text": <omission note>}
-           {"kind": "delete",  "text": <line>}
-           {"kind": "insert",  "text": <line>}
-           {"kind": "replace", "del_segments": [...], "ins_segments": [...],
---- a/skills/decide/advisory-board/scripts/_conductor/revision.py
-+++ b/skills/decide/advisory-board/scripts/_conductor/revision.py
-@@ -1061,7 +1061,7 @@
-         "# Black-box recorder — revision",
-         "",
-         f"command         : {rr.argv_preview}",
--        f"prompt-source   : prompts/revision.prompt",
-+        "prompt-source   : prompts/revision.prompt",
-         f"prompt-template : {REVISION_TEMPLATE_VERSION} "
-         f"(sha256:{revision_template_sha()[:12]}…)",
-         f"prompt-hash     : sha256:{rr.prompt_hash}   (the exact bytes the revision seat received)",
---- a/skills/decide/advisory-board/scripts/_conductor/rounds.py
-+++ b/skills/decide/advisory-board/scripts/_conductor/rounds.py
-@@ -76,6 +76,7 @@
-     # cannot conjure an id the chair did not merge). None on a non-rubric run, so the
-     # score properties are empty/None and nothing about a plain run changes.
-     criterion_ids: Optional[tuple] = None
-+    post_consent_rubric: bool = False  # Same predicate used by the egress guard.
- 
-     @property
-     def usable(self) -> bool:
-@@ -368,6 +369,7 @@
-                                      round_packet_hash=round_packet_hash,
-                                      workdir=workdir, timeout=timeout, classify=classify,
-                                      criterion_ids=criterion_ids)
-+            result.post_consent_rubric = scored_round1
-             # Map the seat's outcome to a live-view state. A retried-but-usable seat
-             # still reports its terminal usable state; a "retry" event would need a
-             # hook inside the retry loop — deferred (the two-attempt window is short
-@@ -416,7 +418,7 @@
-     prove same-material independence and bind it to the round's packet. Honestly
-     'falsifiable-by-inspection', not tamper-proof — it catches empty/lazy/drifted
-     runs, not a determined forger using the same orchestrator."""
--    if r.round_no == 1 and not r.criterion_ids:
-+    if r.round_no == 1 and not r.post_consent_rubric:
-         packet_note = "(egress consent was bound to this)"
-     elif r.round_no == 1:
-         # A rubric-SCORED round 1 injects the post-consent merged rubric, so it is NOT
---- a/skills/decide/advisory-board/scripts/_embed_fonts.py
-+++ b/skills/decide/advisory-board/scripts/_embed_fonts.py
-@@ -1,4 +1,5 @@
- import urllib.request, re, base64, sys
-+from pathlib import Path
- 
- UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
-       "(KHTML, like Gecko) Chrome/120.0 Safari/537.36")
-@@ -43,7 +44,7 @@
-         )
-         print(f"  {fam:8} {style:7} {weight}  woff2={len(data)//1024}KB  b64={len(b64)//1024}KB", file=sys.stderr)
- 
--dest = "skills/advisory-board/references/plan-fonts.css"
-+dest = str(Path(__file__).resolve().parent.parent / "references" / "plan-fonts.css")
- header = ("/* Self-contained Claude brand fonts for the plan view — generated, do not hand-edit.\n"
-           "   Poppins (headings/labels) + Lora (body), latin subset, OFL-licensed, base64-embedded.\n"
-           "   Regenerate with scripts/_embed_fonts.py. */\n")
---- a/skills/decide/advisory-board/scripts/render_handoff.py
-+++ b/skills/decide/advisory-board/scripts/render_handoff.py
-@@ -330,7 +330,7 @@
-     return out
- 
- 
--_ZW = "​"  # zero-width space
-+_ZW = "\u200b"  # zero-width space
- 
- 
- def _md_review(markdown: str) -> str:
---- a/skills/decide/advisory-board/scripts/render_tracker.py
-+++ b/skills/decide/advisory-board/scripts/render_tracker.py
-@@ -259,7 +259,7 @@
- 
-   <p class="foot">Status derives from the plan's checkboxes: a feature is SHIPPED when
-   every checkbox of its phase(s) is ticked (work in flight shows as PENDING until its
--  PR merges and the plan is ticked). Releases wait for Tim's explicit go at each gate.</p>
-+  PR merges and the plan is ticked). Releases wait for the decision maker's explicit approval at each gate.</p>
- </div>
- </body>
- </html>
 --- a/skills/decide/decision-map/SKILL.md
 +++ b/skills/decide/decision-map/SKILL.md
 @@ -1,10 +1,12 @@
@@ -1575,27 +1446,3 @@
  
  **Done when:** every stage is named in order, and for each value you know (a) where the human gets it, (b) where it is written (`.env`, a CI secret, both, or nowhere, since some stages are pure actions) and (c) whether it is secret.
  
---- a/skills/run/wizard/template.sh
-+++ b/skills/run/wizard/template.sh
-@@ -148,10 +148,19 @@
- 
- # write_env KEY VALUE — idempotent upsert into ENV_FILE.
- write_env() {
--  local key="$1" value="$2" tmp
-+  local key="$1" value="$2" tmp status
-   touch "$ENV_FILE"
-   tmp=$(mktemp)
--  grep -vE "^${key}=" "$ENV_FILE" > "$tmp" || true
-+  if grep -vE "^${key}=" "$ENV_FILE" > "$tmp"; then
-+    :
-+  else
-+    status=$?
-+    if (( status != 1 )); then
-+      rm -f "$tmp"
-+      bad "cannot read $ENV_FILE"
-+      return "$status"
-+    fi
-+  fi
-   printf '%s=%s\n' "$key" "$value" >> "$tmp"
-   mv "$tmp" "$ENV_FILE"
-   # Re-writing a key on a later stage or a re-run must not double-count it in

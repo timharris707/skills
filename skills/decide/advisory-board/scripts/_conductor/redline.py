@@ -106,6 +106,7 @@ def build_redline(original: str, revised: str):
     Returns `(rows, truncated, total)`:
       * rows: a list of dicts, each one of —
           {"kind": "context", "text": <line>}
+          {"kind": "gap",     "text": <omission note>}
           {"kind": "delete",  "text": <line>}
           {"kind": "insert",  "text": <line>}
           {"kind": "replace", "del_segments": [...], "ins_segments": [...],

@@ -1061,7 +1061,7 @@ def render_revision_raw(config: RunConfig, rr: RevisionResult) -> str:
         "# Black-box recorder — revision",
         "",
         f"command         : {rr.argv_preview}",
-        f"prompt-source   : prompts/revision.prompt",
+        "prompt-source   : prompts/revision.prompt",
         f"prompt-template : {REVISION_TEMPLATE_VERSION} "
         f"(sha256:{revision_template_sha()[:12]}…)",
         f"prompt-hash     : sha256:{rr.prompt_hash}   (the exact bytes the revision seat received)",

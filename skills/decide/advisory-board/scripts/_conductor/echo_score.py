@@ -167,7 +167,7 @@ def echo_score(prev_results: Optional[list], curr_results: Optional[list]) -> di
     for r in overlap_seats:
         prev_v = prev_by[r.seat].verdict
         curr_v = r.verdict
-        if prev_v != curr_v:
+        if prev_v is not None and curr_v is not None and prev_v != curr_v:
             flippers += 1
             if majority is not None and curr_v == majority and prev_v != majority:
                 flippers_toward_majority += 1
@@ -225,7 +225,7 @@ def _band(flippers_toward_majority: int, considered: int, overlap: Optional[floa
     """The coarse band from the sub-signals. Explainable rules, not a tuned score.
 
     Two "echo" signals are recognized:
-      * strong_flip — a majority of the considered seats flipped ONTO the emerging
+      * strong_flip — at least half of the considered seats flipped ONTO the emerging
                       majority verdict in the final round (the convergence fingerprint);
       * any_deference — at least one seat self-reported `deference` (self-reported echo).
     Citation overlap CORROBORATES those signals but never stands alone: high overlap

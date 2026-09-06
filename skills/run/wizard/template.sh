@@ -148,10 +148,19 @@ ask_secret() {
 
 # write_env KEY VALUE — idempotent upsert into ENV_FILE.
 write_env() {
-  local key="$1" value="$2" tmp
+  local key="$1" value="$2" tmp status
   touch "$ENV_FILE"
   tmp=$(mktemp)
-  grep -vE "^${key}=" "$ENV_FILE" > "$tmp" || true
+  if grep -vE "^${key}=" "$ENV_FILE" > "$tmp"; then
+    :
+  else
+    status=$?
+    if (( status != 1 )); then
+      rm -f "$tmp"
+      bad "cannot read $ENV_FILE"
+      return "$status"
+    fi
+  fi
   printf '%s=%s\n' "$key" "$value" >> "$tmp"
   mv "$tmp" "$ENV_FILE"
   # Re-writing a key on a later stage or a re-run must not double-count it in
