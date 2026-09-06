@@ -23,6 +23,13 @@ from pathlib import Path
 WORKFLOW = Path(__file__).resolve().parents[2] / ".github/workflows/review-settled.yml"
 
 
+def reviewed_filter() -> str:
+    text = WORKFLOW.read_text()
+    m = re.search(r"reviewed=\$\(gh api \"repos/\$REPO/issues/\$PR_NUMBER/comments\" --paginate \| jq -s \\\n\s+--arg head \"\$HEAD_SHA\" \\\n\s+'(.+?)'\)", text, re.S)
+    assert m, "walkthrough filter not found in the workflow"
+    return m.group(1)
+
+
 def filters() -> tuple[str, str]:
     text = WORKFLOW.read_text()
     unresolved = re.search(r"unresolved=\$\(\(unresolved \+ \$\(jq '(.+?)' <<<", text)
@@ -83,6 +90,33 @@ class ReviewSettledFilters(unittest.TestCase):
         # A reviewer's own thread needs resolution, not a reply.
         p = page(thread(user()), thread(user(), resolved=False))
         self.assertEqual(run(self.unreplied, p), 0)
+
+    def test_rate_limit_notice_is_not_a_review(self) -> None:
+        # skills#291: the limit notice carries the summarize marker and the reviewed
+        # range, so the gate counted it as a review of head and passed unread.
+        head = "4f355d22f64f20b6e131f95a9640fa95c28d7c6a"
+        rng = f"between e60004682df7de66be55e0acd83445281d8c421c and {head}"
+        walkthrough = {"user": {"login": "coderabbitai[bot]"},
+                       "body": f"<!-- auto-generated comment: summarize by coderabbit.ai -->\nReviewing files {rng}."}
+        limited = {"user": {"login": "coderabbitai[bot]"},
+                   "body": f"<!-- auto-generated comment: summarize by coderabbit.ai -->\n<!-- auto-generated comment: rate limited by coderabbit.ai -->\nReview limit reached. {rng}."}
+        pending = {"user": {"login": "coderabbitai[bot]"},
+                   "body": f"<!-- auto-generated comment: summarize by coderabbit.ai -->\n<!-- auto-generated comment: review in progress by coderabbit.ai -->\nCurrently processing {rng}."}
+        f = reviewed_filter()
+        def count(*pages):
+            # The workflow feeds `--paginate` output (one JSON array per page, one per
+            # line) to jq -s, which wraps the pages into the outer list itself.
+            stream = "\n".join(json.dumps(page) for page in pages)
+            out = subprocess.run(["jq", "-s", "--arg", "head", head, f],
+                                 input=stream, capture_output=True, text=True, check=True)
+            return int(out.stdout.strip())
+        self.assertEqual(count([walkthrough]), 1)
+        self.assertEqual(count([limited]), 0)
+        self.assertEqual(count([pending]), 0)
+        self.assertEqual(count([limited, walkthrough]), 1)
+        # Across pages, as --paginate delivers them: the notice on one, the walkthrough on another.
+        self.assertEqual(count([limited], [walkthrough]), 1)
+        self.assertEqual(count([pending], [limited]), 0)
 
     def test_merge_condition_still_requires_a_reply(self) -> None:
         # The filters mean nothing if the exit condition stops consuming them (#288).
