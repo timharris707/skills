@@ -92,11 +92,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <span className="wordmark__fix" aria-hidden="true" />
                 clickai.dev
               </Link>
-              {/* Five items, and GitHub is not one of them — it lives in the
-                  colophon as "source". Six turns a hairline masthead into a
-                  menu. The nav takes its own row below 620px rather than
-                  competing with the wordmark for space. */}
+              {/* Six items, and GitHub is not one of them — it lives in the
+                  colophon as "source". Home is spelled out because readers do
+                  not know the wordmark is a link and the homepage is the
+                  pitch (decider, 2026-09-05). The nav takes its own row below
+                  620px rather than competing with the wordmark for space. */}
               <nav>
+                <Link href="/">Home</Link>
                 <Link href="/skills">Catalog</Link>
                 <Link href="/install">Install</Link>
                 <Link href="/legend">Legend</Link>

@@ -222,7 +222,7 @@ pre {
 
 /*
  * Below this the nav takes its own row instead of competing for the first one.
- * Squeezing five links, a wordmark and the lamp onto one line was clipping the
+ * Squeezing six links, a wordmark and the lamp onto one line was clipping the
  * lamp at 320px; wrapping keeps every link reachable at any width, which
  * hiding them did not.
  */
@@ -239,9 +239,10 @@ pre {
   .masthead nav {
     order: 3;
     flex-basis: 100%;
+    flex-wrap: wrap;
     margin-left: 0;
     justify-content: space-between;
-    gap: 0.6rem;
+    gap: 0.35rem 0.6rem;
     font-size: 0.7rem;
     letter-spacing: 0.03em;
     padding-top: 0.5rem;
@@ -1463,7 +1464,7 @@ h2 {
   font-size: 0.75rem;
 }
 
-/* /instruments is not in the masthead — five items is the cap — so the footer
+/* /instruments is not in the masthead — six items is the cap — so the footer
    carries the one link that reaches it from every page. */
 .colophon__aside {
   margin: 1.1rem 0 0;

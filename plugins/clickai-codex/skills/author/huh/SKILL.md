@@ -37,3 +37,5 @@ The restatement leads. After it, only the moves that found something, each a sho
 ## Attribution
 
 The trigger is the same human moment as Matt Pocock's [wait-what](https://github.com/mattpocock/skills/tree/main/skills/productivity/wait-what) (MIT): the reader stops the agent and asks it to land the message this time. His skill is a two-line re-pitch prompt; the four moves, the target rules, and the output shape here were written independently for this catalog, from failure modes observed in its own sessions.
+
+<!-- lineage: own -->

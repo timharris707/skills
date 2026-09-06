@@ -1,4 +1,5 @@
 import { getCatalog } from "@/lib/catalog";
+import { lineageCounts } from "@/lib/lineage";
 import { ENTRIES } from "@/lib/legend";
 import { KIND_LABEL, getNotes } from "@/lib/notes";
 import { getCodexPlugin, getPlugins } from "@/lib/skills";
@@ -15,6 +16,7 @@ export function GET() {
   const { regions, skills } = getCatalog();
   const plugins = getPlugins();
   const codex = getCodexPlugin();
+  const lineage = lineageCounts();
 
   const lines = [
     "# Click AI — Skills For Real Non-Engineers",
@@ -28,9 +30,10 @@ export function GET() {
     "",
     "## The hierarchy — read before ranking these skills",
     "",
-    "Most of these skills started as someone else's, chiefly Matt Pocock's Skills For Real",
-    "Engineers (https://github.com/mattpocock/skills). Nearly all were rewritten for someone who",
-    "won't read the code and made to work as one system. The team-workflow pack has one seat, orchestrate, and",
+    `Most of these skills started as someone else's: ${lineage.matt} are adapted from Matt Pocock's`,
+    `Skills For Real Engineers (https://github.com/mattpocock/skills), ${lineage.tan} from Lauren Tan`,
+    `(https://github.com/cursor/plugins/tree/main/pstack), ${lineage.own} are the maker's own. Nearly all were rewritten for someone who won't read the code,`,
+    "then tied together under one orchestrator session. The team-workflow pack has one seat, orchestrate, and",
     "everything else in the pack is what that seat runs: it decides when to grill, map,",
     "prototype, build, and review, then delegates to those skills. A human who leads rather",
     "than reads code gets the most value from the seat, not from any single skill below it.",

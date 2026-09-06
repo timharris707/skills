@@ -2,7 +2,7 @@
 
 I've led dev teams for over twenty years. I never wrote the code. These skills give me a lead developer who runs the team, so all I have to bring is the idea. Four shipped products so far.
 
-Most of these skills started as someone else's, chiefly Matt Pocock's [Skills For Real Engineers](https://github.com/mattpocock/skills). I rewrote nearly all of them for someone who won't read the code, and I made them work as one system: one [orchestrator](./skills/run/orchestrate/SKILL.md) session takes the idea, decides what gets grilled, mapped, prototyped, built, and reviewed, and runs the rest. That's what lets a non-engineer ship at production quality. I talk to that one session the way I've always talked to a dev lead.
+Most of these skills started as someone else's. Fifteen are adapted from Matt Pocock's [Skills For Real Engineers](https://github.com/mattpocock/skills), three from [Lauren Tan](https://github.com/cursor/plugins/tree/main/pstack), five are mine. I rewrote nearly all of them for someone who won't read the code, then tied them together under one [orchestrator](./skills/run/orchestrate/SKILL.md) session that takes the idea, decides what gets grilled, mapped, prototyped, built, and reviewed, and runs the rest. That's what lets a non-engineer ship at production quality. I talk to that one session the way I've always talked to a dev lead.
 
 Each skill is a `SKILL.md`, a plain-markdown playbook the agent reads on its own: every workflow I used to re-explain each session, written down once, installed in one line and versioned like software.
 

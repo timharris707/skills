@@ -5,6 +5,7 @@ import Terminal from "@/components/Terminal";
 import Runtimes, { RuntimeMark } from "@/components/Runtimes";
 import { BEARINGS, PLOT, getCatalog } from "@/lib/catalog";
 import { getCodexPlugin } from "@/lib/skills";
+import { lineageCounts, numberWord } from "@/lib/lineage";
 import { MAKER_SHORT } from "@/lib/work";
 import { graph, jsonLdProps, PERSON, WEBSITE } from "@/lib/schema";
 
@@ -19,6 +20,7 @@ import { graph, jsonLdProps, PERSON, WEBSITE } from "@/lib/schema";
 export default function Home() {
   const { regions, skills } = getCatalog();
   const codex = getCodexPlugin();
+  const lineage = lineageCounts();
 
   const plotted = skills.map((skill) => ({
     slug: skill.slug,
@@ -40,10 +42,14 @@ export default function Home() {
             Four shipped products so far.
           </p>
           <p className="lede">
-            Most of these skills started as someone else&apos;s, chiefly Matt Pocock&apos;s{" "}
-            <a href="https://github.com/mattpocock/skills">Skills For Real Engineers</a>. I
-            rewrote nearly all of them for someone who won&apos;t read the code, and I made them
-            work as one system: one <Link href="/skills/orchestrate">orchestrator</Link> session
+            Most of these skills started as someone else&apos;s. {numberWord(lineage.matt, true)}{" "}
+            are adapted from Matt Pocock&apos;s{" "}
+            <a href="https://github.com/mattpocock/skills">Skills For Real Engineers</a>,{" "}
+            {numberWord(lineage.tan)} from{" "}
+            <a href="https://github.com/cursor/plugins/tree/main/pstack">Lauren Tan</a>,{" "}
+            {numberWord(lineage.own)} are mine. I
+            rewrote nearly all of them for someone who won&apos;t read the code, then tied them
+            together under one <Link href="/skills/orchestrate">orchestrator</Link> session that
             takes the idea, decides what gets grilled, mapped, prototyped, built, and reviewed,
             and runs the rest. That&apos;s what lets a non-engineer ship at production quality.
             I talk to that one session the way I&apos;ve always talked to a dev lead.

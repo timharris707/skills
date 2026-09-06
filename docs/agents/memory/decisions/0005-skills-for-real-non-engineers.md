@@ -18,19 +18,22 @@ Copy of record, used verbatim on the README opening, the site hero, and llms.txt
 > lead developer who runs the team, so all I have to bring is the idea. Four shipped products
 > so far.
 >
-> Most of these skills started as someone else's, chiefly Matt Pocock's Skills For Real
-> Engineers. I rewrote nearly all of them for someone who won't read the code, and I made them
-> work as one system: one orchestrator session takes the idea, decides what gets grilled,
-> mapped, prototyped, built, and reviewed, and runs the rest. That's what lets a non-engineer
-> ship at production quality. I talk to that one session the way I've always talked to a dev
-> lead.
+> Most of these skills started as someone else's. Fifteen are adapted from Matt Pocock's
+> Skills For Real Engineers, three from Lauren Tan (linked to pstack, as Matt is linked), five are mine. I rewrote nearly all of
+> them for someone who won't read the code, then tied them together under one orchestrator
+> session that takes the idea, decides what gets grilled, mapped, prototyped, built, and
+> reviewed, and runs the rest. That's what lets a non-engineer ship at production quality. I
+> talk to that one session the way I've always talked to a dev lead.
 
 Second paragraph revised the same day (decider, on reflection): the first version read as
 "took Matt's skills and dropped an orchestrator in the middle," which is neither true nor
-fair. The rewrite of nearly every skill and the work of making them one system carry equal
-weight with the seat. Only Matt is named on the page; other sources (Lauren Tan's plainspoken,
-blast-radius, show-me-your-work) are credited in each skill's Attribution section, and the
-per-source counts stay off the page so they cannot rot.
+fair. The rewrite of nearly every skill and the work of tying them together carry equal
+weight with the seat. The per-source counts are derived at build time from each skill's
+Attribution section (site/src/lib/lineage.ts; scripts/check_lineage_counts.py holds the
+README's static sentence to the same numbers), so they cannot rot when a skill is added or
+moved. The numbers above are the values on the day of the ruling. A skill that names a source
+without deriving from it declares `<!-- lineage: own -->` in its Attribution section; huh does,
+because it shares only the trigger with Matt's wait-what and the review caught it counted as his.
 
 Rulings that shape every surface:
 
