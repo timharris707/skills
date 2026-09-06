@@ -14,6 +14,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [v1.7.1] - 2026-09-05 — wizard write_env fails loudly
+
+### Fixed
+- **wizard** `template.sh`: `write_env` treated any `grep` failure as "no existing key" and
+  rewrote the env file from an empty buffer. A read failure (permissions, a directory in the
+  way) now reports and returns the exit status; only a genuine no-match proceeds. Applied to
+  the Codex edition in #286 and only there; now in the source.
+
 ## [v1.7.0] - 2026-09-05 — the orchestrator seat
 
 ### Added

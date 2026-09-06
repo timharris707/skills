@@ -70,7 +70,7 @@ Round 2 is identical with `round-2/` paths and the board-packet prompt. Run all 
 ## Gate before continuing
 
 ```bash
-ran=$(grep -cE '\bran\b|\bdegraded\b' run-metadata.tsv)
+ran=$(awk -F'\t' '$3 ~ /^(ran|degraded)( |$)/ { seen[$1]=1 } END { for (seat in seen) n++; print n+0 }' run-metadata.tsv)
 [ "$ran" -ge 2 ] || { echo "fewer than two seats produced a review — stop, don't synthesize a one-voice board"; exit 1; }
 ```
 
