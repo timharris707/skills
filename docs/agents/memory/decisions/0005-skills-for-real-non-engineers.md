@@ -18,11 +18,19 @@ Copy of record, used verbatim on the README opening, the site hero, and llms.txt
 > lead developer who runs the team, so all I have to bring is the idea. Four shipped products
 > so far.
 >
-> Most of this catalog is adapted from Matt Pocock's Skills For Real Engineers. His skills are
-> the ones a good developer uses every day. What I added is the lead: one orchestrator session
-> that takes the idea, decides what gets grilled, mapped, prototyped, built, and reviewed, and
-> runs the other skills to do it. I talk to that one session the way I've always talked to a
-> dev lead.
+> Most of these skills started as someone else's, chiefly Matt Pocock's Skills For Real
+> Engineers. I rewrote nearly all of them for someone who won't read the code, and I made them
+> work as one system: one orchestrator session takes the idea, decides what gets grilled,
+> mapped, prototyped, built, and reviewed, and runs the rest. That's what lets a non-engineer
+> ship at production quality. I talk to that one session the way I've always talked to a dev
+> lead.
+
+Second paragraph revised the same day (decider, on reflection): the first version read as
+"took Matt's skills and dropped an orchestrator in the middle," which is neither true nor
+fair. The rewrite of nearly every skill and the work of making them one system carry equal
+weight with the seat. Only Matt is named on the page; other sources (Lauren Tan's plainspoken,
+blast-radius, show-me-your-work) are credited in each skill's Attribution section, and the
+per-source counts stay off the page so they cannot rot.
 
 Rulings that shape every surface:
 

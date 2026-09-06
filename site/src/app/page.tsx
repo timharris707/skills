@@ -40,13 +40,13 @@ export default function Home() {
             Four shipped products so far.
           </p>
           <p className="lede">
-            Most of this catalog is adapted from Matt Pocock&apos;s{" "}
-            <a href="https://github.com/mattpocock/skills">Skills For Real Engineers</a>. His
-            skills are the ones a good developer uses every day. What I added is the lead: one{" "}
-            <Link href="/skills/orchestrate">orchestrator</Link> session that takes the idea,
-            decides what gets grilled, mapped, prototyped, built, and reviewed, and runs the
-            other skills to do it. I talk to that one session the way I&apos;ve always talked
-            to a dev lead.
+            Most of these skills started as someone else&apos;s, chiefly Matt Pocock&apos;s{" "}
+            <a href="https://github.com/mattpocock/skills">Skills For Real Engineers</a>. I
+            rewrote nearly all of them for someone who won&apos;t read the code, and I made them
+            work as one system: one <Link href="/skills/orchestrate">orchestrator</Link> session
+            takes the idea, decides what gets grilled, mapped, prototyped, built, and reviewed,
+            and runs the rest. That&apos;s what lets a non-engineer ship at production quality.
+            I talk to that one session the way I&apos;ve always talked to a dev lead.
           </p>
         </div>
 
