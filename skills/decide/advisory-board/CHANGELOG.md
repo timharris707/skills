@@ -9,6 +9,30 @@ versioned separately and do not replace the skill release version.
 
 ## [Unreleased]
 
+## [v1.18.3] - 2026-09-05 — fixes found in the Codex edition, brought home
+
+### Fixed
+- **Execution-harness gate counted rows, not seats**: `grep -c` on the fallback harness's
+  run-metadata.tsv counted every seat-round (6 on a three-seat, two-round run), so a one-voice
+  board could pass the "at least two seats" gate. The gate now counts distinct seats whose
+  status starts with `ran` or `degraded`, reading the three-column `seat · round · status`
+  rows that snippet writes itself.
+- **stakeholder-panel preset said "three" archetypes and listed four.**
+- **echo_score**: a seat with no parseable verdict in either round no longer counts as a
+  flip; the band docstring now matches the implemented rule (at least half, not a majority).
+- **rounds.py**: the egress hash guard and the rubric injection now share one predicate
+  (`post_consent_rubric`), closing the seam where a merged rubric with no clean criterion ids
+  injected a scoring block but took the wrong hash check.
+- **_embed_fonts.py** wrote to a path that only resolved from a pre-restructure repo root; it
+  now resolves relative to the script.
+- **redline.py** docstring lists the `gap` row it emits; **revision.py** drops an f-string with
+  no placeholders; **render_handoff.py** spells the zero-width space as `\u200b` so it is
+  visible in review; **render_tracker.py** says "the decision maker" instead of a name.
+
+All nine were applied to the Codex edition in #286 and only there; this release brings them
+into the source so the two editions stop drifting (the Codex patch hunks for these files are
+now empty).
+
 ## [v1.18.2] - 2026-08-25 — allowlist hardening lands, frontmatter parses strict
 
 ### Security

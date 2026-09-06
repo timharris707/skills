@@ -61,7 +61,7 @@ Every seat is hostile by assignment: the preset for stress-testing an artifact (
 - **Unimagined-failure hunter.** The failure class the author's framing excludes: wrong assumptions about the environment, scale, users, or time.
 
 ### `stakeholder-panel`
-"The room this decision would face": three distinct stakeholder archetypes, one per seat, in a fixed **seat-order binding**:
+"The room this decision would face": four distinct stakeholder archetypes, one per seat, in a fixed **seat-order binding**:
 - **The decision owner.** The executive who must answer for the outcome: does it deliver, at what cost, what do we tell the board.
 - **The end user.** The person this lands on: does it actually help them, what friction or harm does it create, would they choose it.
 - **The compliance & risk reviewer.** The gatekeeper who signs off: what rule, obligation, or downside does this trip, and can we defend it.

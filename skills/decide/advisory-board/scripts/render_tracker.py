@@ -259,7 +259,7 @@ def render_html(plan: dict) -> str:
 
   <p class="foot">Status derives from the plan's checkboxes: a feature is SHIPPED when
   every checkbox of its phase(s) is ticked (work in flight shows as PENDING until its
-  PR merges and the plan is ticked). Releases wait for Tim's explicit go at each gate.</p>
+  PR merges and the plan is ticked). Releases wait for the decision maker's explicit approval at each gate.</p>
 </div>
 </body>
 </html>

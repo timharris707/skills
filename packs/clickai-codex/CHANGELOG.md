@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+- The nine advisory-board fixes and the wizard write_env fix that shipped only in this
+  edition (#286) are now in the shared source (advisory-board v1.18.3, team-workflow v1.7.1);
+  their patch hunks are gone. No Codex-facing change.
+
 ## [v1.1.0] - 2026-09-05
 
 - Carry the team-workflow v1.7.0 positioning: orchestrate is described as the seat a
