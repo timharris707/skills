@@ -49,7 +49,7 @@ Warmth never buys these back:
 - **Facts sacred.** Never invent a user, an anecdote, or a metric to sound human. Where a fact is missing, leave a visible placeholder and go get the fact.
 - **Names need a purpose and evidence.** Name a person or company when relevant to the requested copy, with accurate and supported claims. Follow the project's recorded brand policy where one exists.
 - **Punctuation follows the requested voice.** The default plainspoken rule avoids em dashes. A project-specific voice sample can govern public copy when explicitly selected; do not let a generic dash allowance contradict the active voice rule.
-- **Use the project's actual positioning.** Read the project's current positioning before using autobiographical claims or numbers. Use its own voice, audience, and evidence.
+- **Use the project's actual positioning.** Read the project's current positioning before using autobiographical claims or numbers; for this catalog that is decision 0005 (Skills For Real Non-Engineers) in docs/agents/memory/decisions/. Use its own voice, audience, and evidence.
 
 ## Last-mile scrub
 

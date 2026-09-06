@@ -33,12 +33,20 @@ export default function Home() {
       <div className="shell hero">
         <div>
           <Runtimes lead="Runs natively on" />
-          <h1>Stop re-explaining your workflow every session.</h1>
+          <h1>Skills For Real Non-Engineers</h1>
           <p className="lede">
-            You finally got a session working the way you work. It knew the plan, the standards,
-            the things it must never touch. Then it ended, and this morning&apos;s agent knows
-            none of it. Every skill here is a workflow I got tired of re-teaching, written down
-            once, so any agent can pick it up by name.
+            I&apos;ve led dev teams for over twenty years. I never wrote the code. These skills
+            give me a lead developer who runs the team, so all I have to bring is the idea.
+            Four shipped products so far.
+          </p>
+          <p className="lede">
+            Most of this catalog is adapted from Matt Pocock&apos;s{" "}
+            <a href="https://github.com/mattpocock/skills">Skills For Real Engineers</a>. His
+            skills are the ones a good developer uses every day. What I added is the lead: one{" "}
+            <Link href="/skills/orchestrate">orchestrator</Link> session that takes the idea,
+            decides what gets grilled, mapped, prototyped, built, and reviewed, and runs the
+            other skills to do it. I talk to that one session the way I&apos;ve always talked
+            to a dev lead.
           </p>
         </div>
 
@@ -74,6 +82,15 @@ export default function Home() {
             The Codex edition keeps task ownership through compaction and respects your model settings. Standalone skills and other
             runtimes: <Link href="/install">every install option →</Link>
           </p>
+          <h3>Start with the seat, not the list</h3>
+          <p>
+            Install the pack, run <Link href="/skills/setup">setup</Link> once, then open one
+            session and say &ldquo;orchestration mode.&rdquo; That session is your lead. It
+            reads the map, routes the work to the other skills, and comes back to you only for
+            decisions. Setup asks whether you&apos;ll read the code your agents write or lead
+            from outside it; answer lead, and every new session in that repo opens in the seat.
+            The chart above is what your lead has to work with.
+          </p>
         </div>
       </section>
 
@@ -81,12 +98,15 @@ export default function Home() {
         <p className="eyebrow">What these fix</p>
         <div className="prose">
           <h2 style={{ borderTop: "none", paddingTop: 0, marginTop: 0 }}>
-            Four ways agent work goes sideways
+            Stop re-explaining your workflow every session
           </h2>
           <p>
-            If you run coding agents on real work, you have met all four of these. My opinion,
-            after living in them daily: the fix is never a smarter model. It is a written
-            procedure the agent cannot skip.
+            You finally got a session working the way you work. It knew the plan, the
+            standards, the things it must never touch. Then it ended, and this morning&apos;s
+            agent knows none of it. Every skill here is a workflow I got tired of re-teaching,
+            written down once, so any agent can pick it up by name. Four failures cost me the
+            most, and the fix was never a smarter model. It is a written procedure the agent
+            cannot skip.
           </p>
 
           {/* Each failure mode is self-contained on purpose — the four working
@@ -137,7 +157,7 @@ export default function Home() {
             <Link href="/skills/to-tickets">to-tickets</Link> turns a decided plan into tracker
             items a stranger could pick up cold, blocking edges included, and{" "}
             <Link href="/skills/orchestrate">orchestrate</Link> is done when your session
-            assigns, audits, and merges instead of implementing. Neither will untangle an
+            plays the lead: it assigns, audits, and merges instead of implementing. Neither will untangle an
             undecided mess: they need a plan already settled and a tracker to put it on.
           </p>
         </div>
@@ -152,8 +172,9 @@ export default function Home() {
               <strong>Point the pack at one real repo.</strong> Run the install above, then
               tell a session in that repo to run <Link href="/skills/setup">setup</Link>. It is
               a short interview, once per repo: how you test, where work is tracked, who has
-              the final say. It records; it never restructures what you already have. You will
-              notice every later skill stops asking you those questions.
+              the final say, and whether you read the code or lead from outside it. It records;
+              it never restructures what you already have. You will notice every later skill
+              stops asking you those questions.
             </li>
             <li>
               <strong>Grill your next real plan.</strong> Pick something you were going to
@@ -216,7 +237,7 @@ export default function Home() {
           <h2 className="maker__name">Tim Harris</h2>
         </div>
         <div className="maker__body">
-          <p className="maker__thesis">I don&apos;t write code. I direct agents.</p>
+          <p className="maker__thesis">I never wrote the code. I lead the team that does.</p>
           <p>{MAKER_SHORT}</p>
           <p className="maker__links">
             <Link href="/work">The rest of the work →</Link>

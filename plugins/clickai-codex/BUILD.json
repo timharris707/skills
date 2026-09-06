@@ -2,7 +2,7 @@
   "format": 1,
   "files": {
     ".codex-plugin/plugin.json": {
-      "sha256": "7807fbc25168839edc04453821c65dfbddc16907dd82c2972408110759bee1e1",
+      "sha256": "e625e87cec39d4cdfeec885860986b6a2bf019cfc598cb5b02413da14e9170f7",
       "executable": false
     },
     "CODEX.md": {
@@ -70,11 +70,11 @@
       "executable": false
     },
     "skills/author/writing-for-humans/CHANGELOG.md": {
-      "sha256": "da318acaf784d1eee8c9a052cf13e28d576cd243a9cc105c091159db4f2a6613",
+      "sha256": "579d4571d1fc2317d683696f84e3f47c49616051cc2200f74e48d6d820c16f12",
       "executable": false
     },
     "skills/author/writing-for-humans/SKILL.md": {
-      "sha256": "40401197c1eb7ba992318c909a7bfb8dc9eaf86cd9dcbef73f05ec1076f566be",
+      "sha256": "c389df213ceaccbafba5c19adc2055687b2133dfd3a6614b621946f376008835",
       "executable": false
     },
     "skills/author/writing-for-humans/agents/openai.yaml": {
@@ -454,7 +454,7 @@
       "executable": false
     },
     "skills/orient/router/SKILL.md": {
-      "sha256": "ee8bc55255201abef29889857e58383ea0aa17e1918575ef94196ba1440d7f75",
+      "sha256": "b823f84e6f86dcceda1f0b80919234e83b67edde395badecf92100a8541df4a8",
       "executable": false
     },
     "skills/orient/router/agents/openai.yaml": {
@@ -462,7 +462,7 @@
       "executable": false
     },
     "skills/orient/setup/SKILL.md": {
-      "sha256": "b5c3e33d2e22b0f50194fecf41f57a8ac32a4fca00876fdde0815dc9f05724fe",
+      "sha256": "7a0e1cbcf32188b2326ac7d737d72941220f7710190dbd709d5e7ad667a10113",
       "executable": false
     },
     "skills/orient/setup/agents/openai.yaml": {
@@ -470,7 +470,7 @@
       "executable": false
     },
     "skills/orient/setup/references/templates/binding-doc.md": {
-      "sha256": "2a884d32b0e08ea1b2d8c485ef0dfeaa0edebde193562d37fb1750c36713360f",
+      "sha256": "a831b0c056b644f6f2e597c9f28efa551051bfb97fb42abd9285698669157688",
       "executable": false
     },
     "skills/orient/setup/references/templates/defect-classes.md": {
@@ -538,7 +538,7 @@
       "executable": false
     },
     "skills/run/orchestrate/SKILL.md": {
-      "sha256": "4e077c6454d767e3c2e3aadcb9b021aff40bcfbb0c58fe4171519fa025542515",
+      "sha256": "afc35d7860e900e6dd2b003bcc0738fd09f69b9cadb5e7f3d6fe6b9fbd84e50b",
       "executable": false
     },
     "skills/run/orchestrate/agents/openai.yaml": {

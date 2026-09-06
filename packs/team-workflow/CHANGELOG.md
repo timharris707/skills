@@ -14,6 +14,22 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [v1.7.0] - 2026-09-05 — the orchestrator seat
+
+### Added
+- **setup** asks a fifth mandatory binding, working mode: "Will you read the code your agents
+  write, or lead from outside it?" A `lead` answer records in the binding doc that new
+  sessions in the repo open by invoking orchestrate and following its startup checklist; the
+  binding-doc template carries the new section.
+
+### Changed
+- **orchestrate** is described as the seat a non-engineer works from: one session playing the
+  lead developer of an agent team. New mission paragraph and frontmatter description; the
+  protocol itself is unchanged. Decision record 0005 carries the positioning.
+- **router** names the working-mode binding in setup's row and, where the binding records
+  `lead`, sends a new session to the orchestrator seat instead of presenting the table as a
+  menu.
+
 ## [v1.6.0] - 2026-09-01 — show-me-your-work joins the pack
 
 ### Added

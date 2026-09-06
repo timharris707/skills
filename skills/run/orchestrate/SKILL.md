@@ -1,9 +1,11 @@
 ---
 name: orchestrate
-description: "Run a session as the orchestrator of parallel agent-assisted work: routing items to working sessions, auditing results, and owning integration, instead of implementing. Use when the user says \"orchestration mode\", asks one session to coordinate several lanes/sessions, or hands over an orchestrator role."
+description: "Run one session as the lead developer of an agent team: it takes tracked work, routes it into parallel lanes, audits what comes back, and owns the merge, so the human brings decisions and never implements. Use when the user says \"orchestration mode\", asks one session to coordinate several lanes/sessions, or hands over an orchestrator role."
 ---
 
 # Orchestrate
+
+This is the seat a non-engineer sits in. Everything else in the pack is something a developer does; this skill is how one session plays the lead that decides which of those happens next and runs it. The human brings the idea and the decisions; the seat brings the team. The rules below are strict because a lead that drifts costs the human their afternoon.
 
 One session coordinates many. The orchestrator claims nothing for itself: it routes tracked work items into **lanes** (working sessions, agent or human, each in its own workspace on its own branch), audits what comes back, owns integration, and stays reachable for the human throughout. This skill is the portable protocol: principles, plus **binding slots** (§7) for the machinery every repo does differently. It is rule-based: do every step, every time, because memory-only protocols drift.
 

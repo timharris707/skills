@@ -127,6 +127,6 @@ export const LEDGER = {
 
 /** The long form, for /work. Two paragraphs: why the catalog exists, then who. */
 export const MAKER_LONG = [
-  "I ship software by directing AI agents. The product calls, the standard, and the last read before anything ships are mine; the implementation is delegated and then reviewed. Every build on this page was made that way, and this catalog is that method written down — a skill here is a workflow that survived enough sessions to be worth keeping.",
+  "I never wrote the code. I lead the team that does. The product calls, the standard, and the last read before anything ships are mine; the implementation is delegated and then reviewed. Every build on this page was made that way, and this catalog is that method written down — a skill here is a workflow that survived enough sessions to be worth keeping.",
   "Before this: a full wrestling scholarship at the University of Minnesota, twice an All-American, and a stretch training at an Olympic centre in Russia while still in high school. Then a Series 7 and a few years as a stockbroker. I have run my own company since 2011 — Insight builds decisioning software for consumer lenders. Grew up in St. Louis. Live in Healdsburg, California.",
 ];

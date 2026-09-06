@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+## [v1.1.0] - 2026-09-05
+
+- Carry the team-workflow v1.7.0 positioning: orchestrate is described as the seat a
+  non-engineer works from, setup asks the working-mode question (read the code, or lead
+  from outside it) and records the answer in the binding doc, and the router sends a
+  `lead` repo's new task to the orchestrator seat. Protocols are unchanged.
+
 ## [v1.0.0] - 2026-09-04
 
 - Ship all 23 Click AI skills as a separate native Codex desktop plugin, tuned

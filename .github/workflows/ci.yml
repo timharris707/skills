@@ -49,6 +49,14 @@ jobs:
       - name: Check em-dash density in skill texts
         run: python3 scripts/check_emdash_density.py
 
+      # Decision 0005 retired several positioning lines from every public
+      # surface; the review of that change found a skill still mandating one
+      # verbatim with every other check green. This fails the build when a
+      # retired phrase reappears in README, site source, skills, packs, or
+      # manifests. See the script's docstring.
+      - name: Check retired positioning lines stay retired
+        run: python3 scripts/check_positioning.py
+
       # Tracker recipes must name the bound repo explicitly (#208): an
       # unqualified gh command resolves the repo implicitly, which in a fork
       # targets the upstream repo instead of the bound tracker.
