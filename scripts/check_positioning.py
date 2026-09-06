@@ -32,7 +32,7 @@ RETIRED = [
     "vibe coding",
 ]
 
-ROOTS = ["README.md", "site/src", "skills", "packs", ".claude-plugin", ".codex-plugin", "editions"]
+ROOTS = ["README.md", "site/src", "skills", "packs", "plugins", ".claude-plugin", ".codex-plugin", "editions"]
 SKIP_PARTS = {"node_modules", ".next", "tmp", "tests", "__pycache__"}
 SUFFIXES = {".md", ".ts", ".tsx", ".json", ".txt", ".patch"}
 EXEMPT = {
@@ -52,6 +52,7 @@ def exempt(rel: Path, phrase: str, line: str) -> bool:
 
 def main() -> int:
     hits: list[str] = []
+    scanned = 0
     for root in ROOTS:
         base = ROOT / root
         paths = [base] if base.is_file() else [p for p in base.rglob("*") if p.is_file()]
@@ -63,6 +64,7 @@ def main() -> int:
                 text = p.read_text(encoding="utf-8")
             except UnicodeDecodeError:
                 continue
+            scanned += 1
             for n, line in enumerate(text.splitlines(), 1):
                 for phrase in RETIRED:
                     if re.search(re.escape(phrase), line, re.IGNORECASE) and not exempt(rel, phrase, line):
@@ -71,7 +73,10 @@ def main() -> int:
         print("\n".join(hits), file=sys.stderr)
         print(f"\n{len(hits)} retired positioning phrase(s) found; see decision 0005.", file=sys.stderr)
         return 1
-    print(f"positioning OK: none of {len(RETIRED)} retired phrases found")
+    if scanned == 0:
+        print("positioning check scanned no files; the roots or suffixes are wrong", file=sys.stderr)
+        return 1
+    print(f"positioning OK: {scanned} files scanned, none of {len(RETIRED)} retired phrases found")
     return 0
 
 

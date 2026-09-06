@@ -14,7 +14,7 @@ import {
 export const metadata: Metadata = {
   title: "Work",
   description:
-    "Six builds, one method: ModelDeck, Panely, HiveRunner, this catalog, and two private builds. Made by Tim Harris, who never wrote the code and leads the agent team that does.",
+    `${BUILD_COUNT} builds, one method: ModelDeck, Panely, HiveRunner, this catalog, and ${PRIVATE_COUNT} private builds. Made by Tim Harris, who never wrote the code and leads the agent team that does.`,
   alternates: { canonical: "/work" },
   openGraph: openGraph("/work"),
 };

@@ -462,7 +462,7 @@
       "executable": false
     },
     "skills/orient/setup/SKILL.md": {
-      "sha256": "7a0e1cbcf32188b2326ac7d737d72941220f7710190dbd709d5e7ad667a10113",
+      "sha256": "dbb3648ee40ca3ecbb28a1ff7d8c6b31212a285a0bb0d74b2ad2cb20b84d20f0",
       "executable": false
     },
     "skills/orient/setup/agents/openai.yaml": {
