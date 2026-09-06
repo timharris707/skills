@@ -122,12 +122,17 @@ jobs:
             # Commits section names the reviewed range, so the head SHA as
             # the range's endpoint ("between <sha> and <head>") is the same
             # evidence. Anchored to that phrase, not the whole body: the SHA
-            # appearing elsewhere in a bot comment proves nothing.
+            # appearing elsewhere in a bot comment proves nothing. A
+            # rate-limit notice carries the same summarize marker and range
+            # but reviews nothing (skills#291 passed the gate unread), so it
+            # is excluded by its own marker; "in progress" likewise.
             if [ "$reviewed" -eq 0 ]; then
               reviewed=$(gh api "repos/$REPO/issues/$PR_NUMBER/comments" --paginate | jq -s \
                 --arg head "$HEAD_SHA" \
                 '[.[][] | select(.user.login == "coderabbitai[bot]"
                                  and (.body | contains("auto-generated comment: summarize"))
+                                 and (.body | contains("rate limited by coderabbit") | not)
+                                 and (.body | contains("review in progress by coderabbit") | not)
                                  and (.body | test("between [0-9a-f]{40} and " + $head)))] | length')
             fi
 
