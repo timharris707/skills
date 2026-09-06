@@ -7,7 +7,8 @@ These tests lift the two jq filters verbatim out of the workflow text and run
 them with jq against fixture pages shaped like the GraphQL response, so the
 tested filter is always the shipped one.
 
-Requires jq on PATH, as the workflow does.
+Requires jq on PATH, as the workflow does; a missing jq fails the suite rather than
+skipping it, so a green run always means the filters ran.
 """
 
 from __future__ import annotations
@@ -51,9 +52,10 @@ def page(*threads: dict) -> dict:
     return {"pageInfo": {"hasNextPage": False, "endCursor": None}, "nodes": list(threads)}
 
 
-@unittest.skipUnless(shutil.which("jq"), "jq not on PATH")
 class ReviewSettledFilters(unittest.TestCase):
     def setUp(self) -> None:
+        # Fail, never skip: a skipped suite reports success without testing the gate.
+        self.assertIsNotNone(shutil.which("jq"), "jq is required to test the gate's filters")
         self.unresolved, self.unreplied = filters()
 
     def test_unresolved_counts_only_open_threads(self) -> None:
