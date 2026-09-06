@@ -24,6 +24,7 @@ python3 scripts/check_invocation_freshness.py
 python3 scripts/check_emdash_density.py
 python3 scripts/check_site_disclosure.py
 python3 scripts/check_positioning.py
+python3 scripts/check_lineage_counts.py
 python3 -m unittest discover -s tests/gate -p 'test*.py'
 python -m compileall -q skills/decide/advisory-board/scripts
 python -m unittest discover -s skills/decide/advisory-board/tests -p 'test*.py'

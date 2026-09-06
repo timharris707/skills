@@ -57,6 +57,13 @@ jobs:
       - name: Check retired positioning lines stay retired
         run: python3 scripts/check_positioning.py
 
+      # The hero counts where the shipped skills came from; the site derives
+      # the numbers from each skill's Attribution section at build time and
+      # README.md carries them as static text. This fails the build when the
+      # README's sentence disagrees with the derivation. See the docstring.
+      - name: Check lineage counts match the skills' attributions
+        run: python3 scripts/check_lineage_counts.py
+
       # The review-settled merge gate is shell + jq inside a workflow file, so
       # nothing else exercises it. This lifts its two thread filters out of
       # the workflow text verbatim and runs them against fixture pages, so
