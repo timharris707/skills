@@ -442,7 +442,7 @@
       "executable": false
     },
     "skills/orient/domain-memory/SKILL.md": {
-      "sha256": "17f86dd194a830f1972c1f61746b4a3c4c511fe91a4676726404c6facf011b44",
+      "sha256": "6d9fb63ef61b92280f285361d0f846acf91fab5acf4c392b9dfa5dd9c76de49e",
       "executable": false
     },
     "skills/orient/domain-memory/agents/openai.yaml": {

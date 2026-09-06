@@ -1,6 +1,6 @@
 ---
 name: domain-memory
-description: "When design decisions close, review findings are declined, a user corrects an assumption, a new task starts in a repo with a bound memory home, work resumes in a bound repo, or memory exceeds its size bound, record or retrieve project terms and decisions, and propose consolidation when needed."
+description: "When design decisions close, review findings are declined, the decider corrects a session's assumption, a new task starts in a repo with a bound memory home, work resumes in a bound repo, or memory exceeds its size bound, record or retrieve project terms and decisions, and propose consolidation when needed."
 ---
 
 # Domain memory

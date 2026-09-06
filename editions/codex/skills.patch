@@ -702,7 +702,7 @@
  ---
  name: domain-memory
 -description: "Keep per-repo institutional memory: a domain glossary plus lightweight decision records, written as side effects of work. Use when a grilling closes, a review rejection or declined finding is dispositioned, the decider corrects a session's wrong assumption, a session starts in a repo whose binding names a memory home, or the store passes its size bound."
-+description: "When design decisions close, review findings are declined, a user corrects an assumption, a new task starts in a repo with a bound memory home, work resumes in a bound repo, or memory exceeds its size bound, record or retrieve project terms and decisions, and propose consolidation when needed."
++description: "When design decisions close, review findings are declined, the decider corrects a session's assumption, a new task starts in a repo with a bound memory home, work resumes in a bound repo, or memory exceeds its size bound, record or retrieve project terms and decisions, and propose consolidation when needed."
  ---
  
  # Domain memory
