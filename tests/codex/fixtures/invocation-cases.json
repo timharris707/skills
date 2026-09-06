@@ -262,7 +262,7 @@
           "positive_prompt": "Record why we declined this review finding."
         },
         {
-          "description_concept": "user corrects an assumption",
+          "description_concept": "decider corrects a session",
           "positive_prompt": "That assumption was wrong; the project uses calendar months."
         },
         {
