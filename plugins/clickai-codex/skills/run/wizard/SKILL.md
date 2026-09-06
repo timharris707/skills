@@ -1,6 +1,6 @@
 ---
 name: wizard
-description: "Create a guided script for setup steps that still require a human after checking available tools."
+description: "When work stalls on steps only a human can perform, or manual setup is tedious to repeat, create a guided script for dashboards, credentials, DNS, CI secrets, or cutovers. Check available tools first; perform agent-capable steps directly."
 ---
 
 # Wizard

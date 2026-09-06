@@ -39,7 +39,7 @@ The fix is the **team-workflow** pack: [handoff](./skills/run/handoff/SKILL.md) 
 ## Installation (30-second setup)
 
 One repository, two editions: the original [Claude Code packages](./.claude-plugin/marketplace.json)
-and [Click AI for Codex](./plugins/clickai-codex/README.md), tuned for Astra in Codex desktop.
+and [Click AI for Codex](./plugins/clickai-codex/README.md), adapted for Astra workflows in Codex desktop.
 Both cover the same catalog; their harness instructions differ. Common resources stay
 in `skills/`, and the complete Codex package is generated and checked before release.
 The [legacy Codex plugin](./.codex-plugin/plugin.json) remains available unchanged.
@@ -66,7 +66,7 @@ You don't need all of them. [Start with these](#start-with-these) is my short li
 </details>
 
 <details>
-<summary><strong>Codex desktop, tuned for Astra</strong></summary>
+<summary><strong>Codex desktop, adapted for Astra workflows</strong></summary>
 
 The complete catalog in one native plugin:
 
@@ -80,7 +80,7 @@ the desktop Plugins panel after adding the marketplace. Start a new task, then
 ask for `clickai-codex:setup` in your project. Disable the legacy `clickai-skills`
 plugin in that Codex profile if present, to avoid duplicate skill names.
 
-Astra at medium and extra high is the tuning target, not a required model or a
+Astra at medium and extra high is the workflow adaptation target, not a required model or a
 benchmark claim. The plugin respects your selected model, effort, and project
 rules. It keeps work in the same task through compaction, uses native subagents,
 and bundles a portable checkpoint resolver. It installs no automatic hooks and

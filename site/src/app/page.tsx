@@ -74,7 +74,7 @@ export default function Home() {
           />
           <h3 className="runtime-head">
             <RuntimeMark id="codex" size={20} />
-            Codex desktop, tuned for Astra
+            Codex desktop, adapted for Astra workflows
           </h3>
           <Terminal
             lines={[

@@ -1,6 +1,6 @@
 ---
 name: implement
-description: "Build a specified work item in thin verified steps while respecting scope and commit instructions."
+description: "For a build brief, implementing a spec or tracked item, or mid-build discoveries tempting scope expansion, build thin verified slices with test-first checks at named boundaries, proportional validation elsewhere, and respect for scope and commit instructions."
 ---
 
 # Implement
@@ -19,6 +19,10 @@ A **seam** is a public boundary where behavior is observed without reaching insi
 
 - **At every named seam: red before code.** The failing test is written first, watched failing, and stays in the suite after it goes green. One seam, one test, one minimal implementation per cycle.
 - **Outside named seams, validate the actual risk.** Use relevant existing checks for small reversible edits. Add behavioral tests when they establish new behavior or catch a reported regression; do not write tests that merely mirror implementation.
+
+Proportional validation never waives required project tests or a regression check
+for a reported bug. Required tests accompany the delivered change and pass for its
+current revision, whether committed or left as a diff under a no-commit instruction.
 
 Tests verify behavior through the seam, never internal structure: a test that breaks under refactor while behavior held was testing the wrong thing.
 
@@ -62,4 +66,4 @@ Four situations route out of this skill, each to a named place:
 
 Adapted from Matt Pocock's [`implement`](https://github.com/mattpocock/skills/tree/main/skills/engineering/implement) and [`tdd`](https://github.com/mattpocock/skills/tree/main/skills/engineering/tdd) (MIT). The implement-session shape is his: a session that builds from the spec or tickets, tests as it goes, and ends in review. So is the red–green loop by vertical slice: red before green, one seam, one test, one minimal implementation per cycle, each test a tracer bullet responding to what the last cycle taught (his terms), testing only at pre-agreed seams rather than everywhere, and behavior-through-public-interfaces as what a good test is.
 
-What this pack changes: the seam agreement moves upstream (the item's verification set names the seams at filing time, instead of a mid-session ask) and the seam-scoped bar lets code at no named seam ship with its tests in the same commit; the tracer-first mandate on the first verified checkpoint; the green-checkpoint cadence orchestrate's relaunch-fresh rule leans on; the file-don't-fix scope rule; enforcement by close-out artifacts rather than commit forensics; and the four named interlocks into diagnose, codebase-review, the decider, and wizard.
+What this pack changes: the seam agreement moves upstream (the item's verification set names the seams at filing time, instead of a mid-session ask) and validation outside named seams follows actual risk while preserving required tests and regression checks; the tracer-first mandate on the first verified checkpoint; verified checkpoints support same-task recovery within the user's commit instructions; the file-don't-fix scope rule; enforcement by close-out artifacts rather than commit forensics; and the four named interlocks into diagnose, codebase-review, the decider, and wizard.

@@ -1,6 +1,6 @@
 ---
 name: blast-radius
-description: "Trace what a change can break outside its diff and test the facts its safety depends on."
+description: "When asked for a change's blast radius, assessing whether it is safe to merge, or reviewing a small diff you distrust, trace effects beyond the diff and execute the checks that prove its safety assumptions."
 ---
 
 # Blast radius

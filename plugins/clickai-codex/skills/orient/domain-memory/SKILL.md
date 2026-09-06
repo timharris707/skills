@@ -1,6 +1,6 @@
 ---
 name: domain-memory
-description: "Record or retrieve project terms and settled decisions during design, review, corrections, and recovery."
+description: "When design decisions close, review findings are declined, a user corrects an assumption, a new task starts in a repo with a bound memory home, work resumes in a bound repo, or memory exceeds its size bound, record or retrieve project terms and decisions, and propose consolidation when needed."
 ---
 
 # Domain memory

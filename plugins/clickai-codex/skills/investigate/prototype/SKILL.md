@@ -1,6 +1,6 @@
 ---
 name: prototype
-description: "Build a disposable interactive experiment when a design question needs seeing or trying."
+description: "When discussion or static mockups cannot settle how something should look, behave, or feel, build a disposable interactive experiment: UI variants, a terminal UI, or shareable HTML over a small logic module."
 ---
 
 # Prototype

@@ -44,7 +44,7 @@ gh api repos/<owner>/<repo>/issues/<blocker-number> --jq .id
 gh api repos/<owner>/<repo>/issues/<child-number>/dependencies/blocked_by -F issue_id=<that-id>
 ```
 
-Edges are authoritative wherever the blocker is a tracker item, so the frontier unblocks itself when the blocker closes. The `blocked` label is only for **non-ticket** blockers: a vendor gate, a scheduling constraint, a pending adjudication. An item blocked purely by edges must not also carry the label, or a stale label holds it blocked after its edges clear.
+Edges are authoritative wherever the blocker is a tracker item, so the frontier unblocks itself when the blocker closes. The `blocked` label is only for **non-ticket** blockers: a vendor gate, a scheduling constraint, a pending adjudication. An item blocked purely by edges must not also carry the label, or a stale label holds it blocked after its edges clear. A mixed-blocked item carries both: closing a ticket removes only that dependency; clearing a non-ticket blocker removes the label only when no non-ticket blockers remain. Neither event alone makes an item with the other blocker outstanding available.
 
 ## Labels and readiness
 
@@ -63,7 +63,7 @@ Confirm the labels exist on the tracker before filing. A frontier query against 
 - Every filed item passes all three tracer-bullet tests (or rides an expand–contract sequence under the wide-refactor exception): verifiable alone, PR-sized, ordered by what it unblocks.
 - The decider approved the slice list before anything was filed, and Pass 1 matches the approved list recorded on the plan-source or driving item.
 - Every item body carries destination, plan source link, checkable acceptance criteria, named verification, and out-of-scope.
-- Pass 2 ran: every ticket-blocker is a native edge, every non-ticket blocker is the `blocked` label, and no item carries both.
+- Pass 2 ran: every ticket-blocker is a native edge, every non-ticket blocker is the `blocked` label, and an item with both ticket and non-ticket blockers carries both until the respective blockers clear.
 - Every item is labeled, and every ready-labeled item could be handed to a stranger as-is.
 - The frontier query returns the items you expect to be takeable now; run it and read the result rather than assuming.
 - Every item filed from an [ingest](../../investigate/ingest/SKILL.md) evidence packet is recorded in that packet's `derived_items`: the `link` command from the recommendation ran at filing time.

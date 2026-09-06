@@ -1,6 +1,6 @@
 ---
 name: handoff
-description: "Save or recover the current Codex task at a checkpoint, compaction boundary, or requested handoff."
+description: "For checkpoint, save-state, wrap-up, or handoff requests, meaningful milestones, impending compaction, or recovery, save or recover the current Codex task with authorization and ownership intact. Continue in the same task unless a transfer is requested."
 ---
 
 # Handoff
@@ -50,12 +50,21 @@ agreement and current state rather than a transcript. Preserve:
 - The tracker query for discovering new work, only when new work is authorized.
 - Expensive lessons and pointers to durable decisions.
 
-Overwrite this task's checkpoint. Never append a conversation recap or capture
-secret values. Keep the ownership and authorization fields even when trimming.
+Before saving, inspect the composed checkpoint for credentials, tokens, cookies,
+private keys, passwords, and sensitive values copied from logs or configuration.
+Replace any such value with a safe location pointer describing where an authorized
+user can retrieve it, without embedding the value in the pointer. Keep legitimate
+task and ownership IDs. Do not echo suspected secrets in the report. A pattern
+scanner may supplement inspection, but does not prove every secret is absent.
+
+Overwrite only this task's checkpoint with the sanitized text. Keep the ownership
+and authorization fields even when trimming; omit conversation transcripts.
 
 ## Recover and verify
 
-Re-read the saved file and confirm paths and evidence resolve. Check live git,
+Re-read the saved file, inspect it again for secret values, and verify the safe
+pointers and preserved ownership fields. If a value remains, replace it and re-read
+the corrected file before reporting completion. Confirm paths and evidence resolve. Check live git,
 worker, tracker, and process state before continuing; a saved status is not a
 current liveness check. A fork's inherited checkpoint is background until the
 new task's authority and ownership are established.
@@ -71,6 +80,8 @@ the current one.
 - Objective, authorization, stop points, ownership, state, next step, verification,
   and pending questions are preserved, with explicit none values where applicable.
 - Evidence and paths were checked; stale or unavailable state is labeled.
-- Secret values and transcripts are absent; Claude handoffs were not overwritten.
+- Pre-save secret inspection, safe-pointer replacement where needed, and post-save
+  verification are complete; secret values and transcripts are absent. Claude
+  handoffs were not overwritten.
 - The user received the path and verification result; current authorized work
   continues unless they requested a stop or transfer.

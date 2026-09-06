@@ -1,6 +1,6 @@
 ---
 name: research
-description: "Investigate a factual question using primary sources and return cited findings at the requested scope."
+description: "For factual investigations of vendor materials, regulations, upstream repositories, recorded calls, or other evidence, investigate primary sources and return cited findings. Ask targeted questions when missing facts are held by people; match the requested scope."
 ---
 
 # Research

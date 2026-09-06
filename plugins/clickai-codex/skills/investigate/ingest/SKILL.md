@@ -1,6 +1,6 @@
 ---
 name: ingest
-description: "Turn a recording or media URL into transcript and visual evidence for the user's stated goal."
+description: "For a media file or URL shared with a goal, transcription requests, or takeaways from a call, demo, playtest, or video, build a transcript and timestamped visual evidence packet with a manifest and recommended next workflow."
 ---
 
 # Ingest

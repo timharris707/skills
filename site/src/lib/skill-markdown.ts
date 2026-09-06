@@ -20,7 +20,7 @@ export function skillMarkdown(slug: string, edition: Edition): Response {
     `Source: ${skill.githubUrl}`,
     ...(skill.extras.length ? [`Also ships: ${skill.extras.join(", ")}`] : []),
     "",
-    edition === "codex" ? "Codex desktop edition, tuned for Astra. Install the complete plugin:" : "Claude Code edition. Install its complete plugin:",
+    edition === "codex" ? "Codex desktop edition, adapted for Astra workflows. Install the complete plugin:" : "Claude Code edition. Install its complete plugin:",
     "",
     ...(edition === "codex" ? [
       "    codex plugin marketplace add timharris707/skills",

@@ -1,6 +1,6 @@
 ---
 name: grilling
-description: "Pressure-test a plan with the decision maker through small rounds of unresolved decisions backed by facts."
+description: "When asked to grill, stress-test, or pressure-test an idea, or before a decision map or spec rests on an untested conversation, interview the decision maker in small rounds to expose assumptions and settle material choices."
 ---
 
 # Grilling

@@ -1,6 +1,6 @@
 ---
 name: diagnose
-description: "Reproduce a reported bug, prove its cause, and preserve a regression check before shipping the fix."
+description: "For a bug-fix brief, a bug resisting its first fix, or a fix about to ship without a proven cause, reproduce the failure, state its cause with evidence, and keep a regression check before shipping."
 ---
 
 # Diagnose

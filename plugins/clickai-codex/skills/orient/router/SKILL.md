@@ -1,6 +1,6 @@
 ---
 name: router
-description: "Find the TeamWorkflow skill for planning, research, building, review, or recovery in Codex."
+description: "When unsure which TeamWorkflow skill applies, or orienting a new task or repository, find the right planning, research, building, review, or recovery workflow. Reuse recorded project bindings and working mode."
 ---
 
 # Team-workflow router

@@ -1,6 +1,6 @@
 ---
 name: plainspoken
-description: "Use plain, concrete language in messages, reviews, and commits; remove AI phrasing without inventing facts."
+description: "For chat replies, status updates, review comments, and commit messages, write plainly without AI tells. Also use to revise generated-sounding drafts or review another agent's prose."
 ---
 
 # Plainspoken

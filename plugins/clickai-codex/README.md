@@ -1,7 +1,7 @@
 # Click AI for Codex
 
-The full Click AI catalog for Codex desktop, tuned for Astra at medium
-and extra high. The workflows respect the model and effort you select. This is
+The full Click AI catalog adapted for Codex desktop and Astra workflows at
+medium and extra high. The workflows respect the model and effort you select. This is
 a harness adaptation, not a measured claim of better model performance.
 
 Install with a current Codex CLI that supports plugins, then start a new task:

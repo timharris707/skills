@@ -1,6 +1,6 @@
 ---
 name: orchestrate
-description: "Play the lead developer of an agent team in Codex: delegate, monitor, verify, and integrate tracked work while the human brings the decisions."
+description: "For orchestration mode, coordinating several workers or tasks, or an assigned lead-developer role, direct an agent team: route tracked work, monitor workers, independently verify results, and own integration while the human makes decisions."
 ---
 
 # Orchestrate

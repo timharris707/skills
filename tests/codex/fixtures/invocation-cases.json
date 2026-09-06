@@ -1,0 +1,505 @@
+{
+  "purpose": "Offline branch-preservation and independent-review cases, not a model activation benchmark. Positive prompts authorize only their stated scope; provider execution and delegation retain their skill-specific gates. Negative prompts concern selecting this workflow, not whether a general style rule still applies.",
+  "cases": [
+    {
+      "skill": "huh",
+      "source": "skills/author/huh/SKILL.md",
+      "branches": [
+        {
+          "description_concept": "message did not land",
+          "positive_prompt": "What do you mean by that?"
+        },
+        {
+          "description_concept": "pasted agent output",
+          "positive_prompt": "Translate this response from my other agent into plain English."
+        }
+      ],
+      "negative_prompt": "Add a retry button to the form.",
+      "negative_expectation": "Do not select this workflow solely for this prompt; follow the requested task and applicable project rules."
+    },
+    {
+      "skill": "plainspoken",
+      "source": "skills/author/plainspoken/SKILL.md",
+      "branches": [
+        {
+          "description_concept": "chat replies",
+          "positive_prompt": "Explain what you found in this task."
+        },
+        {
+          "description_concept": "status updates",
+          "positive_prompt": "Give me a short progress update."
+        },
+        {
+          "description_concept": "review comments",
+          "positive_prompt": "Write the review comment explaining the defect."
+        },
+        {
+          "description_concept": "commit messages",
+          "positive_prompt": "Write the commit message."
+        },
+        {
+          "description_concept": "generated-sounding drafts",
+          "positive_prompt": "This paragraph sounds generated; rewrite it naturally."
+        },
+        {
+          "description_concept": "another agent's prose",
+          "positive_prompt": "Review the prose my other agent wrote for AI tells."
+        }
+      ],
+      "negative_prompt": "Compute a SHA-256 digest without generating prose.",
+      "negative_expectation": "Do not select this workflow solely for this prompt; follow the requested task and applicable project rules."
+    },
+    {
+      "skill": "writing-for-agents",
+      "source": "skills/author/writing-for-agents/SKILL.md",
+      "branches": [
+        {
+          "description_concept": "skills",
+          "positive_prompt": "Revise this SKILL.md to make its trigger explicit."
+        },
+        {
+          "description_concept": "standing agent instructions",
+          "positive_prompt": "Update our AGENTS.md development instructions."
+        },
+        {
+          "description_concept": "recorded rules",
+          "positive_prompt": "Record this decision as a rule future agents must follow."
+        },
+        {
+          "description_concept": "unreliable invocation",
+          "positive_prompt": "Why does this skill fail to activate for this request?"
+        },
+        {
+          "description_concept": "skimming",
+          "positive_prompt": "Agents keep skipping this required check in the reference."
+        }
+      ],
+      "negative_prompt": "Write a customer-facing launch announcement.",
+      "negative_expectation": "Do not select this workflow solely for this prompt; follow the requested task and applicable project rules."
+    },
+    {
+      "skill": "writing-for-humans",
+      "source": "skills/author/writing-for-humans/SKILL.md",
+      "branches": [
+        {
+          "description_concept": "public-facing drafts",
+          "positive_prompt": "Draft a landing page and a launch post."
+        },
+        {
+          "description_concept": "agent documentation",
+          "positive_prompt": "Our README introduction reads like internal agent instructions; rewrite it for users."
+        },
+        {
+          "description_concept": "AI-tell scrub",
+          "positive_prompt": "Give this finished profile page its final prose scrub."
+        }
+      ],
+      "negative_prompt": "Define the test-first rule in AGENTS.md.",
+      "negative_expectation": "Do not select this workflow solely for this prompt; follow the requested task and applicable project rules."
+    },
+    {
+      "skill": "advisory-board",
+      "source": "skills/decide/advisory-board/SKILL.md",
+      "branches": [
+        {
+          "description_concept": "advisory board",
+          "positive_prompt": "Convene an advisory board for this plan."
+        },
+        {
+          "description_concept": "roundtable",
+          "positive_prompt": "Run a roundtable on these options."
+        },
+        {
+          "description_concept": "panel",
+          "positive_prompt": "Ask a model panel to compare the proposals."
+        },
+        {
+          "description_concept": "idea tournament",
+          "positive_prompt": "Run an idea tournament across models."
+        },
+        {
+          "description_concept": "multi-model review or debate",
+          "positive_prompt": "I want a cross-provider review of this design."
+        },
+        {
+          "description_concept": "red-team by several models",
+          "positive_prompt": "Red-team this decision with several models."
+        },
+        {
+          "description_concept": "consensus handoff",
+          "positive_prompt": "Produce a consensus handoff from several frontier models."
+        }
+      ],
+      "negative_prompt": "Review this small diff yourself; do not call other models.",
+      "negative_expectation": "Do not select this workflow solely for this prompt; follow the requested task and applicable project rules."
+    },
+    {
+      "skill": "decision-map",
+      "source": "skills/decide/decision-map/SKILL.md",
+      "branches": [
+        {
+          "description_concept": "chart a decision map",
+          "positive_prompt": "Chart a decision map for the new primitive."
+        },
+        {
+          "description_concept": "work a map ticket",
+          "positive_prompt": "Work this decision-map ticket."
+        },
+        {
+          "description_concept": "open decisions gate each other",
+          "positive_prompt": "Plan this integration: identity choices block storage and API decisions."
+        }
+      ],
+      "negative_prompt": "Implement this approved, fully specified button.",
+      "negative_expectation": "Do not select this workflow solely for this prompt; follow the requested task and applicable project rules."
+    },
+    {
+      "skill": "grilling",
+      "source": "skills/decide/grilling/SKILL.md",
+      "branches": [
+        {
+          "description_concept": "grill, stress-test, or pressure-test",
+          "positive_prompt": "Stress-test my idea before we build it."
+        },
+        {
+          "description_concept": "decision map or spec",
+          "positive_prompt": "We need a spec from this half-formed conversation; pressure-test its assumptions first."
+        }
+      ],
+      "negative_prompt": "Report the current CI status without reopening settled decisions.",
+      "negative_expectation": "Do not select this workflow solely for this prompt; follow the requested task and applicable project rules."
+    },
+    {
+      "skill": "codebase-review",
+      "source": "skills/investigate/codebase-review/SKILL.md",
+      "branches": [
+        {
+          "description_concept": "upcoming feature",
+          "positive_prompt": "Review the codebase before we implement this spec."
+        },
+        {
+          "description_concept": "merged work crosses",
+          "positive_prompt": "Our merged changes have crossed the recorded review threshold."
+        },
+        {
+          "description_concept": "structural friction",
+          "positive_prompt": "A local change sprawled across five modules; assess the structural friction."
+        }
+      ],
+      "negative_prompt": "Review only the security impact of this isolated diff.",
+      "negative_expectation": "Do not select this workflow solely for this prompt; follow the requested task and applicable project rules."
+    },
+    {
+      "skill": "ingest",
+      "source": "skills/investigate/ingest/SKILL.md",
+      "branches": [
+        {
+          "description_concept": "media file or URL",
+          "positive_prompt": "Use this recording URL to identify onboarding problems."
+        },
+        {
+          "description_concept": "transcription requests",
+          "positive_prompt": "Transcribe this voice memo."
+        },
+        {
+          "description_concept": "takeaways",
+          "positive_prompt": "Extract takeaways from this playtest video."
+        }
+      ],
+      "negative_prompt": "Summarize this plain-text policy document.",
+      "negative_expectation": "Do not select this workflow solely for this prompt; follow the requested task and applicable project rules."
+    },
+    {
+      "skill": "prototype",
+      "source": "skills/investigate/prototype/SKILL.md",
+      "branches": [
+        {
+          "description_concept": "look, behave, or feel",
+          "positive_prompt": "We cannot settle this interaction from mockups; build variants we can try."
+        }
+      ],
+      "negative_prompt": "Implement the approved production design with full integration.",
+      "negative_expectation": "Do not select this workflow solely for this prompt; follow the requested task and applicable project rules."
+    },
+    {
+      "skill": "research",
+      "source": "skills/investigate/research/SKILL.md",
+      "branches": [
+        {
+          "description_concept": "vendor materials",
+          "positive_prompt": "Check the vendor documentation for its actual retention policy."
+        },
+        {
+          "description_concept": "regulations",
+          "positive_prompt": "Investigate the applicable regulation from primary sources."
+        },
+        {
+          "description_concept": "upstream repositories",
+          "positive_prompt": "Find out how the upstream library handles cancellation."
+        },
+        {
+          "description_concept": "recorded calls",
+          "positive_prompt": "Investigate the decisions evidenced in this recorded call transcript."
+        },
+        {
+          "description_concept": "other evidence",
+          "positive_prompt": "Find primary evidence for the published performance claim."
+        }
+      ],
+      "negative_prompt": "Choose our brand color based only on personal preference.",
+      "negative_expectation": "Do not select this workflow solely for this prompt; follow the requested task and applicable project rules."
+    },
+    {
+      "skill": "domain-memory",
+      "source": "skills/orient/domain-memory/SKILL.md",
+      "branches": [
+        {
+          "description_concept": "design decisions close",
+          "positive_prompt": "Our design discussion is settled; record the reasoning."
+        },
+        {
+          "description_concept": "review findings are declined",
+          "positive_prompt": "Record why we declined this review finding."
+        },
+        {
+          "description_concept": "user corrects an assumption",
+          "positive_prompt": "That assumption was wrong; the project uses calendar months."
+        },
+        {
+          "description_concept": "a new task starts in a repo with a bound memory home",
+          "positive_prompt": "Start a new work item in this repository; its binding names an existing glossary and decision-record home."
+        },
+        {
+          "description_concept": "work resumes in a bound repo",
+          "positive_prompt": "Resume this repo and read its recorded domain decisions."
+        },
+        {
+          "description_concept": "memory exceeds its size bound",
+          "positive_prompt": "The memory store is over its bound; propose consolidation."
+        }
+      ],
+      "negative_prompt": "Save temporary process IDs only in the task checkpoint.",
+      "negative_expectation": "Do not select this workflow solely for this prompt; follow the requested task and applicable project rules."
+    },
+    {
+      "skill": "router",
+      "source": "skills/orient/router/SKILL.md",
+      "branches": [
+        {
+          "description_concept": "unsure which TeamWorkflow skill",
+          "positive_prompt": "Which skill should we use for this unclear project?"
+        },
+        {
+          "description_concept": "orienting a new task or repository",
+          "positive_prompt": "Orient me to the pack in this repository."
+        }
+      ],
+      "negative_prompt": "Continue this already selected, fully specified implementation step.",
+      "negative_expectation": "Do not select this workflow solely for this prompt; follow the requested task and applicable project rules."
+    },
+    {
+      "skill": "setup",
+      "source": "skills/orient/setup/SKILL.md",
+      "branches": [
+        {
+          "description_concept": "new TeamWorkflow installation",
+          "positive_prompt": "Set up TeamWorkflow in this repository."
+        },
+        {
+          "description_concept": "binding refresh",
+          "positive_prompt": "Refresh this project's existing workflow bindings."
+        },
+        {
+          "description_concept": "drift audit",
+          "positive_prompt": "Audit our installation for drift after the release."
+        }
+      ],
+      "negative_prompt": "Answer this bounded question about one function without changing setup.",
+      "negative_expectation": "Do not select this workflow solely for this prompt; follow the requested task and applicable project rules."
+    },
+    {
+      "skill": "adversarial-review",
+      "source": "skills/run/adversarial-review/SKILL.md",
+      "branches": [
+        {
+          "description_concept": "committing substantial work",
+          "positive_prompt": "Review this substantial change before I commit it."
+        },
+        {
+          "description_concept": "worker completion",
+          "positive_prompt": "Independently audit the completed worker's change."
+        },
+        {
+          "description_concept": "external review",
+          "positive_prompt": "Review this branch before we send it to external reviewers."
+        },
+        {
+          "description_concept": "adversarial/red-team request",
+          "positive_prompt": "Red-team this PR for defects."
+        }
+      ],
+      "negative_prompt": "Give a read-only explanation of the existing architecture, with no change under review.",
+      "negative_expectation": "Do not select this workflow solely for this prompt; follow the requested task and applicable project rules."
+    },
+    {
+      "skill": "blast-radius",
+      "source": "skills/run/blast-radius/SKILL.md",
+      "branches": [
+        {
+          "description_concept": "blast radius",
+          "positive_prompt": "What is the blast radius of this change?"
+        },
+        {
+          "description_concept": "safe to merge",
+          "positive_prompt": "Check what this change could break elsewhere before merge."
+        },
+        {
+          "description_concept": "small diff you distrust",
+          "positive_prompt": "This one-line change looks suspicious; trace its consequences."
+        }
+      ],
+      "negative_prompt": "Fix the typo in this isolated prose sentence.",
+      "negative_expectation": "Do not select this workflow solely for this prompt; follow the requested task and applicable project rules."
+    },
+    {
+      "skill": "diagnose",
+      "source": "skills/run/diagnose/SKILL.md",
+      "branches": [
+        {
+          "description_concept": "bug-fix brief",
+          "positive_prompt": "Fix the reported duplicate-submit bug."
+        },
+        {
+          "description_concept": "bug resisting its first fix",
+          "positive_prompt": "The first fix did not solve this error; diagnose it."
+        },
+        {
+          "description_concept": "without a proven cause",
+          "positive_prompt": "This workaround passes, but we do not know the cause yet."
+        }
+      ],
+      "negative_prompt": "Add a new feature with no reported failure.",
+      "negative_expectation": "Do not select this workflow solely for this prompt; follow the requested task and applicable project rules."
+    },
+    {
+      "skill": "handoff",
+      "source": "skills/run/handoff/SKILL.md",
+      "branches": [
+        {
+          "description_concept": "checkpoint, save-state, wrap-up, or handoff requests",
+          "positive_prompt": "Save state and wrap up this task for me."
+        },
+        {
+          "description_concept": "meaningful milestones",
+          "positive_prompt": "The first verified milestone is complete; checkpoint it."
+        },
+        {
+          "description_concept": "impending compaction",
+          "positive_prompt": "The harness reports impending compaction; preserve our current state."
+        },
+        {
+          "description_concept": "recovery",
+          "positive_prompt": "Recover the current task from its checkpoint."
+        }
+      ],
+      "negative_prompt": "The context meter is halfway but no milestone, recovery need, or compaction signal exists; continue this atomic step.",
+      "negative_expectation": "Do not select this workflow solely for this prompt; follow the requested task and applicable project rules."
+    },
+    {
+      "skill": "implement",
+      "source": "skills/run/implement/SKILL.md",
+      "branches": [
+        {
+          "description_concept": "build brief",
+          "positive_prompt": "Build the work described in this worker brief."
+        },
+        {
+          "description_concept": "implementing a spec or tracked item",
+          "positive_prompt": "Implement the approved ticket specification."
+        },
+        {
+          "description_concept": "mid-build discoveries",
+          "positive_prompt": "While building this item I found adjacent cleanup; handle it without expanding scope."
+        }
+      ],
+      "negative_prompt": "Investigate these options and wait for our design decision before building.",
+      "negative_expectation": "Do not select this workflow solely for this prompt; follow the requested task and applicable project rules."
+    },
+    {
+      "skill": "orchestrate",
+      "source": "skills/run/orchestrate/SKILL.md",
+      "branches": [
+        {
+          "description_concept": "orchestration mode",
+          "positive_prompt": "Switch to orchestration mode for this project."
+        },
+        {
+          "description_concept": "coordinating several workers or tasks",
+          "positive_prompt": "Coordinate these three independent tasks."
+        },
+        {
+          "description_concept": "assigned lead-developer role",
+          "positive_prompt": "Act as lead developer while I make the product decisions."
+        }
+      ],
+      "negative_prompt": "Answer this single bounded question yourself without delegation.",
+      "negative_expectation": "Do not select this workflow solely for this prompt; follow the requested task and applicable project rules."
+    },
+    {
+      "skill": "show-me-your-work",
+      "source": "skills/run/show-me-your-work/SKILL.md",
+      "branches": [
+        {
+          "description_concept": "autonomous multi-phase or unattended work",
+          "positive_prompt": "Work through these phases while I am away and keep a decision trail."
+        },
+        {
+          "description_concept": "reviewer needing an evidence trail",
+          "positive_prompt": "Provide the evidence trail so I can audit the result without rerunning it."
+        },
+        {
+          "description_concept": "decision-log/show-your-work request",
+          "positive_prompt": "Keep a decision log and show your work."
+        }
+      ],
+      "negative_prompt": "Give the one-line answer to a simple arithmetic question.",
+      "negative_expectation": "Do not select this workflow solely for this prompt; follow the requested task and applicable project rules."
+    },
+    {
+      "skill": "to-tickets",
+      "source": "skills/run/to-tickets/SKILL.md",
+      "branches": [
+        {
+          "description_concept": "file tickets",
+          "positive_prompt": "File tickets from this approved specification."
+        },
+        {
+          "description_concept": "break down approved work",
+          "positive_prompt": "Break our approved plan into end-to-end slices."
+        },
+        {
+          "description_concept": "settled plan onto the board",
+          "positive_prompt": "We have decided; put this decision map on the project board."
+        }
+      ],
+      "negative_prompt": "Explore this unsettled design without filing anything.",
+      "negative_expectation": "Do not select this workflow solely for this prompt; follow the requested task and applicable project rules."
+    },
+    {
+      "skill": "wizard",
+      "source": "skills/run/wizard/SKILL.md",
+      "branches": [
+        {
+          "description_concept": "only a human can perform",
+          "positive_prompt": "This dashboard requires my interactive login; walk me through the remaining steps."
+        },
+        {
+          "description_concept": "manual setup is tedious to repeat",
+          "positive_prompt": "Make a reusable guided procedure for this recurring manual DNS setup."
+        }
+      ],
+      "negative_prompt": "Use the available authorized API to set this value directly.",
+      "negative_expectation": "Do not select this workflow solely for this prompt; follow the requested task and applicable project rules."
+    }
+  ]
+}
