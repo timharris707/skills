@@ -1,10 +1,12 @@
 name: review-settled
 
 # Reusable merge gate: a PR is "settled" only when CodeRabbit has reviewed
-# the current head commit and no review thread is
-# unresolved. Closes the race where a PR merges minutes before the bot's
-# incremental pass lands, stranding findings nobody dispositions (audit,
-# 2026-08-19: live escapes on three repos). Callers make this a required
+# the current head commit, no review thread is unresolved, and every thread
+# CodeRabbit opened carries a reply from someone other than a bot. Closes the
+# race where a PR merges minutes before the bot's incremental pass lands,
+# stranding findings nobody dispositions (audit, 2026-08-19: live escapes on
+# three repos), and the quieter escape where every thread is clicked resolved
+# with no fix or reason on record (skills#288). Callers make this a required
 # status check so the merge button waits for the review instead of racing it.
 
 on:
@@ -40,7 +42,7 @@ jobs:
     steps:
       # PR fields flow in via env, never inline ${{ }} in run: a PR title is
       # attacker-controlled on public repos (template-injection class).
-      - name: Wait for CodeRabbit review of head and zero unresolved threads
+      - name: Wait for CodeRabbit review of head, zero unresolved threads, a reply on every finding
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
@@ -66,11 +68,17 @@ jobs:
             exit 0
           fi
 
-          # Sum unresolved review threads across every page; a partial count
-          # would either deadlock resolved PRs or green-light unseen threads.
-          count_unresolved() {
-            local cursor='' page n
-            n=0
+          # Count review threads across every page; a partial count would
+          # either deadlock resolved PRs or green-light unseen threads. Emits
+          # two numbers: unresolved threads, and threads CodeRabbit opened
+          # that carry no reply from a non-bot author (resolving a finding
+          # without answering it is the escape this closes). GraphQL reports
+          # the bot's login without the "[bot]" suffix REST uses; a deleted
+          # replier has a null author and still counts as a human reply.
+          count_threads() {
+            local cursor='' page unresolved unreplied
+            unresolved=0
+            unreplied=0
             while :; do
               page=$(gh api graphql \
                 -f query='query($owner: String!, $name: String!, $number: Int!, $cursor: String) {
@@ -78,18 +86,25 @@ jobs:
                     pullRequest(number: $number) {
                       reviewThreads(first: 100, after: $cursor) {
                         pageInfo { hasNextPage endCursor }
-                        nodes { isResolved }
+                        nodes {
+                          isResolved
+                          comments(first: 100) { nodes { author { __typename login } } }
+                        }
                       }
                     }
                   }
                 }' -f owner="$owner" -f name="$name" -F number="$PR_NUMBER" \
                 ${cursor:+-f cursor="$cursor"} \
                 --jq '.data.repository.pullRequest.reviewThreads')
-              n=$((n + $(jq '[.nodes[] | select(.isResolved | not)] | length' <<<"$page")))
+              unresolved=$((unresolved + $(jq '[.nodes[] | select(.isResolved | not)] | length' <<<"$page")))
+              unreplied=$((unreplied + $(jq '[.nodes[]
+                | select(.comments.nodes[0].author.login == "coderabbitai")
+                | select([.comments.nodes[1:][] | select((.author.__typename // "User") != "Bot")] | length == 0)
+                ] | length' <<<"$page")))
               [ "$(jq -r '.pageInfo.hasNextPage' <<<"$page")" = "true" ] || break
               cursor=$(jq -r '.pageInfo.endCursor' <<<"$page")
             done
-            echo "$n"
+            echo "$unresolved $unreplied"
           }
 
           deadline=$((SECONDS + WAIT_MINUTES * 60))
@@ -116,16 +131,20 @@ jobs:
                                  and (.body | test("between [0-9a-f]{40} and " + $head)))] | length')
             fi
 
-            unresolved=$(count_unresolved)
+            # Assign first so a failed count aborts under set -e; a bare
+            # read <<<"$(...)" discards the substitution's status and would
+            # spin the whole wait window on a transient API error.
+            counts=$(count_threads)
+            read -r unresolved unreplied <<<"$counts"
 
-            echo "head-reviewed=$reviewed unresolved-threads=$unresolved"
-            if [ "$reviewed" -gt 0 ] && [ "$unresolved" -eq 0 ]; then
-              echo "settled: CodeRabbit has seen $HEAD_SHA and every review thread is resolved"
+            echo "head-reviewed=$reviewed unresolved-threads=$unresolved unreplied-findings=$unreplied"
+            if [ "$reviewed" -gt 0 ] && [ "$unresolved" -eq 0 ] && [ "$unreplied" -eq 0 ]; then
+              echo "settled: CodeRabbit has seen $HEAD_SHA, every review thread is resolved, and every finding has a reply"
               exit 0
             fi
             if [ "$SECONDS" -ge "$deadline" ]; then
               echo "not settled after $WAIT_MINUTES minutes."
-              echo "needs: a CodeRabbit review of head $HEAD_SHA and zero unresolved threads."
+              echo "needs: a CodeRabbit review of head $HEAD_SHA, zero unresolved threads, and a non-bot reply on every thread CodeRabbit opened (fixed, or declined with a reason)."
               echo "if CodeRabbit is configured to skip this PR, exempt it explicitly via the skip label or title regex."
               echo "after dispositioning findings and resolving threads, re-run this check (gh run rerun <run-id>)."
               exit 1
