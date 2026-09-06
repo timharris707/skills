@@ -57,6 +57,13 @@ jobs:
       - name: Check retired positioning lines stay retired
         run: python3 scripts/check_positioning.py
 
+      # The review-settled merge gate is shell + jq inside a workflow file, so
+      # nothing else exercises it. This lifts its two thread filters out of
+      # the workflow text verbatim and runs them against fixture pages, so
+      # the reply-per-finding rule (#288) cannot be dropped silently.
+      - name: Check the review-settled gate's thread filters
+        run: python3 -m unittest discover -s tests/gate -p 'test*.py'
+
       # Tracker recipes must name the bound repo explicitly (#208): an
       # unqualified gh command resolves the repo implicitly, which in a fork
       # targets the upstream repo instead of the bound tracker.
