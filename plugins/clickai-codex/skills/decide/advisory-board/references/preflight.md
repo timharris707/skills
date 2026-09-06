@@ -2,7 +2,7 @@
 
 Run this before launching a board. Most board failures are environmental, not reasoning: a CLI not installed, expired auth, a renamed model, a hung process. Catch them here, before spending real tokens.
 
-Goal: a go/no-go table. Proceed only when at least two seats are **GO** (a board needs at least two voices). Label any seat that is degraded or dropped in the final handoff.
+Goal: a candidate-status table. **Unverified** means a required check has not been completed, including when no smoke call is authorized. **GO** means the authorized CLI, auth, requested-model resolution, and smoke checks all succeeded for the intended route. **NO-GO** means a required check failed, with the failure identified. Registration or installation alone never establishes GO. These candidate states precede the conductor's executable GO/NO-GO result after it actually probes a seat. A previously tested seat needs fresh preflight when its model, account, CLI, or configuration route changes. Proceed only when at least two seats are **GO** (a board needs at least two voices). Label any seat that is degraded or dropped in the final handoff.
 
 > **Doctor contacts providers.** `run_board.py doctor` includes model smoke calls across every registered provider. Announce the call count and rough usage and verify provider authorization first. If only a subset is approved, use the per-seat checks below or a supported provider filter; do not run a broad doctor that would contact an unapproved provider. A smoke prompt sends no project material but still consumes model usage.
 
@@ -42,7 +42,7 @@ For each authorized provider in the proposed lineup:
 2. **Auth active, subscription-backed where possible.** Not API-key-only, not logged out.
    - Use the CLI's own status / whoami command. Never print tokens, cookies, or keys.
 3. **Requested model resolves.** The model named in the lineup is actually available.
-   - List models if the CLI supports it, or run the smoke ping below with the real model flag and confirm it isn't rejected as unknown.
+   - Inspect the installed CLI's help and account/configuration route. List models if supported, then use the requested pin in the authorized smoke ping and confirm the actual answering model from CLI evidence. An accepted flag or public catalog entry alone does not prove the selected route used that model. Unknown resolution stays unverified; a rejected pin is NO-GO. Propose an alternative for approval instead of silently substituting.
 4. **Smoke ping.** A trivial read-only prompt returns a non-empty answer.
    - Keep it to one word back. This proves auth + model + transport end to end in one shot.
 
@@ -63,7 +63,7 @@ codex exec --sandbox read-only --skip-git-repo-check --config model="<model>" "R
 gemini -p "Reply with the single word: ready" -m "<model>"
 ```
 
-## Go/no-go table
+## Candidate-status table
 
 Record one row per seat, then decide:
 
@@ -72,12 +72,13 @@ Record one row per seat, then decide:
 | Claude |  ✓  |  ✓   |   ✓   |   ✓   | GO      |
 | Codex  |  ✓  |  ✓   |   ✓   |   ✓   | GO      |
 | Gemini |  ✓  |  ✗   |  n/a  |  n/a  | NO-GO   |
+| Candidate | ✓ | unknown | unknown | not authorized | unverified |
 
 Decision rule:
 
-- **≥ 2 seats GO** → proceed. If a seat is NO-GO, run the smaller board and label the missing seat (and the round it dropped) in the handoff.
-- **< 2 seats GO** → stop and report which checks failed and how to fix them. Do not run a one-voice "board."
+- **≥ 2 approved seats GO** → launch only that approved, verified selection. A reduced or changed lineup requires approval of the resolved plan. Label excluded unverified or NO-GO candidates with the reason in the handoff.
+- **< 2 seats GO** → pause launch and report failed versus unperformed checks separately, with the fix or authorization needed. Do not run a one-voice "board."
 
 ## What to capture
 
-Fold the result into `run-metadata.md`: each seat's CLI version, the model that actually answered (not just the one requested), auth mode (subscription / API key; no secrets), and the go/no-go verdict. This is the provenance the final handoff cites.
+Fold the result into `run-metadata.md`: each seat's CLI version, the model that actually answered (not just the one requested), auth mode (subscription / API key; no secrets), and the unverified/GO/NO-GO status with supporting check results. This is the provenance the final handoff cites.

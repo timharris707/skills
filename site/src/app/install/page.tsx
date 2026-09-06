@@ -52,7 +52,7 @@ export default function Install() {
 
         <h2 id="codex" className="runtime-head">
           <RuntimeMark id="codex" size={22} />
-          Codex desktop, tuned for Astra
+          Codex desktop, adapted for Astra workflows
         </h2>
         <p>
           All {codex.skills} skills arrive in <code>{codex.name}</code> v{codex.version}, adapted

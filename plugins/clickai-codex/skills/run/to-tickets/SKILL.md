@@ -1,6 +1,6 @@
 ---
 name: to-tickets
-description: "Turn an approved plan into verifiable work items with their real dependencies on the project tracker."
+description: "When asked to file tickets, break down approved work, or move a settled plan onto the board, turn the spec, closed decision map, or pressure-tested conversation into verifiable work items with real dependencies and non-ticket blockers."
 ---
 
 # To Tickets
@@ -46,7 +46,7 @@ gh api repos/<owner>/<repo>/issues/<blocker-number> --jq .id
 gh api repos/<owner>/<repo>/issues/<child-number>/dependencies/blocked_by -F issue_id=<that-id>
 ```
 
-Edges are authoritative wherever the blocker is a tracker item, so the frontier unblocks itself when the blocker closes. The `blocked` label is only for **non-ticket** blockers: a vendor gate, a scheduling constraint, a pending adjudication. An item blocked purely by edges must not also carry the label, or a stale label holds it blocked after its edges clear.
+Edges are authoritative wherever the blocker is a tracker item, so the frontier unblocks itself when the blocker closes. The `blocked` label is only for **non-ticket** blockers: a vendor gate, a scheduling constraint, a pending adjudication. An item blocked purely by edges must not also carry the label, or a stale label holds it blocked after its edges clear. A mixed-blocked item carries both: closing a ticket removes only that dependency; clearing a non-ticket blocker removes the label only when no non-ticket blockers remain. Neither event alone makes an item with the other blocker outstanding available.
 
 ## Labels and readiness
 

@@ -1,6 +1,6 @@
 ---
 name: huh
-description: "Explain an unclear message in plain language, distinguishing results, requests, and unsupported claims."
+description: "When a message did not land or pasted agent output needs translation, restate it plainly, expand shorthand, separate results from requests, and flag unsupported claims."
 ---
 
 # Huh

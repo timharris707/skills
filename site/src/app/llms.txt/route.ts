@@ -44,7 +44,7 @@ export function GET() {
     "",
     "## Runtimes",
     "",
-    "Two editions cover the same catalog: original Claude Code and Codex desktop, tuned for Astra.",
+    "Two editions cover the same catalog: original Claude Code and Codex desktop, adapted for Astra workflows.",
     "The harness instructions differ. Select the matching skill URL below; do not substitute editions.",
     "Codex uses same-task checkpoints through compaction and respects selected model settings.",
     "Any other harness can read each SKILL.md directly.",

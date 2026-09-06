@@ -1,6 +1,6 @@
 ---
 name: writing-for-humans
-description: "Write public copy in the project's voice, with clear structure and supported claims."
+description: "For public-facing drafts, pages that read like agent documentation, or a final AI-tell scrub, write clear human copy in the selected project voice. Covers landing pages, README introductions, launch posts, and profile pages."
 ---
 
 # Writing for Humans
@@ -69,10 +69,10 @@ Qualities of the finished page, judged by reading it cold:
 - Hook first, quickest start second, reference last; every section leaves a visible next action.
 - No insider term appears before the sentence that teaches it: the page teaches its vocabulary or drops it.
 - Every claim is checkable or absent, every number has a live source or cannot rot, and nothing was invented to sound human.
-- Punctuation follows the selected project voice; The default voice avoids em dashes, and flagged passages were restructured.
+- Punctuation follows the selected project voice; the default voice avoids em dashes, and flagged passages were restructured.
 - The scrub ran last, whole clusters were rewritten, and the voice sample (when one exists) won every conflict with the tell rules.
 - Every line of "It's working if" was checked against the final text, not assumed.
 
 ## Attribution
 
-The guide structure is modeled on the README of Matt Pocock's [skills](https://github.com/mattpocock/skills) (MIT): hook, thirty-second start, problem → fix framing, and reference last are the shape his README demonstrates; the quoted phrases in Warmth moves ("it won't untangle the mud for you", "Hack around with them. Make them your own.") are his, and the *It's working if* section follows the outcome-test shape of his skill docs pages. *Process bleed* is [forint573/human-copywrite](https://github.com/forint573/human-copywrite)'s term (Apache-2.0). The scrub's guardrails (clusters over isolated tells, voice sample outranks the tell rules, no fabrication) follow [blader/humanizer](https://github.com/blader/humanizer) (MIT), whose 33-pattern catalog builds on Wikipedia's "Signs of AI writing"; the dash budget is a softer cousin of that skill's outright em-and-en-dash ban. What this catalog adds: the register split against its sibling writing-for-agents, the *agent-register bleed* and *clean nothing* failure modes, the standing voice rules, and the two checkable exit sections.
+The guide structure is modeled on the README of Matt Pocock's [skills](https://github.com/mattpocock/skills) (MIT): hook, thirty-second start, problem → fix framing, and reference last are the shape his README demonstrates; the quoted phrases in Warmth moves ("it won't untangle the mud for you", "Hack around with them. Make them your own.") are his, and the *It's working if* section follows the outcome-test shape of his skill docs pages. *Process bleed* is [forint573/human-copywrite](https://github.com/forint573/human-copywrite)'s term (Apache-2.0). The scrub's guardrails (clusters over isolated tells, voice sample outranks the tell rules, no fabrication) follow [blader/humanizer](https://github.com/blader/humanizer) (MIT), whose 33-pattern catalog builds on Wikipedia's "Signs of AI writing". This edition uses the default plainspoken punctuation rule unless the user explicitly selects a project voice, and keeps whole-sentence rewriting for flagged passages. What this catalog adds: the register split against its sibling writing-for-agents, the *agent-register bleed* and *clean nothing* failure modes, the standing voice rules, and the two checkable exit sections.

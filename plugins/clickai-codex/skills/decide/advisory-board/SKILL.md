@@ -1,6 +1,6 @@
 ---
 name: advisory-board
-description: "Run an explicitly authorized multi-model review or debate with recorded seats, costs, and evidence."
+description: "For an explicitly requested advisory board, roundtable, panel, idea tournament, multi-model review or debate, red-team by several models, or consensus handoff, run an authorized multi-provider process with recorded seats, usage, and evidence."
 ---
 
 # Advisory Board
@@ -38,27 +38,27 @@ The three topologies, their mechanics, hand-runnable protocols for the two the c
 
 Every run opens with the wizard in `references/intake-interview.md`, presented as selection cards like the `grilling` skill's rounds, recommendation first. The sequence, in order:
 
-1. **Preflight first, within authorization.** Read the registered CLI capabilities before offering seats. Doctor includes model smoke calls, so announce their count and rough usage and obtain any required provider authorization before running it. A Claude smoke call counts as Anthropic work. Check only authorized providers when the installed command supports selection; otherwise use individual version/auth checks and authorized smoke calls. Report GO/NO-GO without contacting an unapproved seat.
+1. **Preflight first, within authorization.** Read the registered CLI capabilities before offering seats. Doctor includes model smoke calls, so announce their count and rough usage and obtain any required provider authorization before running it. A Claude smoke call counts as Anthropic work. Check only authorized providers when the installed command supports selection; otherwise use individual version/auth checks and authorized smoke calls. Report each candidate as unverified, GO, or NO-GO using the preflight definitions. An unapproved, untested seat stays unverified, not launch-ready; do not contact it.
 2. **Goal → mode.** Hear the goal in the user's words, recommend a mode (and lens preset) from `references/modes.md` §Choosing a mode, and let the user pick from all three.
 3. **Seats.** Any 2–10 of the GO providers ("latest frontier of each" is the shortcut); show the seat→provider→lens table before launch; warn on cost for big or deep boards.
 4. **Reasoning depth.** Highest available (default) / Standard / Quick via `--tier`; per-seat overrides on request.
 5. **Rounds and output.** With defaults marked.
 6. **Confirm-summary.** The resolved plan as one card; nothing launches without this yes.
 
-"Use defaults" resolves steps 2-5 to defaults and goes to step 6, but only after step 1 completes and its findings are applied to the card: doctor still runs, a seat that is not GO is never a default, and below two GO seats there is no defaults board (step 3's fallbacks are settled with the user first). An existing explicit confirmation of the same resolved plan remains valid, and it never waives data-handling consent: if the material isn't clearly public, still disclose which providers will receive it and get an explicit go-ahead before launching any external seat (`references/data-handling.md`).
+"Use defaults" resolves steps 2-5 to defaults and goes to step 6, but only after step 1 completes and its findings are applied to the card: the required checks run for the authorized selection (a full doctor sweep is optional), a seat that is not GO is never a default, and below two GO seats there is no defaults board (step 3's fallbacks are settled with the user first). An existing explicit confirmation of the same resolved plan remains valid, and it never waives data-handling consent: if the material isn't clearly public, still disclose which providers will receive it and get an explicit go-ahead before launching any external seat (`references/data-handling.md`).
 
 ## Model Lineup
 
 Target the strongest reasoning model each provider offers **at run time**. Defaults use provider-maintained selectors so new frontier releases do not require a skill edit; explicit `--model seat=id` overrides pin exact IDs.
 
 - Claude seat: Anthropic's maintained `fable` alias at `--effort max`. Where `fable` doesn't resolve (older CLI or account), preflight proposes the `opus` fallback and never applies it silently.
-- Codex seat: use an explicit `--model codex=gpt-6-astra` when Astra is requested, with the approved effort. Confirm `CODEX_HOME` and the resolved model from the actual CLI output; an unpinned `auto` seat follows that CLI profile's configuration and is not proof of a particular model.
+- Codex seat: `--model codex=gpt-6-astra` pins the documented Astra identifier when requested, with approved effort. Verify the installed CLI flags, actual account/configuration route, and model resolution during authorized preflight. Confirm the model that answered from CLI evidence; if it cannot be established, keep the seat unverified. A rejected pin is NO-GO; propose a supported alternative for approval rather than silently substituting. An unpinned `auto` seat follows CLI configuration and proves no particular model. See the [capability evidence](../../../CODEX.md#capability-evidence-and-portability).
 - Gemini seat: Google's maintained `pro` alias (latest highest-reasoning Pro model) with the CLI's highest available thinking level.
 - Grok seat: `grok-4.5` through the official `grok` CLI at `--effort high`, the only model the CLI currently lists.
 
 The selector (`fable`, `pro`, `grok-4.5`, or Codex `auto`) and the model that actually answered are separate provenance fields. If a CLI cannot report the resolved ID, record `unknown` rather than pretending. Use an exact `--model` override for an eval or replay that must not float.
 
-**Preflight.** Run `references/preflight.md` before launching: for each seat, check the CLI is present, auth is active (subscription-backed where possible), the requested model resolves, and a one-token smoke ping returns. First run or new machine: after authorizing its smoke calls, `run_board.py doctor` sweeps **every** registered provider with per-provider fix-it steps and a viable-board summary: probes and smoke-pings only, it never reads or sends your material; `run_board.py toolchain` checks CLI currency and (consent-gated) updates or installs. Proceed only with at least two seats GO; fewer isn't a dead end: preflight distinguishes *not installed* from *installed-but-unauthed* and names the fallbacks: a same-provider multi-lens board or a local/human seat (`references/board-composition.md`). Label any degraded or dropped seat in the handoff.
+**Preflight.** Run `references/preflight.md` before launching: for each seat, check the CLI is present, auth is active (subscription-backed where possible), the requested model resolves, and a one-token smoke ping returns. For a first run or new machine, scoped checks can establish GO; a full doctor is optional. After authorizing all of its smoke calls, `run_board.py doctor` sweeps **every** registered provider with per-provider fix-it steps and a viable-board summary: probes and smoke-pings only, it never reads or sends your material; `run_board.py toolchain` checks CLI currency and (consent-gated) updates or installs. Proceed only with at least two seats GO; fewer isn't a dead end: preflight distinguishes *not installed* from *installed-but-unauthed* and names the fallbacks: a same-provider multi-lens board or a local/human seat (`references/board-composition.md`). Label any degraded or dropped seat in the handoff.
 
 ## Seats
 

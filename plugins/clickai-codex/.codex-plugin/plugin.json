@@ -1,7 +1,7 @@
 {
   "name": "clickai-codex",
-  "version": "1.1.0",
-  "description": "23 Click AI skills for Codex desktop, tuned for Astra: planning, research, writing, implementation, independent review, and checkpoint recovery.",
+  "version": "1.1.1",
+  "description": "23 Click AI skills for Codex desktop, adapted for Astra workflows: planning, research, writing, implementation, independent review, and checkpoint recovery.",
   "author": {
     "name": "Tim Harris"
   },
@@ -10,7 +10,7 @@
   "license": "MIT",
   "interface": {
     "displayName": "Click AI for Codex",
-    "shortDescription": "Codex desktop workflows, tuned for Astra",
+    "shortDescription": "Codex desktop workflows, adapted for Astra workflows",
     "longDescription": "The full Click AI catalog adapted for Codex desktop: task-owned checkpoints, native subagents, capability-aware questions, and independent review. Respects your selected model, effort, and project rules.",
     "developerName": "Tim Harris",
     "category": "Productivity",

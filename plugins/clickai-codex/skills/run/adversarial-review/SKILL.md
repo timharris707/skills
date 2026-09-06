@@ -1,6 +1,6 @@
 ---
 name: adversarial-review
-description: "Review a substantial change with independent finders and a skeptic before commit or integration."
+description: "Before committing substantial work, at worker completion, before external review, or on an explicit adversarial/red-team request for a diff, branch, or PR, use independent finders and a skeptic to verify defects, disposition findings, and enforce the blocker gate."
 ---
 
 # Adversarial review
@@ -78,7 +78,7 @@ Axes are reported separately and **never blended into one verdict**: a passing l
 
 **The gate:** a confirmed BLOCKER must be fixed before the commit (floor layer) or merge (close-out layer). Only **the decider** may waive one, with the reason recorded where the report lives. The implementer never waives its own blocker; the orchestrator surfaces it to the decider, never absorbs it. Everything below BLOCKER advises: the implementer or orchestrator dispositions each finding, fixed or declined with a reason, at their own judgment. Where the repo binds [domain-memory](../../orient/domain-memory/SKILL.md), a declined finding lands as a decision record with its reason, which is what stops the next review from re-raising settled ground.
 
-**Bound re-review to evidence.** After fixing confirmed findings, verify those fixes and the affected behavior. Run another independent pass only when changed scope, a failure, or unresolved evidence justifies it. Stop when the required review and verification are complete; do not require two clean runs or review an unchanged diff to manufacture confidence.
+**Bound re-review to evidence.** Verify every correction and the affected behavior. Substantive corrections require independent review of the correction and its affected behavior, with the resulting findings dispositioned under the same gate. A correction is substantive when it changes behavior, an instruction obligation, a trust boundary, or the evidence a conclusion relies on; spelling or formatting alone is not substantive. Broaden the review only for changed scope, a failure, or unresolved evidence. Complete every condition below against the delivered revision; do not rerun an unchanged diff to accumulate clean reports. Required project review gates still apply.
 
 ## 5. The defect-class checklist (binding slot)
 
@@ -104,7 +104,9 @@ A new repo starts with an empty checklist and that is correct: it fills at the s
 - Every reported finding carries its citation and its evidence-ladder rung, no claim reported above the rung its proof reached; every BLOCKER carries its confirmed repro.
 - The dismissed bucket lists every skeptic kill with its reason and rung; clean-bill claims state theirs.
 - The report (findings, composition, clean bill) is posted on the driving ticket/PR, or delivered in-session when none exists.
-- Confirmed blockers are fixed, or waived by the decider on the record. Lesser findings are each dispositioned.
+- Every required independent finder and skeptic pass is complete. Confirmed blockers are fixed, or waived by the decider on the record. Every lesser finding is fixed or declined with a recorded reason.
+- Every correction and affected behavior is verified; substantive corrections have independent review and their resulting findings are dispositioned.
+- Required project checks pass for the delivered revision, with evidence linked. Pending review, a failing required check, or an undispositioned finding keeps review incomplete.
 - Any new defect class earned by this review is queued for the fixing PR, with its repro.
 - Where domain-memory is bound: finders loaded the decision records, and every declined finding landed there as a record with its reason.
 

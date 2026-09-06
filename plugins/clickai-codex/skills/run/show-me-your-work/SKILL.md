@@ -1,6 +1,6 @@
 ---
 name: show-me-your-work
-description: "Keep an append-only decision and evidence log for substantial autonomous or unattended work."
+description: "For autonomous multi-phase or unattended work, a reviewer needing an evidence trail, or an explicit decision-log/show-your-work request, keep an append-only decision log with why, evidence, and result. Record decisions and corrections, not hidden reasoning transcripts."
 ---
 
 # Show me your work

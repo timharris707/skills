@@ -1,6 +1,6 @@
 ---
 name: codebase-review
-description: "Review codebase structure before a feature or after demonstrated change friction, with independent skepticism."
+description: "Before an upcoming feature, when merged work crosses the recorded review threshold, or when implementation exposes structural friction, review the codebase state with independent skepticism. Deliver the report while keeping unresolved adoption decisions tracked."
 ---
 
 # Codebase review
@@ -58,7 +58,7 @@ Plain Markdown, delivered in the current task for a bounded review or posted to 
 
 ## 5. The disposition loop
 
-The report can be complete while decisions remain pending. Keep the tracker item open for those decisions; never force answers merely to end the reviewing turn. The orchestrator (or whoever ran the review) presents every survivor to the decider as a structured question card, [grilling](../../decide/grilling/SKILL.md)-style: the claim, the skeptic's verdict, cost and payoff, with the recommendation marked on an option; numbered-text fallback where no card tool exists. The decider dispositions each:
+The report can be complete while decisions remain pending. Report that status as "report delivered; decisions pending" and list the unresolved recommendations. Keep the tracker item open for those decisions; never force answers merely to end the reviewing turn. The orchestrator (or whoever ran the review) presents every survivor to the decider as a structured question card, [grilling](../../decide/grilling/SKILL.md)-style: the claim, the skeptic's verdict, cost and payoff, with the recommendation marked on an option; numbered-text fallback where no card tool exists. The decider dispositions each:
 
 - **Adopt**: becomes a tracker ticket ([to-tickets](../../run/to-tickets/SKILL.md) where bound) and rides normal lane flow.
 - **Reject**: recorded in rejection memory with the load-bearing reason. The reason is the record's value: a future run needs to know *why*, so it can tell new evidence from repetition.
@@ -90,4 +90,4 @@ Before a tracker binding exists, report in the current task and name the unbound
 
 This skill is adapted from Matt Pocock's [`improve-codebase-architecture`](https://github.com/mattpocock/skills/tree/main/skills/engineering/improve-codebase-architecture) (MIT). The core model is his: the hunt for deepening opportunities as the unit of review, weighting attention toward recently-changed code, per-candidate cards carrying files, problem, solution, and benefits, respecting recorded rejections so reviews don't re-suggest settled ground, and grounding every suggestion in the shared design vocabulary of his [`codebase-design`](https://github.com/mattpocock/skills/tree/main/skills/engineering/codebase-design) (MIT), which the [references doc](references/design-vocabulary.md) adapts.
 
-What this repo changes: event triggers replace on-demand invocation, the review runs as a read-only tracked lane, finders take named lenses in parallel, a skeptic pass replaces self-graded recommendation-strength badges, the report is plain markdown on a tracker item rather than an HTML artifact, zero survivors is an explicit success verdict, and the disposition loop replaces the pick-one grilling loop: adopt / reject-into-memory / defer-and-carry, closing only when nothing is undispositioned.
+What this repo changes: event triggers replace on-demand invocation, the review runs read-only within the authorized task or tracked work, finders take named lenses in parallel, a skeptic pass replaces self-graded recommendation-strength badges, the report is plain Markdown delivered in the current task or to an authorized tracker item rather than an HTML artifact, zero survivors is an explicit success verdict, and the disposition loop replaces the pick-one grilling loop: adopt / reject-into-memory / defer-and-carry, closing only when nothing is undispositioned.

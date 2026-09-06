@@ -2,6 +2,21 @@
 
 ## [Unreleased]
 
+## [v1.1.1] - 2026-09-05
+
+- Restore distinct invocation branches across all 23 descriptions, with positive
+  and negative review cases and offline branch-preservation checks. These checks
+  do not claim measured model activation or Astra performance improvements.
+- Make decision-maker source and conflict safeguards, review completion, independent
+  review of substantive corrections, and checkpoint secret inspection explicit.
+- Distinguish unverified, GO, and NO-GO provider candidates; validate the actual
+  model route under authorization and launch only approved, verified seats.
+- Label documented capabilities, desktop observations, and workflow policy, with
+  live-schema fallbacks. Describe the edition as adapted for Codex and Astra.
+- Preserve proportional tests, required regression checks, pending report decisions,
+  selected project voice, and same-task recovery; correct stale explanations.
+- Adopt the shared mixed ticket/non-ticket blocker fix from team-workflow v1.7.2.
+
 - The nine advisory-board fixes and the wizard write_env fix that shipped only in this
   edition (#286) are now in the shared source (advisory-board v1.18.3, team-workflow v1.7.1);
   their patch hunks are gone. No Codex-facing change.

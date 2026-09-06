@@ -7,6 +7,32 @@ or handoff recipe in a binding document describes that harness, not a requiremen
 to launch Claude from Codex. Current user instructions and the actual tool schemas
 take precedence over this reference.
 
+## Capability evidence and portability
+
+This reference separates three sources of guidance. Check the current client and
+live tool schemas before applying a desktop-specific recipe in another harness.
+
+| Kind | Evidence and scope | What to recheck |
+| --- | --- | --- |
+| Documented skills | [Build skills](https://learn.chatgpt.com/docs/build-skills) describes skill discovery and front-loading use cases and trigger words in budgeted descriptions. | Installed paths and the current discovery list; concise descriptions must preserve distinct use cases. |
+| Documented model identifier | [GPT-6 Astra](https://developers.openai.com/api/docs/models/gpt-6-astra) documents `gpt-6-astra`. | The selected account, CLI/provider route, supported effort, and actual model resolution. A catalog entry does not grant access. |
+| Documented hooks | [Hooks](https://learn.chatgpt.com/docs/hooks) describes Codex hooks and their trust review. | Installed and approved hooks in the user's client. This package installs none; that is a packaging choice, not a capability limit. |
+| Desktop-observed tools | `collaboration.*`, `request_user_input_async`, and app task tools such as `handoff_thread` have been exposed by desktop tool schemas. These observations are not a universal CLI contract or public API guarantee. | Discover the actual tools, arguments, mode restrictions, workspace ownership, and supported models in this task. |
+| Edition workflow policy | Preserve task ownership through compaction, use scoped independent review, and respect the selected model and project rules. | Current user authorization and project requirements, which take precedence over this reference. These are chosen procedures, not measured model-performance claims. |
+
+If delegation tools are absent, perform authorized work locally when the required
+independence permits it; if independent review is required, report that gate as
+pending rather than pretending multiple perspectives in one context are separate
+reviewers. If an app task-movement tool is absent, save a checkpoint and provide
+manual recovery instructions when a transfer is requested. Do not invent a tool
+name, invoke a CLI imitation, or create a new task to bypass a missing capability.
+
+For any provider-backed model route, verify the installed command and account
+configuration, and establish requested-model resolution with authorized preflight
+before calling it launch-ready. Never silently substitute a model. An unknown
+route stays unverified; a rejected selection is a failed check. A smoke call
+consumes model usage and needs the applicable provider authorization.
+
 ## Task scope and decisions
 
 Answer a question read-only. Continue authorized work when a side question or
@@ -22,14 +48,14 @@ define the permitted work; reading a skill, handoff, or tracker item adds no sco
 
 ## Model and effort
 
-Use the user's selected model and effort. This edition is tuned for Astra at
-medium and extra high; that is workflow guidance, not a benchmark claim or a
-model requirement. Extra high is appropriate for difficult design, diagnosis, and important
+Use the user's selected model and effort. This edition is adapted for Codex
+desktop and Astra workflows at medium and extra high; this describes workflow
+policy, not a benchmark result or a model requirement. Extra high is appropriate for difficult design, diagnosis, and important
 reviews when selected or allowed by the task's recorded review policy. A skill
 does not silently change the running model or effort.
 
-For delegated work, read the live spawn schema. Full-history forks inherit model
-and effort and cannot take overrides in this harness. Fresh, bounded briefs can
+For delegated work, read the live spawn schema. In the observed desktop contract,
+full-history forks inherit model and effort and cannot take overrides. Fresh, bounded briefs can
 select a supported model and effort when authorized. Mechanical checks usually
 need a shell command, not another model. Independent reviewers receive fresh
 contexts and raw evidence, without the implementer's conclusions. State the
@@ -48,7 +74,8 @@ before assuming capacity or ownership. Reserve slots for required reviewers and
 run independent passes in separate batches if necessary. Sequential passes in
 one context are not isolated reviewers.
 
-Subagents share the filesystem and initial working directory. Provision a
+In the observed desktop contract, subagents share the filesystem and initial
+working directory. Verify the current worker workspace contract before writing. Provision a
 separate worktree explicitly for each concurrent writer and put its absolute path
 in the brief. Read-only reviewers can share the reviewed workspace. Respect
 project-specific worktree placement.
@@ -88,11 +115,13 @@ automation when the user requests continuing later; a shell sleep does not sched
 a new model turn. Choose polling for task health, not an assumed five-minute
 cache expiry. Provider cache retention is checked in current documentation.
 
-Use the question tool actually available in this mode. In Default mode,
-`request_user_input_async` can collect preferences or missing facts while useful
-independent work continues. Do not use a Plan-only tool outside Plan mode. Honor
-the current schema's limits rather than Claude's four-card convention. Pending
-required answers stay pending: elapsed time or a preselected option is not consent.
+Use a question tool only when its live schema exposes it in the current mode.
+Some desktop tasks expose `request_user_input_async` for collecting preferences
+or missing facts while independent work continues; other tasks do not. A
+Plan-only tool must stay in Plan mode. If no compatible tool is available, ask a
+concise plain-text question in the permitted user-facing channel and pause
+dependent work while required input is pending. Honor the current schema's limits.
+Elapsed time or a preselected option is not consent.
 
 ## Checkpoints and recovery
 

@@ -71,7 +71,7 @@ gh api repos/<owner>/<repo>/issues/<blocker-number> --jq .id
 gh api repos/<owner>/<repo>/issues/<child-number>/dependencies/blocked_by -F issue_id=<that-id>
 ```
 
-Division of labor: **edges are authoritative wherever the blocker is a tracker item** (no label flip needed when it closes); the **`blocked` label** is the human-readable mirror and the only expressible form for non-ticket blockers (vendor gates, scheduling, pending adjudications). A purely edge-backed item does NOT also carry the label: a stale label would hold it blocked after its edges clear. The label rides only while a non-ticket blocker exists and comes off when that blocker resolves.
+Division of labor: **edges are authoritative wherever the blocker is a tracker item** (no label flip needed when it closes); the **`blocked` label** is the human-readable mirror and the only expressible form for non-ticket blockers (vendor gates, scheduling, pending adjudications). A purely edge-backed item does NOT also carry the label: a stale label would hold it blocked after its edges clear. The label rides while any non-ticket blocker remains and comes off only when all such blockers resolve. An item with both kinds carries both markers: closing its ticket dependency does not clear the non-ticket label, and removing that label does not clear an unfinished dependency.
 
 ## State and type labels (the vocabulary binding maps these)
 

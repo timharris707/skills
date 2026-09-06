@@ -1,6 +1,6 @@
 ---
 name: writing-for-agents
-description: "Write or refine skills and agent instructions for reliable triggers, clear scope, and checkable completion."
+description: "For skills, standing agent instructions, recorded rules, or documents agents skip, write and prune reliable triggers and checkable steps. Use to author or revise SKILL.md, AGENTS.md, CLAUDE.md, rules and references, or diagnose unreliable invocation and skimming."
 ---
 
 # Writing for Agents

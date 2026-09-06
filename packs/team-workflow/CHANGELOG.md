@@ -14,6 +14,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [v1.7.2] - 2026-09-05 — preserve independent blockers
+
+### Fixed
+- **to-tickets** and the tracker reference permit both a native dependency and
+  the `blocked` label when both ticket and non-ticket blockers exist. Clearing
+  either kind leaves the other intact; the label remains until all non-ticket
+  blockers clear. Purely ticket-backed blockers still use only dependency edges.
+
 ## [v1.7.1] - 2026-09-05 — wizard write_env fails loudly
 
 ### Fixed

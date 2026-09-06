@@ -6,7 +6,7 @@ Use the available Codex question tool and its current schema, as described by gr
 
 ## Step 1: Authorized preflight
 
-Inspect CLI capabilities first. Doctor performs smoke calls across registered providers, so announce the call count and rough usage and check provider authorization before running it. For a subset, use individual version/auth checks and one authorized smoke call per proposed provider unless the installed command supports selection. Every offered seat must be verified GO; an unapproved provider is not contacted, including Anthropic smoke calls.
+Inspect CLI capabilities first. Doctor performs smoke calls across registered providers, so announce the call count and rough usage and check provider authorization before running it. For a subset, use individual version/auth checks and one authorized smoke call per proposed provider unless the installed command supports selection. Use the unverified/GO/NO-GO definitions in [preflight.md](preflight.md). Unverified providers may be presented as candidates for approval, but only approved GO seats are launch-ready. Unapproved providers are not contacted, including Anthropic smoke calls; missing authorization is not a technical failure.
 
 Report per-seat status in plain terms, e.g. `grok: installed but not logged in` or `gemini: CLI missing`, and for each broken seat offer exactly three choices:
 
@@ -51,7 +51,7 @@ Data-handling authorization (`references/data-handling.md`) remains required for
 
 ## Done when
 
-- Authorized preflight ran and every offered seat is GO; unavailable seats were resolved or reported.
+- Authorized preflight ran for the selected seats, all launch seats are GO, and unverified versus failed candidates are distinguished. Unavailable seats were resolved or reported; only the approved selection launches.
 - The user selected the mode, in the current request, a recorded plan, or an answer to the open choice.
 - The seat→provider→lens table was shown and confirmed; effort, rounds, and output each got an explicit answer or the confirmed default.
 - The resolved plan and any required data handling have explicit authorization, reused where the same scope was already approved.

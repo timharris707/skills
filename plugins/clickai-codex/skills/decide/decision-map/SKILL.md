@@ -1,6 +1,6 @@
 ---
 name: decision-map
-description: "Map interdependent open decisions when a project cannot yet be specified in one sitting."
+description: "When asked to chart a decision map, work a map ticket, or plan work whose open decisions gate each other, map the unresolved choices before build slices. Use for a new primitive, milestone charter, or integration that cannot yet be specified in one sitting."
 ---
 
 # Decision Map
