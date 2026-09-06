@@ -103,16 +103,20 @@ class ReviewSettledFilters(unittest.TestCase):
         pending = {"user": {"login": "coderabbitai[bot]"},
                    "body": f"<!-- auto-generated comment: summarize by coderabbit.ai -->\n<!-- auto-generated comment: review in progress by coderabbit.ai -->\nCurrently processing {rng}."}
         f = reviewed_filter()
-        def count(comments):
-            # The workflow feeds `--paginate` output (one JSON array per page) to jq -s,
-            # so the input is one page array; -s wraps it into the outer list itself.
+        def count(*pages):
+            # The workflow feeds `--paginate` output (one JSON array per page, one per
+            # line) to jq -s, which wraps the pages into the outer list itself.
+            stream = "\n".join(json.dumps(page) for page in pages)
             out = subprocess.run(["jq", "-s", "--arg", "head", head, f],
-                                 input=json.dumps(comments), capture_output=True, text=True, check=True)
+                                 input=stream, capture_output=True, text=True, check=True)
             return int(out.stdout.strip())
         self.assertEqual(count([walkthrough]), 1)
         self.assertEqual(count([limited]), 0)
         self.assertEqual(count([pending]), 0)
         self.assertEqual(count([limited, walkthrough]), 1)
+        # Across pages, as --paginate delivers them: the notice on one, the walkthrough on another.
+        self.assertEqual(count([limited], [walkthrough]), 1)
+        self.assertEqual(count([pending], [limited]), 0)
 
     def test_merge_condition_still_requires_a_reply(self) -> None:
         # The filters mean nothing if the exit condition stops consuming them (#288).
