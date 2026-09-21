@@ -32,13 +32,23 @@ Verified live on 2026-09-20 with this runner, on the development Mac:
   a backup. Runs against the newly approved apps succeeded seventeen minutes later with no
   restart of the ChatGPT app or any helper process by the operator. The helper service does
   not show up as a long-lived process, so it most likely reads the file on each call.
+- Finder by bundle ID after the user approved it: `done` on the accessibility text, but the
+  helper's screenshot of the Desktop window was a blank white image and the audit accepted
+  it. The validator now rejects a flat single-colour image as evidence.
+- The confirmation path, live, in Calculator: a brief whose last step (pressing AC after
+  1 + 2 =) was declared consequential. The model clicked AC, 1, +, 2, = with a fresh state
+  after each click, then stopped with `needs_confirmation` and the exact question; the
+  screenshot showed 1+2 and 3. `resume --answer "no, leave it showing 3"` ended `blocked`
+  with no Codex call (the proxy log shows zero requests). `resume --answer yes` continued
+  the same session, re-bootstrapped, re-observed, clicked AC once, and ended `done` with
+  the display at 0 and a matching screenshot. Turn 1's records were kept beside turn 2's.
 - Earlier hand probes: coordinate scroll, JSON reply schema, session resume by ID.
 
-Not yet verified live: any state-changing action through this runner (all live tests were
-read-only), the `needs_confirmation` stop and `resume` path (unit-tested against recorded
-event shapes only), apps beyond the three above, and any Mac other than this one. An app
-that has passed once is not a guarantee for a different window or task in that app. Do not
-tell the user that headless mode can drive an app until a run against it has passed.
+Not yet verified live: typing, paste, drag, secondary actions, and scrolling by element
+index through this runner; apps beyond the five above; any Mac other than this one. An
+app that has passed once is not a guarantee for a different window or task in that app.
+Do not tell the user that headless mode can drive an app until a run against it has
+passed.
 
 ## Before the first call in a session
 

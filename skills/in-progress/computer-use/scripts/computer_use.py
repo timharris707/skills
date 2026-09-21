@@ -32,6 +32,7 @@ import sqlite3
 import stat
 import subprocess
 import sys
+import tempfile
 import time
 import tomllib
 import urllib.parse
@@ -97,6 +98,12 @@ DATA_URL = re.compile(r"data:image/(png|jpeg|jpg|webp);base64,([A-Za-z0-9+/=]+)"
 FILE_URL = re.compile(r"file://(/[^\s'\"\\)]+)")
 IMAGE_MAGIC = {b"\x89PNG\r\n\x1a\n": "png", b"\xff\xd8\xff": "jpg", b"RIFF": "webp"}
 EVIDENCE_MAX_BYTES = 20 * 1024 * 1024
+# A screenshot that is one flat colour shows nothing (seen 2026-09-20: the helper
+# returned an all-white image for Finder's Desktop window). Images this small are
+# not checked; a real screenshot is far larger. Blank means: every row equals the
+# first row and that row is one pixel repeated (JPEG edge noise tolerated).
+FLAT_CHECK_MIN_PIXELS = 4096
+FLAT_ROW_MATCH_FRACTION = 0.9999
 # Where the Sky helper writes screenshots (verified 2026-09-20). Evidence must
 # come from here or from a path the event stream itself named.
 SKY_SHOT_DIR = Path(os.environ.get("TMPDIR", "/tmp")) / "com.openai.sky.CUAService"
@@ -847,13 +854,54 @@ def _real(p) -> str:
     return os.path.realpath(str(p))
 
 
+def image_is_flat(path: Path, workdir: Path | None = None) -> tuple[bool | None, str]:
+    """(verdict, note). True when the image is one flat colour (blank), False when it
+    has content, None when it could not be judged; the note says why. Decodes through
+    macOS `sips` into a private temp BMP, reads the real header (pixel offset, bits per
+    pixel, width, height) and compares whole rows: blank iff the first row is a single
+    pixel repeated and (near) every row equals it. Exact, channel-aware, C-speed."""
+    if not shutil.which("sips"):
+        return None, "blank check skipped: sips not available"
+    fd, tmp = tempfile.mkstemp(suffix=".bmp", dir=str(workdir) if workdir else None)
+    os.close(fd)
+    try:
+        r = subprocess.run(["sips", "-s", "format", "bmp", str(path), "--out", tmp], capture_output=True, timeout=30)
+        if r.returncode != 0:
+            return None, f"blank check skipped: sips could not decode ({r.stderr.decode(errors='replace').strip()[:80]})"
+        d = Path(tmp).read_bytes()
+    except (subprocess.TimeoutExpired, OSError) as exc:
+        return None, f"blank check skipped: {type(exc).__name__}"
+    finally:
+        Path(tmp).unlink(missing_ok=True)
+    if len(d) < 54 or d[:2] != b"BM":
+        return None, "blank check skipped: not a BMP after decode"
+    off = int.from_bytes(d[10:14], "little"); w = int.from_bytes(d[18:22], "little", signed=True)
+    h = abs(int.from_bytes(d[22:26], "little", signed=True)); bpp = int.from_bytes(d[28:30], "little")
+    px = bpp // 8
+    if px not in (1, 3, 4) or w <= 0 or h <= 0:
+        return None, f"blank check skipped: unexpected BMP layout ({bpp} bpp, {w}x{h})"
+    if w * h < FLAT_CHECK_MIN_PIXELS:
+        return None, "blank check skipped: image too small to judge"
+    stride = (w * px + 3) // 4 * 4
+    if off + stride * h > len(d):
+        return None, "blank check skipped: truncated BMP"
+    row0 = d[off:off + w * px]
+    if row0 != row0[:px] * w:
+        return False, "has content"
+    same = sum(1 for y in range(h) if d[off + y * stride: off + y * stride + w * px] == row0)
+    if same / h >= FLAT_ROW_MATCH_FRACTION:
+        return True, f"blank: one flat colour across {same}/{h} rows"
+    return False, "has content"
+
+
 def validate_evidence(items: list, shots_dir: Path, allowed_sources: list | None = None,
-                      stream_text: str = "", prefix: str = "t1") -> tuple[list[str], list[str]]:
+                      stream_text: str = "", prefix: str = "t1", notes: list | None = None) -> tuple[list[str], list[str]]:
     """Copy each evidence item the model named into the private run dir, but only
     if it is an image THIS RUN produced: a regular file (no symlinks) under the Sky
     screenshot folder or named in the event stream, or a data URL that appears in
     the stream. Size-capped, magic-bytes checked, never overwritten."""
     ok, rejected = [], []
+    notes = notes if notes is not None else []
     shots_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
     allowed = {_real(p) for p in (allowed_sources or [])}
     sky_dir = _real(SKY_SHOT_DIR)
@@ -892,6 +940,13 @@ def validate_evidence(items: list, shots_dir: Path, allowed_sources: list | None
                 continue
             dest = dest_for(f"evidence-{n:02d}.{ext}")
             dest.write_bytes(data)
+            flat, why = image_is_flat(dest, workdir=shots_dir)
+            if flat:
+                dest.unlink()
+                rejected.append(f"data URL {n}: blank image (one flat colour); it shows nothing")
+                continue
+            if flat is None:
+                notes.append(f"data URL {n}: {why}")
             ok.append(str(dest))
             continue
         path = s[len("file://"):] if s.startswith("file://") else s
@@ -927,6 +982,12 @@ def validate_evidence(items: list, shots_dir: Path, allowed_sources: list | None
         if not ext_for(head):
             rejected.append(f"{s}: not a PNG, JPEG, or WebP")
             continue
+        flat, why = image_is_flat(src, workdir=shots_dir)
+        if flat:
+            rejected.append(f"{s}: blank image (one flat colour); it shows nothing")
+            continue
+        if flat is None:
+            notes.append(f"{s}: {why}")
         dest = dest_for(f"evidence-{n:02d}-{src.name}")
         shutil.copyfile(src, dest)
         ok.append(str(dest))
@@ -957,7 +1018,7 @@ def _base_result(run_dir: Path, target: dict, task: dict, effort: str) -> dict:
         "session_id": None,
         "target": {k: (target or {}).get(k) for k in ("input", "display_name", "bundle_id")},
         "confirmation_reason": "none", "observed_before": "", "observed_after": "",
-        "evidence": [], "evidence_rejected": [], "actions_recorded": [], "model_actions_claimed": [],
+        "evidence": [], "evidence_rejected": [], "evidence_notes": [], "actions_recorded": [], "model_actions_claimed": [],
         "other_tool_calls": [], "risky_signals": [], "lint": [], "screenshots_seen": [],
         "reason": "", "effort": effort,
         "task": {k: (task or {}).get(k) for k in ("goal", "done", "start", "allow", "forbid", "preapproved")},
@@ -1029,9 +1090,11 @@ def audit(run_dir: Path, reply: dict | None, reply_error: str | None, launch: di
     result["observed_before"] = str(reply.get("observed_before", ""))
     result["observed_after"] = str(reply.get("observed_after", ""))
     result["model_actions_claimed"] = list(reply.get("actions_taken") or [])
+    notes: list = []
     result["evidence"], result["evidence_rejected"] = validate_evidence(
         reply.get("evidence"), run_dir / "shots", allowed_sources=result["screenshots_seen"],
-        stream_text=joined, prefix=f"t{turn}")
+        stream_text=joined, prefix=f"t{turn}", notes=notes)
+    result["evidence_notes"] = notes
     status = reply["status"]
     reason = str(reply.get("reason", ""))
 
@@ -1069,7 +1132,7 @@ def audit(run_dir: Path, reply: dict | None, reply_error: str | None, launch: di
         elif not actions:
             status, reason = "failed", "model reported done but no Sky call was recorded in the event stream"
         elif reply.get("evidence") and not result["evidence"]:
-            status, reason = "failed", f"none of the named evidence was produced by this run: {result['evidence_rejected']}"
+            status, reason = "failed", f"no usable evidence survived validation: {result['evidence_rejected']}"
     if status == "needs_confirmation" and result["confirmation_reason"] == "none":
         result["confirmation_reason"] = "other"
     result["status"], result["reason"] = status, reason

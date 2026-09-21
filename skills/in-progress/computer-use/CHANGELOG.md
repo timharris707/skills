@@ -38,6 +38,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   plan` reports an unreadable approval file instead of proposing to add everything; a
   bundle ID can no longer start with `-`.
 
+- Evidence validation rejects a flat single-colour image: the helper returned an all-white
+  1366x768 screenshot for Finder's Desktop window and the audit had accepted it as proof.
+  The check decodes through macOS `sips` into a private temp file, reads the real BMP
+  header, and compares whole rows (blank iff the first row is one pixel repeated and every
+  row equals it). A first cut sampled bytes and, per its review, called real screenshots
+  with narrow content blank; the row form rejects both blank Finder images and none of the
+  27 real screenshots in the day's corpus. A check that could not run is recorded in
+  `evidence_notes` rather than passing silently.
+
 ### Verified live, 2026-09-20 evening
 
 - End to end on all four of the user's Codex profiles: live preflight and a read-only
@@ -46,7 +55,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   boundary, no model call. Approval file grew 1 to 77 IDs with backup; the helper honoured
   the change without any restart. All calls routed through the local proxy.
 
+- Later the same evening: Finder `done` after the user approved it (screenshot came back
+  blank, which led to the flat-image rejection above); the confirmation path live in
+  Calculator: stop before the declared final step, `no` blocks with zero Codex calls, `yes`
+  resumes the same session and completes with a matching screenshot.
+
 ### Not yet verified
 
-- Any state-changing action, the live `needs_confirmation` and `resume` path, apps beyond
-  the three tested, other Macs.
+- Typing, paste, drag, secondary actions, index scrolling through this runner; apps beyond
+  the five tested; other Macs.

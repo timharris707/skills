@@ -833,6 +833,43 @@ class TestEvidence(Base):
         self.assertTrue(any("symlink" in r for r in rejected)); self.assertTrue(any("not a PNG" in r for r in rejected))
         self.assertTrue(any("larger than" in r for r in rejected))
 
+    @unittest.skipUnless(__import__("shutil").which("sips"), "macOS sips needed to decode images")
+    def test_blank_screenshots_are_rejected_and_real_ones_kept(self):
+        """live 2026-09-20: the helper returned an all-white image for Finder's Desktop window and the
+        audit accepted it as evidence."""
+        import struct, subprocess
+        def bmp(w, h, pixel):   # 24-bit BMP with a pixel function (x, y) -> (b, g, r)
+            row = lambda y: b"".join(bytes(pixel(x, y)) for x in range(w)) + b"\0" * ((4 - (w * 3) % 4) % 4)
+            body = b"".join(row(y) for y in range(h))
+            hdr = struct.pack("<2sIHHI", b"BM", 54 + len(body), 0, 0, 54) + struct.pack("<IiiHHIIiiII", 40, w, h, 1, 24, 0, len(body), 2835, 2835, 0, 0)
+            return hdr + body
+        flat_bmp = cu.SKY_SHOT_DIR / "flat.bmp"; flat_bmp.write_bytes(bmp(80, 80, lambda x, y: (255, 255, 255)))
+        real_bmp = cu.SKY_SHOT_DIR / "real.bmp"; real_bmp.write_bytes(bmp(80, 80, lambda x, y: (x * 3 % 256, y * 3 % 256, (x + y) % 256)))
+        flat = cu.SKY_SHOT_DIR / "flat.png"; real = cu.SKY_SHOT_DIR / "real.png"
+        for src, dst in ((flat_bmp, flat), (real_bmp, real)):
+            subprocess.run(["sips", "-s", "format", "png", str(src), "--out", str(dst)], capture_output=True, check=True)
+        self.assertTrue(cu.image_is_flat(flat)[0]); self.assertFalse(cu.image_is_flat(real)[0])
+        self.assertIsNone(cu.image_is_flat(self.shot("tiny.png"))[0])   # 1x1: too small to judge
+        # review: the old byte-sampling rule called these real images blank.
+        narrow_bmp = cu.SKY_SHOT_DIR / "narrow.bmp"; narrow_bmp.write_bytes(bmp(200, 120, lambda x, y: (60, 60, 60) if 90 <= x < 100 else (255, 255, 255)))
+        redpanel_bmp = cu.SKY_SHOT_DIR / "redpanel.bmp"; redpanel_bmp.write_bytes(bmp(160, 120, lambda x, y: (48, 150, 230) if x < 80 and y < 60 else (48, 48, 48)))
+        tinted_bmp = cu.SKY_SHOT_DIR / "tinted.bmp"; tinted_bmp.write_bytes(bmp(80, 80, lambda x, y: (30, 20, 10)))   # blank in a colour whose channels differ
+        for name in ("narrow", "redpanel", "tinted"):
+            subprocess.run(["sips", "-s", "format", "png", str(cu.SKY_SHOT_DIR / f"{name}.bmp"), "--out", str(cu.SKY_SHOT_DIR / f"{name}.png")], capture_output=True, check=True)
+        self.assertFalse(cu.image_is_flat(cu.SKY_SHOT_DIR / "narrow.png")[0])
+        self.assertFalse(cu.image_is_flat(cu.SKY_SHOT_DIR / "redpanel.png")[0])
+        self.assertTrue(cu.image_is_flat(cu.SKY_SHOT_DIR / "tinted.png")[0])
+        notes = []
+        ok, rejected = cu.validate_evidence([str(flat), str(real), str(cu.SKY_SHOT_DIR / "narrow.png")], self.root / "shots", notes=notes)
+        self.assertEqual(len(ok), 2); self.assertTrue(ok[0].endswith("real.png"))
+        self.assertTrue(any("blank image" in r for r in rejected))
+        self.assertEqual(notes, [])
+        # An undecodable file is skipped with a recorded note, not silently accepted.
+        junk = cu.SKY_SHOT_DIR / "junk.png"; junk.write_bytes(b"\x89PNG\r\n\x1a\n" + b"garbage" * 700)
+        v, why = cu.image_is_flat(junk); self.assertIsNone(v); self.assertIn("skipped", why)
+        # No stray temp files next to the source.
+        self.assertEqual([f for f in os.listdir(cu.SKY_SHOT_DIR) if "flatcheck" in f or f.endswith(".tmp")], [])
+
     def test_evidence_never_overwrites_across_turns(self):
         """review: turn 2's evidence-00 used to replace turn 1's."""
         shot = self.shot("w.png")
@@ -845,7 +882,7 @@ class TestEvidence(Base):
     def test_done_with_only_unproduced_evidence_fails(self):
         events = [ev_thread(), ev_call(OBS, "t")]
         res = self.audit(events, reply(evidence=["/var/folders/x/Chrome%20Screenshot.jpeg"]))
-        self.assertEqual(res["status"], "failed"); self.assertIn("none of the named evidence was produced", res["reason"])
+        self.assertEqual(res["status"], "failed"); self.assertIn("no usable evidence survived validation", res["reason"])
 
     def test_screenshot_refs_from_stream_accept_both_forms(self):
         calls = [{"result": "screenshot: { url: 'file:///tmp/a%20b.jpeg' }", "code": ""}, {"result": "data:image/jpeg;base64,AAAA", "code": ""}]
