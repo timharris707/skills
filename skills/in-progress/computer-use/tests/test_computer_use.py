@@ -473,6 +473,21 @@ class TestInventoryAndPlan(Base):
         self.assertEqual([a["path"] for a in apps if a["bundle_id"] == "com.example.fake"], [str(dupe.parent)])
         self.assertNotIn(str(deep.parent), whys)   # too deep: not an app folder, silently outside scope
 
+    def test_spotlight_failure_is_loud_not_empty(self):
+        """CodeRabbit #296: mdfind failure used to look like 'no apps installed'."""
+        def broken(q):
+            raise cu.SpotlightUnavailable("mdfind failed: TimeoutExpired")
+        inv = cu.installed_apps(mdfind=broken, roots=(str(self.root),), extras=())
+        self.assertEqual(list(inv), []); self.assertIn("TimeoutExpired", inv.error)
+        plan = cu.approvals_plan({"path": "/p", "ids": ["com.google.Chrome"], "error": None, "exists": True}, inv)
+        self.assertIn("TimeoutExpired", plan["inventory_error"]); self.assertIsNone(plan["add_command"]); self.assertEqual(plan["unapproved"], [])
+        r = cu.resolve_app("com.example.fake", mdfind=broken)
+        self.assertEqual(r["bundle_id"], "com.example.fake"); self.assertIn("TimeoutExpired", r["error"])
+        r = cu.resolve_app("Fake", mdfind=broken)
+        self.assertIsNone(r["bundle_id"]); self.assertIn("TimeoutExpired", r["error"])
+        rep = cu.preflight("Fake", env={"CODEX_HOME": str(self.healthy_home())}, run=fake_cli(), tcc_db=self.tcc(), mdfind=broken)
+        self.assertTrue(any("could not look up 'Fake'" in p for p in rep["problems"]))
+
     def test_is_bundle_id_rejects_flag_shaped_ids(self):
         self.assertFalse(cu.is_bundle_id("--yes.evil")); self.assertFalse(cu.is_bundle_id("-a.b")); self.assertTrue(cu.is_bundle_id("a-b.c"))
 
@@ -730,6 +745,12 @@ class TestConfirmationAndResume(Base):
         self.assertEqual(pending["last_verified_state"], "Compose window with To: a@b.test")
         self.assertEqual(pending["run_dir"], res["run_dir"])
         self.assertEqual(pending["target"]["bundle_id"], "com.example.fake")
+
+    def test_pending_is_written_atomically(self):
+        res = self.first_run()
+        run_dir = Path(res["run_dir"])
+        self.assertEqual([f for f in os.listdir(run_dir) if f.startswith(".pending.json.tmp")], [])
+        json.loads((run_dir / "pending.json").read_text())   # whole and parseable
 
     def test_needs_confirmation_without_question_fails(self):
         events = [ev_thread(), ev_call(OBS, "t")]

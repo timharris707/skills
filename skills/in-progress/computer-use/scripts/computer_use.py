@@ -144,12 +144,20 @@ def is_bundle_id(s: str) -> bool:
     return bool(BUNDLE_ID_RE.fullmatch(s)) and not any(ch in s for ch in "*?[]") and s == s.strip()
 
 
+class SpotlightUnavailable(RuntimeError):
+    """mdfind could not run. Distinct from "no results": callers report it, never
+    treat it as an empty inventory."""
+
+
 def _mdfind(query: str) -> list[str]:
-    """Spotlight lookup. Read-only; never launches the app (osascript would)."""
+    """Spotlight lookup. Read-only; never launches the app (osascript would).
+    Raises SpotlightUnavailable when mdfind itself fails or times out."""
     try:
-        out = subprocess.run(["mdfind", query], capture_output=True, text=True, timeout=10)
-    except (OSError, subprocess.TimeoutExpired):
-        return []
+        out = subprocess.run(["/usr/bin/mdfind", query], capture_output=True, text=True, timeout=10)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise SpotlightUnavailable(f"mdfind failed: {type(exc).__name__}") from exc
+    if out.returncode != 0:
+        raise SpotlightUnavailable(f"mdfind exited {out.returncode}: {out.stderr.strip()[:120]}")
     return [line for line in out.stdout.splitlines() if line.strip()]
 
 
@@ -166,7 +174,19 @@ def resolve_app(target: str, mdfind=_mdfind) -> dict:
     """Return {"input", "bundle_id", "display_name", "path", "how"}; bundle_id is
     None when nothing on disk matched. No allowlist, no denylist, no launch."""
     t = target.strip()
-    res = {"input": t, "bundle_id": None, "display_name": None, "path": None, "how": None}
+    res = {"input": t, "bundle_id": None, "display_name": None, "path": None, "how": None, "error": None}
+    try:
+        return _resolve_app(t, res, mdfind)
+    except SpotlightUnavailable as exc:
+        res["error"] = str(exc)
+        if is_bundle_id(t):
+            res.update(bundle_id=t, how="bundle-id")   # the ID itself is still usable
+        else:
+            res.update(display_name=t, how="display-name")
+        return res
+
+
+def _resolve_app(t: str, res: dict, mdfind) -> dict:
     if t.endswith(".app") and Path(t).expanduser().is_dir():
         p = Path(t).expanduser().resolve()
         info = _info_plist(p)
@@ -311,7 +331,11 @@ def installed_apps(mdfind=_mdfind, roots: tuple = APP_ROOTS, extras: tuple = APP
     user asking "why isn't X here" gets an answer; callers that want only the apps
     read `.apps`."""
     apps, seen, skipped = {}, {}, []
-    hits = sorted(set(mdfind("kMDItemKind == 'Application'")) | {e for e in extras if Path(e).is_dir()})
+    try:
+        found = set(mdfind("kMDItemKind == 'Application'"))
+    except SpotlightUnavailable as exc:
+        return AppInventory([], [], error=str(exc))
+    hits = sorted(found | {e for e in extras if Path(e).is_dir()})
     for hit in hits:
         p = Path(hit)
         if p.suffix != ".app" or not (_top_level_app(p, roots) or hit in extras):
@@ -335,10 +359,12 @@ def installed_apps(mdfind=_mdfind, roots: tuple = APP_ROOTS, extras: tuple = APP
 
 
 class AppInventory(list):
-    """A list of apps that also carries what was skipped and why."""
-    def __init__(self, apps, skipped):
+    """A list of apps that also carries what was skipped and why, and an error
+    when the inventory could not be taken at all."""
+    def __init__(self, apps, skipped, error: str | None = None):
         super().__init__(apps)
         self.skipped = skipped
+        self.error = error
 
 
 def approvals_plan(approvals: dict, apps: list[dict]) -> dict:
@@ -349,11 +375,12 @@ def approvals_plan(approvals: dict, apps: list[dict]) -> dict:
     plan = {
         "approval_file": approvals.get("path"),
         "approval_file_error": approvals.get("error") or (None if approvals.get("exists") else "approval file does not exist"),
+        "inventory_error": getattr(apps, "error", None),
         "installed": len(apps),
         "skipped": list(getattr(apps, "skipped", [])),
         "approved_installed": [], "unapproved": [], "approved_not_installed": [], "add_command": None,
     }
-    if plan["approval_file_error"]:
+    if plan["approval_file_error"] or plan["inventory_error"]:
         return plan
     approved = set(approvals.get("ids", []))
     todo = [b for b in sorted(installed) if b not in approved]
@@ -530,6 +557,8 @@ def preflight(app: str | None, env: dict | None = None, mdfind=_mdfind, run=_run
             report["problems"].append(
                 f"{target['display_name'] or app} ({target['bundle_id']}) is not in the persistent approval file; "
                 f"a headless run will be refused. Fix: `computer_use.py approvals add --bundle-id {target['bundle_id']} --yes`")
+        elif target.get("error") and not target["bundle_id"]:
+            report["problems"].append(f"could not look up {app!r}: {target['error']}; pass the bundle ID or .app path")
         elif not target["bundle_id"]:
             report["problems"].append(
                 f"could not resolve a bundle ID for {app!r}; pass the bundle ID or .app path so approval can be checked")
@@ -1164,13 +1193,16 @@ def write_pending(run_dir: Path, result: dict) -> Path:
     """Everything a later resume needs, kept beside the run: exact question,
     session ID, last verified state, run directory."""
     p = run_dir / "pending.json"
-    p.write_text(json.dumps({
+    payload = json.dumps({
         "session_id": result["session_id"], "question": result["question"],
         "confirmation_reason": result["confirmation_reason"],
         "last_verified_state": result["observed_after"] or result["observed_before"],
         "evidence": result["evidence"], "run_dir": str(run_dir), "target": result["target"],
         "effort": result["effort"], "created": dt.datetime.now().isoformat(timespec="seconds"),
-    }, indent=2), encoding="utf-8")
+    }, indent=2)
+    tmp = run_dir / f".pending.json.tmp-{os.getpid()}"
+    tmp.write_text(payload, encoding="utf-8")
+    os.replace(tmp, p)   # atomic: a crash leaves either no pending.json or a whole one
     return p
 
 
@@ -1409,7 +1441,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.acmd == "plan":
             plan = approvals_plan(inspect_approvals(), installed_apps())
             _print(plan)
-            return 2 if plan["approval_file_error"] else 0
+            return 2 if (plan["approval_file_error"] or plan["inventory_error"]) else 0
         if not args.yes:
             print("refusing: `approvals add` edits the Computer Use approval file. Re-run with --yes.", file=sys.stderr)
             return 2

@@ -207,7 +207,7 @@ Never copy screenshots anywhere else without the user asking.
 ## Done when (checkable: verify each line before reporting complete)
 
 - Preflight ran once this session and exited 0, or its problems were reported unchanged.
-- Every call was one bounded subtask with a `--done` the user could see on screen and explicit `--allow` and `--forbid`.
+- Every call was one bounded subtask with explicit `--allow` and `--forbid`, and a `--done` that names something checkable in fresh accessibility text or a screenshot (a window title, a field value, an element present), not a feeling of completion.
 - `result.json` was read, and the report to the user gives its status, `actions_recorded` in plain words, and the screenshot paths.
 - Any `risky_signals`, `lint`, `other_tool_calls`, or `evidence_rejected` entries were mentioned, even on `done`.
 - Any `needs_confirmation` was put to the user verbatim and resumed only with their exact words.
