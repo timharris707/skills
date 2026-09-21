@@ -375,6 +375,30 @@ def privacy_status(db: Path = TCC_DB, client: str = HELPER_BUNDLE_ID) -> dict:
     return out
 
 
+def routing(home: Path) -> dict:
+    """Where a live call would send its requests, read from the profile's
+    config.toml: the named model_provider and its base_url, or direct to OpenAI
+    when none is set. Read-only; lets the caller confirm billing goes where the
+    user expects before spending anything."""
+    out = {"config": str(home / "config.toml"), "model": None, "model_provider": None, "base_url": None, "direct": True}
+    try:
+        text = (home / "config.toml").read_text(encoding="utf-8")
+    except OSError:
+        out["config"] = None
+        return out
+    m = re.search(r'^model\s*=\s*"([^"]*)"', text, re.M)
+    out["model"] = m.group(1) if m else None
+    m = re.search(r'^model_provider\s*=\s*"([^"]*)"', text, re.M)
+    if m:
+        out["model_provider"] = m.group(1)
+        out["direct"] = False
+        sect = re.search(rf'^\[model_providers\.{re.escape(m.group(1))}\]\s*$(.*?)(?=^\[|\Z)', text, re.M | re.S)
+        if sect:
+            b = re.search(r'^base_url\s*=\s*"([^"]*)"', sect.group(1), re.M)
+            out["base_url"] = b.group(1) if b else None
+    return out
+
+
 def approval_state(bundle_id: str | None, approvals: dict) -> str:
     """'approved' | 'not-approved' | 'unknown'. Headless runs see the file only;
     the Codex desktop session can hold approvals in memory that this cannot see."""
@@ -396,6 +420,7 @@ def preflight(app: str | None, env: dict | None = None, mdfind=_mdfind, run=_run
         "codex_version": codex_version(run),
         "computer_use_feature": computer_use_feature(run),
         "helper": helper_status(home, run),
+        "routing": routing(home),
         "privacy": privacy_status(tcc_db),
         "approvals": inspect_approvals(),
         "target": None,

@@ -194,6 +194,24 @@ class TestProfilePaths(Base):
         st = cu.privacy_status(db=self.tcc(access=2, screen=0))
         self.assertTrue(st["Accessibility"]); self.assertFalse(st["Screen Recording"])
 
+    def test_routing_reads_provider_and_base_url(self):
+        home = self.root / "p"; home.mkdir()
+        (home / "config.toml").write_text('model = "gpt-6-astra"\nmodel_reasoning_effort = "medium"\n')
+        r = cu.routing(home)
+        self.assertEqual((r["model"], r["model_provider"], r["base_url"], r["direct"]), ("gpt-6-astra", None, None, True))
+        (home / "config.toml").write_text('model = "gpt-6-astra"\nmodel_provider = "cliproxyapi"\n\n'
+                                          '[model_providers.cliproxyapi]\nname = "x"\nbase_url = "http://127.0.0.1:8317/v1"\n\n[other]\nbase_url = "nope"\n')
+        r = cu.routing(home)
+        self.assertEqual((r["model_provider"], r["base_url"], r["direct"]), ("cliproxyapi", "http://127.0.0.1:8317/v1", False))
+        self.assertIsNone(cu.routing(self.root / "missing")["config"])
+
+    def test_preflight_reports_routing(self):
+        home = self.healthy_home()
+        (home / "config.toml").write_text('model_provider = "cliproxyapi"\n[model_providers.cliproxyapi]\nbase_url = "http://127.0.0.1:8317/v1"\n')
+        rep = cu.preflight(None, env={"CODEX_HOME": str(home)}, run=fake_cli(), tcc_db=self.tcc())
+        self.assertEqual(rep["routing"]["base_url"], "http://127.0.0.1:8317/v1")
+        self.assertFalse(rep["routing"]["direct"])
+
     def test_preflight_green_path(self):
         home = self.healthy_home()
         rep = cu.preflight(None, env={"CODEX_HOME": str(home)}, run=fake_cli(), tcc_db=self.tcc())
