@@ -738,6 +738,34 @@ class TestEvidence(Base):
             self.assertTrue(d.exists(), d)
 
 
+# ------------------------------------- real codex exec --json shapes
+
+FIXTURES = Path(__file__).resolve().parent / "fixtures"
+
+
+class TestRealStreams(Base):
+    """Sanitized `codex exec --json` streams recorded on 2026-09-20 (tree text,
+    shell commands, and model prose redacted; event shapes and the model's JS kept).
+    If Codex changes its event format, these fail before a live run would."""
+
+    def test_chrome_scroll_stream(self):
+        parsed = cu.parse_events(FIXTURES / "chrome-scroll-2026-09-20.jsonl")
+        self.assertTrue(parsed["session_id"]); self.assertEqual(parsed["malformed_lines"], 0)
+        acts = cu.record_actions(parsed["calls"])
+        self.assertEqual([a["method"] for a in acts], ["get_app_state", "scroll", "scroll"])
+        self.assertTrue(all(a["parsed"] for a in acts))
+        self.assertTrue(cu.screenshot_refs(parsed["calls"])[0].endswith("Chrome Screenshot 2026-09-20.jpeg"))
+        lint = cu.lint_actions(acts, parsed["calls"])
+        self.assertTrue(any("end state unverified" in f for f in lint))   # the probe ended on a scroll
+
+    def test_stream_with_shell_commands_is_seen(self):
+        parsed = cu.parse_events(FIXTURES / "chrome-scroll-with-shell-2026-09-20.jsonl")
+        self.assertEqual([o["kind"] for o in parsed["other_tool_calls"]], ["command_execution", "command_execution"])
+        self.assertIn("failed", {c["status"] for c in parsed["calls"]})
+        acts = cu.record_actions(parsed["calls"])
+        self.assertTrue(any("scroll without element_index" in f for f in cu.lint_actions(acts, parsed["calls"])))
+
+
 # ------------------------------------------- helper, timeout, malformed
 
 class TestFailClosed(Base):
