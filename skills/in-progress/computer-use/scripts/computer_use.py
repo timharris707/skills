@@ -269,16 +269,21 @@ def add_approvals(bundle_ids: list[str], path: Path = APPROVALS_PATH, now: dt.da
 
 APP_ROOTS = ("/Applications", "/System/Applications", "/System/Applications/Utilities",
              str(Path.home() / "Applications"))
+# Apps users ask for that live outside the standard folders. Finder sits in
+# CoreServices with dozens of internal apps nobody drives; list it by name.
+APP_EXTRAS = ("/System/Library/CoreServices/Finder.app",)
 
 
-def installed_apps(mdfind=_mdfind, roots: tuple = APP_ROOTS) -> list[dict]:
-    """Every top-level .app under the standard app folders, with its exact bundle
-    ID. Spotlight is read-only and nothing is launched. Helper apps nested inside
-    other bundles are skipped; they are not things a user asks to drive."""
+def installed_apps(mdfind=_mdfind, roots: tuple = APP_ROOTS, extras: tuple = APP_EXTRAS) -> list[dict]:
+    """Every top-level .app under the standard app folders plus the named extras,
+    with its exact bundle ID. Spotlight is read-only and nothing is launched.
+    Helper apps nested inside other bundles are skipped; they are not things a
+    user asks to drive."""
     apps, seen = [], set()
-    for hit in mdfind("kMDItemKind == 'Application'"):
+    hits = list(mdfind("kMDItemKind == 'Application'")) + [e for e in extras if Path(e).is_dir()]
+    for hit in hits:
         p = Path(hit)
-        if str(p.parent) not in roots or p.suffix != ".app":
+        if (str(p.parent) not in roots and hit not in extras) or p.suffix != ".app":
             continue
         try:
             info = _info_plist(p)

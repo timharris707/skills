@@ -389,9 +389,16 @@ class TestInventoryAndPlan(Base):
             plistlib.dump({"CFBundleIdentifier": "com.example.nested"}, fh)
         broken = self.root / "Broken.app" / "Contents"; broken.mkdir(parents=True)
         hits = [str(self.fake_app), str(nested.parent), str(self.root / "Broken.app"), "/elsewhere/Other.app"]
-        apps = cu.installed_apps(mdfind=lambda q: hits, roots=(str(self.root),))
+        apps = cu.installed_apps(mdfind=lambda q: hits, roots=(str(self.root),), extras=())
         self.assertEqual([a["bundle_id"] for a in apps], ["com.example.fake"])
         self.assertEqual(apps[0]["name"], "Fake")
+        # Extras outside the roots (Finder in CoreServices) are included when present.
+        extra = self.root / "Core" / "Extra.app" / "Contents"; extra.mkdir(parents=True)
+        with (extra / "Info.plist").open("wb") as fh:
+            plistlib.dump({"CFBundleIdentifier": "com.example.extra"}, fh)
+        apps = cu.installed_apps(mdfind=lambda q: hits, roots=(str(self.root),),
+                                 extras=(str(extra.parent), str(self.root / "Core" / "Missing.app")))
+        self.assertEqual([a["bundle_id"] for a in apps], ["com.example.extra", "com.example.fake"])
 
     def test_plan_is_a_diff_and_writes_nothing(self):
         f = self.root / "ComputerUseAppApprovals.json"
