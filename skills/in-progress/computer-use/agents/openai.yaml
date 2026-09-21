@@ -1,0 +1,3 @@
+interface:
+  display_name: "Computer Use"
+  short_description: "Hand a Mac GUI subtask to Codex Computer Use and get a checked result"

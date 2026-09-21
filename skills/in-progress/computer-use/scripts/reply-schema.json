@@ -1,0 +1,16 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["status", "summary", "question", "confirmation_reason", "observed_before", "observed_after", "evidence", "actions_taken", "reason"],
+  "properties": {
+    "status": {"type": "string", "enum": ["done", "needs_confirmation", "blocked", "failed"]},
+    "summary": {"type": "string", "description": "One or two plain sentences: what was done and what the final state is."},
+    "question": {"type": "string", "description": "Empty unless status is needs_confirmation. Then: the exact yes/no question, naming what will happen and to whom."},
+    "confirmation_reason": {"type": "string", "enum": ["none", "send", "submit", "delete", "permissions", "money", "sensitive_data", "other"]},
+    "observed_before": {"type": "string", "description": "What the app showed before the first action (from accessibility text or screenshot)."},
+    "observed_after": {"type": "string", "description": "What the app shows now, as observed by a fresh get_app_state after the last action."},
+    "evidence": {"type": "array", "items": {"type": "string"}, "description": "Absolute screenshot paths (no file:// prefix) or data URLs that support the summary."},
+    "actions_taken": {"type": "array", "items": {"type": "string"}, "description": "One line per UI action, in order."},
+    "reason": {"type": "string", "description": "Empty unless status is blocked or failed. Then: the exact error or obstacle, quoted."}
+  }
+}
