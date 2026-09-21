@@ -33,6 +33,7 @@ import stat
 import subprocess
 import sys
 import time
+import tomllib
 import urllib.parse
 from pathlib import Path
 
@@ -127,11 +128,12 @@ def helper_client(home: Path) -> Path:
 # App resolution (open-ended: any display name, .app path, or bundle ID)
 # ----------------------------------------------------------------------------
 
-BUNDLE_ID_RE = re.compile(r"[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+\Z")
+BUNDLE_ID_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9-]*(\.[A-Za-z0-9-]+)+\Z")
 
 
 def is_bundle_id(s: str) -> bool:
-    """Exact bundle ID: ASCII, dotted, no whitespace, no wildcard characters."""
+    """Exact bundle ID: ASCII, dotted, starts alphanumeric (so it can never read
+    as a flag), no whitespace, no wildcard characters."""
     return bool(BUNDLE_ID_RE.fullmatch(s)) and not any(ch in s for ch in "*?[]") and s == s.strip()
 
 
@@ -147,7 +149,10 @@ def _mdfind(query: str) -> list[str]:
 def _info_plist(app_path: Path) -> dict:
     plist = app_path / "Contents" / "Info.plist"
     with plist.open("rb") as fh:
-        return plistlib.load(fh)
+        info = plistlib.load(fh)
+    if not isinstance(info, dict):
+        raise plistlib.InvalidFileException("Info.plist root is not a dictionary")
+    return info
 
 
 def resolve_app(target: str, mdfind=_mdfind) -> dict:
@@ -274,43 +279,84 @@ APP_ROOTS = ("/Applications", "/System/Applications", "/System/Applications/Util
 APP_EXTRAS = ("/System/Library/CoreServices/Finder.app",)
 
 
+def _top_level_app(p: Path, roots: tuple) -> bool:
+    """An app the user could ask to drive: under one of the roots, at most one
+    folder deep (vendor folders like /Applications/Adobe X/X.app count), and not
+    inside another .app bundle (helpers are not user-facing)."""
+    parts = p.parts
+    if any(part.endswith(".app") for part in parts[:-1]):
+        return False
+    for root in roots:
+        r = Path(root.rstrip("/"))
+        try:
+            rel = p.relative_to(r)
+        except ValueError:
+            continue
+        if 1 <= len(rel.parts) <= 2:
+            return True
+    return False
+
+
 def installed_apps(mdfind=_mdfind, roots: tuple = APP_ROOTS, extras: tuple = APP_EXTRAS) -> list[dict]:
-    """Every top-level .app under the standard app folders plus the named extras,
-    with its exact bundle ID. Spotlight is read-only and nothing is launched.
-    Helper apps nested inside other bundles are skipped; they are not things a
-    user asks to drive."""
-    apps, seen = [], set()
-    hits = list(mdfind("kMDItemKind == 'Application'")) + [e for e in extras if Path(e).is_dir()]
+    """Every user-facing .app under the standard app folders (at most one vendor
+    folder deep) plus the named extras, with its exact bundle ID. Spotlight is
+    read-only and nothing is launched. Returns the apps AND a `skipped` list so a
+    user asking "why isn't X here" gets an answer; callers that want only the apps
+    read `.apps`."""
+    apps, seen, skipped = {}, {}, []
+    hits = sorted(set(mdfind("kMDItemKind == 'Application'")) | {e for e in extras if Path(e).is_dir()})
     for hit in hits:
         p = Path(hit)
-        if (str(p.parent) not in roots and hit not in extras) or p.suffix != ".app":
+        if p.suffix != ".app" or not (_top_level_app(p, roots) or hit in extras):
             continue
         try:
             info = _info_plist(p)
-        except (OSError, plistlib.InvalidFileException):
+        except (OSError, plistlib.InvalidFileException, ValueError) as exc:
+            skipped.append({"path": hit, "why": f"Info.plist unreadable: {exc or type(exc).__name__}"})
             continue
         bid = info.get("CFBundleIdentifier")
-        if not bid or bid in seen or not is_bundle_id(bid):
+        if not bid or not isinstance(bid, str) or not is_bundle_id(bid):
+            skipped.append({"path": hit, "why": f"no valid CFBundleIdentifier ({bid!r})"})
             continue
-        seen.add(bid)
-        apps.append({"name": p.stem, "bundle_id": bid, "path": str(p)})
-    return sorted(apps, key=lambda a: a["name"].lower())
+        if bid in seen:
+            skipped.append({"path": hit, "why": f"same bundle ID as {seen[bid]}"})
+            continue
+        seen[bid] = hit
+        apps[bid] = {"name": p.stem, "bundle_id": bid, "path": hit}
+    out = sorted(apps.values(), key=lambda a: a["name"].lower())
+    return AppInventory(out, skipped)
+
+
+class AppInventory(list):
+    """A list of apps that also carries what was skipped and why."""
+    def __init__(self, apps, skipped):
+        super().__init__(apps)
+        self.skipped = skipped
 
 
 def approvals_plan(approvals: dict, apps: list[dict]) -> dict:
     """What `approvals add` WOULD do for the installed apps: nothing is written.
-    Rerun after installing an app; the new app shows up under `unapproved`."""
-    approved = set(approvals.get("ids", []))
+    Rerun after installing an app; the new app shows up under `unapproved`. An
+    unreadable or missing approval file is reported as such, with no command."""
     installed = {a["bundle_id"]: a for a in apps}
-    return {
+    plan = {
         "approval_file": approvals.get("path"),
+        "approval_file_error": approvals.get("error") or (None if approvals.get("exists") else "approval file does not exist"),
         "installed": len(apps),
-        "approved_installed": sorted(b for b in installed if b in approved),
-        "unapproved": [installed[b] for b in sorted(installed) if b not in approved],
-        "approved_not_installed": sorted(b for b in approved if b not in installed),
-        "add_command": ("computer_use.py approvals add " + " ".join(f"--bundle-id {b}" for b in sorted(installed) if b not in approved) + " --yes")
-        if any(b not in approved for b in installed) else None,
+        "skipped": list(getattr(apps, "skipped", [])),
+        "approved_installed": [], "unapproved": [], "approved_not_installed": [], "add_command": None,
     }
+    if plan["approval_file_error"]:
+        return plan
+    approved = set(approvals.get("ids", []))
+    todo = [b for b in sorted(installed) if b not in approved]
+    plan.update(
+        approved_installed=sorted(b for b in installed if b in approved),
+        unapproved=[installed[b] for b in todo],
+        approved_not_installed=sorted(b for b in approved if b not in installed),
+        add_command=("computer_use.py approvals add " + " ".join(f"--bundle-id {b}" for b in todo) + " --yes") if todo else None,
+    )
+    return plan
 
 
 # ----------------------------------------------------------------------------
@@ -380,27 +426,44 @@ def privacy_status(db: Path = TCC_DB, client: str = HELPER_BUNDLE_ID) -> dict:
     return out
 
 
-def routing(home: Path) -> dict:
-    """Where a live call would send its requests, read from the profile's
-    config.toml: the named model_provider and its base_url, or direct to OpenAI
-    when none is set. Read-only; lets the caller confirm billing goes where the
-    user expects before spending anything."""
-    out = {"config": str(home / "config.toml"), "model": None, "model_provider": None, "base_url": None, "direct": True}
+def routing(home: Path, overrides: list | None = None) -> dict:
+    """Where a live call from THIS runner would send its requests, read from the
+    profile's config.toml with a real TOML parser: top-level keys only, since the
+    runner never passes -p and a [profiles.*] table is inert without it. `overrides`
+    are the runner's own -c key=value pairs (only `model` today). Read-only.
+    `direct` is True when no provider is named; `parse_error` set means the answer
+    is unknown, and preflight treats unknown as a problem."""
+    out = {"config": str(home / "config.toml"), "model": None, "model_provider": None, "base_url": None,
+           "direct": True, "parse_error": None, "overrides": list(overrides or [])}
     try:
-        text = (home / "config.toml").read_text(encoding="utf-8")
-    except OSError:
-        out["config"] = None
+        raw = (home / "config.toml").read_bytes()
+    except OSError as exc:
+        out["parse_error"] = f"config.toml unreadable: {exc.strerror or exc}"
         return out
-    m = re.search(r'^model\s*=\s*"([^"]*)"', text, re.M)
-    out["model"] = m.group(1) if m else None
-    m = re.search(r'^model_provider\s*=\s*"([^"]*)"', text, re.M)
-    if m:
-        out["model_provider"] = m.group(1)
+    try:
+        doc = tomllib.loads(raw.decode("utf-8", errors="replace"))
+    except tomllib.TOMLDecodeError as exc:
+        out["parse_error"] = f"config.toml is not valid TOML: {exc}"
+        return out
+    model = doc.get("model"); prov = doc.get("model_provider")
+    out["model"] = model if isinstance(model, str) else None
+    for ov in out["overrides"]:
+        k, _, v = ov.partition("=")
+        if k == "model":
+            out["model"] = v.strip().strip('"')
+        elif k == "model_provider":
+            prov = v.strip().strip('"')
+    if isinstance(prov, str) and prov:
+        out["model_provider"] = prov
         out["direct"] = False
-        sect = re.search(rf'^\[model_providers\.{re.escape(m.group(1))}\]\s*$(.*?)(?=^\[|\Z)', text, re.M | re.S)
-        if sect:
-            b = re.search(r'^base_url\s*=\s*"([^"]*)"', sect.group(1), re.M)
-            out["base_url"] = b.group(1) if b else None
+        sect = (doc.get("model_providers") or {}).get(prov)
+        if not isinstance(sect, dict):
+            out["parse_error"] = f"model_provider {prov!r} has no [model_providers.{prov}] section"
+        else:
+            b = sect.get("base_url")
+            out["base_url"] = b if isinstance(b, str) else None
+            if out["base_url"] is None:
+                out["parse_error"] = f"[model_providers.{prov}] has no base_url"
     return out
 
 
@@ -415,7 +478,8 @@ def approval_state(bundle_id: str | None, approvals: dict) -> str:
 
 
 def preflight(app: str | None, env: dict | None = None, mdfind=_mdfind, run=_run,
-              live: bool = False, runner=None, run_root: Path | None = None, tcc_db: Path = TCC_DB) -> dict:
+              live: bool = False, runner=None, run_root: Path | None = None, tcc_db: Path = TCC_DB,
+              model: str | None = None, require_proxy: bool = True) -> dict:
     """Environment and target checks. Unknown counts as a problem: a permission
     the runner cannot confirm is not a permission it can rely on. With live=True
     one harmless read-only Sky call proves the helper can actually act."""
@@ -425,7 +489,7 @@ def preflight(app: str | None, env: dict | None = None, mdfind=_mdfind, run=_run
         "codex_version": codex_version(run),
         "computer_use_feature": computer_use_feature(run),
         "helper": helper_status(home, run),
-        "routing": routing(home),
+        "routing": routing(home, [f"model={model}"] if model else None),
         "privacy": privacy_status(tcc_db),
         "approvals": inspect_approvals(),
         "target": None,
@@ -466,6 +530,13 @@ def preflight(app: str | None, env: dict | None = None, mdfind=_mdfind, run=_run
             report["problems"].append(f"approval file unreadable: {appr['error']}")
         elif not appr.get("exists"):
             report["problems"].append(f"approval file missing at {appr['path']}; a headless run will be refused for every app")
+    rt = report["routing"]
+    if rt["parse_error"]:
+        report["problems"].append(f"cannot tell where a live call would be billed: {rt['parse_error']}")
+    elif rt["direct"] and require_proxy:
+        report["problems"].append(
+            "config.toml names no model_provider, so a live call would bill the signed-in account directly; "
+            "the standing rule is to route through the local proxy. Pass --allow-direct only if that is intended")
     if live and not report["problems"]:
         report["live_probe"] = live_probe(run_root or DEFAULT_RUN_ROOT, runner or run_codex, env=env)
         if not report["live_probe"]["ok"]:
@@ -1059,7 +1130,8 @@ def do_run(args, runner=run_codex, mdfind=_mdfind, env: dict | None = None, run=
     """The `run` subcommand as a function so tests can drive it with a fake runner."""
     root = Path(args.run_root).expanduser()
     prune_runs(root, DEFAULT_KEEP_DAYS)
-    pre = preflight(args.app, env=env, mdfind=mdfind, run=run, tcc_db=tcc_db)
+    pre = preflight(args.app, env=env, mdfind=mdfind, run=run, tcc_db=tcc_db, model=args.model,
+                    require_proxy=not getattr(args, "allow_direct", False))
     target = pre["target"] or resolve_app(args.app, mdfind=mdfind)
     run_dir = new_run_dir(root, args.goal)
     (run_dir / "preflight.json").write_text(json.dumps(pre, indent=2), encoding="utf-8")
@@ -1217,6 +1289,7 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("preflight", help="check the environment and, with --app, the target's approval state")
     p.add_argument("--app")
     p.add_argument("--live", action="store_true", help="also run one read-only Sky call through codex exec (a real model call)")
+    p.add_argument("--allow-direct", action="store_true", help="do not treat a config with no model_provider (direct billing) as a problem")
     p.add_argument("--run-root", default=str(DEFAULT_RUN_ROOT))
 
     p = sub.add_parser("resolve-app", help="display name | .app path | bundle ID -> bundle ID")
@@ -1245,6 +1318,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT)
     p.add_argument("--run-root", default=str(DEFAULT_RUN_ROOT))
     p.add_argument("--skip-preflight", action="store_true", help="run even when preflight found problems (not recommended)")
+    p.add_argument("--allow-direct", action="store_true", help="do not treat a config with no model_provider (direct billing) as a problem")
 
     p = sub.add_parser("resume", help="answer a needs_confirmation question and continue the same Codex session")
     p.add_argument("--run-dir", required=True)
@@ -1259,7 +1333,7 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
 
     if args.cmd == "preflight":
-        rep = preflight(args.app, live=args.live, run_root=Path(args.run_root).expanduser())
+        rep = preflight(args.app, live=args.live, run_root=Path(args.run_root).expanduser(), require_proxy=not args.allow_direct)
         _print(rep)
         return 0 if rep["ok"] else 2
     if args.cmd == "resolve-app":
@@ -1270,8 +1344,9 @@ def main(argv: list[str] | None = None) -> int:
             _print(inspect_approvals())
             return 0
         if args.acmd == "plan":
-            _print(approvals_plan(inspect_approvals(), installed_apps()))
-            return 0
+            plan = approvals_plan(inspect_approvals(), installed_apps())
+            _print(plan)
+            return 2 if plan["approval_file_error"] else 0
         if not args.yes:
             print("refusing: `approvals add` edits the Computer Use approval file. Re-run with --yes.", file=sys.stderr)
             return 2

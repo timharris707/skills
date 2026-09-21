@@ -28,6 +28,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   exact `add` command), `routing` in preflight (which provider and base URL a live call
   would bill through, or direct), Finder added to the inventory (it lives in CoreServices).
 
+- Second adversarial review (the evening's additions) closed: `routing` now uses the
+  standard-library TOML parser on top-level keys only, so a `[profiles.*]` provider can no
+  longer read as the live route; single-quoted strings, quoted provider keys, inline
+  tables, and comments parse; an unresolvable provider or unreadable config is a
+  `parse_error`, and preflight treats a direct-billing config or an unknown route as a
+  problem (`--allow-direct` to override). The inventory includes apps one vendor folder
+  deep, reports what it skipped and why, and survives odd Info.plist files; `approvals
+  plan` reports an unreadable approval file instead of proposing to add everything; a
+  bundle ID can no longer start with `-`.
+
 ### Verified live, 2026-09-20 evening
 
 - End to end on all four of the user's Codex profiles: live preflight and a read-only

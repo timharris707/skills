@@ -137,9 +137,11 @@ class Base(unittest.TestCase):
         con.commit(); con.close()
         return db
 
-    def healthy_home(self):
+    def healthy_home(self, config='model = "gpt-6-astra"\nmodel_provider = "cliproxyapi"\n\n[model_providers.cliproxyapi]\nbase_url = "http://127.0.0.1:8317/v1"\n'):
         home = self.root / "profile"
         cu.helper_app(home).mkdir(parents=True)
+        if config is not None:
+            (home / "config.toml").write_text(config)
         return home
 
     def audit(self, events, rep, effort="medium", timed_out=False, exit_code=0, task=None):
@@ -198,19 +200,61 @@ class TestProfilePaths(Base):
         home = self.root / "p"; home.mkdir()
         (home / "config.toml").write_text('model = "gpt-6-astra"\nmodel_reasoning_effort = "medium"\n')
         r = cu.routing(home)
-        self.assertEqual((r["model"], r["model_provider"], r["base_url"], r["direct"]), ("gpt-6-astra", None, None, True))
+        self.assertEqual((r["model"], r["model_provider"], r["base_url"], r["direct"], r["parse_error"]), ("gpt-6-astra", None, None, True, None))
         (home / "config.toml").write_text('model = "gpt-6-astra"\nmodel_provider = "cliproxyapi"\n\n'
                                           '[model_providers.cliproxyapi]\nname = "x"\nbase_url = "http://127.0.0.1:8317/v1"\n\n[other]\nbase_url = "nope"\n')
         r = cu.routing(home)
-        self.assertEqual((r["model_provider"], r["base_url"], r["direct"]), ("cliproxyapi", "http://127.0.0.1:8317/v1", False))
-        self.assertIsNone(cu.routing(self.root / "missing")["config"])
+        self.assertEqual((r["model_provider"], r["base_url"], r["direct"], r["parse_error"]), ("cliproxyapi", "http://127.0.0.1:8317/v1", False, None))
+        self.assertIn("unreadable", cu.routing(self.root / "missing")["parse_error"])
+
+    def test_routing_ignores_profile_tables_and_reads_real_toml(self):
+        """review: a [profiles.x] model_provider used to read as global (false 'proxied')."""
+        home = self.root / "p"; home.mkdir()
+        (home / "config.toml").write_text('model = "gpt-5.1-codex"\n[profiles.proxied]\nmodel_provider = "localproxy"\nmodel = "o3-mini"\n'
+                                          '[model_providers.localproxy]\nbase_url = "http://localhost:4000/v1"\n')
+        r = cu.routing(home)
+        self.assertTrue(r["direct"]); self.assertIsNone(r["model_provider"]); self.assertEqual(r["model"], "gpt-5.1-codex")
+        # Single-quoted TOML strings, quoted provider keys, trailing comments, inline tables all parse.
+        (home / "config.toml").write_text("model_provider = 'my-proxy'  # local\n[model_providers.\"my-proxy\"]  # litellm\nbase_url = 'http://127.0.0.1:8317/v1'\n")
+        r = cu.routing(home)
+        self.assertEqual((r["model_provider"], r["base_url"], r["direct"], r["parse_error"]), ("my-proxy", "http://127.0.0.1:8317/v1", False, None))
+        (home / "config.toml").write_text('model_provider = "p"\nmodel_providers.p = { base_url = "http://x/v1" }\n')
+        self.assertEqual(cu.routing(home)["base_url"], "http://x/v1")
+        # Commented-out key is not a key.
+        (home / "config.toml").write_text('# model_provider = "cliproxyapi"\nmodel = "m"\n')
+        self.assertTrue(cu.routing(home)["direct"])
+
+    def test_routing_unknowns_are_reported_not_guessed(self):
+        home = self.root / "p"; home.mkdir()
+        (home / "config.toml").write_text('model_provider = "ghost"\n')
+        r = cu.routing(home); self.assertFalse(r["direct"]); self.assertIn("no [model_providers.ghost]", r["parse_error"])
+        (home / "config.toml").write_text('model_provider = "p"\n[model_providers.p]\nenv_key = "K"\n')
+        self.assertIn("no base_url", cu.routing(home)["parse_error"])
+        (home / "config.toml").write_bytes(b'model = "\xff\xfe bad"\n')     # review: used to raise
+        self.assertIsNone(cu.routing(home)["parse_error"]) or True
+        (home / "config.toml").write_text('model = "unterminated\n')
+        self.assertIn("not valid TOML", cu.routing(home)["parse_error"])
+        # The runner's own -c model override is reflected.
+        (home / "config.toml").write_text('model = "a"\nmodel_provider = "p"\n[model_providers.p]\nbase_url = "u"\n')
+        self.assertEqual(cu.routing(home, ["model=gpt-6-astra"])["model"], "gpt-6-astra")
+        self.assertEqual(cu.routing(home, ["model_provider=other"])["model_provider"], "other")
 
     def test_preflight_reports_routing(self):
         home = self.healthy_home()
-        (home / "config.toml").write_text('model_provider = "cliproxyapi"\n[model_providers.cliproxyapi]\nbase_url = "http://127.0.0.1:8317/v1"\n')
         rep = cu.preflight(None, env={"CODEX_HOME": str(home)}, run=fake_cli(), tcc_db=self.tcc())
         self.assertEqual(rep["routing"]["base_url"], "http://127.0.0.1:8317/v1")
-        self.assertFalse(rep["routing"]["direct"])
+        self.assertFalse(rep["routing"]["direct"]); self.assertTrue(rep["ok"])
+
+    def test_preflight_direct_billing_is_a_problem_unless_allowed(self):
+        """review: direct: true was computed, printed, and never gated."""
+        home = self.healthy_home(config='model = "gpt-6-astra"\n')
+        rep = cu.preflight(None, env={"CODEX_HOME": str(home)}, run=fake_cli(), tcc_db=self.tcc())
+        self.assertFalse(rep["ok"]); self.assertTrue(any("bill the signed-in account directly" in p for p in rep["problems"]))
+        rep = cu.preflight(None, env={"CODEX_HOME": str(home)}, run=fake_cli(), tcc_db=self.tcc(), require_proxy=False)
+        self.assertTrue(rep["ok"])
+        home2 = self.root / "p2"; cu.helper_app(home2).mkdir(parents=True); (home2 / "config.toml").write_text('model_provider = "ghost"\n')
+        rep = cu.preflight(None, env={"CODEX_HOME": str(home2)}, run=fake_cli(), tcc_db=self.tcc())
+        self.assertTrue(any("cannot tell where a live call would be billed" in p for p in rep["problems"]))
 
     def test_preflight_green_path(self):
         home = self.healthy_home()
@@ -392,6 +436,8 @@ class TestInventoryAndPlan(Base):
         apps = cu.installed_apps(mdfind=lambda q: hits, roots=(str(self.root),), extras=())
         self.assertEqual([a["bundle_id"] for a in apps], ["com.example.fake"])
         self.assertEqual(apps[0]["name"], "Fake")
+        self.assertEqual([k["path"] for k in apps.skipped], [str(self.root / "Broken.app")])
+        self.assertIn("Info.plist unreadable", apps.skipped[0]["why"])
         # Extras outside the roots (Finder in CoreServices) are included when present.
         extra = self.root / "Core" / "Extra.app" / "Contents"; extra.mkdir(parents=True)
         with (extra / "Info.plist").open("wb") as fh:
@@ -399,6 +445,44 @@ class TestInventoryAndPlan(Base):
         apps = cu.installed_apps(mdfind=lambda q: hits, roots=(str(self.root),),
                                  extras=(str(extra.parent), str(self.root / "Core" / "Missing.app")))
         self.assertEqual([a["bundle_id"] for a in apps], ["com.example.extra", "com.example.fake"])
+
+    def test_vendor_folders_one_deep_count_and_odd_plists_are_skipped_not_fatal(self):
+        """review: /Applications/Adobe X/X.app used to vanish silently; a list-rooted plist crashed."""
+        vendor = self.root / "Vendor Co" / "Tool.app" / "Contents"; vendor.mkdir(parents=True)
+        with (vendor / "Info.plist").open("wb") as fh:
+            plistlib.dump({"CFBundleIdentifier": "com.vendor.tool"}, fh)
+        deep = self.root / "a" / "b" / "Deep.app" / "Contents"; deep.mkdir(parents=True)
+        with (deep / "Info.plist").open("wb") as fh:
+            plistlib.dump({"CFBundleIdentifier": "com.vendor.deep"}, fh)
+        listy = self.root / "Listy.app" / "Contents"; listy.mkdir(parents=True)
+        with (listy / "Info.plist").open("wb") as fh:
+            plistlib.dump(["not", "a", "dict"], fh)
+        noid = self.root / "NoId.app" / "Contents"; noid.mkdir(parents=True)
+        with (noid / "Info.plist").open("wb") as fh:
+            plistlib.dump({"CFBundleName": "NoId"}, fh)
+        dupe = self.root / "Dupe.app" / "Contents"; dupe.mkdir(parents=True)
+        with (dupe / "Info.plist").open("wb") as fh:
+            plistlib.dump({"CFBundleIdentifier": "com.example.fake"}, fh)
+        hits = [str(vendor.parent), str(deep.parent), str(listy.parent), str(noid.parent), str(dupe.parent), str(self.fake_app)]
+        apps = cu.installed_apps(mdfind=lambda q: hits, roots=(str(self.root) + "/",), extras=())   # trailing slash tolerated
+        self.assertEqual([a["bundle_id"] for a in apps], ["com.example.fake", "com.vendor.tool"])
+        whys = {k["path"]: k["why"] for k in apps.skipped}
+        self.assertIn("not a dictionary", whys[str(listy.parent)]); self.assertIn("no valid CFBundleIdentifier", whys[str(noid.parent)])
+        # Hits are processed in sorted path order, so Dupe.app wins the ID and Fake.app is the recorded duplicate.
+        self.assertIn("same bundle ID as", whys[str(self.fake_app)])
+        self.assertEqual([a["path"] for a in apps if a["bundle_id"] == "com.example.fake"], [str(dupe.parent)])
+        self.assertNotIn(str(deep.parent), whys)   # too deep: not an app folder, silently outside scope
+
+    def test_is_bundle_id_rejects_flag_shaped_ids(self):
+        self.assertFalse(cu.is_bundle_id("--yes.evil")); self.assertFalse(cu.is_bundle_id("-a.b")); self.assertTrue(cu.is_bundle_id("a-b.c"))
+
+    def test_plan_reports_an_unreadable_file_and_gives_no_command(self):
+        """review: a corrupt approval file used to make everything 'unapproved' with a doomed add command."""
+        apps = [{"name": "Fake", "bundle_id": "com.example.fake", "path": str(self.fake_app)}]
+        plan = cu.approvals_plan({"path": "/p", "ids": [], "error": "could not parse approval file: boom", "exists": True}, apps)
+        self.assertIn("boom", plan["approval_file_error"]); self.assertIsNone(plan["add_command"]); self.assertEqual(plan["unapproved"], [])
+        plan = cu.approvals_plan({"path": "/p", "ids": [], "error": None, "exists": False}, apps)
+        self.assertIn("does not exist", plan["approval_file_error"]); self.assertIsNone(plan["add_command"])
 
     def test_plan_is_a_diff_and_writes_nothing(self):
         f = self.root / "ComputerUseAppApprovals.json"
@@ -418,7 +502,7 @@ class TestInventoryAndPlan(Base):
         plan = cu.approvals_plan(cu.inspect_approvals(f), apps)
         self.assertIn("com.vendor.New", [a["bundle_id"] for a in plan["unapproved"]])
         # Nothing to add: no command.
-        self.assertIsNone(cu.approvals_plan({"ids": ["com.example.fake", "com.google.Chrome", "com.vendor.New"], "path": "p"}, apps)["add_command"])
+        self.assertIsNone(cu.approvals_plan({"ids": ["com.example.fake", "com.google.Chrome", "com.vendor.New"], "path": "p", "exists": True}, apps)["add_command"])
 
 
 # -------------------------------------------------------- brief + argv

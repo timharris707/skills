@@ -55,6 +55,14 @@ check passed. Exit 2 lists the problems in plain words; report them, do not work
 them. Add `--live` to also run one read-only Sky call through Codex, which proves the CLI,
 plugin, helper, and permissions work together. That is a real model call.
 
+Preflight also reports `routing`: the model provider and base URL the profile's
+config.toml names, read with a real TOML parser from the top-level keys only, plus the
+runner's own `--model` override. A config that names no provider bills the signed-in
+account directly; the user's standing rule is to route through the local proxy, so that
+is a problem unless you pass `--allow-direct` on their say-so. A provider the parser
+cannot resolve to a base URL is also a problem. Routing reads the file only: it cannot
+see a `-p` profile layer or `-c` overrides the runner itself does not pass.
+
 **Two approval states exist.** The running Codex desktop session can approve apps on
 screen and hold those approvals in memory. A headless `codex exec` process cannot show
 that prompt, so it sees only the persistent approval file. If preflight says the app is
@@ -160,11 +168,14 @@ python3 skills/in-progress/computer-use/scripts/computer_use.py approvals plan
 python3 skills/in-progress/computer-use/scripts/computer_use.py approvals add --bundle-id com.apple.mail --bundle-id com.apple.finder --yes
 ```
 
-`plan` lists every top-level app in the standard app folders with its exact bundle ID,
-diffs that against the approval file, and prints the exact `add` command it would take
-to cover the rest. It writes nothing. After the user installs a new app, run `plan` again:
-the new app appears under `unapproved` with the one-line command to add it. Show the user
-the IDs and get a yes before running `add`.
+`plan` lists every user-facing app in the standard app folders (including apps one
+vendor folder deep, such as `/Applications/Adobe X/X.app`, but not helpers nested inside
+other apps) with its exact bundle ID, diffs that against the approval file, and prints
+the exact `add` command it would take to cover the rest. It writes nothing. Apps it could
+not read are listed under `skipped` with the reason. An app installed somewhere else can
+still be added by hand with `add --bundle-id`. After the user installs a new app, run
+`plan` again: the new app appears under `unapproved` with the one-line command to add it.
+Show the user the IDs and get a yes before running `add`.
 
 Editing this file is not something OpenAI documents or supports; the helper may ignore
 or rewrite it. `add` backs up the file beside itself (never overwriting an earlier
