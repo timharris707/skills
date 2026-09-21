@@ -17,17 +17,28 @@ configured for. Preflight and each subtask take tens of seconds to a few minutes
 
 ## What has and has not been verified
 
-Verified live on 2026-09-20, from a Claude Code shell with the Codex desktop app closed:
-`codex exec` reached the Computer Use plugin, listed running apps, read Chrome's
-accessibility tree, produced a screenshot that was opened and matched the screen, scrolled
-Chrome by coordinates, honoured a JSON reply schema, and resumed a session by ID. Finder,
-Safari, and Calendar were refused as not approved. The approval file, the helper's
-signature, and the macOS privacy grants were read.
+Verified live on 2026-09-20 with this runner, on the development Mac:
 
-Not yet verified: an end-to-end run of this runner (the machine's Codex profile was
-unavailable when it was finished), whether the helper notices an approval-file change
-without a restart, and any app other than Chrome. Do not tell the user that headless mode
-can drive every app until a run against that app has passed.
+- Four Codex profiles, each with `CODEX_HOME` set to it: live preflight passed (one
+  read-only Sky call listed the running apps) and a read-only `run` against Chrome came
+  back `done` with a screenshot the reviewer opened and matched to the screen. All four
+  resolve to one signed helper inside the ChatGPT app. Every call was routed through the
+  user's local proxy, as the `routing` line in preflight showed beforehand.
+- Three non-Chrome apps by exact bundle ID, read-only: Calculator (a system app that was
+  not running; the helper launched it), Spotify (a third-party app that was running), both
+  `done` with verified screenshots; Finder was refused by preflight because it was not in
+  the approval file, which is the expected approval boundary, with no model call spent.
+- The persistent approval file was extended from 1 to 77 exact IDs by `approvals add`, with
+  a backup. Runs against the newly approved apps succeeded seventeen minutes later with no
+  restart of the ChatGPT app or any helper process by the operator. The helper service does
+  not show up as a long-lived process, so it most likely reads the file on each call.
+- Earlier hand probes: coordinate scroll, JSON reply schema, session resume by ID.
+
+Not yet verified live: any state-changing action through this runner (all live tests were
+read-only), the `needs_confirmation` stop and `resume` path (unit-tested against recorded
+event shapes only), apps beyond the three above, and any Mac other than this one. An app
+that has passed once is not a guarantee for a different window or task in that app. Do not
+tell the user that headless mode can drive an app until a run against it has passed.
 
 ## Before the first call in a session
 

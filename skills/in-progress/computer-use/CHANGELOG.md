@@ -24,10 +24,19 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   atomically, and never overwrites a backup; resume parses only the new bytes of the
   event stream and launches nothing unless the answer is an unqualified yes.
 
+- `approvals plan` (read-only inventory of installed apps vs the approval file, with the
+  exact `add` command), `routing` in preflight (which provider and base URL a live call
+  would bill through, or direct), Finder added to the inventory (it lives in CoreServices).
+
+### Verified live, 2026-09-20 evening
+
+- End to end on all four of the user's Codex profiles: live preflight and a read-only
+  Chrome run, `done`, screenshots opened and matched. Calculator and Spotify by bundle ID,
+  `done`, screenshots matched. Finder refused at preflight (not approved): the expected
+  boundary, no model call. Approval file grew 1 to 77 IDs with backup; the helper honoured
+  the change without any restart. All calls routed through the local proxy.
+
 ### Not yet verified
 
-- No end-to-end run of the finished runner has passed on the development Mac: its Codex
-  profile path was unavailable when the runner was completed. Only the earlier hand
-  probes (list apps, Chrome read + screenshot, coordinate scroll, session resume) are
-  verified live. Whether the helper reloads the approval file without a restart is
-  unknown.
+- Any state-changing action, the live `needs_confirmation` and `resume` path, apps beyond
+  the three tested, other Macs.
