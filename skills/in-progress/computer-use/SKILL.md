@@ -135,12 +135,25 @@ rephrase their answer.
 
 ## Explicit setup: broadening headless approvals
 
+"Any app" means two separate things here. Targeting is open-ended: `--app` resolves any
+installed app by name, path, or bundle ID with no list to maintain. Headless approval is
+not: the helper refuses an app that is not in its persistent approval file, so each app
+needs one explicit entry, and a newly installed app needs one too. The approval file is
+system-wide, so one entry covers all four Codex profiles.
+
 Only when the user asks for it, and never inside an ordinary run:
 
 ```bash
 python3 skills/in-progress/computer-use/scripts/computer_use.py approvals inspect
+python3 skills/in-progress/computer-use/scripts/computer_use.py approvals plan
 python3 skills/in-progress/computer-use/scripts/computer_use.py approvals add --bundle-id com.apple.mail --bundle-id com.apple.finder --yes
 ```
+
+`plan` lists every top-level app in the standard app folders with its exact bundle ID,
+diffs that against the approval file, and prints the exact `add` command it would take
+to cover the rest. It writes nothing. After the user installs a new app, run `plan` again:
+the new app appears under `unapproved` with the one-line command to add it. Show the user
+the IDs and get a yes before running `add`.
 
 Editing this file is not something OpenAI documents or supports; the helper may ignore
 or rewrite it. `add` backs up the file beside itself (never overwriting an earlier
