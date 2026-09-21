@@ -361,6 +361,41 @@ class TestApprovals(Base):
         self.assertIsNone(rep["helper_noticed"])
 
 
+# ------------------------------------------- inventory + approval plan
+
+class TestInventoryAndPlan(Base):
+    def test_installed_apps_filters_to_top_level_and_reads_exact_ids(self):
+        nested = self.root / "Fake.app" / "Contents" / "Helpers" / "Nested.app" / "Contents"
+        nested.mkdir(parents=True)
+        with (nested / "Info.plist").open("wb") as fh:
+            plistlib.dump({"CFBundleIdentifier": "com.example.nested"}, fh)
+        broken = self.root / "Broken.app" / "Contents"; broken.mkdir(parents=True)
+        hits = [str(self.fake_app), str(nested.parent), str(self.root / "Broken.app"), "/elsewhere/Other.app"]
+        apps = cu.installed_apps(mdfind=lambda q: hits, roots=(str(self.root),))
+        self.assertEqual([a["bundle_id"] for a in apps], ["com.example.fake"])
+        self.assertEqual(apps[0]["name"], "Fake")
+
+    def test_plan_is_a_diff_and_writes_nothing(self):
+        f = self.root / "ComputerUseAppApprovals.json"
+        f.write_text(json.dumps({cu.APPROVALS_KEY: ["com.google.Chrome", "com.gone.App"]}))
+        before = f.read_bytes()
+        apps = [{"name": "Google Chrome", "bundle_id": "com.google.Chrome", "path": "/Applications/Google Chrome.app"},
+                {"name": "Fake", "bundle_id": "com.example.fake", "path": str(self.fake_app)}]
+        plan = cu.approvals_plan(cu.inspect_approvals(f), apps)
+        self.assertEqual(plan["approved_installed"], ["com.google.Chrome"])
+        self.assertEqual([a["bundle_id"] for a in plan["unapproved"]], ["com.example.fake"])
+        self.assertEqual(plan["approved_not_installed"], ["com.gone.App"])
+        self.assertEqual(plan["add_command"], "computer_use.py approvals add --bundle-id com.example.fake --yes")
+        self.assertNotIn("*", plan["add_command"])
+        self.assertEqual(f.read_bytes(), before)
+        # A newly installed app shows up as unapproved on the next plan.
+        apps.append({"name": "New", "bundle_id": "com.vendor.New", "path": "/Applications/New.app"})
+        plan = cu.approvals_plan(cu.inspect_approvals(f), apps)
+        self.assertIn("com.vendor.New", [a["bundle_id"] for a in plan["unapproved"]])
+        # Nothing to add: no command.
+        self.assertIsNone(cu.approvals_plan({"ids": ["com.example.fake", "com.google.Chrome", "com.vendor.New"], "path": "p"}, apps)["add_command"])
+
+
 # -------------------------------------------------------- brief + argv
 
 class TestBrief(Base):

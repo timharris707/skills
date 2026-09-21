@@ -264,6 +264,51 @@ def add_approvals(bundle_ids: list[str], path: Path = APPROVALS_PATH, now: dt.da
 
 
 # ----------------------------------------------------------------------------
+# Installed-app inventory and the approval plan (read-only)
+# ----------------------------------------------------------------------------
+
+APP_ROOTS = ("/Applications", "/System/Applications", "/System/Applications/Utilities",
+             str(Path.home() / "Applications"))
+
+
+def installed_apps(mdfind=_mdfind, roots: tuple = APP_ROOTS) -> list[dict]:
+    """Every top-level .app under the standard app folders, with its exact bundle
+    ID. Spotlight is read-only and nothing is launched. Helper apps nested inside
+    other bundles are skipped; they are not things a user asks to drive."""
+    apps, seen = [], set()
+    for hit in mdfind("kMDItemKind == 'Application'"):
+        p = Path(hit)
+        if str(p.parent) not in roots or p.suffix != ".app":
+            continue
+        try:
+            info = _info_plist(p)
+        except (OSError, plistlib.InvalidFileException):
+            continue
+        bid = info.get("CFBundleIdentifier")
+        if not bid or bid in seen or not is_bundle_id(bid):
+            continue
+        seen.add(bid)
+        apps.append({"name": p.stem, "bundle_id": bid, "path": str(p)})
+    return sorted(apps, key=lambda a: a["name"].lower())
+
+
+def approvals_plan(approvals: dict, apps: list[dict]) -> dict:
+    """What `approvals add` WOULD do for the installed apps: nothing is written.
+    Rerun after installing an app; the new app shows up under `unapproved`."""
+    approved = set(approvals.get("ids", []))
+    installed = {a["bundle_id"]: a for a in apps}
+    return {
+        "approval_file": approvals.get("path"),
+        "installed": len(apps),
+        "approved_installed": sorted(b for b in installed if b in approved),
+        "unapproved": [installed[b] for b in sorted(installed) if b not in approved],
+        "approved_not_installed": sorted(b for b in approved if b not in installed),
+        "add_command": ("computer_use.py approvals add " + " ".join(f"--bundle-id {b}" for b in sorted(installed) if b not in approved) + " --yes")
+        if any(b not in approved for b in installed) else None,
+    }
+
+
+# ----------------------------------------------------------------------------
 # Environment checks (preflight)
 # ----------------------------------------------------------------------------
 
@@ -1150,6 +1195,7 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("approvals", help="inspect or (explicitly) extend the persistent approval file")
     ps = p.add_subparsers(dest="acmd", required=True)
     ps.add_parser("inspect")
+    ps.add_parser("plan", help="list installed apps against the approval file; prints the exact add command; writes nothing")
     pa = ps.add_parser("add", help="backup, add exact bundle IDs, report, verify the helper noticed")
     pa.add_argument("--bundle-id", action="append", required=True, help="exact bundle ID; repeatable; no wildcards")
     pa.add_argument("--yes", action="store_true", help="required; this edits the helper's approval file")
@@ -1192,6 +1238,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "approvals":
         if args.acmd == "inspect":
             _print(inspect_approvals())
+            return 0
+        if args.acmd == "plan":
+            _print(approvals_plan(inspect_approvals(), installed_apps()))
             return 0
         if not args.yes:
             print("refusing: `approvals add` edits the Computer Use approval file. Re-run with --yes.", file=sys.stderr)
