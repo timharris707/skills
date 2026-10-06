@@ -2,6 +2,24 @@
 
 ## [Unreleased]
 
+## [v1.2.0] - 2026-10-06 — adopts team-workflow v1.8.0
+
+- Carry the team-workflow PR-writing change (#298): every agent-filed PR shows before-and-after
+  evidence that something ran, says whether a revert fully undoes it and how much could break,
+  and may add a small diagram for reviewers. The Codex review-feedback adaptation is unchanged.
+- Carry team-workflow's catch-up rule and optional per-spec integration branch (#299):
+  workers bring their work up to date with the merge target and re-run verification
+  before reporting. A worker that may not commit carries its preserved working diff onto
+  the target instead. If the target moves again before the merge, the orchestrator updates
+  the work itself where that applies cleanly; only a conflict goes back to the worker.
+- Adopt the four shared changes from team-workflow's #297: the wizard no longer shows a time
+  estimate, diagnose gains the redaction rule, to-tickets attaches each ticket to its source
+  issue as a sub-issue (the tracker reference carries the recipe), and domain-memory's
+  attribution links point at the renamed `GLOSSARY-FORMAT.md`.
+- Setup records the team-workflow git guardrail hook as a gap: Codex hooks cannot return
+  an ask decision yet, and the guardrail asks rather than blocks. The binding-doc template
+  carries the gap line. The hook script ships in the package unwired.
+
 ## [v1.1.1] - 2026-09-05
 
 - Restore distinct invocation branches across all 23 descriptions, with positive

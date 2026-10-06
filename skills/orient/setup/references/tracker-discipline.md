@@ -1,6 +1,6 @@
 # Tracker discipline: the portable recipes
 
-The pack's collision defenses, written GitHub-Issues-first (`gh` commands throughout). The tracker itself is a **named binding**: a repo on a different tracker maps these same recipes (machine-readable claims, dependency edges, a frontier query, issue-as-spec) onto its own tool in its binding doc; the recipes' logic is the export, not the tool.
+The pack's collision defenses, written GitHub-Issues-first (`gh` commands throughout). The tracker itself is a **named binding**: a repo on a different tracker maps these same recipes (machine-readable claims, dependency edges, sub-issue links, a frontier query, issue-as-spec) onto its own tool in its binding doc; the recipes' logic is the export, not the tool.
 
 **Every command names the bound repo.** `<owner>/<repo>` throughout these recipes is the tracker binding's repo, carried explicitly: `--repo <owner>/<repo>` on every `gh issue`/`gh label` command, the literal repo in every `gh api` path. Unqualified `gh` resolves the repo implicitly from the working directory's remotes: in a fork that is typically the **upstream** repo, not the bound tracker, so tracker-state reads go quietly wrong and writes land in a repo that never bound the pack. `gh api`'s `{owner}/{repo}` placeholders resolve the same implicit way; they are not scoping. Nor is `gh repo set-default`: it is per-clone state the next worktree or machine doesn't have. Command-level scoping is the defense.
 
@@ -72,6 +72,21 @@ gh api repos/<owner>/<repo>/issues/<child-number>/dependencies/blocked_by -F iss
 ```
 
 Division of labor: **edges are authoritative wherever the blocker is a tracker item** (no label flip needed when it closes); the **`blocked` label** is the human-readable mirror and the only expressible form for non-ticket blockers (vendor gates, scheduling, pending adjudications). A purely edge-backed item does NOT also carry the label: a stale label would hold it blocked after its edges clear. The label rides while any non-ticket blocker remains and comes off only when all such blockers resolve. An item with both kinds carries both markers: closing its ticket dependency does not clear the non-ticket label, and removing that label does not clear an unfinished dependency.
+
+## Sub-issue links (where work came from)
+
+Work items cut from an existing issue (a spec issue, a driving item) are attached to it as **native sub-issues**, so the source issue carries its items and their progress. The link records origin only: blocking stays with the edges and the `blocked` label above.
+
+```bash
+# gh 2.94 or later; <owner>/<repo> is the bound tracker repo, written literally:
+gh issue edit <source-number> --repo <owner>/<repo> --add-sub-issue <item-number>
+
+# Older gh: the REST form, which takes the item's DATABASE id (not its #number):
+gh api repos/<owner>/<repo>/issues/<item-number> --jq .id
+gh api --method POST repos/<owner>/<repo>/issues/<source-number>/sub_issues -F sub_issue_id=<that-id>
+```
+
+Where the tracker has no sub-issues, put `Part of #<source-number>` as the first line of the item's body. A tracker with its own parent relationship maps this recipe in its binding doc, like the others.
 
 ## State and type labels (the vocabulary binding maps these)
 

@@ -8,7 +8,7 @@ How a tracked work item becomes a working brief for the session (human or agent)
 
 1. Pick the item from the frontier (the binding doc's frontier query; it dual-reads dependency edges and the `blocked` label).
 2. Claim it per the claim recipe (read-before-write; a live `Lane-start` refuses you).
-3. Branch off the default branch; note anything the lane must pin at start (sequence numbers, environment facts) so parallel lanes can't collide on them.
+3. Branch off the merge target (the default branch, or the spec's integration branch where the binding doc's merge-flow slot records one); note anything the lane must pin at start (sequence numbers, environment facts) so parallel lanes can't collide on them.
 4. Decide the verification set from the binding doc's verify commands (and the repo's tiering, if any); name it in the brief so "done" is defined before work starts.
 
 ## The brief
@@ -35,17 +35,22 @@ the decider, never silently into the work).
 - Check every verification command's own exit code: piped or filtered output is not
   evidence (a pipeline reports the last command's status, so `<cmd> | tail` reads green
   whenever `tail` does).
+- Catch up before handing back: bring the lane branch up to date with <the merge target:
+  the default branch, or the spec's integration branch>, through the harness's host-side
+  sync tool where one exists. Resolve any conflict yourself, since you know the change,
+  then re-run the full verification set before writing the summary.
 - Commit discipline: checkpoint commits on the lane branch, short imperative subjects;
   merging is the reviewer/integrator's move, not the lane's.
 - Where this lane itself files a PR (e.g. a cross-repo lane): it must follow the orchestrate
-  skill's pr-writing reference: problem-first description, no implementation inventory,
-  no draft unless repo policy says otherwise, provenance blurb.
+  skill's pr-writing reference: problem-first description, before-and-after evidence, a
+  can-we-undo call, no implementation inventory, no draft unless repo policy says otherwise,
+  provenance blurb.
 - <the repo's own standing constraints, from the binding doc's precedence section>
 
 ## Output contract
 Write a compact summary containing:
 1. What landed (by file), with the diff stat.
-2. Verification you ran (each command with its own exit code), ending with `Skipped checks: none`, or every skipped check named, with why.
+2. Catch-up: the merge target and the target commit your branch caught up to. Then the verification you ran after it (each command with its own exit code), ending with `Skipped checks: none`, or every skipped check named, with why.
 3. Deviations from the spec + open questions.
 Quote only the load-bearing hunks or sentences, never the full diff or transcript;
 the orchestrator audits the diff in your workspace, and everything it ingests it
