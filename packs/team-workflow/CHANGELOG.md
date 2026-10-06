@@ -14,6 +14,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [v1.9.0] - 2026-10-06 — pr-writing becomes its own skill
+
 ### Added
 - **pr-writing: the PR-writing guide is its own skill** (#300). The guide that lived inside
   orchestrate as `references/pr-writing.md` is now the `pr-writing` skill in the run bucket.

@@ -82,7 +82,11 @@ Where the repo has a resident review-response system (a disposition rule, a revi
 - Every change shows evidence that ran, before and after (or 'demo available on request' where no upload capability exists), and every frame and pasted output was reviewed for credentials, tokens, and customer data before it went in.
 - Both undo lines are present, and a medium or large rating was written from blast-radius findings where that skill is installed.
 - The provenance blurb is read from a recorded source and closes the description, and `Closes #N` links the driving item where one exists.
-- Review feedback outside the driving item's goal went to new tracked items; only checks and comments newer than the latest push were acted on; every bot finding was verified against the source, and every false positive got a written reason before its thread was resolved (where a resident review-response system governs, its rules win).
+- Review feedback outside the driving item's goal went to new tracked items.
+- Only checks and comments newer than the latest push were acted on.
+- Every bot finding was verified against the source.
+- Every false positive got a written reason before its thread was resolved.
+- Where a resident review-response system governs, its rules win.
 - Every comment written on a human's behalf opens with the attribution line on its own, and no paragraph runs past about three sentences.
 
 ## Attribution

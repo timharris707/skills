@@ -2,7 +2,7 @@
   "format": 1,
   "files": {
     ".codex-plugin/plugin.json": {
-      "sha256": "8f20f4495209fd776d946f607ad326f2a7b230032c753b0f7cb425184e77d4d5",
+      "sha256": "67bbf928d7061c28c1bfabd1547e146362868285218476ada3e5338c8adc3194",
       "executable": false
     },
     "CODEX.md": {
@@ -462,7 +462,7 @@
       "executable": false
     },
     "skills/orient/setup/SKILL.md": {
-      "sha256": "823d33b731807be9f26e2219332d50e1c3343d0b3737342bda69b028fc416708",
+      "sha256": "987d1433b797d5cacde677f90e479087e264d139e2364e27e23c7e6978797c6b",
       "executable": false
     },
     "skills/orient/setup/agents/openai.yaml": {
@@ -566,7 +566,7 @@
       "executable": false
     },
     "skills/run/pr-writing/SKILL.md": {
-      "sha256": "42e3586631a01a825671c199b0f8b3c103c5ab07126725d0d092db18e8a30311",
+      "sha256": "479935285e1cb8c62fe610a2d58c1fe09f400d3c7e478599202f55cd68490f9a",
       "executable": false
     },
     "skills/run/pr-writing/agents/openai.yaml": {

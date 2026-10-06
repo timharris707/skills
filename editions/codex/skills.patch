@@ -859,7 +859,7 @@
  
 @@ -80,7 +87,7 @@
  4. **Machine portability.** The workflow artifacts the binding governs (the binding doc itself, helper scripts it names, seeded docs and templates, contract validators and their tests and fixtures) must not hard-code one machine's filesystem: an absolute home path works for the author and walls out the first contributor on a second machine. The boundary is what the binding governs: application code and repo-local ignored files are out of scope. Report each occurrence as drift, proposing the portable derivation in the artifact's own mechanism (`$HOME` in shell, the home/repo-root resolution its language provides elsewhere).
- 5. **Session-scope conduct reachability.** A binding doc that pins the pack's PR conduct (the pr-writing skill, or the orchestrate reference it replaced) while the agent-context file carries no pointer to it, or an agent-context pointer, binding-doc line, or seeded lane-brief template still naming the retired orchestrate reference, by path (`references/pr-writing.md`) or by name ("the pr-writing reference"): an ad-hoc session then reaches the conduct only when the skill's own trigger fires. Report as drift, proposing the conduct-pointer section above.
+ 5. **Session-scope conduct reachability.** Either of two conditions: (a) a binding doc pins the pack's PR conduct (the pr-writing skill, or the orchestrate reference it replaced) while the agent-context file carries no pointer to it; (b) an agent-context pointer, binding-doc line, or seeded lane-brief template still names the retired orchestrate reference, by path (`references/pr-writing.md`) or by name ("the pr-writing reference"). Either way an ad-hoc session reaches the conduct only when the skill's own trigger fires. Report as drift, proposing the conduct-pointer section above.
  
 -Deliberately not checked: hook-target existence. Whether the files a seeded hook points at still exist stays the repo's own concern.
 +Also verify the installed checkpoint resolver or existing harness policy and actual checkpoint location. A configured name alone is not evidence that saving and loading reach the same file.
@@ -1451,13 +1451,16 @@
  - Verify every bot finding against the source before changing code. A false positive gets a reply with a written reason, then the thread resolved, never a silent dismissal, never an unverified fix.
  - A comment an agent writes on a human's behalf says so: *"\<model\> responding on behalf of \<name\>:"*; nobody should mistake an agent's reply for the human's. The attribution line stands alone on its own line, a blank line follows, and the body starts as its own paragraph: the reader sees who is speaking before anything else. Paragraphs run roughly 2–3 sentences: the decider reads these on a phone, and a wall of prose hides the verdict. Lists do the enumerating, and long comma-chains split. Both rules hold for any tracker-visible comment written on a human's behalf (PR comments, review-thread replies, issue close-outs), not just PR bodies.
  
-@@ -82,11 +84,11 @@
- - Every change shows evidence that ran, before and after (or 'demo available on request' where no upload capability exists), and every frame and pasted output was reviewed for credentials, tokens, and customer data before it went in.
+@@ -83,7 +85,7 @@
  - Both undo lines are present, and a medium or large rating was written from blast-radius findings where that skill is installed.
  - The provenance blurb is read from a recorded source and closes the description, and `Closes #N` links the driving item where one exists.
--- Review feedback outside the driving item's goal went to new tracked items; only checks and comments newer than the latest push were acted on; every bot finding was verified against the source, and every false positive got a written reason before its thread was resolved (where a resident review-response system governs, its rules win).
-+- Review feedback outside the driving item's goal went to new tracked items; every unresolved finding was read regardless of its age, with its disposition verified against current code and current-commit CI; every bot finding was verified against the source, and every false positive got a written reason before its thread was resolved (where a resident review-response system governs, its rules win).
- - Every comment written on a human's behalf opens with the attribution line on its own, and no paragraph runs past about three sentences.
+ - Review feedback outside the driving item's goal went to new tracked items.
+-- Only checks and comments newer than the latest push were acted on.
++- Every unresolved finding was read regardless of its age, with its disposition verified against current code and current-commit CI.
+ - Every bot finding was verified against the source.
+ - Every false positive got a written reason before its thread was resolved.
+ - Where a resident review-response system governs, its rules win.
+@@ -91,6 +93,6 @@
  
  ## Attribution
  

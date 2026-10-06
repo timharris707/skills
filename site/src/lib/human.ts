@@ -134,7 +134,7 @@ export const HUMAN: Record<string, HumanCopy> = {
     card:
       "Agent-written pull requests list what changed and rarely say why. These open with the problem in plain words, show before-and-after proof that something ran, and say whether undoing the change is a clean revert.",
     intro:
-      "A pull request is where you decide whether a change ships, and agent-written ones make that hard: a list of edited internals, no stated problem, a confident claim that it works. pr-writing fixes the description. It opens with the problem in plain words, then the fix, then proof that something ran (a screenshot for anything you can see, test output before and after for the rest), then two short lines: does a revert fully undo this, and how much could break. Replies written for you say so on their first line. It loads on its own when an agent writes a PR, but that is the agent's call; setup can add a one-line reminder for repos that want a backstop.",
+      "A pull request is where you decide whether a change ships, and agent-written ones make that hard: a list of edited internals, no stated problem, a confident claim that it works. pr-writing fixes the description. It opens with the problem in plain words, then the fix, then proof that something ran (a screenshot for anything you can see, test output before and after for the rest), then short lines: does a revert fully undo this, and how much could break. Replies written for you say so on their first line. It loads on its own when an agent writes a PR, but that is the agent's call; setup can add a one-line reminder for repos that want a backstop.",
   },
   "blast-radius": {
     card:
