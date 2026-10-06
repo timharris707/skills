@@ -94,6 +94,10 @@ module.exports = {
     tsPreCompilationDeps: "specify",
     // The tsconfig that holds the repo's path aliases, so aliased imports resolve.
     tsConfig: { fileName: "tsconfig.json" },
-    enhancedResolveOptions: { extensions: [".ts", ".tsx", ".js", ".jsx", ".json"] },
+    // Every extension an extensionless import can land on. An import the linter cannot
+    // resolve keeps its raw text, matches no rule above, and passes.
+    enhancedResolveOptions: {
+      extensions: [".ts", ".tsx", ".d.ts", ".mts", ".d.mts", ".cts", ".d.cts", ".js", ".jsx", ".mjs", ".cjs", ".json"],
+    },
   },
 };

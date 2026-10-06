@@ -51,6 +51,7 @@ REDACTED = "<REDACTED>"
 HUMAN_LIMIT = 2000
 ERROR_LIMIT = 600
 CALL_LIMIT = 200
+GIT_TIMEOUT = 30  # seconds
 
 SECRET_PATTERNS = [
     re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY(?: BLOCK)?-----"
@@ -468,14 +469,22 @@ def slug(path: str) -> str:
     return re.sub(r"[^A-Za-z0-9]", "-", path)
 
 
+def git(repo: str, *args: str) -> subprocess.CompletedProcess:
+    """Run one git command in repo; a git that hangs ends the run with a message, not a silent stall."""
+    try:
+        return subprocess.run(["git", "-C", repo, *args], capture_output=True, text=True, timeout=GIT_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        raise SystemExit(f"git {' '.join(args)} in {repo} did not finish in {GIT_TIMEOUT}s; "
+                         "check that --repo is a reachable git folder") from None
+
+
 def repo_roots(repo: str) -> set:
     """The repo's root and every worktree path, each in raw and resolved form."""
     roots = {os.path.abspath(repo)}
-    listed = subprocess.run(["git", "-C", repo, "worktree", "list", "--porcelain"],
-                            capture_output=True, text=True)
+    listed = git(repo, "worktree", "list", "--porcelain")
     if listed.returncode == 0:
         roots |= {ln[len("worktree "):] for ln in listed.stdout.splitlines() if ln.startswith("worktree ")}
-    top = subprocess.run(["git", "-C", repo, "rev-parse", "--show-toplevel"], capture_output=True, text=True)
+    top = git(repo, "rev-parse", "--show-toplevel")
     if top.returncode == 0 and top.stdout.strip():
         roots.add(top.stdout.strip())
     return {os.path.normpath(r) for r in roots} | {os.path.realpath(r) for r in roots}

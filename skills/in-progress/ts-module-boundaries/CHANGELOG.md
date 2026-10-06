@@ -23,7 +23,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   a single `src/index.ts` fit, and a non-code export such as a stylesheet can be
   listed as an entry; the tests rule is opt-in; type-only and unused imports are
   counted (upstream's config let a deep `import type`, and its own example probe,
-  an unused deep import, pass silently); the check's scope is every importer
+  an unused deep import, pass silently); the resolver tries every TypeScript and
+  JavaScript extension (upstream's list left out `.d.ts`, `.mts`, `.cts`, `.mjs`,
+  and `.cjs`, so an extensionless deep import of such a file stayed unresolved,
+  matched no rule, and passed); the check's scope is every importer
   directory, not the packages root; a TypeScript version outside
   dependency-cruiser's range skips every `.ts` file and exits 0, so
   `lint:boundaries` runs a guard first that fails when the linter cannot read

@@ -7,7 +7,7 @@
 ## Retro
 
 **Retro**:
-A review of a sample of past agent sessions in one repo that returns a short ranked list of fixes to the agents' environment, each labeled and routed to whoever owns the fix. The user picks which fixes happen; the retro itself fixes nothing.
+A review of a sample of past agent sessions in one repo that returns a short ranked list of fixes to the agents' environment, each labeled and routed to whoever owns the fix. The user picks which fixes happen; apart from adding a picked conduct rule to the user's rules file, the retro itself fixes nothing.
 _Avoid_: retrospective (as the skill's name), post-mortem, session audit
 
 **Critical**:

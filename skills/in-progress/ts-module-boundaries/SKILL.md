@@ -110,7 +110,7 @@ A package whose code is one flat folder has nothing to hide, and an entry point 
 - `lint:boundaries` exits 0, and every pre-existing violation is fixed or in the committed baseline with a ticket.
 - A pass, then a named fail for each probe (every enabled rule, every import style in use, each probe in a TypeScript file), then a pass, were all observed; the working tree holds no probe.
 - The README and the context pointer exist, and the decider was told to re-run setup.
-- The diff holds the config, the guard, the script, the CI step, the baseline, the docs, and decider-approved import fixes, and nothing else.
+- The diff holds the config, the guard, the script, the CI step, the docs, and the dependency-cruiser devDependency with its lockfile change, plus the baseline if step 5 baselined any violation, the decider-approved import fixes if step 5 fixed any, and the `<packages-root>/example/` scaffold if the repo had no package, and nothing else.
 
 ## Attribution
 

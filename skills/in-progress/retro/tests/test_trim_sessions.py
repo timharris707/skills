@@ -421,6 +421,19 @@ class TestFinding(TempCase):
         raw = sum(p.stat().st_size for p in (self.in_root, self.codex_in))
         self.assertLess(sum(f.stat().st_size for f in files), raw)
 
+    def test_every_git_call_has_a_timeout_and_a_hang_ends_the_run_with_a_message(self):
+        done = subprocess.CompletedProcess([], 1, "", "")
+        with mock.patch.object(ts.subprocess, "run", return_value=done) as run:
+            ts.repo_roots(self.repo)
+        self.assertEqual(run.call_count, 2)
+        self.assertTrue(all(call.kwargs.get("timeout") == ts.GIT_TIMEOUT for call in run.call_args_list))
+        hang = subprocess.TimeoutExpired(["git"], ts.GIT_TIMEOUT)
+        with mock.patch.object(ts.subprocess, "run", side_effect=hang):
+            with self.assertRaises(SystemExit) as stopped:
+                ts.main(["--repo", self.repo, "--out", str(self.base / "o")])
+        self.assertIn("did not finish", str(stopped.exception.code))
+        self.assertIn(self.repo, str(stopped.exception.code))
+
     def test_cli_exits_1_when_nothing_matches(self):
         with contextlib.redirect_stderr(io.StringIO()):
             code = ts.main(["--repo", str(self.base / "empty"), "--claude-dir", str(self.claude),

@@ -25,5 +25,5 @@ their top-labeled findings real.
 
 The reason: the decider's standing conduct rules came from one hand-run audit of past session
 transcripts, and the same friction keeps recurring across projects, so the loop is worth
-running on request with a human choosing every fix, which is also why it never fixes
-anything itself: Matt found that automating it sends the agent chasing false positives.
+running on request with a human choosing every fix, which is also why it never applies a
+fix the user did not pick: Matt found that automating it sends the agent chasing false positives.
