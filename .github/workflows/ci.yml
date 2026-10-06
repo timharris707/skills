@@ -71,6 +71,12 @@ jobs:
       - name: Check the review-settled gate's thread filters
         run: python3 -m unittest discover -s tests/gate -p 'test*.py'
 
+      # The git guardrail hook setup seeds (#301) decides when an agent must
+      # ask before an irreversible git or GitHub action. This runs its matcher
+      # against every listed action, ordinary commands, and near-misses.
+      - name: Check the git guardrail hook's matcher
+        run: python3 -m unittest discover -s tests/hooks -p 'test*.py'
+
       # Tracker recipes must name the bound repo explicitly (#208): an
       # unqualified gh command resolves the repo implicitly, which in a fork
       # targets the upstream repo instead of the bound tracker.

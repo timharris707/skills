@@ -69,6 +69,10 @@ How the pack composes with this repo's resident rule systems. Resident rules win
 - **Checkpoint policy**: <bundled resolver verified | existing harness-owned policy and path; any missing capability>
 - **Recovery**: continue the current authorized task through compaction; legacy project handoffs remain read-only background.
 
+## Git guardrail
+
+- **Git guardrail hook**: gap: Codex hooks cannot return an ask decision yet (a `PreToolUse` ask is parsed but unsupported, and the command continues); revisit when they can.
+
 ## Adversarial review (optional; repos running the adversarial-review skill)
 
 <!-- The adversarial-review skill's binding slots. Omit this section if the repo has not
@@ -116,7 +120,7 @@ How the pack composes with this repo's resident rule systems. Resident rules win
   - Mechanical verification re-runs: <model + effort, e.g. cheaper model, low effort (they follow a script; exit codes don't need the frontier model)> · floor: <what this tier may NOT cover, e.g. never the adversarial pass itself>
   - Adversarial review (finders, skeptics, re-probes): <model + effort: high on real code or release-arming changes> · floor: <e.g. no low-effort skeptics on release-arming diffs>
   - Max tier: <the decider-named cases that run at max; never a default>
-- **Merge flow**: <integration mechanics; who may push what where>
+- **Merge flow**: <integration mechanics; who may push what where>; integration branches: <none (the default) | one line per opted-in spec: the spec, the branch name, who creates it, who may merge into it, when the final PR to the default branch opens; per the orchestrate skill's integration-branch reference>
 
 ## Accepted drift (written by setup's audit mode)
 

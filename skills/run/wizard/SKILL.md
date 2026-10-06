@@ -5,11 +5,11 @@ description: "Generate an interactive bash wizard that walks a human through a p
 
 # Wizard
 
-A **wizard** is a bash script that walks a human through a manual procedure one step at a time. It opens each URL, says exactly what to click and copy, captures the values, writes them where they belong, verifies what it can, and shows how much is left.
+A **wizard** is a bash script that walks a human through a manual procedure one step at a time. It opens each URL, says exactly what to click and copy, captures the values, writes them where they belong, verifies what it can, and shows how many stages are left.
 
 It exists for the class of work that blocks agents outright: a dashboard behind someone's SSO, a registrar's DNS panel, a secret that must never enter an agent's context. The alternative is a wall of numbered prose the human loses their place in on step four. A build lane that hits such a step mid-item routes it here per [implement](../implement/SKILL.md)'s interlock: the wizard carries the human steps while the `blocked` label carries the wait.
 
-The UX is already solved by [template.sh](template.sh): progress with time remaining, confirmation gates, cross-platform URL opening, hidden secret entry, idempotent `.env` upserts, `gh secret` writes, live verification, and a closing summary of what still needs doing by hand. **Your job is to scope the procedure and author its stages.** The library above the `STAGES` marker is identical in every wizard; that consistency is the point.
+The UX is already solved by [template.sh](template.sh): stage-by-stage progress, confirmation gates, cross-platform URL opening, hidden secret entry, idempotent `.env` upserts, `gh secret` writes, live verification, and a closing summary of what still needs doing by hand. **Your job is to scope the procedure and author its stages.** The library above the `STAGES` marker is identical in every wizard; that consistency is the point.
 
 A wizard is **ephemeral by default**: built for one run, written to a scratch or `scripts/` path, deleted when the job is done. Commit it only when the repo wants a repeatable setup path, and then link it from the README so the next person runs the script instead of re-deriving it.
 
@@ -34,7 +34,7 @@ For each stage, write the exact path a human follows: which URL, what to do ther
 
 ## 3. Author the wizard
 
-Copy `template.sh` to the target path and replace the example stage with one `stage` per step, in dependency order. Use the library helpers (`require`, `stage`, `say`/`step`/`note`, `open_url`, `ask`/`ask_secret`, `write_env`, `set_secret`/`set_var`, `check`, `pause`/`confirm`, `manual`) and set `TOTAL_STAGES` and `TOTAL_MINUTES` to honest estimates.
+Copy `template.sh` to the target path and replace the example stage with one `stage` per step, in dependency order. Use the library helpers (`require`, `stage`, `say`/`step`/`note`, `open_url`, `ask`/`ask_secret`, `write_env`, `set_secret`/`set_var`, `check`, `pause`/`confirm`, `manual`) and set `TOTAL_STAGES` to the number of stages you wrote.
 
 Hold the bar the template sets:
 
@@ -61,10 +61,10 @@ Hold the bar the template sets:
 - Every value identified in step 1 is captured by a stage and written where step 1 said it goes.
 - Every `set_secret` name matches a CI reference exactly, checked against `.github/workflows/*`, not from memory.
 - Every stage that has an observable result carries a `check`; everything the script cannot do carries a `manual`.
-- `TOTAL_STAGES` equals the number of `stage` calls, and `TOTAL_MINUTES` is an honest sum.
+- `TOTAL_STAGES` equals the number of `stage` calls.
 - No invented UI paths: every menu path is either verified against primary sources or flagged in the script as unverified.
 - Where a tracker item drives the procedure, it carries the `blocked` label with a comment naming the wizard and its pending steps, or the run is confirmed complete and the label came off only after the remaining-blockers recompute.
 
 ## Attribution
 
-The wizard concept and the shape of its library are adapted from Matt Pocock's [`wizard`](https://github.com/mattpocock/skills/tree/main/skills/engineering/wizard) (MIT). This implementation adds prerequisite checks, live verification, and manual-step tracking.
+The wizard concept and the shape of its library are adapted from Matt Pocock's [`wizard`](https://github.com/mattpocock/skills/tree/main/skills/engineering/wizard) (MIT), and progress counted in stages follows his later removal of the minutes estimate. This implementation adds prerequisite checks, live verification, and manual-step tracking.

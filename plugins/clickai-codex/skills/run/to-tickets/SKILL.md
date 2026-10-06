@@ -25,7 +25,7 @@ The slicing binds downstream: [implement](../implement/SKILL.md) mandates that a
 
 ## The wide-refactor exception
 
-One slice shape legitimately fails the tracer-bullet tests: a **wide refactor**: a single mechanical change (rename a column, retype a shared symbol) whose blast radius fans across the whole codebase, so no vertical slice can land green alone. Sequence it as **expand–contract** instead of forcing it into a bullet: an *expand* item adds the new form beside the old so nothing breaks; *migrate* items move the call sites over in batches sized by blast radius (per package, per directory), each blocked by the expand, CI staying green batch to batch because the old form still exists; a *contract* item deletes the old form once no caller remains, blocked by every migrate batch. When even the batches cannot stay green alone, keep the sequence but give them a shared integration branch that all block a final integrate-and-verify item; green is promised only there, and the contract item adds that item to its blockers: the old form never comes out before the combined verification completes.
+One slice shape legitimately fails the tracer-bullet tests: a **wide refactor**: a single mechanical change (rename a column, retype a shared symbol) whose blast radius fans across the whole codebase, so no vertical slice can land green alone. Sequence it as **expand–contract** instead of forcing it into a bullet: an *expand* item adds the new form beside the old so nothing breaks; *migrate* items move the call sites over in batches sized by blast radius (per package, per directory), each blocked by the expand, CI staying green batch to batch because the old form still exists; a *contract* item deletes the old form once no caller remains, blocked by every migrate batch. When even the batches cannot stay green alone, keep the sequence but give them a shared integration branch (recorded per orchestrate's [integration-branch reference](../orchestrate/references/integration-branch.md), the decider's approval of those slices counting as the opt-in) and have them all block a final integrate-and-verify item; green is promised only there, and the contract item adds that item to its blockers: the old form never comes out before the combined verification completes.
 
 ## The sign-off gate
 
@@ -48,6 +48,15 @@ gh api repos/<owner>/<repo>/issues/<child-number>/dependencies/blocked_by -F iss
 
 Edges are authoritative wherever the blocker is a tracker item, so the frontier unblocks itself when the blocker closes. The `blocked` label is only for **non-ticket** blockers: a vendor gate, a scheduling constraint, a pending adjudication. An item blocked purely by edges must not also carry the label, or a stale label holds it blocked after its edges clear. A mixed-blocked item carries both: closing a ticket removes only that dependency; clearing a non-ticket blocker removes the label only when no non-ticket blockers remain. Neither event alone makes an item with the other blocker outstanding available.
 
+**Attach to the source.** When the tickets' source is an existing tracker issue (a spec issue, the driving item), also attach every filed ticket to it as a native sub-issue, so the source issue carries its tickets and their progress:
+
+```bash
+# gh 2.94 or later. <owner>/<repo> is the bound tracker repo, written literally:
+gh issue edit <source-number> --repo <owner>/<repo> --add-sub-issue <ticket-number>
+```
+
+Where `gh` rejects the flag as unknown, use the `gh api` form in the tracker reference (it takes the ticket's database id, not its number). Where the tracker has no sub-issues, put `Part of #<source-number>` as the first line of each ticket body instead. A sub-issue link records where a ticket came from; blocking stays with the edges and the `blocked` label above.
+
 ## Labels and readiness
 
 Apply the state and type labels the binding doc maps. An item is labeled ready **only when its body could be handed to a stranger**: every acceptance criterion checkable, every dependency wired, no "we'll figure this out in the ticket". Anything short of that is `needs-triage`, and saying so is more useful than a ready label that lies.
@@ -66,6 +75,7 @@ Confirm the labels exist on the tracker before filing. A frontier query against 
 - The decider approved the slice list before anything was filed, and Pass 1 matches the approved list recorded on the plan-source or driving item.
 - Every item body carries destination, plan source link, checkable acceptance criteria, named verification, and out-of-scope.
 - Pass 2 ran: every ticket-blocker is a native edge, every non-ticket blocker is the `blocked` label, and an item with both ticket and non-ticket blockers carries both until the respective blockers clear.
+- Where the source was an existing issue, every filed ticket is its native sub-issue, or carries the `Part of #<source-number>` line because `gh` or the tracker could not attach one.
 - Every item is labeled, and every ready-labeled item could be handed to a stranger as-is.
 - The frontier query returns the items you expect to be takeable now; run it and read the result rather than assuming.
 - Every item filed from an [ingest](../../investigate/ingest/SKILL.md) evidence packet is recorded in that packet's `derived_items`: the `link` command from the recommendation ran at filing time.
@@ -73,4 +83,4 @@ Confirm the labels exist on the tracker before filing. A frontier query against 
 
 ## Attribution
 
-The slicing model here (tracer-bullet vertical slices, each declaring the blocking edges that gate it), the expand–contract exception for wide refactors, and the pre-filing approval round are adapted from Matt Pocock's [`to-tickets`](https://github.com/mattpocock/skills/tree/main/skills/engineering/to-tickets) (MIT); the two-pass filing order (bodies first, edges once ids exist) is his too, from [`wayfinder`](https://github.com/mattpocock/skills/tree/main/skills/engineering/wayfinder). The coupling to the binding doc and tracker discipline, the issue-as-spec body, the readiness bar, and the refusals in "What this skill does not do" are this repo's.
+The slicing model here (tracer-bullet vertical slices, each declaring the blocking edges that gate it), the expand–contract exception for wide refactors, and the pre-filing approval round are adapted from Matt Pocock's [`to-tickets`](https://github.com/mattpocock/skills/tree/main/skills/engineering/to-tickets) (MIT); the two-pass filing order (bodies first, edges once ids exist) is his too, from [`wayfinder`](https://github.com/mattpocock/skills/tree/main/skills/engineering/wayfinder). Attaching each filed ticket to its source issue as a sub-issue follows his later fix. The coupling to the binding doc and tracker discipline, the issue-as-spec body, the readiness bar, the sub-issue recipe and its fallbacks, and the refusals in "What this skill does not do" are this repo's.
