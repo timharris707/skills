@@ -462,7 +462,7 @@
       "executable": false
     },
     "skills/orient/setup/SKILL.md": {
-      "sha256": "02f8d250820e208b83707dcb1dbcf8fab7985a6c6e8407461aa77c5cd5883461",
+      "sha256": "5ed0caf12999a0e72fa5a22f874b97eba66cd1e33cdc7d1eaba14b82fe0889b6",
       "executable": false
     },
     "skills/orient/setup/agents/openai.yaml": {
@@ -542,7 +542,7 @@
       "executable": false
     },
     "skills/run/orchestrate/SKILL.md": {
-      "sha256": "3ad1ea613706361881134f4c6730b1bfade6bc0855b729221431145afcaa2fe0",
+      "sha256": "1c34546f9dd015b5e9fc14be041123f37e57923afa4d7122213c101cfd6c0de7",
       "executable": false
     },
     "skills/run/orchestrate/agents/openai.yaml": {
@@ -562,7 +562,7 @@
       "executable": false
     },
     "skills/run/orchestrate/references/pr-writing.md": {
-      "sha256": "14c847f78ea77ef6798b91a927b87bbdc7379c06bcdd18f4e8c5893ce1484eb6",
+      "sha256": "249170f6eea4f317ab510f43bc878ceaf730dc16e6dd142db204e905c5aca810",
       "executable": false
     },
     "skills/run/orchestrate/references/runner-parity.md": {

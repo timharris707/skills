@@ -67,11 +67,11 @@ Two per-repo sections for the file every session already loads: the repo's agent
 
 **Composition with domain-memory.** Where the repo binds [domain-memory](../domain-memory/SKILL.md), the glossary already has a home (the terms file at the memory home) and a disposition mechanism (backfill drafts, card by card): setup's harvest routes through that (setup only drafts the candidate cards; the terms-file write belongs to domain-memory's own disposition process, so setup's declared writes stay unchanged), and the agent-context file gets a **pointer line** to the memory home, never a second glossary. Only a repo without domain-memory gets the glossary written into the agent-context file directly. The never-compromise list is not domain memory: it goes in the agent-context file either way.
 
-The agent-context edit is a declared, confirmed setup write; an agent-context file owned by a config-distribution pipeline follows the sync-managed rule above.
+The agent-context edit is a declared, confirmed setup write; an agent-context file owned by a config-distribution pipeline follows Configuration ownership above.
 
 ## Session-scope conduct pointer (optional binding)
 
-The pack's PR conduct, the [pr-writing reference](../../run/orchestrate/references/pr-writing.md), binds every session writing on the decider's behalf, not just lanes the pack machinery launched; an ad-hoc session loads only the agent-context file, so conduct recorded in the binding doc alone never reaches it. Setup (interview and re-run alike) offers a short pointer section for the agent-context file: where the binding doc lives, plus "before writing any PR description or comment, read the pack's pr-writing reference." Pointer-only: the reference stays the single evolving authority, never copied. The write follows the same declared-write and sync-managed rules as the glossary edit above; a decline is recorded in the binding doc, revisited on re-run.
+The pack's PR conduct, the [pr-writing reference](../../run/orchestrate/references/pr-writing.md), binds every session writing on the decider's behalf, not just lanes the pack machinery launched; an ad-hoc session loads only the agent-context file, so conduct recorded in the binding doc alone never reaches it. Setup (interview and re-run alike) offers a short pointer section for the agent-context file: where the binding doc lives, plus "before writing any PR description or comment, read the pack's pr-writing reference." Pointer-only: the reference stays the single evolving authority, never copied. The write follows the same declared-write and configuration-ownership rules as the glossary edit above; a decline is recorded in the binding doc, revisited on re-run.
 
 ## Re-run semantics: idempotent refresh
 

@@ -19,6 +19,10 @@
 - Setup records the team-workflow git guardrail hook as a gap: Codex hooks cannot return
   an ask decision yet, and the guardrail asks rather than blocks. The binding-doc template
   carries the gap line. The hook script ships in the package unwired.
+- Correct two stale lines shipped in v1.1.1: setup's glossary-edit and conduct-pointer
+  steps now point at Configuration ownership instead of a sync-managed section this
+  edition does not have, and the PR-writing attribution no longer credits Theo Browne
+  with the newer-than-latest-push rule, which this edition replaces.
 
 ## [v1.1.1] - 2026-09-05
 

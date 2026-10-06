@@ -72,7 +72,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   summary of the guide names the two new parts. Adapted from Matt Pocock's `pr` skill (MIT)
   and, through it, Dex Horthy's `show-me`; attribution in the guide.
 - **orchestrate: SKILL.md back within Tim's 2,500-word bound** (`wc -w`: 2,573 on main before
-  this change, 2,783 with #299's rules written inline, 2,500 now). The integration-branch
+  this change, 2,783 with #299's rules written inline, 2,493 now). The integration-branch
   detail moved to the new reference, and sentences that restated a rule the file already
   states elsewhere were cut or shortened: for example §4's lane-title line (§8 carries it),
   §5 step 1's spot-check (§1 item 2 carries it), and §5's hand-off parenthetical (§4's toggle
