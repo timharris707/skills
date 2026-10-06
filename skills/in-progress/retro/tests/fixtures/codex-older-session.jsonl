@@ -1,0 +1,13 @@
+{"timestamp":"2026-03-20T08:00:00.000Z","type":"session_meta","payload":{"id":"0198bbbb-0000-7000-8000-000000000003","timestamp":"2026-03-20T08:00:00.000Z","cwd":"__CWD__","originator":"codex_cli_rs","cli_version":"0.110.0"}}
+{"timestamp":"2026-03-20T08:00:00.100Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"<user_instructions>INJECTED-MARKER</user_instructions>"}]}}
+{"timestamp":"2026-03-20T08:00:01.000Z","type":"event_msg","payload":{"type":"user_message","message":"Bump the version and push.","images":[],"local_images":[],"text_elements":[]}}
+{"timestamp":"2026-03-20T08:00:02.000Z","type":"response_item","payload":{"type":"function_call","name":"exec_command","arguments":"{\"cmd\":\"git push origin main\",\"workdir\":\"__CWD__\"}","call_id":"call_1"}}
+{"timestamp":"2026-03-20T08:00:03.000Z","type":"response_item","payload":{"type":"function_call_output","call_id":"call_1","output":"Chunk ID: a1\nWall time: 0.5 seconds\nProcess exited with code 1\nOutput:\nremote: Permission denied"}}
+{"timestamp":"2026-03-20T08:00:04.000Z","type":"response_item","payload":{"type":"function_call","name":"shell","arguments":"{\"command\":[\"bash\",\"-lc\",\"git status\"]}","call_id":"call_2"}}
+{"timestamp":"2026-03-20T08:00:05.000Z","type":"response_item","payload":{"type":"function_call_output","call_id":"call_2","output":"{\"output\":\"On branch main\",\"metadata\":{\"exit_code\":0,\"duration_seconds\":0.1}}"}}
+{"timestamp":"2026-03-20T08:00:06.000Z","type":"response_item","payload":{"type":"function_call","name":"shell","arguments":"{\"command\":[\"bash\",\"-lc\",\"npm run build\"]}","call_id":"call_3"}}
+{"timestamp":"2026-03-20T08:00:07.000Z","type":"response_item","payload":{"type":"function_call_output","call_id":"call_3","output":"{\"output\":\"error TS2304: Cannot find name 'x'\",\"metadata\":{\"exit_code\":2,\"duration_seconds\":3.2}}"}}
+{"timestamp":"2026-03-20T08:00:08.000Z","type":"response_item","payload":{"type":"function_call","name":"update_plan","arguments":"{\"plan\":[]}","call_id":"call_4"}}
+{"timestamp":"2026-03-20T08:00:09.000Z","type":"response_item","payload":{"type":"function_call_output","call_id":"call_4","output":"Plan updated"}}
+{"timestamp":"2026-03-20T08:00:10.000Z","type":"event_msg","payload":{"type":"turn_aborted","reason":"interrupted"}}
+{"timestamp":"2026-03-20T08:05:00.000Z","type":"compacted","payload":{"message":"SUMMARY-MARKER"}}

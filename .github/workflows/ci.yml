@@ -188,5 +188,13 @@ jobs:
       - name: Run ingest tests
         run: python -m unittest discover -s skills/investigate/ingest/tests -t skills/investigate/ingest/tests -p 'test*.py'
 
+      # retro is still in-progress, but its trim script runs on real logs, so its
+      # tests run here; promotion moves these two paths with the skill.
+      - name: Compile retro sources
+        run: python -m compileall -q skills/in-progress/retro/scripts
+
+      - name: Run retro tests
+        run: python -m unittest discover -s skills/in-progress/retro/tests -t skills/in-progress/retro/tests -p 'test*.py'
+
       - name: Check tracked whitespace
         run: git diff --check HEAD^1 HEAD
