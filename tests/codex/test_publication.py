@@ -58,7 +58,7 @@ class PublicationTests(unittest.TestCase):
             archive(candidate, a); archive(candidate, b)
             self.assertEqual(a.read_bytes(), b.read_bytes())
             with zipfile.ZipFile(a) as z:
-                self.assertEqual(23, sum(n.endswith('/SKILL.md') for n in z.namelist()))
+                self.assertEqual(24, sum(n.endswith('/SKILL.md') for n in z.namelist()))
                 self.assertTrue(all(n.startswith('clickai-codex/') and '..' not in n.split('/') for n in z.namelist()))
                 self.assertIn('clickai-codex/runtime/checkpoint.py', z.namelist())
                 metadata = json.loads(z.read('clickai-codex/.codex-plugin/plugin.json'))

@@ -2,7 +2,7 @@
   "format": 1,
   "files": {
     ".codex-plugin/plugin.json": {
-      "sha256": "53ec905bc9e8f982cef27a5538b7dd852fa9e2829c8dfee647d32bd855d4235d",
+      "sha256": "8f20f4495209fd776d946f607ad326f2a7b230032c753b0f7cb425184e77d4d5",
       "executable": false
     },
     "CODEX.md": {
@@ -454,7 +454,7 @@
       "executable": false
     },
     "skills/orient/router/SKILL.md": {
-      "sha256": "bdda72ed085dd243f9d566e412e6cb2efe8ebe5db040a313509d420c52dd3cb3",
+      "sha256": "b1ec9d8a8ad8adb47da273eda31ce7b734d3cb298d7be2c81363bb9e89418aee",
       "executable": false
     },
     "skills/orient/router/agents/openai.yaml": {
@@ -462,7 +462,7 @@
       "executable": false
     },
     "skills/orient/setup/SKILL.md": {
-      "sha256": "5ed0caf12999a0e72fa5a22f874b97eba66cd1e33cdc7d1eaba14b82fe0889b6",
+      "sha256": "823d33b731807be9f26e2219332d50e1c3343d0b3737342bda69b028fc416708",
       "executable": false
     },
     "skills/orient/setup/agents/openai.yaml": {
@@ -482,7 +482,7 @@
       "executable": false
     },
     "skills/orient/setup/references/templates/lane-brief.md": {
-      "sha256": "8e0d31c5ddafabc37ebc17b1addd94bb5f5c36748c1e3b10aaabb252a883775e",
+      "sha256": "f95a7b80e7cc8ec99cf767880940c19657fd6f1fb0c2649db5066fd6c9d7d38b",
       "executable": false
     },
     "skills/orient/setup/references/tracker-discipline.md": {
@@ -542,7 +542,7 @@
       "executable": false
     },
     "skills/run/orchestrate/SKILL.md": {
-      "sha256": "1c34546f9dd015b5e9fc14be041123f37e57923afa4d7122213c101cfd6c0de7",
+      "sha256": "af6790f193db84569ad8c195971c8950e5c4f3152f5711427a263e2cea4271c7",
       "executable": false
     },
     "skills/run/orchestrate/agents/openai.yaml": {
@@ -561,12 +561,16 @@
       "sha256": "e43c508f12a97ffee832edb6ec8ed2734e47a9b0f605c4c60048e4923a3db1e2",
       "executable": false
     },
-    "skills/run/orchestrate/references/pr-writing.md": {
-      "sha256": "249170f6eea4f317ab510f43bc878ceaf730dc16e6dd142db204e905c5aca810",
-      "executable": false
-    },
     "skills/run/orchestrate/references/runner-parity.md": {
       "sha256": "828dd1c7e9136e1eaf03581267001b83152f62da9e389a74f1a33b9f5ea69404",
+      "executable": false
+    },
+    "skills/run/pr-writing/SKILL.md": {
+      "sha256": "42e3586631a01a825671c199b0f8b3c103c5ab07126725d0d092db18e8a30311",
+      "executable": false
+    },
+    "skills/run/pr-writing/agents/openai.yaml": {
+      "sha256": "b3e007e1351117f87011af17e75c15136a8a118e4ccd360638e0efcb39c9422d",
       "executable": false
     },
     "skills/run/show-me-your-work/SKILL.md": {

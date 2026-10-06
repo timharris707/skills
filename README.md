@@ -2,7 +2,7 @@
 
 I've led dev teams for over twenty years. I never wrote the code. These skills give me a lead developer who runs the team, so all I have to bring is the idea. Four shipped products so far.
 
-Most of these skills started as someone else's. Fifteen are adapted from Matt Pocock's [Skills For Real Engineers](https://github.com/mattpocock/skills), three from [Lauren Tan](https://github.com/cursor/plugins/tree/main/pstack), five are mine. I rewrote nearly all of them for someone who won't read the code, then tied them together under one [orchestrator](./skills/run/orchestrate/SKILL.md) session that takes the idea, decides what gets grilled, mapped, prototyped, built, and reviewed, and runs the rest. That's what lets a non-engineer ship at production quality. I talk to that one session the way I've always talked to a dev lead.
+Most of these skills started as someone else's. Fifteen are adapted from Matt Pocock's [Skills For Real Engineers](https://github.com/mattpocock/skills), three from [Lauren Tan](https://github.com/cursor/plugins/tree/main/pstack), six are mine. I rewrote nearly all of them for someone who won't read the code, then tied them together under one [orchestrator](./skills/run/orchestrate/SKILL.md) session that takes the idea, decides what gets grilled, mapped, prototyped, built, and reviewed, and runs the rest. That's what lets a non-engineer ship at production quality. I talk to that one session the way I've always talked to a dev lead.
 
 Each skill is a `SKILL.md`, a plain-markdown playbook the agent reads on its own: every workflow I used to re-explain each session, written down once, installed in one line and versioned like software.
 
@@ -179,6 +179,7 @@ Get decided work onto the board, through the lanes, and handed on.
 | [show-me-your-work](./skills/run/show-me-your-work/SKILL.md) | Keeps an append-only decision log during unattended work, so the human back from stepping away audits a table, not a recap. | team-workflow pack | fires itself |
 | [orchestrate](./skills/run/orchestrate/SKILL.md) | Runs one session as the lead developer of an agent team: route, audit, integrate, never implement. The seat a non-engineer works from. | team-workflow pack | fires itself |
 | [adversarial-review](./skills/run/adversarial-review/SKILL.md) | Breaks the change before it ships: isolated finders, a skeptic pass, a gate only confirmed blockers hold. | team-workflow pack | fires itself |
+| [pr-writing](./skills/run/pr-writing/SKILL.md) | Writes PRs and review replies the decider can judge without reading the code: problem first, before-and-after proof, whether a revert undoes it. | team-workflow pack | fires itself |
 | [diagnose](./skills/run/diagnose/SKILL.md) | The disciplined bug loop; no fix ships without its cause named in one plain sentence, with evidence. | team-workflow pack | fires itself |
 | [implement](./skills/run/implement/SKILL.md) | How a lane builds an item: seam-scoped test-first, a green checkpoint commit per slice. | team-workflow pack | fires itself |
 | [blast-radius](./skills/run/blast-radius/SKILL.md) | Finds what a change breaks somewhere else, past where grep stops, and proves the safety claim by running real code. | Standalone plugin | fires itself |
@@ -204,7 +205,7 @@ skills/
   orient/            # PROMOTED  router, setup, domain-memory
   decide/            # PROMOTED  grilling, decision-map, advisory-board
   investigate/       # PROMOTED  research, prototype, codebase-review, ingest
-  run/               # PROMOTED  to-tickets, wizard, handoff, show-me-your-work, orchestrate, adversarial-review, diagnose, implement, blast-radius
+  run/               # PROMOTED  to-tickets, wizard, handoff, show-me-your-work, orchestrate, adversarial-review, pr-writing, diagnose, implement, blast-radius
   author/            # PROMOTED  writing-for-agents, writing-for-humans, plainspoken, huh
   in-progress/       # unpromoted: half-built, kept but not shipped
   misc/              # unpromoted: one-offs too repo-specific to publish

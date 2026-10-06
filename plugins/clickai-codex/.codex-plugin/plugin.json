@@ -1,7 +1,7 @@
 {
   "name": "clickai-codex",
   "version": "1.2.0",
-  "description": "23 Click AI skills for Codex desktop, adapted for Astra workflows: planning, research, writing, implementation, independent review, and checkpoint recovery.",
+  "description": "24 Click AI skills for Codex desktop, adapted for Astra workflows: planning, research, writing, implementation, independent review, and checkpoint recovery.",
   "author": {
     "name": "Tim Harris"
   },
@@ -39,6 +39,7 @@
     "./skills/run/handoff",
     "./skills/run/implement",
     "./skills/run/orchestrate",
+    "./skills/run/pr-writing",
     "./skills/run/show-me-your-work",
     "./skills/run/to-tickets",
     "./skills/run/wizard"

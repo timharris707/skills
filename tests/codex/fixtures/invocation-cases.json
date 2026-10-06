@@ -446,6 +446,30 @@
       "negative_expectation": "Do not select this workflow solely for this prompt; follow the requested task and applicable project rules."
     },
     {
+      "skill": "pr-writing",
+      "source": "skills/run/pr-writing/SKILL.md",
+      "branches": [
+        {
+          "description_concept": "filing a PR",
+          "positive_prompt": "Open a pull request for this branch."
+        },
+        {
+          "description_concept": "updating a PR description",
+          "positive_prompt": "Rewrite the PR description now that the fix changed."
+        },
+        {
+          "description_concept": "responding to PR review feedback",
+          "positive_prompt": "Address the reviewer's comments on my pull request."
+        },
+        {
+          "description_concept": "on someone's behalf",
+          "positive_prompt": "Reply on the review thread for me explaining why we kept the old name."
+        }
+      ],
+      "negative_prompt": "Rename this variable across the module.",
+      "negative_expectation": "Do not select this workflow solely for this prompt; follow the requested task and applicable project rules."
+    },
+    {
       "skill": "show-me-your-work",
       "source": "skills/run/show-me-your-work/SKILL.md",
       "branches": [
