@@ -7,8 +7,11 @@ import { getSkills, type Skill } from "./skills";
  * Matt is hers; anything else is the maker's own. A skill whose attribution
  * only mentions a source without deriving from it (huh shares Matt's trigger
  * and nothing else) says so with `<!-- lineage: own -->`, which wins over the
- * link rule. scripts/check_lineage_counts.py mirrors both rules and holds the
- * README's sentence to the same numbers.
+ * link rule. The same marker covers a skill whose design is the repo's own even
+ * when its attribution credits a source for specific borrowed rules
+ * (orchestrate borrows three rules from implement-spec; decision 0008).
+ * scripts/check_lineage_counts.py mirrors both rules and holds the README's
+ * sentence to the same numbers.
  */
 
 export type Lineage = "matt" | "tan" | "own";

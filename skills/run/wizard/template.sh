@@ -21,10 +21,8 @@ fi
 
 # Set by the author at the top of the STAGES section.
 TOTAL_STAGES=0
-TOTAL_MINUTES=0
 
 _STAGE_INDEX=0
-_MINUTES_ELAPSED=0
 ENV_FILE="${ENV_FILE:-.env}"
 WROTE_ENV=()     # KEYs upserted into ENV_FILE this run
 WROTE_SECRET=()  # CI secret names set this run
@@ -63,22 +61,19 @@ require() {
 banner() {
   _clear
   printf '\n%s%s  %s%s\n' "$BOLD" "$BLUE" "$1" "$RESET"
-  printf '%s  %s stages · about %s minutes%s\n\n' "$DIM" "$TOTAL_STAGES" "$TOTAL_MINUTES" "$RESET"
+  printf '%s  %s stages%s\n\n' "$DIM" "$TOTAL_STAGES" "$RESET"
   printf '%s  You drive the browser; this wizard says exactly what to do and captures\n' "$DIM"
   printf '  what you copy back. Ctrl-C any time and re-run later — values already\n'
   printf '  saved are offered back as defaults.%s\n' "$RESET"
   pause "Ready to start?"
 }
 
-# stage "Name" <minutes> — clear the screen, announce the stage, show progress.
+# stage "Name": clear the screen, announce the stage, show progress as a stage count.
 stage() {
   _clear
   _STAGE_INDEX=$((_STAGE_INDEX + 1))
-  local remaining=$((TOTAL_MINUTES - _MINUTES_ELAPSED))
-  (( remaining < 0 )) && remaining=0
-  _MINUTES_ELAPSED=$((_MINUTES_ELAPSED + ${2:-0}))
-  printf '\n%s%s▸ Stage %s/%s · %s%s  %s(~%s min left)%s\n\n' \
-    "$BOLD" "$BLUE" "$_STAGE_INDEX" "$TOTAL_STAGES" "$1" "$RESET" "$DIM" "$remaining" "$RESET"
+  printf '\n%s%s▸ Stage %s/%s · %s%s\n\n' \
+    "$BOLD" "$BLUE" "$_STAGE_INDEX" "$TOTAL_STAGES" "$1" "$RESET"
 }
 
 # open_url URL — open in the human's browser, cross-platform including WSL.
@@ -260,15 +255,14 @@ finish() {
 
 # ─────────────────────────────────────────────────────────────────────────────
 # STAGES — author below. One stage() per step the human takes.
-# Replace the example. Set the totals to match the stages you write.
+# Replace the example. Set TOTAL_STAGES to match the stages you write.
 # ─────────────────────────────────────────────────────────────────────────────
 
 TOTAL_STAGES=1
-TOTAL_MINUTES=5
 
 banner "Example setup"
 
-stage "Stripe — API keys" 5
+stage "Stripe — API keys"
 say "We'll grab your Stripe test keys and store them for local dev and CI."
 open_url "https://dashboard.stripe.com/test/apikeys"
 step "Copy the Publishable key (it starts pk_test_)."

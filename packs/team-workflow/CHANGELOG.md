@@ -14,6 +14,94 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [v1.8.0] - 2026-10-06 — adoptions from Matt Pocock's Skills v1.3 and a git guardrail
+
+### Added
+- **orchestrate: lanes catch up before handing back** (#299): before its summary, a lane
+  brings its branch up to date with its merge target (the default branch, or the spec's
+  integration branch), through the harness's host-side sync tool where one exists,
+  resolves any conflict itself since it knows the change, re-runs its verification, and
+  names the target commit in the summary. Conflicts land with the session that knows the
+  change, and the orchestrator's merge starts clean. If the target moves again before the
+  orchestrator merges, the orchestrator updates the branch itself where the update applies
+  cleanly and re-runs verification; only a conflict goes back to the lane. §5's audit sends
+  a summary with no catch-up line back to the lane. The lane-brief template carries the
+  rule as a standing constraint and in the output contract, and branches lanes off the
+  merge target.
+- **orchestrate, setup: optional integration branch per spec** (#299): §7's merge-flow
+  slot can record an integration branch for a spec the decider wants landed whole: its
+  lanes merge there and main gets one PR at the end. Opt-in per spec on the decider's
+  word, never the default. The detail lives in a new `references/integration-branch.md`:
+  the record names the branch, who creates it, who may merge into it, and when the final
+  PR to main opens; each lane still closes out per §5; the integration branch catches up
+  with main by the same rule as a lane before the final PR opens; and the final PR gets
+  the whole-spec close-out review (§5 again, scoped to the whole spec). Setup offers the
+  option when the merge-flow slot is taken up, and the binding-doc template carries its
+  record line. A lane PR into the integration branch does not close its item, because GitHub
+  honors `Closes #N` only on PRs into the default branch: the orchestrator closes the item at
+  that lane's close-out, with a comment naming the integration branch and the merge commit, so
+  dependent items reach the frontier, and the final PR lists the spec's items for the record.
+  Both rules are borrowed from Matt Pocock's `implement-spec` (MIT); orchestrate itself is
+  the repo's own design.
+- **setup** offers a git guardrail hook in the interview, beside the handoff hook: a Claude
+  Code `PreToolUse` hook (`scripts/git_guardrails.py`, Python 3 standard library) that makes
+  the agent ask the human before force-pushing, pushing tags, creating, editing, or deleting a
+  release, deleting a remote branch, `git reset --hard`, `git clean -f`, or `git branch -D`.
+  Ordinary pushes, commits, PRs, and merges pass silently. It is a best-effort matcher over
+  common command forms, not a complete barrier; its known limits are listed in the script.
+  It is removable, follows the sync-managed and approval-before-edit rules, and the binding
+  doc records it as seeded, pending, declined, or a gap on a runtime whose hooks cannot ask.
+  Codex hooks cannot return an ask decision yet, so the Codex edition records the gap.
+  Adapted from Matt Pocock's `git-guardrails-claude-code` (MIT), changed from block to ask.
+  CI runs the matcher's tests (`tests/hooks`).
+
+### Changed
+- **orchestrate: every agent-filed PR says whether it can be undone and shows before-and-after
+  proof** (#298): the PR-writing guide now orders a description as problem, solution,
+  evidence, can-we-undo, then optional detail. Evidence covers every change, not only
+  user-visible ones: screenshots or recordings for visible changes, the exact test or command
+  output before and after for the rest, and it must be something that ran. Pasted output gets
+  the same no-secrets review as screenshots. A required two-line call says whether a revert
+  fully undoes the change (no when merging deletes or migrates data, sends messages,
+  publishes, spends money, or changes a third party) and rates how much could break as small,
+  medium, or large with one sentence naming what; medium or large points at the blast-radius
+  skill where installed. Developer reviewers may get the smallest diagram that makes the
+  change clear, after the plain-language problem and solution. Every earlier rule stays. The
+  guide's opening now says most of its rules exist because their violation shipped and the
+  rest come from reviewed prior art named in its Attribution. The lane-brief template's
+  summary of the guide names the two new parts. Adapted from Matt Pocock's `pr` skill (MIT)
+  and, through it, Dex Horthy's `show-me`; attribution in the guide.
+- **orchestrate: SKILL.md back within Tim's 2,500-word bound** (`wc -w`: 2,573 on main before
+  this change, 2,783 with #299's rules written inline, 2,493 now). The integration-branch
+  detail moved to the new reference, and sentences that restated a rule the file already
+  states elsewhere were cut or shortened: for example §4's lane-title line (§8 carries it),
+  §5 step 1's spot-check (§1 item 2 carries it), and §5's hand-off parenthetical (§4's toggle
+  scope carries it). Every rule was checked against the old file; none was dropped or
+  weakened. A new Attribution section credits Matt Pocock's `implement-spec` for the
+  context-pointer wording adopted in v1.5.4 as well as #299's two rules, and declares
+  `lineage: own`, so the README's lineage counts are unchanged.
+- **wizard** no longer shows a time estimate (#297). The template drops `TOTAL_MINUTES` and
+  the minutes-remaining display, `stage` takes a name only, and progress counts stages. The
+  number was guessed when the script was written and never matched the real run. Follows
+  Matt Pocock's upstream change.
+- **diagnose** gains a short redaction rule (#297): secrets in any command, output, or
+  captured artifact the lane shows become `<REDACTED>`, feedback loops read credentials from
+  environment variables so they never appear in the loop, only the lines that carry the
+  signal are quoted, and a redacted copy is requested when the user holds an artifact the
+  diagnosis needs. The checkable list gains the matching line. Follows Matt Pocock's upstream
+  change.
+- **to-tickets** attaches each filed ticket to its source issue as a native sub-issue, when
+  the source is an existing issue (#297). The tracker reference gains the recipe: `gh issue
+  edit --add-sub-issue` on `gh` 2.94 or later, the REST call on older `gh`, and a `Part of #N`
+  line at the top of the ticket body where the tracker has no sub-issues. Setup's list of the
+  recipes a non-GitHub tracker maps now names sub-issue links too. Blocking edges and the
+  `blocked` label are unchanged. Follows Matt Pocock's upstream change.
+
+### Fixed
+- **domain-memory** attribution links point at Matt Pocock's `GLOSSARY-FORMAT.md` (#297); he
+  renamed `CONTEXT-FORMAT.md` and his `CONTEXT.md` convention in his v1.3.0, and the old links
+  no longer resolved. The text now says so.
+
 ## [v1.7.2] - 2026-09-05 — preserve independent blockers
 
 ### Fixed

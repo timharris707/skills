@@ -22,6 +22,8 @@ Six steps, in order. A failed fix re-enters at the step whose output it disprove
 5. **Fix.** Only against the hypothesis the instrumentation confirmed. Watch the red test go green.
 6. **Regression-test.** Re-run the original, un-minimized repro; keep the failing test from step 1 in the suite as the regression test; grep the probe tag out. Then write the closing artifact.
 
+Across all six steps, **redact secrets**: every secret in a command, an output, or a captured artifact the lane shows is replaced with `<REDACTED>`. Feedback loops read credentials from environment variables, so a credential never appears in the loop itself. Quote only the lines of an artifact that carry the signal. When the evidence needs an artifact the user holds (a log dump, a captured request), ask for a redacted copy.
+
 ## The closing artifact
 
 Two things, and close-out audits check for both:
@@ -50,12 +52,13 @@ Sometimes the named cause says the bug is a **symptom**: a missing seam, a rule 
 - The repro was minimized until tight, fast and deterministic enough to iterate against, and no further.
 - Every hypothesis tested carried a falsifiable prediction, and the fix answers the hypothesis the instrumentation confirmed, not a hunch that survived by making the symptom vanish.
 - The original un-minimized repro no longer reproduces, and a grep of the probe tag comes back empty.
+- No secret appears in anything the lane showed: each is `<REDACTED>` or an environment-variable reference.
 - A structural cause, where the diagnosis revealed one, is reported as friction toward codebase-review's entry gate, with the instance fixed and the lane's scope unexpanded.
 - Where the repo binds domain-memory: a standing fact revealed by the root cause was offered as a record, or there was none.
 
 ## Attribution
 
-Adapted from Matt Pocock's [`diagnosing-bugs`](https://github.com/mattpocock/skills/tree/main/skills/engineering/diagnosing-bugs) (MIT). The six-step spine is his: build a tight feedback loop and watch it go red, minimize by cutting one element at a time, generate ranked falsifiable hypotheses each stating its prediction (his format and several of these phrasings, near-verbatim), instrument one variable at a time with tagged probes rather than logging everything, write the regression test before the fix and re-run the original repro after, and state the confirmed cause so the next debugger learns. So are *tight* as the loop's quality bar, the reproduction-rate framing for flaky bugs, and the post-mortem handoff of architectural causes to his `improve-codebase-architecture`, the seed of the friction-gate escalation here.
+Adapted from Matt Pocock's [`diagnosing-bugs`](https://github.com/mattpocock/skills/tree/main/skills/engineering/diagnosing-bugs) (MIT). The six-step spine is his: build a tight feedback loop and watch it go red, minimize by cutting one element at a time, generate ranked falsifiable hypotheses each stating its prediction (his format and several of these phrasings, near-verbatim), instrument one variable at a time with tagged probes rather than logging everything, write the regression test before the fix and re-run the original repro after, and state the confirmed cause so the next debugger learns. So are *tight* as the loop's quality bar, the reproduction-rate framing for flaky bugs, and the post-mortem handoff of architectural causes to his `improve-codebase-architecture`, the seed of the friction-gate escalation here. The redaction paragraph is adapted from the `Redact` section he added later.
 
 What this pack changes: the named-cause test as the binding trigger (any fix shipping without a nameable cause, not hard bugs only), the failing-automated-test-first bar with the documented manual repro as a recorded, flagged fallback, proportionate minimize (tight enough to iterate against is the stopping point, not load-bearing minimality for its own sake), the plain-sentence closing artifact audited at lane close-out, the domain-memory feed for standing facts, and the friction-gate rewiring into codebase-review's entry gate with the diagnosing lane's scope pinned.
 

@@ -10,10 +10,12 @@ the README's sentence disagrees, so adding or moving a skill cannot leave the
 README claiming a stale count. Same posture as check_invocation_freshness.py.
 
 Rule, per promoted skill: an explicit `<!-- lineage: matt|tan|own -->` marker in
-the Attribution section wins (for a skill that mentions a source without
-deriving from it); otherwise a section linking github.com/mattpocock is
-Matt's; one linking cursor/plugins or naming Lauren Tan without Matt is hers;
-anything else is the maker's own. Standard library only.
+the Attribution section wins. `own` covers a skill whose design is the repo's
+own, whether its Attribution only mentions a source without deriving from it or
+credits one for specific borrowed rules (decision 0008). Without a marker, a
+section linking github.com/mattpocock is Matt's; one linking cursor/plugins or
+naming Lauren Tan without Matt is hers; anything else is the maker's own.
+Standard library only.
 """
 
 from __future__ import annotations
