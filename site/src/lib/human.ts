@@ -130,6 +130,12 @@ export const HUMAN: Record<string, HumanCopy> = {
     intro:
       "You can't review what you can't read, and I can't read code. adversarial-review is how a change earns its way out anyway: a team of agents each tries to break it from a different angle, then a skeptic tries to prove every finding wrong. Only the problems that survive both passes reach you, so what you see is short and real. It blocks shipping on confirmed problems; it can't promise there are none left.",
   },
+  "pr-writing": {
+    card:
+      "Agent-written pull requests list what changed and rarely say why. These open with the problem in plain words, show before-and-after proof that something ran, and say whether undoing the change is a clean revert.",
+    intro:
+      "A pull request is where you decide whether a change ships, and agent-written ones make that hard: a list of edited internals, no stated problem, a confident claim that it works. pr-writing fixes the description. It opens with the problem in plain words, then the fix, then proof that something ran (a screenshot for anything you can see, test output before and after for the rest), then short lines: does a revert fully undo this, and how much could break. Replies written for you say so on their first line. It loads on its own when an agent writes a PR, but that is the agent's call; setup can add a one-line reminder for repos that want a backstop.",
+  },
   "blast-radius": {
     card:
       "Before a change ships, this hunts for what it breaks somewhere else: past where grep stops, into library source, timing, and wire formats. Then it proves the one fact the change is safe because of by running real code, not by writing a risk list that merely sounds right.",

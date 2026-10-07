@@ -2,7 +2,7 @@
 
 I've led dev teams for over twenty years. I never wrote the code. These skills give me a lead developer who runs the team, so all I have to bring is the idea. Four shipped products so far.
 
-Most of these skills started as someone else's. Fifteen are adapted from Matt Pocock's [Skills For Real Engineers](https://github.com/mattpocock/skills), three from [Lauren Tan](https://github.com/cursor/plugins/tree/main/pstack), five are mine. I rewrote nearly all of them for someone who won't read the code, then tied them together under one [orchestrator](./skills/run/orchestrate/SKILL.md) session that takes the idea, decides what gets grilled, mapped, prototyped, built, and reviewed, and runs the rest. That's what lets a non-engineer ship at production quality. I talk to that one session the way I've always talked to a dev lead.
+Most of these skills started as someone else's. Fifteen are adapted from Matt Pocock's [Skills For Real Engineers](https://github.com/mattpocock/skills), three from [Lauren Tan](https://github.com/cursor/plugins/tree/main/pstack), six are mine. I rewrote nearly all of them for someone who won't read the code, then tied them together under one [orchestrator](./skills/run/orchestrate/SKILL.md) session that takes the idea, decides what gets grilled, mapped, prototyped, built, and reviewed, and runs the rest. That's what lets a non-engineer ship at production quality. I talk to that one session the way I've always talked to a dev lead.
 
 Each skill is a `SKILL.md`, a plain-markdown playbook the agent reads on its own: every workflow I used to re-explain each session, written down once, installed in one line and versioned like software.
 
@@ -128,7 +128,7 @@ Start with the seat. The rest stand alone:
 
 The pack is built for one person who can explain what they want built and would rather lead the work than write it: a founder, a product lead, a non-engineer with a shipping habit. Engineers use it too; they skip the seat and pick skills. It covers agent-assisted work end to end: deciding before building ([decision-map](./skills/decide/decision-map/SKILL.md)), prototyping what discussion can't settle ([prototype](./skills/investigate/prototype/SKILL.md)), investigating what sources can answer ([research](./skills/investigate/research/SKILL.md)), handing sessions off, coordinating parallel lanes from one seat, and keeping sessions out of each other's way with the tracker recipes [setup](./skills/orient/setup/SKILL.md) binds to your repo. Teams with their own established process may prefer the standalone skills. Everything repo-specific lives in one binding doc, and every skill defers judgment calls to **the decider**: the role your repo names at setup, not a person the pack assumes.
 
-The pack deliberately covers the stages upstream and around building: planning, research, prototyping, handoff, orchestration, tracker hygiene. It ships no review-response system; repos that already run one keep it, and the pack defers to it entirely.
+The pack deliberately covers the stages upstream and around building: planning, research, prototyping, handoff, orchestration, tracker hygiene. It ships no review-response system of its own: [pr-writing](./skills/run/pr-writing/SKILL.md) sets the floor for PR replies and defers to a repo's own system where one exists.
 
 First run in a repo: install the pack, then run `setup`. It asks whether you'll read the code your agents write or lead from outside it; answer lead, and every new session in that repo opens in the [orchestrator](./skills/run/orchestrate/SKILL.md) seat, the one session you talk to. When you're unsure which skill applies, the [router](./skills/orient/router/SKILL.md) is the map. The pack versions as one unit: a single tag `team-workflow/vX.Y.Z`, a single [changelog](./packs/team-workflow/CHANGELOG.md), and a matching plugin version, so consuming repos pin one pack version and upgrade deliberately.
 
@@ -179,6 +179,7 @@ Get decided work onto the board, through the lanes, and handed on.
 | [show-me-your-work](./skills/run/show-me-your-work/SKILL.md) | Keeps an append-only decision log during unattended work, so the human back from stepping away audits a table, not a recap. | team-workflow pack | fires itself |
 | [orchestrate](./skills/run/orchestrate/SKILL.md) | Runs one session as the lead developer of an agent team: route, audit, integrate, never implement. The seat a non-engineer works from. | team-workflow pack | fires itself |
 | [adversarial-review](./skills/run/adversarial-review/SKILL.md) | Breaks the change before it ships: isolated finders, a skeptic pass, a gate only confirmed blockers hold. | team-workflow pack | fires itself |
+| [pr-writing](./skills/run/pr-writing/SKILL.md) | Writes PRs and review replies the decider can judge without reading the code: problem first, before-and-after proof, whether a revert undoes it. | team-workflow pack | fires itself |
 | [diagnose](./skills/run/diagnose/SKILL.md) | The disciplined bug loop; no fix ships without its cause named in one plain sentence, with evidence. | team-workflow pack | fires itself |
 | [implement](./skills/run/implement/SKILL.md) | How a lane builds an item: seam-scoped test-first, a green checkpoint commit per slice. | team-workflow pack | fires itself |
 | [blast-radius](./skills/run/blast-radius/SKILL.md) | Finds what a change breaks somewhere else, past where grep stops, and proves the safety claim by running real code. | Standalone plugin | fires itself |
@@ -204,7 +205,7 @@ skills/
   orient/            # PROMOTED  router, setup, domain-memory
   decide/            # PROMOTED  grilling, decision-map, advisory-board
   investigate/       # PROMOTED  research, prototype, codebase-review, ingest
-  run/               # PROMOTED  to-tickets, wizard, handoff, show-me-your-work, orchestrate, adversarial-review, diagnose, implement, blast-radius
+  run/               # PROMOTED  to-tickets, wizard, handoff, show-me-your-work, orchestrate, adversarial-review, pr-writing, diagnose, implement, blast-radius
   author/            # PROMOTED  writing-for-agents, writing-for-humans, plainspoken, huh
   in-progress/       # unpromoted: half-built, kept but not shipped
   misc/              # unpromoted: one-offs too repo-specific to publish

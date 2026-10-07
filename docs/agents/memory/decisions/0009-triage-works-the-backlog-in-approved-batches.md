@@ -30,7 +30,8 @@ so a batch the decider settles in one pass moves the pile where one issue at a t
 not. A team-run tracker is filed by the team and its tools, so its triage is the team's.
 Declines go in this store because reviews and grillings already read it, so a declined
 request is not proposed again and there is one memory instead of two. Four points were the
-orchestrator's design calls rather than questions put to the decider, who may override
-them: the spec-template bar for ready-for-agent, a pull request taking every state except
-ready for an agent, the attribution line, and the startup note landing in orchestrate at
-promotion.
+orchestrator's design calls rather than questions put to the decider. The decider confirmed
+two of them on 2026-10-06: the spec-template bar for ready-for-agent, with a drafted spec
+replacing the body on anyone's item and the original quoted below, and a pull request
+taking every state except ready for an agent. The decider may still override the other two:
+the attribution line, and the startup note landing in orchestrate at promotion.

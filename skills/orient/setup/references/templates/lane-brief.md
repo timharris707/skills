@@ -41,8 +41,8 @@ the decider, never silently into the work).
   then re-run the full verification set before writing the summary.
 - Commit discipline: checkpoint commits on the lane branch, short imperative subjects;
   merging is the reviewer/integrator's move, not the lane's.
-- Where this lane itself files a PR (e.g. a cross-repo lane): it must follow the orchestrate
-  skill's pr-writing reference: problem-first description, before-and-after evidence, a
+- Where this lane itself files a PR (e.g. a cross-repo lane): it must follow the pr-writing
+  skill: problem-first description, before-and-after evidence, a
   can-we-undo call, no implementation inventory, no draft unless repo policy says otherwise,
   provenance blurb.
 - <the repo's own standing constraints, from the binding doc's precedence section>

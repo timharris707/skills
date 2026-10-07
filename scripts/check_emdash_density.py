@@ -20,8 +20,8 @@ Deliberately not guarded: `CHANGELOG.md` (the release headline format requires
 the guard (human-facing catalog copy).
 
 Threshold: 8 em dashes outside code per file. Post-sweep the worst legitimate
-survivor is 3 (a verbatim quoted anti-pattern example in orchestrate's
-pr-writing reference), so 8 leaves generous headroom for quoted material while
+survivor is 3 (a verbatim quoted anti-pattern example in the pr-writing
+skill), so 8 leaves generous headroom for quoted material while
 any file written in the pre-sweep style (setup carried 69, advisory-board 102)
 fails immediately. On failure the worst offenders are printed with counts.
 
