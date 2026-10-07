@@ -14,6 +14,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+- **setup: the label vocabulary gains `needs-info` and `wontfix`** (#305): the reference
+  vocabulary setup creates on a fresh tracker, the tracker-discipline reference, and the
+  binding-doc template's mapping line now carry a state for an item waiting on its
+  reporter and one for an item closed with no work to do (declined, a duplicate, or
+  already fixed). They serve the triage skill now in progress (decision 0009). No recipe
+  queries either label, so a repo bound earlier keeps working without them, and a re-run
+  offers to create them.
+
 ## [v1.9.0] - 2026-10-06 — pr-writing becomes its own skill
 
 ### Added

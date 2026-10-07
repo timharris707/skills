@@ -462,7 +462,7 @@
       "executable": false
     },
     "skills/orient/setup/SKILL.md": {
-      "sha256": "987d1433b797d5cacde677f90e479087e264d139e2364e27e23c7e6978797c6b",
+      "sha256": "451415e2db2fcf6d7cd692cb0f90f645e3011a4f489a1eaf662cefc3c2985680",
       "executable": false
     },
     "skills/orient/setup/agents/openai.yaml": {
@@ -470,7 +470,7 @@
       "executable": false
     },
     "skills/orient/setup/references/templates/binding-doc.md": {
-      "sha256": "9b8e58e064ef6880430e67f56e939ec7abd1b92845ca9f95067fcc65386918e1",
+      "sha256": "9368d28ce5300c90c0a1d57b741db724665f1e7889aecf9bb8c7784270ed0a39",
       "executable": false
     },
     "skills/orient/setup/references/templates/defect-classes.md": {
@@ -486,7 +486,7 @@
       "executable": false
     },
     "skills/orient/setup/references/tracker-discipline.md": {
-      "sha256": "253570846d516b7e6a57e302dca5e0bc53d5aaf7cd38df8d970fe36f36dfb15b",
+      "sha256": "ad043411cb8f0db76637886adf66b543ef5c553f48227ba064f45ee017592b29",
       "executable": false
     },
     "skills/orient/setup/scripts/git_guardrails.py": {

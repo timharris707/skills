@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+- Carry team-workflow's two new labels (#305): setup's reference vocabulary, the tracker
+  reference, and the binding-doc template add `needs-info` and `wontfix`. A project bound
+  earlier keeps working without them.
+
 ## [v1.3.0] - 2026-10-06 — adopts team-workflow v1.9.0
 
 - Carry team-workflow's pr-writing promotion (#300): the PR-writing guide is now its own
