@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+## [v1.3.0] - 2026-10-06 — adopts team-workflow v1.9.0
+
+- Carry team-workflow's pr-writing promotion (#300): the PR-writing guide is now its own
+  `pr-writing` skill, so the package ships 24 skills. The Codex adaptation moves with it:
+  the skill reads every unresolved review finding whatever its age, instead of acting only
+  on comments newer than the latest push, and its Done-when list says the same. Setup's
+  conduct pointer, orchestrate, the lane-brief template, and the router point at the skill.
+
 ## [v1.2.0] - 2026-10-06 — adopts team-workflow v1.8.0
 
 - Carry the team-workflow PR-writing change (#298): every agent-filed PR shows before-and-after

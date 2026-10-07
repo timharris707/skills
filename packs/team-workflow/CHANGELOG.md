@@ -14,6 +14,38 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [v1.9.0] - 2026-10-06 — pr-writing becomes its own skill
+
+### Added
+- **pr-writing: the PR-writing guide is its own skill** (#300). The guide that lived inside
+  orchestrate as `references/pr-writing.md` is now the `pr-writing` skill in the run bucket.
+  Its description is written so it loads by itself when a session files a PR, updates a PR
+  description, responds to PR review feedback, or writes a PR or review-thread comment on
+  someone's behalf, in any repo with the pack installed. Before, only orchestrate's close-out
+  and setup's optional agent-context pointer reached it, so an ad-hoc session in a consuming
+  repo could write a PR without it. Every rule moved unchanged. The skill adds a checkable
+  Done-when list, states its own scope (every session writing on the decider's behalf, a
+  sentence that used to sit in setup), and points the provenance rule at orchestrate's
+  announce discipline. Its lineage is the repo's own under decision 0008: its rules come from
+  the repo's shipped mistakes plus credited borrowings from Theo Browne and from Matt
+  Pocock's `pr` (MIT), whose self-loading packaging it now follows too. The README's count
+  of skills that are mine moves from five to six. Promoted with a marketplace claim, both
+  Codex manifests, a Codex adapter, a router row, a site position with two bearings
+  (orchestrate to pr-writing, pr-writing to blast-radius), and human copy for the site.
+
+### Changed
+- **orchestrate, lane-brief template**: §5 and the template's PR line point at the pr-writing
+  skill instead of the old reference path. orchestrate's SKILL.md stays at 2,493 words.
+- **setup: the session-scope conduct pointer stays, repointed at the skill** (#300). The skill
+  now loads itself, but whether it loads is the model's call, and Matt Pocock's report that
+  his `pr` skill loads on every PR is his observation, not a measurement. The agent-context
+  pointer costs one line and catches an ad-hoc session the trigger misses, so setup keeps
+  offering it as a backstop, now reading "before writing any PR description or comment, read
+  the pack's pr-writing skill." Audit check 5 now fires on a binding doc that pins either
+  the skill or the orchestrate reference it replaced, and flags the retired reference by
+  path or by name in any agent-context pointer, binding-doc line, or seeded lane-brief
+  template, so a repo that accepted the pointer before this release is told to update it.
+
 ## [v1.8.0] - 2026-10-06 — adoptions from Matt Pocock's Skills v1.3 and a git guardrail
 
 ### Added
