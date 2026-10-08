@@ -30,7 +30,7 @@ on:
 # Anything above "none" would
 # force every caller to grant at least that much: a workflow_call fails when
 # the caller's grant is narrower than what the called workflow requests
-# (flagged by CodeRabbit on modeldeck-private#544).
+# (flagged by CodeRabbit on a caller repo's PR).
 permissions:
   contents: none
   pull-requests: read
