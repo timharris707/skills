@@ -66,7 +66,7 @@
  - `argument-hint`: the placeholder shown after the skill name for user-invoked skills.
  
  ## Choosing the invocation mode
-@@ -29,7 +29,7 @@
+@@ -29,20 +29,20 @@
  | The skill should fire… | Mode |
  | --- | --- |
  | whenever the agent recognizes the situation | agent-invoked (default); spend the description on branch triggers |
@@ -75,7 +75,24 @@
  | both, through a thin user-facing alias | two skills: the reference skill agent-invoked, plus a one-line invoker |
  
  The third row is a real pattern, not a workaround: an agent-invoked reference skill holds the process and a short user-invoked skill exists purely so a person can name it. Keep the process in exactly one of them: the alias points, it does not restate. That pointing link is also how the catalog reads the pattern: a SKILL.md link from a user-invoked skill to another promoted skill's SKILL.md is an alias claim (the target classifies as invocable either way), so a user-invoked skill that merely wants to mention a sibling links to its directory or names it in plain text, not its SKILL.md.
-@@ -65,7 +65,7 @@
+ 
+ ## Loading another skill
+ 
+-Naming a skill in prose does not reliably load it. When a step must make another skill load, the step says so in the harness's own terms: "call the Skill tool with `<name>`", with the skill's bare name, beside the relative link where the step carries one. The tool takes one skill per call, so a step that needs two says "call the Skill tool twice, for `<a>` and `<b>`".
++Naming a skill in prose does not reliably load it. When a step must make another skill load, the step says so in Codex's own terms for using a skill: "open and read the `<name>` skill's SKILL.md completely", beside the relative link where the step carries one. Codex has no Skill tool for skills installed as files: it loads one by reading its SKILL.md. A step that needs two skills gives each its own instruction, one skill per instruction, as the Claude edition makes one call per skill.
+ 
+-The test is whether the text tells its reader to run the other skill's procedure now: a step in the skill itself, or a prompt or pointer the skill writes for another session to follow. A routing table, a note on where a skill sits, a hand-off that only names which skill owns the work, a read of another skill's reference file, and an attribution all name a skill without loading it, so they keep the plain link. Text written for any runner to read, such as a lane brief or a pointer in an `AGENTS.md`, names the skill without a tool name, because it must work on whichever runner reads it ([runner parity](../../../run/orchestrate/references/runner-parity.md)).
++The test is whether the text tells its reader to run the other skill's procedure now: a step in the skill itself, or a prompt or pointer the skill writes for another task to follow. A routing table, a note on where a skill sits, a hand-off that only names which skill owns the work, a read of another skill's reference file, and an attribution all name a skill without loading it, so they keep the plain link. Text written for any runner to read, such as a lane brief or a pointer in an `AGENTS.md`, names the skill without a harness's load mechanics, because it must work on whichever runner reads it ([runner parity](../../../run/orchestrate/references/runner-parity.md)).
+ 
+-The target must be a skill the agent may invoke. A user-invoked skill (`disable-model-invocation: true`) is out of every other skill's reach, this tool included, so a step that needs one tells the user to run `/<plugin>:<name>`.
++The target must be a skill the agent may invoke. An explicit-only skill (`policy.allow_implicit_invocation: false`) fires only when the user names it, so a step that needs one tells the user to run `$<name>`.
+ 
+-The Codex edition carries Codex's own words at the same sites, "open and read the `<name>` skill's SKILL.md completely", since Codex has no Skill tool for skills installed as files: it loads one by reading its SKILL.md.
++The Claude edition says "call the Skill tool with `<name>`" at the same sites.
+ 
+ ## Buckets
+ 
+@@ -75,7 +75,7 @@
  
  ## Running on Codex as well as Claude
  
@@ -84,7 +101,7 @@
  
  | | Claude Code | Codex |
  | --- | --- | --- |
-@@ -74,7 +74,7 @@
+@@ -84,7 +84,7 @@
  | Per-skill metadata | frontmatter only | frontmatter **plus** `agents/openai.yaml` |
  | Plugins per repo | many | **one per plugin root** |
  
@@ -414,6 +431,15 @@
  
  A decision map turns fog into recorded decisions. It is for work nobody can spec in one sitting, where the open questions gate each other. It produces decisions, not deliverables: when the map's frontier is empty, the scope specs and builds as ordinary tracked work.
  
+@@ -20,7 +22,7 @@
+ ## Mode 2: working a ticket (invoked with a map ticket)
+ 
+ 1. Claim the ticket per the repo's claim recipe (the tracker-discipline binding applies unchanged).
+-2. Run the ticket by its type per the protocol's ticket-type table (for a prototype ticket, call the Skill tool with `prototype`; for a research ticket, call the Skill tool with `research` and follow it).
++2. Run the ticket by its type per the protocol's ticket-type table (for a prototype ticket, open and read the `prototype` skill's SKILL.md completely; for a research ticket, open and read the `research` skill's SKILL.md completely and follow it).
+ 3. Record the outcome on the ticket, write the one-line verdict back into the map doc, and name any newly unblocked tickets (the frontier moved).
+ 
+ ## Done when (checkable: verify each line before reporting complete)
 --- a/skills/decide/decision-map/references/protocol.md
 +++ b/skills/decide/decision-map/references/protocol.md
 @@ -7,7 +7,7 @@
@@ -470,7 +496,7 @@
  
  The word means the same thing here as it does on the tracker, the edge of what is takeable, where [decision-map](../decision-map/SKILL.md) works a frontier of gated tickets. A question whose answer depends on another question still open in this round belongs to a *later* round. Putting it in this round forces the decider to answer twice: once on a guess, once for real.
  
-@@ -19,23 +21,20 @@
+@@ -19,27 +21,24 @@
  
  ## How to ask a round
  
@@ -505,6 +531,20 @@
 +prerequisites are settled; keep unrelated fact gathering moving while waiting.
  
  ## Facts are yours, decisions are theirs
+ 
+-**Finding facts is your job, never the decider's.** When a frontier question needs something the environment already knows, go find it: what the code does, what the config says, what the vendor documents. Dispatch a subagent for anything that takes real digging, and when the answer wants a durable citation, have that subagent call the Skill tool with `research` and follow its contract.
++**Finding facts is your job, never the decider's.** When a frontier question needs something the environment already knows, go find it: what the code does, what the config says, what the vendor documents. Dispatch a subagent for anything that takes real digging, and follow the research skill's contract when the answer wants a durable citation.
+ 
+ Do not block on it. A running investigation is an unsettled prerequisite, so only the questions *downstream* of it wait. Ask the rest of the frontier now and fold the finding in when it lands.
+ 
+@@ -54,7 +53,7 @@
+ 
+ ## Close with a record
+ 
+-Agreement that lives only in the transcript evaporates with the session. Once the decider confirms shared understanding, write it down somewhere durable: a comment on the driving ticket where one exists, otherwise a dated summary in the repo's docs home (the binding doc names it). The record is short and it is not the interview: it enumerates the settled decisions, the design tree as visited, and marks each recommendation accepted or overridden. It is what a later spec or ticket names as its plan source, so [to-tickets](../../run/to-tickets/SKILL.md) links a citable decision instead of a conversation nobody can reopen. Where the repo binds [domain-memory](../../orient/domain-memory/SKILL.md), the close-record also mints memory (call the Skill tool with `domain-memory` to write it): each settled decision becomes a decision record at the memory home and new or sharpened terms enter the glossary, the same store the pre-round read consults so a settled question is never re-asked.
++Agreement that lives only in the transcript evaporates with the session. Once the decider confirms shared understanding, write it down somewhere durable: a comment on the driving ticket where one exists, otherwise a dated summary in the repo's docs home (the binding doc names it). The record is short and it is not the interview: it enumerates the settled decisions, the design tree as visited, and marks each recommendation accepted or overridden. It is what a later spec or ticket names as its plan source, so [to-tickets](../../run/to-tickets/SKILL.md) links a citable decision instead of a conversation nobody can reopen. Where the repo binds [domain-memory](../../orient/domain-memory/SKILL.md), the close-record also mints memory (open and read the `domain-memory` skill's SKILL.md completely to write it): each settled decision becomes a decision record at the memory home and new or sharpened terms enter the glossary, the same store the pre-round read consults so a settled question is never re-asked.
+ 
+ ## Done when (checkable: verify each line before reporting complete)
  
 @@ -69,7 +68,7 @@
  ## Hard guardrails
@@ -556,15 +596,18 @@
  
  - **Every open gate, the scope they set, and any dropped lens with the reason its scope could not reach it.**
  - **Deferred candidates from the previous run, at the top**: deferral means carried forward, not quietly dropped.
-@@ -56,7 +58,7 @@
+@@ -56,9 +58,9 @@
  
  ## 5. The disposition loop
  
 -The run is **not finished at report time**: an undispositioned report is a review that changed nothing. The orchestrator (or whoever ran the review) presents every survivor to the decider as a structured question card, [grilling](../../decide/grilling/SKILL.md)-style: the claim, the skeptic's verdict, cost and payoff, with the recommendation marked on an option; numbered-text fallback where no card tool exists. The decider dispositions each:
 +The report can be complete while decisions remain pending. Report that status as "report delivered; decisions pending" and list the unresolved recommendations. Keep the tracker item open for those decisions; never force answers merely to end the reviewing turn. The orchestrator (or whoever ran the review) presents every survivor to the decider as a structured question card, [grilling](../../decide/grilling/SKILL.md)-style: the claim, the skeptic's verdict, cost and payoff, with the recommendation marked on an option; numbered-text fallback where no card tool exists. The decider dispositions each:
  
- - **Adopt**: becomes a tracker ticket ([to-tickets](../../run/to-tickets/SKILL.md) where bound) and rides normal lane flow.
+-- **Adopt**: becomes a tracker ticket ([to-tickets](../../run/to-tickets/SKILL.md) where bound: call the Skill tool with `to-tickets` to file it) and rides normal lane flow.
++- **Adopt**: becomes a tracker ticket ([to-tickets](../../run/to-tickets/SKILL.md) where bound: open and read the `to-tickets` skill's SKILL.md completely to file it) and rides normal lane flow.
  - **Reject**: recorded in rejection memory with the load-bearing reason. The reason is the record's value: a future run needs to know *why*, so it can tell new evidence from repetition.
+ - **Defer**: carried at the top of the next run's report, where each is re-dispositioned or re-deferred, and named in session handoffs so it survives the context boundary.
+ 
 @@ -66,12 +68,12 @@
  
  ## 6. Binding slots (the setup interview fills these per-repo)
@@ -572,7 +615,8 @@
 -- **Report destination**: the tracker item each run posts its report to and closes: a standing item, or the rule that creates one per run. It must be writable and closable: §4 posts to it and §5 closes it, so a read-only query cannot fill this slot.
 +- **Report destination**: the tracker item a tracked review can post to and eventually close when authorized, or the current task for a bounded review. A query can discover a tracked destination but cannot receive the report itself.
  - **Lane-count threshold (N)**: merged lanes since the last review that open gate 2.
- - **Rejection memory**: where rejected candidates and their load-bearing reasons live. In repos also bound to [domain-memory](../../orient/domain-memory/SKILL.md), this slot points at its memory home and rejections land as decision records there: one store, never two.
+-- **Rejection memory**: where rejected candidates and their load-bearing reasons live. In repos also bound to [domain-memory](../../orient/domain-memory/SKILL.md), this slot points at its memory home and rejections land as decision records there (call the Skill tool with `domain-memory` to write them): one store, never two.
++- **Rejection memory**: where rejected candidates and their load-bearing reasons live. In repos also bound to [domain-memory](../../orient/domain-memory/SKILL.md), this slot points at its memory home and rejections land as decision records there (open and read the `domain-memory` skill's SKILL.md completely to write them): one store, never two.
  - **Executor mechanics**: how the review lane is launched, claimed, and tracked (in repos running the [orchestrate](../../run/orchestrate/SKILL.md) skill, its lane-launch machinery is the natural answer).
  
 -On a first run before the setup interview has filled these, the executor creates the tracker item itself and the report names the unbound slots.
@@ -739,8 +783,8 @@
 +
  One entry point for the **team-workflow** pack. The pack is a portable discipline for running tracked, multi-session, agent-assisted development: pressure-test an idea, build it in parallel lanes, ship it reviewed and merged. The table below names every skill and its moment. Everything repo-specific lives in, or is pointed at from, one binding doc seeded by the setup skill; every skill defers decisions to **the decider**, the role that doc names.
  
--**First run in a repo? Run `setup` before anything else.** The other skills read the bindings it seeds. Where the binding doc records working mode `lead`, the human works from the orchestrator seat: a new session invokes [orchestrate](../../run/orchestrate/SKILL.md) and follows its startup checklist, and this table is what that seat runs, not a menu for the human.
-+**First use in a repo:** read an existing binding when the task needs the pack. Run setup when the user requests installation or a missing binding actually gates tracked work; a bounded question or review can proceed read-only. Where the binding doc records working mode `lead`, the human works from the orchestrator seat: a new task invokes [orchestrate](../../run/orchestrate/SKILL.md) and follows its startup checklist, and this table is what that seat runs, not a menu for the human.
+-**First run in a repo? Call the Skill tool with `setup` before anything else.** The other skills read the bindings it seeds. Where the binding doc records working mode `lead`, the human works from the orchestrator seat: a new session invokes [orchestrate](../../run/orchestrate/SKILL.md) by calling the Skill tool with `orchestrate`, then follows its startup checklist, and this table is what that seat runs, not a menu for the human.
++**First use in a repo:** read an existing binding when the task needs the pack. Open and read the `setup` skill's SKILL.md completely when the user requests installation or a missing binding actually gates tracked work; a bounded question or review can proceed read-only. Where the binding doc records working mode `lead`, the human works from the orchestrator seat: a new task invokes [orchestrate](../../run/orchestrate/SKILL.md) by opening and reading the `orchestrate` skill's SKILL.md completely, then follows its startup checklist, and this table is what that seat runs, not a menu for the human.
  
  ## The main flow
  
@@ -1015,9 +1059,12 @@
  
  1. **The correctness finder.** Logic, edge cases, error paths, invariants; the defect-class checklist is its opening moves, not its limit.
  2. **The fitting lens.** One perspective chosen to match the change, from the menu:
-@@ -76,7 +78,7 @@
+@@ -74,9 +76,9 @@
  
- **The gate:** a confirmed BLOCKER must be fixed before the commit (floor layer) or merge (close-out layer). Only **the decider** may waive one, with the reason recorded where the report lives. The implementer never waives its own blocker; the orchestrator surfaces it to the decider, never absorbs it. Everything below BLOCKER advises: the implementer or orchestrator dispositions each finding, fixed or declined with a reason, at their own judgment. Where the repo binds [domain-memory](../../orient/domain-memory/SKILL.md), a declined finding lands as a decision record with its reason, which is what stops the next review from re-raising settled ground.
+ Axes are reported separately and **never blended into one verdict**: a passing lens must not soften a failing correctness axis, and there is no overall score to hide behind.
+ 
+-**The gate:** a confirmed BLOCKER must be fixed before the commit (floor layer) or merge (close-out layer). Only **the decider** may waive one, with the reason recorded where the report lives. The implementer never waives its own blocker; the orchestrator surfaces it to the decider, never absorbs it. Everything below BLOCKER advises: the implementer or orchestrator dispositions each finding, fixed or declined with a reason, at their own judgment. Where the repo binds [domain-memory](../../orient/domain-memory/SKILL.md), a declined finding lands as a decision record with its reason (call the Skill tool with `domain-memory` to write it), which is what stops the next review from re-raising settled ground.
++**The gate:** a confirmed BLOCKER must be fixed before the commit (floor layer) or merge (close-out layer). Only **the decider** may waive one, with the reason recorded where the report lives. The implementer never waives its own blocker; the orchestrator surfaces it to the decider, never absorbs it. Everything below BLOCKER advises: the implementer or orchestrator dispositions each finding, fixed or declined with a reason, at their own judgment. Where the repo binds [domain-memory](../../orient/domain-memory/SKILL.md), a declined finding lands as a decision record with its reason (open and read the `domain-memory` skill's SKILL.md completely to write it), which is what stops the next review from re-raising settled ground.
  
 -**Do not loop the review until "clean."** Re-run after fixing what was found; a review re-run on an unchanged diff generates new plausible-sounding findings indefinitely. Two consecutive runs with nothing new confirmed is a stop signal, not a challenge.
 +**Bound re-review to evidence.** Verify every correction and the affected behavior. Substantive corrections require independent review of the correction and its affected behavior, with the resulting findings dispositioned under the same gate. A correction is substantive when it changes behavior, an instruction obligation, a trust boundary, or the evidence a conclusion relies on; spelling or formatting alone is not substantive. Broaden the review only for changed scope, a failure, or unresolved evidence. Complete every condition below against the delivered revision; do not rerun an unchanged diff to accumulate clean reports. Required project review gates still apply.
@@ -1074,6 +1121,15 @@
  
  A fix may not ship without a **named cause**: one plain sentence stating what was wrong, backed by evidence, readable by a non-engineer decider. This skill is the discipline a working lane follows inline when fixing bugs. It is not a lane type of its own, and it deliberately has no binding slots: everything repo-specific already arrived in the lane's brief.
  
+@@ -40,7 +42,7 @@
+ - **Lane briefs**: [orchestrate](../orchestrate/SKILL.md) points bug-shaped items here, so the discipline arrives with the work.
+ - **Mid-build bugs**: [implement](../implement/SKILL.md) routes a bug surfacing mid-build here; the named-cause test binds before the lane resumes building.
+ - **Close-out audit**: the orchestrator's audit checks the two closing artifacts on every bug fix; the named cause is what it reads first.
+-- **Domain memory**: where the repo binds [domain-memory](../../orient/domain-memory/SKILL.md), a root cause that reveals a **standing fact** (an assumption the repo held that the bug just proved wrong) is offered to it as a fact record (call the Skill tool with `domain-memory` to draft it): the same correction class as a decider correcting a session, with reality as the corrector.
++- **Domain memory**: where the repo binds [domain-memory](../../orient/domain-memory/SKILL.md), a root cause that reveals a **standing fact** (an assumption the repo held that the bug just proved wrong) is offered to it as a fact record (open and read the `domain-memory` skill's SKILL.md completely to draft it): the same correction class as a decider correcting a session, with reality as the corrector.
+ - **Deliberately not hooked: handoff GOTCHAS.** The durable copy of a diagnosis's lesson is the domain-memory record; writing it into [handoff](../handoff/SKILL.md) GOTCHAS too would be the same meaning in two places.
+ 
+ ## Done when (checkable: verify each line before reporting complete)
 --- a/skills/run/handoff/SKILL.md
 +++ b/skills/run/handoff/SKILL.md
 @@ -1,49 +1,87 @@
@@ -1301,13 +1357,17 @@
  3. **The diff contains no out-of-scope files.**
  
  No commit-by-commit reconstruction of red-before-green: the kept tests, the visible tracer, and the clean diff are the evidence.
-@@ -44,20 +50,20 @@
+@@ -42,22 +48,22 @@
  
- 1. **A bug surfaces mid-build** → [diagnose](../diagnose/SKILL.md). The named-cause test binds before the lane resumes building: no fix ships without a cause stated in one plain sentence, with evidence.
+ Four situations route out of this skill, each to a named place:
+ 
+-1. **A bug surfaces mid-build** → [diagnose](../diagnose/SKILL.md): call the Skill tool with `diagnose`. The named-cause test binds before the lane resumes building: no fix ships without a cause stated in one plain sentence, with evidence.
++1. **A bug surfaces mid-build** → [diagnose](../diagnose/SKILL.md): open and read the `diagnose` skill's SKILL.md completely. The named-cause test binds before the lane resumes building: no fix ships without a cause stated in one plain sentence, with evidence.
  2. **The structure fights the lane**: a change that should have been local sprawls, a test only writable past an interface → fix nothing structural; report it as **friction** in the close-out summary, [codebase-review](../../investigate/codebase-review/SKILL.md)'s third entry gate.
 -3. **The spec is ambiguous** → back through the orchestrator to the decider, and build waits on the answer for anything the ambiguity gates. A lane that resolves ambiguity silently has made a decision that was never its to make.
+-4. **A step only a human can take** → generate a [wizard](../wizard/SKILL.md) (call the Skill tool with `wizard`) and put the `blocked` label on the driving item until the human clears it.
 +3. **The spec has a material unresolved decision** → ask the decider through the coordinator and pause only dependent work. Resolve routine implementation choices from evidence and recorded decisions; do not re-ask settled questions.
- 4. **A step only a human can take** → generate a [wizard](../wizard/SKILL.md) and put the `blocked` label on the driving item until the human clears it.
++4. **A step only a human can take** → generate a [wizard](../wizard/SKILL.md) (open and read the `wizard` skill's SKILL.md completely) and put the `blocked` label on the driving item until the human clears it.
  
  ## Done when (checkable: verify each line before reporting complete)
  
@@ -1376,7 +1436,7 @@
 -- **Lanes catch up before handing back**: a lane updates its branch from its **merge target** (the default branch, or the spec's integration branch, §7) per the brief's catch-up constraint, re-runs verification, and names the target commit in its summary. If the target moves again before you merge, update the branch yourself where that applies cleanly and re-run verification; only a conflict goes back to the lane.
 +- **Brief from the lane-brief template** ([setup's templates](../../orient/setup/references/templates/lane-brief.md)): spec verbatim, named verification set, standing constraints, and the integration rule: workers save verified results within the user's commit instructions, catch up (next bullet), and stop; the orchestrator owns review and merge. Everything else travels by context pointer, to the item, notes, and prior commits, never duplicating what a pointer reaches. It points at a bound [domain-memory](../../orient/domain-memory/SKILL.md) home; bug-shaped briefs also at [diagnose](../diagnose/SKILL.md), build-shaped at [implement](../implement/SKILL.md). A lane expected to run unattended keeps a decision trail per [show-me-your-work](../show-me-your-work/SKILL.md), named in the brief, so the close-out audit and the human read a decision table, not a recap.
 +- **Lanes catch up before handing back.** Before its summary, a lane brings its branch, or its preserved working diff, up to date with its **merge target** (the default branch, or the spec's integration branch where §7's merge-flow slot records one), within the user's commit instructions and per the brief's catch-up constraint, and re-runs its verification; the summary names the target commit it caught up to. If the target moves again before you merge, update the branch or preserved diff yourself where that applies cleanly, within the user's commit instructions, and re-run verification; only a conflict goes back to the lane.
- - **Launch reports are for the human: read, never guessed.** Every launch and lane mention names runner/model/session, item, and workspace, legibly enough to tell lanes apart. Unless the toggle (§7) records `off`, add the reasoning-effort level; the toggle governs only the additions (effort line, §5 repeats, close-out cost line), never identity. Every announced value comes from a recorded source (policy table, launch manifest/config, an explicit setting); "session-inherited" only after those were read and set nothing. A chip launch's model/effort are session defaults at click time, unreadable to the launcher: announce exactly that. Compliance decays over long sessions ([evidence](references/evidence.md)); where tool-call hooks exist, enforce the reminder in machinery per [references/announce-hook.md](references/announce-hook.md), which also carries the launcher-manifest pattern; setup may offer wiring it.
+ - **Launch reports are for the human: read, never guessed.** Every launch and lane mention names runner/model/session, item, and workspace, legibly enough to tell lanes apart. Unless the toggle (§7) records `off`, add the reasoning-effort level; the toggle governs only the additions (effort line, §5 repeats, close-out cost line), never identity. Every announced value comes from a recorded source (policy table, launch manifest/config, an explicit setting); "session-inherited" only after those were read and set nothing. A chip launch's model/effort are session defaults at click time, unreadable to the launcher: announce exactly that. Compliance decays over long sessions ([evidence](references/evidence.md)); where tool-call hooks exist, enforce the reminder in machinery per [references/announce-hook.md](references/announce-hook.md), which also carries the launcher-manifest pattern.
 -- **A session's model is fixed at launch.** The prompt cache is per-model: a switch forces a full-context re-write ([evidence](references/evidence.md)). Work needing a different model goes to a fresh subagent or lane at that model.
 +- **Honor the selected model and effort.** Use the current task selection. Fresh workers may use a policy-approved model and effort supported by the spawn tool. Full-history forks inherit both. The user can change effort in the same task; that is not succession. Do not switch models merely to run a shell check or to refresh context.
  - **Lane count is a cost dial**: every lane pays a first-write of its whole brief and startup context. Where the tracker discipline allows, trivially-related small items ride one lane serially, or continue an existing lane by message where resuming is supported. The dial never overrides isolation where items conflict.
@@ -1390,12 +1450,13 @@
  When a lane enters close-out review, announce the hand-off per §4's announce discipline, naming the reviewing agent or session, never merely a review type. Every re-review round is announced the same way.
  
 -1. **Audit the lane's summary against its verification contract; never trust self-reported greens.** Re-run the verification in the lane's workspace per the verification-executor slot, at the review-tier policy's model and effort (§7). Require per-command exit codes, zero skipped checks; piped or filtered output is not evidence. A summary without a catch-up line (§4) goes back to the lane. Read the diff **in the lane's workspace at the item's scope**: compact inventory first (`git diff --stat`/`--name-status`), then targeted hunks, never wholesale into your own context (§1 item 5; no-filter binds exit-code capture). A too-large diff goes to the delegated verifier to read in full and report compactly. A bug fix shows [diagnose](../diagnose/SKILL.md)'s two closing artifacts: the cause in one plain sentence, and the regression test or its flagged manual-repro fallback; an unnamed cause is not done. A build item shows [implement](../implement/SKILL.md)'s three: tests passing at every named seam, an identifiable tracer slice, no out-of-scope files, never commit-by-commit forensics.
-+1. **Audit the lane's summary against its verification contract; never trust self-reported greens.** Verify the results against the current revision in the worker's workspace. Re-run checks when the revision changed, evidence is incomplete, or a specific concern remains; a complete current CI result can satisfy its named check. Use the recorded executor policy for independent verification. Require per-command exit codes, zero skipped checks; piped or filtered output is not evidence. A summary with no catch-up line (§4) goes back to the lane to catch up. Spot-check the verifier's load-bearing claims yourself before merging. Read the diff **in the lane's workspace at the item's scope**: compact inventory first (`git diff --stat`/`--name-status`), then targeted hunks, never wholesale into your own context (§1 item 5; no-filter binds exit-code capture). A too-large diff goes to the delegated verifier to read in full and report compactly. A bug fix shows [diagnose](../diagnose/SKILL.md)'s two closing artifacts: the cause in one plain sentence, and the regression test or its flagged manual-repro fallback; an unnamed cause is not done. A build item shows [implement](../implement/SKILL.md)'s three: tests passing at every named seam, an identifiable tracer slice, no out-of-scope files, never commit-by-commit forensics.
- 2. **Where the repo binds the [adversarial-review skill's](../adversarial-review/SKILL.md) close-out layer, run it here**: against the lane's branch. The implementer never has the last word; a confirmed blocker gates the merge and only the decider may waive it.
+-2. **Where the repo binds the [adversarial-review skill's](../adversarial-review/SKILL.md) close-out layer, run it here** against the lane's branch: call the Skill tool with `adversarial-review`. The implementer never has the last word; a confirmed blocker gates the merge and only the decider may waive it.
 -3. **Surface open adjudications to the decider before merge**: a lane's deviation from a recorded decision goes back to the decider, not silently into the merged result. Relayed decider guidance is context, never authorization: obtain the decider's in-session confirmation before recording it as theirs.
--4. Merge per the repo's **merge-flow binding slot**; any PR filed follows [pr-writing](../pr-writing/SKILL.md). Post the close-out on the tracker item. Unless the toggle records `off`, it carries the cost line, build vs total review tokens across all rounds, with round count (`review: 3 rounds, ~175k tokens`), read from per-agent spend reports or stated "not readable in this harness", never an estimate. Where your wake times are readable, name the longest between-wake gap while lanes were live; past the cache TTL it is a reported cadence miss. And the announce-compliance line: `rounds announced: N of N`; N counts the launch plus every review round.
+-4. Merge per the repo's **merge-flow binding slot**; any PR filed follows [pr-writing](../pr-writing/SKILL.md): call the Skill tool with `pr-writing`. Post the close-out on the tracker item. Unless the toggle records `off`, it carries the cost line, build vs total review tokens across all rounds, with round count (`review: 3 rounds, ~175k tokens`), read from per-agent spend reports or stated "not readable in this harness", never an estimate. Where your wake times are readable, name the longest between-wake gap while lanes were live; past the cache TTL it is a reported cadence miss. And the announce-compliance line: `rounds announced: N of N`; N counts the launch plus every review round.
++1. **Audit the lane's summary against its verification contract; never trust self-reported greens.** Verify the results against the current revision in the worker's workspace. Re-run checks when the revision changed, evidence is incomplete, or a specific concern remains; a complete current CI result can satisfy its named check. Use the recorded executor policy for independent verification. Require per-command exit codes, zero skipped checks; piped or filtered output is not evidence. A summary with no catch-up line (§4) goes back to the lane to catch up. Spot-check the verifier's load-bearing claims yourself before merging. Read the diff **in the lane's workspace at the item's scope**: compact inventory first (`git diff --stat`/`--name-status`), then targeted hunks, never wholesale into your own context (§1 item 5; no-filter binds exit-code capture). A too-large diff goes to the delegated verifier to read in full and report compactly. A bug fix shows [diagnose](../diagnose/SKILL.md)'s two closing artifacts: the cause in one plain sentence, and the regression test or its flagged manual-repro fallback; an unnamed cause is not done. A build item shows [implement](../implement/SKILL.md)'s three: tests passing at every named seam, an identifiable tracer slice, no out-of-scope files, never commit-by-commit forensics.
++2. **Where the repo binds the [adversarial-review skill's](../adversarial-review/SKILL.md) close-out layer, run it here** against the lane's branch: open and read the `adversarial-review` skill's SKILL.md completely. The implementer never has the last word; a confirmed blocker gates the merge and only the decider may waive it.
 +3. **Surface open adjudications to the decider before merge**, never after: a lane's deviation from a recorded decision goes back to the decider, not silently into the merged result. Use the decider's recorded guidance when its source and scope are verifiable. An unsupported agent paraphrase is context; verify the original before attributing or expanding permission.
-+4. Merge per the repo's **merge-flow binding slot**; any PR filed follows [pr-writing](../pr-writing/SKILL.md). Post the close-out on the tracker item. Unless the toggle records `off`, it carries the cost line, build vs total review tokens across all rounds, with round count (`review: 3 rounds, ~175k tokens`), read from per-agent spend reports or stated "not readable in this harness", never an estimate. Report a missed external monitoring interval when it delayed attention; do not infer cache charges from elapsed time alone. And the announce-compliance line: `rounds announced: N of N`; N counts the launch plus every review round.
++4. Merge per the repo's **merge-flow binding slot**; any PR filed follows [pr-writing](../pr-writing/SKILL.md): open and read the `pr-writing` skill's SKILL.md completely. Post the close-out on the tracker item. Unless the toggle records `off`, it carries the cost line, build vs total review tokens across all rounds, with round count (`review: 3 rounds, ~175k tokens`), read from per-agent spend reports or stated "not readable in this harness", never an estimate. Report a missed external monitoring interval when it delayed attention; do not infer cache charges from elapsed time alone. And the announce-compliance line: `rounds announced: N of N`; N counts the launch plus every review round.
  5. **Prune the lane**: workspace, branch, per-lane resources. Check for uncommitted work and surface it before pruning. Verify its processes are dead yourself before tearing down shared resources: a "servers down" claim is not evidence.
  6. **Last of all, hand the dead lane's session to the human for archiving**: tell the human, naming the session **verbatim as the picker shows it**, that the lane is safe to archive; they archive on their own time. Never call an archive surface yourself; retitle the finished lane first if useful (no confirmation needed). Archive, never delete; name only the closed-out lane's session, never a human's working session. An unanswered notification gates no work. Native auto-archive on PR close fires at merge time: use it for PR-linked lanes only where the lane has stopped, the workspace is done with, and the tracker close-out doesn't need the session live; otherwise record `no` and notify. Subagent lanes have nothing to archive.
  
@@ -1403,10 +1464,10 @@
 +## 6. Checkpoint, continue, or transfer ownership
  
 -1. **At roughly half the context window, wrap up**: finish the current step, start no new large work past the line (half-window rule: [handoff skill](../handoff/SKILL.md)).
--2. Write the handoff via the handoff skill: state, shipped record, the tracker query as NEXT, and the expensive lessons in GOTCHAS.
--3. **Arrange the successor** (per the lane-launch slot) with a prompt saying "invoke orchestrate and follow its startup checklist" plus only what is unique to this moment.
+-2. Write the handoff (call the Skill tool with `handoff`): state, shipped record, the tracker query as NEXT, and the expensive lessons in GOTCHAS.
+-3. **Arrange the successor** (per the lane-launch slot) with a prompt saying "call the Skill tool with `orchestrate` and follow its startup checklist" plus only what is unique to this moment.
 -4. Once the successor is confirmed live, with evidence of its startup checklist completing (the §3 step 4 title switch included; a pre-titled successor's evidence is the rest of the checklist), stop your watches, **shed the orchestrator title**: retitle `Orchestrator (retired) — <repo>` (§8), and go quiet (§2). The human archives the retired session when they see fit, never automatically (§5 step 6).
-+1. At the measured context checkpoint or a meaningful milestone, finish the atomic step and write the task-owned checkpoint through [handoff](../handoff/SKILL.md). Preserve authorization, stop points, workers, processes, workspaces, evidence, and the current next step.
++1. At the measured context checkpoint or a meaningful milestone, finish the atomic step and write the task-owned checkpoint through [handoff](../handoff/SKILL.md) (open and read the `handoff` skill's SKILL.md completely). Preserve authorization, stop points, workers, processes, workspaces, evidence, and the current next step.
 +2. Continue in the same task through native compaction. Re-read the checkpoint, project instructions, relevant decisions, and live state afterward. Half a context window does not retire the coordinator.
 +3. A fresh task requires the user's request. On an explicit ownership transfer, give the successor the verified checkpoint and the current worker inventory. Start no competing integration while the transfer is pending.
 +4. Confirm the successor completed the startup checks and accepted ownership before retiring the old coordinator. Stop only watches owned by the retiring coordinator, update its title when supported, and record the transfer. A fork or checkout handoff alone transfers no live ownership.
@@ -1422,6 +1483,15 @@
  - **Verification executor**: who re-runs verification at close-out (delegated verifier, CI, inline) and where per-command results land; plus the decider's **review-tier policy**: a table mapping close-out machinery (mechanical re-runs, finders and skeptics, re-probes) to model + effort. Canonical shape: mechanical verification cheap at low effort; adversarial review on real code or release-arming changes high; max only for decider-named cases, never a default. Each tier records a **floor** as well as a ceiling, what it may NOT be used for, so cost-saving never silently weakens the review bar. Tier deviation is loud in both directions, announced per §4.
  - **Merge flow**: the repo's integration mechanics and who may push what where. Optionally, a per-spec **integration branch** the decider opts into: [references/integration-branch.md](references/integration-branch.md).
  
+@@ -78,7 +80,7 @@
+ 
+ Titles keep picker, tracker, and workspace speaking one name, and the §2 check working by eye. That titling happens, and what a title carries, is protocol; mechanism and actor are the lane-launch slot's (§7).
+ 
+-- **Orchestrator title**: default `Orchestrator — <repo>`, the session telling its launcher once the §2 check clears (§3 step 4). A binding may refine the shape so long as it says *orchestrator* and tells siblings apart.
++- **Orchestrator title**: default `Orchestrator — <repo>`, the session telling its launcher once the §2 check clears (§3 step 4). A binding may refine the shape so long as it says *orchestrator* and tells siblings apart; retirement adds the retired marker (§6 step 4).
+ - **Lane title**: default `#<N> — <short item name>` in the repo's own item notation, at launch; a binding may refine the shape so long as the id survives. In-process subagents have no picker entry; the launch report carries the name.
+ - **Actor**: whoever launched the session titles it; self-titling only where the harness supports it. A retitle the harness can't self-perform (§6's retirement marker) falls to the successor or the human.
+ - **A role change retitles**: a lane adopted mid-flight or a session promoted to orchestrator is retitled the moment the role changes, same actor rule.
 --- a/skills/run/orchestrate/references/evidence.md
 +++ b/skills/run/orchestrate/references/evidence.md
 @@ -1,4 +1,6 @@
@@ -1445,6 +1515,15 @@
 +Read the [Codex desktop binding](../../../CODEX.md) when this workflow needs harness mechanics, model routing, or recovery.
  
  A PR is read by the decider and by reviewers long before anyone reads it in git history; and in a repo run through this pack, the decider may be a non-engineer whose merge decision rests entirely on the description. These rules bind every session writing a PR or comment on the decider's behalf, not just lanes the pack machinery launched. Most rules here exist because their violation shipped; the rest come from reviewed prior art named in Attribution. The examples are real agent-filed PRs from consuming repos, identifiers removed and content lightly paraphrased.
+ 
+@@ -52,7 +54,7 @@
+ ```
+ 
+ - **Can we undo this?** Yes when the change lives only in the code, so reverting the PR puts everything back: a **two-way door**, one you can walk back through. No when merging or deploying does something a revert leaves done: it deletes or migrates data, sends messages, publishes something, spends money, or changes a third party. That is a **one-way door**, and the line names which of those it does.
+-- **What could break:** one word for how much, then one sentence naming what. When the answer is medium or large, run the [blast-radius](../blast-radius/SKILL.md) skill where it is installed (call the Skill tool with `blast-radius`), and write that sentence from what it finds.
++- **What could break:** one word for how much, then one sentence naming what. When the answer is medium or large, run the [blast-radius](../blast-radius/SKILL.md) skill where it is installed (open and read the `blast-radius` skill's SKILL.md completely), and write that sentence from what it finds.
+ 
+ ### Optional detail
  
 @@ -69,7 +71,7 @@
  Where the repo has a resident review-response system (a disposition rule, a review wiki), that system is the authority and its precedent store stays the only one; these are the floor beneath it:
@@ -1535,6 +1614,15 @@
 +Reuse an exact breakdown already approved in the current request or recorded decision. For a new or materially changed breakdown, before Pass 1 files anything, put the slice list in front of the decider: each item's title, what it delivers end to end, and what blocks it, in plain English, no bodies yet. Ask whether the granularity is right, whether every edge is a real gate, and what should merge or split; iterate until they approve. The approval is recorded, not remembered: post the exact approved list as a comment on the plan-source or driving item before Pass 1, so what gets filed can be checked against what was approved. Filing first and asking after is the wrong order: a batch on the board is already colliding with other lanes' frontier queries while it is being argued about.
  
  ## The two passes
+ 
+@@ -65,7 +67,7 @@
+ 
+ - **It does not claim.** Filing an item and starting it are separate acts by separate sessions. Run the claim recipe when work begins; a filer who claims their own batch has locked the board against every other lane.
+ - **It does not decide.** Anything genuinely open when you reach it goes back to the decider as a question, or becomes a [decision-map](../../decide/decision-map/SKILL.md) ticket if the open questions gate each other. Filing a build slice over an undecided question buries the decision where nobody will see it until a lane hits it.
+-- **It does not spec what nobody pressure-tested.** If the source is a conversation rather than a recorded decision, run [grilling](../../decide/grilling/SKILL.md) first: call the Skill tool with `grilling`. A ticket set derived from unexamined agreement inherits every silent assumption and multiplies it by the number of items.
++- **It does not spec what nobody pressure-tested.** If the source is a conversation rather than a recorded decision, run [grilling](../../decide/grilling/SKILL.md) first: open and read the `grilling` skill's SKILL.md completely. A ticket set derived from unexamined agreement inherits every silent assumption and multiplies it by the number of items.
+ 
+ ## Done when (checkable: verify each line before reporting complete)
  
 --- a/skills/run/wizard/SKILL.md
 +++ b/skills/run/wizard/SKILL.md

@@ -7,7 +7,7 @@ description: "Write and prune documents an agent consumes: a SKILL.md, an AGENTS
 
 Every document an agent reads is a **behavior lever**, not prose. The packaging differs across a skill, a standing instruction file, and a reference reached by a pointer, but the writing does not: the same levers make each one predictable. Predictable means the agent takes the same *process* every run. It does not mean the agent produces the same output.
 
-This skill is reference, not a sequence: consult the rung that matches what you're writing. For frontmatter, invocation modes, and this repo's catalog invariants, read [references/skill-mechanics.md](references/skill-mechanics.md). When the reader is a human, as on a landing page, a README's front half, or a launch post, these levers read cold; use [writing-for-humans](../writing-for-humans/SKILL.md) instead.
+This skill is reference, not a sequence: consult the rung that matches what you're writing. For frontmatter, invocation modes, a step that must load another skill, and this repo's catalog invariants, read [references/skill-mechanics.md](references/skill-mechanics.md). When the reader is a human, as on a landing page, a README's front half, or a launch post, these levers read cold; use [writing-for-humans](../writing-for-humans/SKILL.md) instead.
 
 ## Context pointers
 
@@ -95,4 +95,4 @@ The em dash never appears in skill prose: it is a top AI tell, and the prose an 
 
 ## Attribution
 
-This skill is a lightly edited adaptation of Matt Pocock's [`writing-for-agents`](https://github.com/mattpocock/skills/tree/main/skills/productivity/writing-for-agents) (MIT). Not just the vocabulary but the body: context pointers, the two budgets, the information hierarchy, completion criteria, when to split, leading words, and pruning follow his text section by section, much of it near-verbatim. What this repo adds: the checkable Done-when list, the punctuation rule, and the mechanics reference with its catalog invariants.
+This skill is a lightly edited adaptation of Matt Pocock's [`writing-for-agents`](https://github.com/mattpocock/skills/tree/main/skills/productivity/writing-for-agents) (MIT). Not just the vocabulary but the body: context pointers, the two budgets, the information hierarchy, completion criteria, when to split, leading words, and pruning follow his text section by section, much of it near-verbatim. What this repo adds: the checkable Done-when list, the punctuation rule, and the mechanics reference with its catalog invariants. The reference's rule for loading another skill follows his repo's [invocation convention](https://github.com/mattpocock/skills/blob/main/.agents/invocation.md) (MIT): "call the Skill tool" is his phrasing, as are one skill per call and the user-invoked exception.

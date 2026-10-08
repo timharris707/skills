@@ -39,7 +39,7 @@ Always give the recommendation, in either presentation. A question without one m
 
 ## Facts are yours, decisions are theirs
 
-**Finding facts is your job, never the decider's.** When a frontier question needs something the environment already knows, go find it: what the code does, what the config says, what the vendor documents. Dispatch a subagent for anything that takes real digging, and follow the research skill's contract when the answer wants a durable citation.
+**Finding facts is your job, never the decider's.** When a frontier question needs something the environment already knows, go find it: what the code does, what the config says, what the vendor documents. Dispatch a subagent for anything that takes real digging, and when the answer wants a durable citation, have that subagent call the Skill tool with `research` and follow its contract.
 
 Do not block on it. A running investigation is an unsettled prerequisite, so only the questions *downstream* of it wait. Ask the rest of the frontier now and fold the finding in when it lands.
 
@@ -54,7 +54,7 @@ The **decisions** are the decider's. Put each one to them and wait. A grilling a
 
 ## Close with a record
 
-Agreement that lives only in the transcript evaporates with the session. Once the decider confirms shared understanding, write it down somewhere durable: a comment on the driving ticket where one exists, otherwise a dated summary in the repo's docs home (the binding doc names it). The record is short and it is not the interview: it enumerates the settled decisions, the design tree as visited, and marks each recommendation accepted or overridden. It is what a later spec or ticket names as its plan source, so [to-tickets](../../run/to-tickets/SKILL.md) links a citable decision instead of a conversation nobody can reopen. Where the repo binds [domain-memory](../../orient/domain-memory/SKILL.md), the close-record also mints memory: each settled decision becomes a decision record at the memory home and new or sharpened terms enter the glossary, the same store the pre-round read consults so a settled question is never re-asked.
+Agreement that lives only in the transcript evaporates with the session. Once the decider confirms shared understanding, write it down somewhere durable: a comment on the driving ticket where one exists, otherwise a dated summary in the repo's docs home (the binding doc names it). The record is short and it is not the interview: it enumerates the settled decisions, the design tree as visited, and marks each recommendation accepted or overridden. It is what a later spec or ticket names as its plan source, so [to-tickets](../../run/to-tickets/SKILL.md) links a citable decision instead of a conversation nobody can reopen. Where the repo binds [domain-memory](../../orient/domain-memory/SKILL.md), the close-record also mints memory (call the Skill tool with `domain-memory` to write it): each settled decision becomes a decision record at the memory home and new or sharpened terms enter the glossary, the same store the pre-round read consults so a settled question is never re-asked.
 
 ## Done when (checkable: verify each line before reporting complete)
 

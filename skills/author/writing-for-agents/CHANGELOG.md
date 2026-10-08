@@ -8,6 +8,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **The mechanics reference records how a step loads another skill** (#302): naming a
+  skill in prose does not reliably load it, so a step that must make another skill load
+  says so in the harness's own terms, beside the relative link where the step carries
+  one: "call the Skill tool with `<name>`" in Claude Code, and "open and read the `<name>`
+  skill's SKILL.md completely" in the Codex edition, one skill at a time. Routing tables,
+  hand-offs that only name which skill owns the work, and reads of another skill's
+  reference file keep the plain link; text any runner may read, such as a lane brief,
+  names the skill without a tool name; a skill only the user may invoke is never loaded
+  this way. The SKILL.md pointer names the new case, and Attribution credits Matt
+  Pocock's invocation convention, which this follows.
+
 ## [v1.0.2] - 2026-08-25 — frontmatter description parses as strict YAML
 
 ### Fixed

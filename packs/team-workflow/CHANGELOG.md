@@ -15,6 +15,23 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Changed
+- **A step that must load another skill now says "call the Skill tool with `<name>`"**
+  (#302). Naming a skill in prose does not reliably load it, so each step whose work
+  belongs to another skill now says so outright, one skill per call, beside the relative
+  link where the step carries one. Eighteen steps changed: router (setup on a first run,
+  orchestrate in lead mode), grilling (research inside the subagent that digs up a cited
+  fact, domain-memory at the close), decision-map (prototype and research tickets),
+  codebase-review (to-tickets on adopt, domain-memory for rejections), to-tickets
+  (grilling first), orchestrate (adversarial-review at close-out, pr-writing, handoff, and
+  the successor's prompt), adversarial-review and diagnose (domain-memory), implement
+  (diagnose, wizard), and pr-writing (blast-radius). Routing tables, notes on where a
+  skill sits, hand-offs that only name which skill owns the work, and reads of another
+  skill's reference file keep the plain link. Text any runner may read, such as a lane
+  brief or setup's PR-conduct pointer, stays without a tool name. show-me-your-work's
+  cross-model gate now links advisory-board's runner reference and applies where that
+  plugin is installed. orchestrate tightens restated phrasing to stay within its
+  2,500-word bound (`wc -w`: 2,495).
+  The convention is recorded in writing-for-agents and follows Matt Pocock's.
 - **setup: the label vocabulary gains `needs-info` and `wontfix`** (#305): the reference
   vocabulary setup creates on a fresh tracker, the tracker-discipline reference, and the
   binding-doc template's mapping line now carry a state for an item waiting on its

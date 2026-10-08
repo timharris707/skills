@@ -9,7 +9,7 @@ Read the [Codex desktop binding](../../../CODEX.md) when this workflow needs har
 
 One entry point for the **team-workflow** pack. The pack is a portable discipline for running tracked, multi-session, agent-assisted development: pressure-test an idea, build it in parallel lanes, ship it reviewed and merged. The table below names every skill and its moment. Everything repo-specific lives in, or is pointed at from, one binding doc seeded by the setup skill; every skill defers decisions to **the decider**, the role that doc names.
 
-**First use in a repo:** read an existing binding when the task needs the pack. Run setup when the user requests installation or a missing binding actually gates tracked work; a bounded question or review can proceed read-only. Where the binding doc records working mode `lead`, the human works from the orchestrator seat: a new task invokes [orchestrate](../../run/orchestrate/SKILL.md) and follows its startup checklist, and this table is what that seat runs, not a menu for the human.
+**First use in a repo:** read an existing binding when the task needs the pack. Open and read the `setup` skill's SKILL.md completely when the user requests installation or a missing binding actually gates tracked work; a bounded question or review can proceed read-only. Where the binding doc records working mode `lead`, the human works from the orchestrator seat: a new task invokes [orchestrate](../../run/orchestrate/SKILL.md) by opening and reading the `orchestrate` skill's SKILL.md completely, then follows its startup checklist, and this table is what that seat runs, not a menu for the human.
 
 ## The main flow
 

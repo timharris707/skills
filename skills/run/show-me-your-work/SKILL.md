@@ -72,7 +72,7 @@ Fix the log, not the story. If the work diverged from what a row claims, the row
 
 ## Optional gate: cross-model review of the trail
 
-For high-stakes runs, or when the user asks for it, add a closing review by fresh eyes before handing back. Route it through the advisory-board skill's CLI-seat runners: one seat on a different model family from the one that did the work (a Codex, Gemini, or Grok seat when Claude did the work) reads the trail and the run's record, then flags what the user should pay attention to. Not a redo of the work, a scan for what's suboptimal or risky:
+For high-stakes runs, or when the user asks for it, add a closing review by fresh eyes before handing back. Route it through the advisory-board skill's [CLI-seat runners](../../decide/advisory-board/references/execution-harness.md), where installed: one seat on a different model family from the one that did the work (a Codex, Gemini, or Grok seat when Claude did the work) reads the trail and the run's record, then flags what the user should pay attention to. Not a redo of the work, a scan for what's suboptimal or risky:
 
 - Decisions logged with weak or absent evidence.
 - Verification steps skipped or claimed without proof in the record.

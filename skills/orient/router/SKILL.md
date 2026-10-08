@@ -7,7 +7,7 @@ description: "Entry point for the team-workflow pack: names every pack skill and
 
 One entry point for the **team-workflow** pack. The pack is a portable discipline for running tracked, multi-session, agent-assisted development: pressure-test an idea, build it in parallel lanes, ship it reviewed and merged. The table below names every skill and its moment. Everything repo-specific lives in, or is pointed at from, one binding doc seeded by the setup skill; every skill defers decisions to **the decider**, the role that doc names.
 
-**First run in a repo? Run `setup` before anything else.** The other skills read the bindings it seeds. Where the binding doc records working mode `lead`, the human works from the orchestrator seat: a new session invokes [orchestrate](../../run/orchestrate/SKILL.md) and follows its startup checklist, and this table is what that seat runs, not a menu for the human.
+**First run in a repo? Call the Skill tool with `setup` before anything else.** The other skills read the bindings it seeds. Where the binding doc records working mode `lead`, the human works from the orchestrator seat: a new session invokes [orchestrate](../../run/orchestrate/SKILL.md) by calling the Skill tool with `orchestrate`, then follows its startup checklist, and this table is what that seat runs, not a menu for the human.
 
 ## The main flow
 

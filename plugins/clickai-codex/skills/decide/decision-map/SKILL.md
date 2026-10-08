@@ -22,7 +22,7 @@ You are running a decision-map session. The protocol authority is [references/pr
 ## Mode 2: working a ticket (invoked with a map ticket)
 
 1. Claim the ticket per the repo's claim recipe (the tracker-discipline binding applies unchanged).
-2. Run the ticket by its type per the protocol's ticket-type table (prototype tickets invoke the prototype skill; research tickets follow the research skill).
+2. Run the ticket by its type per the protocol's ticket-type table (for a prototype ticket, open and read the `prototype` skill's SKILL.md completely; for a research ticket, open and read the `research` skill's SKILL.md completely and follow it).
 3. Record the outcome on the ticket, write the one-line verdict back into the map doc, and name any newly unblocked tickets (the frontier moved).
 
 ## Done when (checkable: verify each line before reporting complete)
