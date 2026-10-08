@@ -1,5 +1,5 @@
 # CodeRabbit configuration — skills catalog (2026-08-07), ported from
-# insight-chat's Aug-2026-schema config and adapted to what this repo is:
+# another repo's Aug-2026-schema config and adapted to what this repo is:
 # agent-consumed behavior documents (SKILL.md), their helper scripts, the CI
 # invariant checkers, and the clickai.dev site generated from them.
 #
@@ -12,8 +12,8 @@ reviews:
   profile: "chill"
   request_changes_workflow: false
   # All three status surfaces off so CodeRabbit never appears in `gh pr checks`
-  # — non-blocking is structural, not habit (see insight-chat's config for the
-  # schema note: review_progress is the canonical surface and defaults true).
+  # — non-blocking is structural, not habit (in the Aug-2026 schema,
+  # review_progress is the canonical surface and defaults true).
   review_progress: false
   commit_status: false
   fail_commit_status: false
@@ -31,7 +31,7 @@ reviews:
     - "!design/**"
   auto_review:
     enabled: true
-    # One review per PR (timharris707/insight-chat#574 cost audit): no
+    # One review per PR (a cost audit in another repo): no
     # re-review on later pushes or rebases — the first automatic review is
     # the only one. A human can still ask with `@coderabbitai review`.
     auto_incremental_review: false
