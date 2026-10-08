@@ -81,6 +81,12 @@ jobs:
       - name: Check the hooks setup seeds
         run: python3 -m unittest discover -s tests/hooks -p 'test*.py'
 
+      # The site font check (#319) runs only against a built site, so these
+      # feed its character scan a stub site, including a CSS escape that the
+      # scan must decode to the character the page shows.
+      - name: Check the site font check's character scan
+        run: python3 -m unittest discover -s tests/site -p 'test*.py'
+
       # Tracker recipes must name the bound repo explicitly (#208): an
       # unqualified gh command resolves the repo implicitly, which in a fork
       # targets the upstream repo instead of the bound tracker.
@@ -163,6 +169,29 @@ jobs:
       - name: Check markdown twins match their source SKILL.md
         working-directory: site
         run: python3 ../scripts/check_skill_md_twins.py
+
+      # Tripwire for the font subsets (#319): the site's fonts keep only the
+      # characters recorded in site/src/fonts/fonts.json. This fails when a
+      # page's server-rendered text, its Markdown twin, or a CSS content value
+      # uses a character outside that set, or when a font file no longer
+      # matches its recorded hash. Text client code renders after load is not
+      # seen. Reuses the server. See the script's docstring.
+      - name: Check the site's fonts cover every character it renders
+        working-directory: site
+        run: python3 ../scripts/check_site_font_coverage.py
+
+      # Tripwire for #319: the site's fonts ship with it, so the build must
+      # not ask Google Fonts for any font. Next's mocked-response hook serves
+      # Google offline, and the mock answers every request with a font
+      # address that has no extension, the answer that crashed builds.
+      # A warm build cache skips the font loaders, so this rebuilds from
+      # nothing, last, after the checks above are done with the built site.
+      - name: Check the build fetches no font from Google
+        working-directory: site
+        run: |
+          set -euo pipefail
+          rm -rf .next
+          NEXT_FONT_GOOGLE_MOCKED_RESPONSES="$PWD/../tests/site/google-fonts-mock.cjs" npm run build
 
   advisory-board:
     runs-on: ubuntu-latest
