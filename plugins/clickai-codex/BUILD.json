@@ -462,11 +462,15 @@
       "executable": false
     },
     "skills/orient/setup/SKILL.md": {
-      "sha256": "451415e2db2fcf6d7cd692cb0f90f645e3011a4f489a1eaf662cefc3c2985680",
+      "sha256": "636b1c821ea5abb36f20c49df34a17bc68fa8c10ed0c53f690326a4e1994e731",
       "executable": false
     },
     "skills/orient/setup/agents/openai.yaml": {
       "sha256": "e749c0dd51391c3643da380a2857731b668519bb4c78fd97653aa57a063a6706",
+      "executable": false
+    },
+    "skills/orient/setup/references/handoff-hook.md": {
+      "sha256": "66bb5256c42deb385ac74fdf621091540b24258c8eb1cf8554a695a94e025253",
       "executable": false
     },
     "skills/orient/setup/references/templates/binding-doc.md": {

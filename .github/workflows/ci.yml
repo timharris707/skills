@@ -73,8 +73,12 @@ jobs:
 
       # The git guardrail hook setup seeds (#301) decides when an agent must
       # ask before an irreversible git or GitHub action. This runs its matcher
-      # against every listed action, ordinary commands, and near-misses.
-      - name: Check the git guardrail hook's matcher
+      # against every listed action, ordinary commands, and near-misses. The
+      # handoff hook setup seeds (#320) runs under every installed shell against
+      # throwaway repos with several worktrees, for each kind of session start:
+      # it must pick the right checkout's handoff, skip copies and handoffs a
+      # branch commits, and run git a few times per handoff, not per worktree.
+      - name: Check the hooks setup seeds
         run: python3 -m unittest discover -s tests/hooks -p 'test*.py'
 
       # Tracker recipes must name the bound repo explicitly (#208): an

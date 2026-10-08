@@ -23,6 +23,32 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   queries either label, so a repo bound earlier keeps working without them, and a re-run
   offers to create them.
 
+### Fixed
+- **setup, handoff: a fresh session loads the newest handoff, wherever the last session
+  saved it** (#320). A session started in its own git worktree, the desktop app's default,
+  can save its handoff only in that worktree, while the session-start hook read only the
+  new session's own checkout, so the next session replayed a stale note or nothing. The
+  hook setup seeds now reads the main checkout and every worktree from `git worktree list`,
+  loads the newest `.claude/handoff.md` among them (or the bound path), and names the
+  checkout it came from and when it was saved. On a resume or after compaction, which the
+  hook reads from its input's `source` field, it loads the session's own checkout's note
+  first and falls back to the newest anywhere when that checkout has none; startup, a
+  clear, and any unreadable input get the newest. A byte-identical copy of an older handoff,
+  which a new worktree can receive when it is created, does not count as a save. In a git
+  repo it loads a note only when git lists it as an untracked file spelled exactly as the
+  bound path, so a note committed on a branch checked out in a review worktree is not
+  loaded, whether under that path, under a spelling the disk treats as the same name, or
+  behind a committed folder symlink. Git lists nothing behind a symlink, so in a repo a
+  handoff whose folder is a symlink is not loaded either. Outside a git repo, or without
+  git, it reads the session's own checkout as before. The entry lives in setup's new
+  `references/handoff-hook.md`, and a re-run proposes it where a repo carries the older
+  one. The handoff skill saves in the session's own checkout. When the next session might
+  not find the file (a repo still on the older hook, or a refused write to the bound
+  location), its report says a fresh session is safe once the user runs the one-line copy
+  command it ends with. CI runs the hook under every installed shell against throwaway
+  repos with several worktrees, for every `source` value, including a check that git runs
+  twice per handoff found, never once per worktree or per pair of handoffs (`tests/hooks`).
+
 ## [v1.9.0] - 2026-10-06 — pr-writing becomes its own skill
 
 ### Added
