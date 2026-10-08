@@ -14,6 +14,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **setup: audit mode checks that a seeded git guardrail's script is still there**
+  (#306). The guardrail's settings entry skips a missing script on purpose, so one missing
+  file never blocks every command, which meant a deleted or git-ignored script switched the
+  guardrail off and nobody was told. Where the binding doc records the guardrail as seeded
+  at a script path, the audit now reports drift when the script is missing there or
+  `git check-ignore` reports it, and names the fix: restore the script from the pack, or
+  un-ignore it. A guardrail recorded as pending, declined, or a runtime gap, or a binding
+  doc with no guardrail line, produces no finding. Audit mode now runs six checks; every
+  other hook target stays unchecked.
+
 ### Changed
 - **A step that must load another skill now says "call the Skill tool with `<name>`"**
   (#302). Naming a skill in prose does not reliably load it, so each step whose work
@@ -41,6 +52,26 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   offers to create them.
 
 ### Fixed
+- **git guardrail: listing tags with a filter no longer asks before an ordinary push**
+  (#309). The guardrail recorded the value of a `git tag` listing filter as a newly created
+  tag, so `git tag --merged main && git push origin main` asked as if it pushed a tag. As in
+  git, a `git tag` carrying `--contains`, `--no-contains`, `--merged`, `--no-merged`, or
+  `--points-at` anywhere, with the value as a separate word or after `=`, now lists and
+  records no tag, and so does one carrying `-d`, `-l`, `-v`, or `-n` after the tag name.
+  The value of `--sort` or `--format` is now skipped like a message, so it is never read
+  as the tag name or as a mode option: `git tag --sort refname v1` creates `v1`, not
+  `refname`. Creating a tag and pushing it, `git push --tags`, and `git push --follow-tags`
+  still ask. The hook suite gains a regression test per filter and per value option
+  (`tests/hooks`).
+- **setup: in a repo that ignores `.claude/` wholesale, the guardrail's settings file is
+  committed too** (#311). The un-ignore example re-included only `.claude/hooks/`, so the
+  script was committed while `.claude/settings.json`, which holds the entry that runs it,
+  stayed ignored, and the Done-when checked the script alone. The example now adds
+  `!.claude/settings.json`, local-only settings (`.claude/settings.local.json`) stay
+  ignored, the proof commands run `git check-ignore` on the settings file too, and the
+  Done-when requires that neither file is ignored. A sync-managed settings file is
+  unaffected: setup still hands its owner a snippet. The hook suite applies the example in
+  a throwaway repo (`tests/hooks`).
 - **setup, handoff: a fresh session loads the newest handoff, wherever the last session
   saved it** (#320). A session started in its own git worktree, the desktop app's default,
   can save its handoff only in that worktree, while the session-start hook read only the

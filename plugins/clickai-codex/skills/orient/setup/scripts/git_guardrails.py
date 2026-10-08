@@ -38,7 +38,8 @@ WRAPPERS = {"sudo", "env", "command", "exec", "nohup", "time", "builtin", "timeo
 KEYWORDS = {"{", "!", "if", "then", "else", "elif", "do", "while", "until"}
 GIT_OPTIONS_WITH_VALUE = {"-C", "-c", "--git-dir", "--work-tree", "--namespace", "--super-prefix", "--config-env"}
 PUSH_OPTIONS_WITH_VALUE = {"--repo", "--receive-pack", "--exec", "--push-option"}
-TAG_OPTIONS_WITH_VALUE = {"--message", "--file", "--local-user", "--trailer", "--cleanup"}
+TAG_OPTIONS_WITH_VALUE = {"--message", "--file", "--local-user", "--trailer", "--cleanup", "--sort", "--format"}
+TAG_LIST_FILTERS = {"--contains", "--no-contains", "--merged", "--no-merged", "--points-at"}
 RELEASE_WRITES = {"create", "new", "edit", "delete", "upload", "delete-asset"}
 
 FORCE_PUSH = "force-push (rewrites history on the remote)"
@@ -209,21 +210,23 @@ def is_tag(name, cwd):
 
 def created_tag(args):
     """The tag name `git tag <args>` creates, skipping option values such as -m's message;
-    None when the command deletes, lists, or verifies tags instead."""
-    i = 0
+    None when the command deletes, lists, or verifies tags instead. As in git, a mode
+    option anywhere in args wins, so a listing filter such as `--merged main` creates nothing."""
+    name, i = None, 0
     while i < len(args):
         arg = args[i]
         letters = short_flags(arg, "mFu")
-        if arg in ("--delete", "--list", "--verify") or set(letters) & set("dlvn"):
+        if (arg in ("--delete", "--list", "--verify") or arg.split("=", 1)[0] in TAG_LIST_FILTERS
+                or set(letters) & set("dlvn")):
             return None
         if arg == "--":
-            return args[i + 1] if i + 1 < len(args) else None
+            return name or (args[i + 1] if i + 1 < len(args) else None)
         if not arg.startswith("-"):
-            return arg
-        if arg in TAG_OPTIONS_WITH_VALUE or (letters[-1:] in ("m", "F", "u") and len(letters) == len(arg) - 1):
+            name = name or arg
+        elif arg in TAG_OPTIONS_WITH_VALUE or (letters[-1:] in ("m", "F", "u") and len(letters) == len(arg) - 1):
             i += 1
         i += 1
-    return None
+    return name
 
 
 def push_reasons(args, cwd, new_tags):
