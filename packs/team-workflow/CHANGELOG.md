@@ -105,7 +105,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   command it ends with. CI runs the hook under every installed shell against throwaway
   repos with several worktrees, for every `source` value, including a check that git runs
   twice per handoff found, never once per worktree or per pair of handoffs (`tests/hooks`).
-- **show-me-your-work: `log.sh` stops at a row cut short instead of finishing it** (#283).
+- **show-me-your-work: `log.sh` stops at a last row with missing fields instead of finishing it** (#283).
   When the log's last line had no final newline, the helper added one before appending
   without checking that the line was a whole row, so a row a crash cut short stayed in the
   log looking finished. When that last line has fewer than six fields, or an empty last
