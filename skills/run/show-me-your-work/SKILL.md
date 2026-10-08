@@ -45,7 +45,7 @@ Write each entry the way you'd tell a teammate what you did. Plain words, concre
 
 Use the helper so rows stay well-formed: `scripts/log.sh <logfile> <phase> <decision> <why> <evidence> <result>`. It stamps `ts`, writes the header on first use, strips stray tabs/newlines, and prefixes any cell starting with `=`, `+`, `-`, or `@` with a single quote so a reviewer opening the log in a spreadsheet doesn't trigger formula execution. If the script isn't present, a bare `printf` appending a tab-separated row works too, but apply those same two protections by hand: keep every cell single-line, and quote-prefix those leading bytes when cells come from generated or user-supplied text.
 
-Log decision points and checkpoints, not every action: a fork chosen, a unit completed with its verification result, a pivot or revert with its trigger, a blocker surfaced, a gate fixed. For loop runs, one row per iteration. Skip the trivial and self-evident.
+Log decision points and checkpoints, not every action: a fork chosen, a unit completed with its verification result, a pivot or revert with its trigger, a blocker surfaced, a gate fixed. In a loop run, the same rule holds inside each iteration: an iteration that contains none of these gets no row.
 
 ## Where it lives
 
@@ -94,7 +94,8 @@ Other skills route their audit trail here instead of inventing one. Reference it
 ## Done when (checkable, verify each line before reporting complete)
 
 - One canonical TSV exists at a stated path, header row intact, every cell single-line, and history append-only: wrong calls got superseding rows, nothing was edited or deleted.
-- Every row survived the closing audit: it maps to a real action in the run's record, its evidence resolves and shows what it claims, and no shaping fork or pivot is missing.
+- Every row survived the closing audit: it maps to a real action in the run's record, and its evidence resolves and shows what it claims.
+- The forks, pivots, and abandoned approaches that shaped the work are listed from the run's record, and each one on that list has its own row.
 - Formula-risk bytes are neutralized: no cell in the final log starts with a bare `=`, `+`, `-`, or `@`.
 - The log's fate is decided and stated: discarded, kept local, or committed because a reviewer needs it to trust the result.
 - If the cross-model gate ran, the handback ends with an "Attention" section naming the reviewer's model, and a same-family fallback was labeled as the weaker form.

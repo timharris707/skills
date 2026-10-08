@@ -87,6 +87,13 @@ jobs:
       - name: Check the site font check's character scan
         run: python3 -m unittest discover -s tests/site -p 'test*.py'
 
+      # show-me-your-work's log.sh adds a missing final newline before it
+      # appends (#283). This runs it under sh, bash, and dash: a last line cut
+      # short mid-write must stop it with an error naming that line, and a
+      # complete last line must still be healed and appended after.
+      - name: Check show-me-your-work's log helper
+        run: python3 -m unittest discover -s tests/show-me-your-work -p 'test*.py'
+
       # Tracker recipes must name the bound repo explicitly (#208): an
       # unqualified gh command resolves the repo implicitly, which in a fork
       # targets the upstream repo instead of the bound tracker.

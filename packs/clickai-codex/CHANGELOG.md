@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+- Carry team-workflow's two show-me-your-work fixes (#283, #284). The bundled `log.sh`
+  stops with an error naming a last row cut short mid-write instead of finishing it. In a
+  loop run, an iteration with no fork, verified unit, pivot, blocker, or gate fix gets no
+  row. The Done-when asks for one row for each fork, pivot, and abandoned approach listed
+  from the run's record. This edition's append-a-correction audit wording is unchanged.
 - Carry team-workflow's git guardrail fix (#309): the bundled, unwired
   `setup/scripts/git_guardrails.py` reads a `git tag` listing filter such as `--merged` as
   listing, never as creating a tag, and skips a `--sort` or `--format` value so it is
