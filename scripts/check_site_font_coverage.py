@@ -124,6 +124,8 @@ def site_characters(base: str) -> dict[str, str]:
             for char in css_unescape(double or single):
                 if char >= " ":
                     seen.setdefault(char, sheet)
+    if not seen:
+        raise SystemExit("the pages and their stylesheets rendered no text; a green run would check nothing")
     return seen
 
 

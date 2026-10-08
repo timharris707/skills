@@ -60,6 +60,11 @@ class SiteCharactersTest(unittest.TestCase):
         with self.assertRaises(SystemExit):
             scan(**{"/work": "<p>No styles</p>"})
 
+    def test_a_scan_that_finds_no_text_fails(self):
+        with self.assertRaises(SystemExit):
+            scan(**{"/work": '<link rel="stylesheet" href="/app.css">', "/work.md": "",
+                    "/app.css": ".a{color:red}"})
+
     def test_single_quoted_content_is_read(self):
         used = scan(**{"/app.css": r".a::before{content:'\2605 it\'s'}"})
         self.assertEqual(used.get("★"), "/app.css")
