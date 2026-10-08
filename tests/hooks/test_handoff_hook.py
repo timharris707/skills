@@ -184,6 +184,20 @@ class SeededHandoffHookTests(unittest.TestCase):
         saved = self.save(self.main, "OWN NOTE in the main checkout\n", hours_ago=1)
         self.assertEveryShellLoads([self.main, self.b], "OWN NOTE in the main checkout", self.main, saved, "TRACKED")
 
+    def test_an_untracked_name_in_another_case_beside_the_note_leaves_it_loaded(self):
+        # On a case-sensitive disk, an untracked `.claude/Handoff.md` can sit beside the note,
+        # and git lists both. A case-insensitive disk cannot hold both files, so a git wrapper
+        # adds the other name ahead of the real listing, where git's sort order puts it.
+        saved = self.save(self.main, "OWN NOTE in the main checkout\n", hours_ago=1)
+        wrapper = self.root / "listing-bin"
+        wrapper.mkdir()
+        (wrapper / "git").write_text('#!/bin/sh\ncase " $* " in *" ls-files -o "*) echo .claude/Handoff.md;; esac\n'
+                                     f'exec "{shutil.which("git")}" "$@"\n')
+        (wrapper / "git").chmod(0o755)
+        path = {"PATH": f"{wrapper}{os.pathsep}{ENV['PATH']}"}
+        self.assertEveryShellLoads([self.main, self.b], "OWN NOTE in the main checkout", self.main, saved,
+                                   "Handoff.md", env=path)
+
     def test_unusual_worktree_paths_parse_safely(self):
         # A trailing space survives parsing; a newline in a path cannot forge another checkout.
         if subprocess.run(self.git + ["worktree", "list", "--porcelain", "-z"], capture_output=True,
