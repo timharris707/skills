@@ -9,7 +9,9 @@ Markdown twin its agent view shows and the stylesheets they load, and fails
 when the server-rendered text, the Markdown twins, or any CSS `content` value
 uses a character outside the recorded set. Text that client code renders only
 after load (hover notes, fetch messages) is not seen. It also fails when a
-font file no longer matches the hash recorded beside that set. A green run
+font file no longer matches the hash recorded beside that set, when the
+shipped .woff2 files and that record name different files, and when there is
+nothing to check (no pages, no stylesheets, no font files). A green run
 means the fonts were cut with every character those sources use; a character
 none of the source fonts draws still falls back.
 
@@ -37,6 +39,8 @@ from pathlib import Path
 
 FONTS_DIR = Path(__file__).resolve().parent.parent / "site" / "src" / "fonts"
 MANIFEST = FONTS_DIR / "fonts.json"
+# A CSS `content` string in either quote style; escaped quotes stay inside.
+CSS_CONTENT = re.compile(r"""content:\s*(?:"((?:[^"\\]|\\.)*)"|'((?:[^'\\]|\\.)*)')""")
 
 
 def fetch(url: str, deadline: float = 60.0) -> str:
@@ -64,7 +68,8 @@ def twin_for(path: str) -> str | None:
 
 
 class PageText(HTMLParser):
-    """Collects the text a page renders, skipping scripts and styles."""
+    """Collects the text a page renders, skipping scripts and styles, and the
+    stylesheets it links."""
 
     SKIP = {"script", "style", "noscript", "template"}
 
@@ -72,10 +77,14 @@ class PageText(HTMLParser):
         super().__init__()
         self.depth = 0
         self.text: list[str] = []
+        self.stylesheets: list[str] = []
 
     def handle_starttag(self, tag, attrs):
         if tag in self.SKIP:
             self.depth += 1
+        attrs = dict(attrs)
+        if tag == "link" and "stylesheet" in (attrs.get("rel") or "").lower().split() and attrs.get("href"):
+            self.stylesheets.append(attrs["href"])
 
     def handle_endtag(self, tag):
         if tag in self.SKIP and self.depth:
@@ -99,7 +108,7 @@ def site_characters(base: str) -> dict[str, str]:
         parser = PageText()
         parser.feed(html)
         texts = ["".join(parser.text)]
-        stylesheets.update(re.findall(r'<link rel="stylesheet" href="([^"]+)"', html))
+        stylesheets.update(parser.stylesheets)
         twin = twin_for(path)
         if twin:
             texts.append(fetch(f"{base}{twin}"))
@@ -107,10 +116,12 @@ def site_characters(base: str) -> dict[str, str]:
             for char in text:
                 if char >= " ":
                     seen.setdefault(char, path)
-    # Generated content (CSS `content: "..."`) is rendered text too.
+    if not stylesheets:
+        raise SystemExit("the pages linked no stylesheet; a green run would skip CSS content")
+    # Generated content (CSS `content: "..."` or `'...'`) is rendered text too.
     for sheet in sorted(stylesheets):
-        for value in re.findall(r'content:\s*"([^"]*)"', fetch(f"{base}{sheet}")):
-            for char in css_unescape(value):
+        for double, single in CSS_CONTENT.findall(fetch(f"{base}{sheet}")):
+            for char in css_unescape(double or single):
                 if char >= " ":
                     seen.setdefault(char, sheet)
     return seen
@@ -131,17 +142,28 @@ def parse_unicodes(ranges: str) -> set[int]:
     return points
 
 
+def file_problems(files: dict[str, str], fonts_dir: Path = FONTS_DIR) -> list[str]:
+    """Problems with the shipped .woff2 files against fonts.json's hashes: each
+    side must be non-empty and name the same files."""
+    shipped = {path.relative_to(fonts_dir).as_posix() for path in fonts_dir.rglob("*.woff2")}
+    if not files or not shipped:
+        return [f"fonts.json lists {len(files)} font files and {len(shipped)} are shipped; "
+                "a green run would check no file."]
+    problems = [f"{name} is shipped but not listed in fonts.json." for name in sorted(shipped - files.keys())]
+    problems += [f"{name} is listed in fonts.json but not shipped." for name in sorted(files.keys() - shipped)]
+    for name in sorted(shipped & files.keys()):
+        if hashlib.sha256((fonts_dir / name).read_bytes()).hexdigest() != files[name]:
+            problems.append(f"{name} does not match the hash in fonts.json; regenerate it with the script.")
+    return problems
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--base", default="http://localhost:3000")
     args = parser.parse_args()
 
     manifest = json.loads(MANIFEST.read_text())
-    problems = []
-    for name, digest in manifest["files"].items():
-        actual = hashlib.sha256((FONTS_DIR / name).read_bytes()).hexdigest()
-        if actual != digest:
-            problems.append(f"{name} does not match the hash in fonts.json; regenerate it with the script.")
+    problems = file_problems(manifest["files"])
 
     kept = parse_unicodes(manifest["unicodes"])
     used = site_characters(args.base.rstrip("/"))
