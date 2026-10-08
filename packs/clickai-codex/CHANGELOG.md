@@ -9,6 +9,18 @@
   unwired: it is the Claude Code session-start entry, and setup's Codex continuity step now
   says to leave it unwired, as it does for the git guardrail script. Codex continuity still
   uses the task checkpoint resolver; the handoff adaptation is unchanged.
+- Carry team-workflow's explicit skill loading (#302) in Codex's own words: each step that
+  must load another skill now says "open and read the `<name>` skill's SKILL.md
+  completely", the way Codex's skill instructions say to use an installed skill, since
+  Codex has no Skill tool for skills installed as files. Sixteen steps changed, the same
+  ones as the Claude edition except two: the successor prompt, which this edition's
+  orchestrate does not have, and grilling's research step, which stays a mention because
+  Codex bars handing skill reading to a subagent. show-me-your-work's cross-model gate
+  links advisory-board's runner reference, where installed. Orchestrate drops two
+  restated phrases with team-workflow (the "rule-based" label and "setup may offer wiring
+  it") and keeps its titling section's retired-marker clause, the only place this edition
+  defines that marker. writing-for-agents' mechanics reference records the convention
+  with this wording.
 
 ## [v1.3.0] - 2026-10-06 — adopts team-workflow v1.9.0
 

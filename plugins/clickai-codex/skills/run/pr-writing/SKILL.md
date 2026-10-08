@@ -54,7 +54,7 @@ Where the environment provides an upload capability (a file-host skill, a record
 ```
 
 - **Can we undo this?** Yes when the change lives only in the code, so reverting the PR puts everything back: a **two-way door**, one you can walk back through. No when merging or deploying does something a revert leaves done: it deletes or migrates data, sends messages, publishes something, spends money, or changes a third party. That is a **one-way door**, and the line names which of those it does.
-- **What could break:** one word for how much, then one sentence naming what. When the answer is medium or large, run the [blast-radius](../blast-radius/SKILL.md) skill where it is installed, and write that sentence from what it finds.
+- **What could break:** one word for how much, then one sentence naming what. When the answer is medium or large, run the [blast-radius](../blast-radius/SKILL.md) skill where it is installed (open and read the `blast-radius` skill's SKILL.md completely), and write that sentence from what it finds.
 
 ### Optional detail
 

@@ -58,7 +58,7 @@ Plain markdown, posted on the tracker item the binding names. It carries:
 
 The run is **not finished at report time**: an undispositioned report is a review that changed nothing. The orchestrator (or whoever ran the review) presents every survivor to the decider as a structured question card, [grilling](../../decide/grilling/SKILL.md)-style: the claim, the skeptic's verdict, cost and payoff, with the recommendation marked on an option; numbered-text fallback where no card tool exists. The decider dispositions each:
 
-- **Adopt**: becomes a tracker ticket ([to-tickets](../../run/to-tickets/SKILL.md) where bound) and rides normal lane flow.
+- **Adopt**: becomes a tracker ticket ([to-tickets](../../run/to-tickets/SKILL.md) where bound: call the Skill tool with `to-tickets` to file it) and rides normal lane flow.
 - **Reject**: recorded in rejection memory with the load-bearing reason. The reason is the record's value: a future run needs to know *why*, so it can tell new evidence from repetition.
 - **Defer**: carried at the top of the next run's report, where each is re-dispositioned or re-deferred, and named in session handoffs so it survives the context boundary.
 
@@ -68,7 +68,7 @@ The run's tracker item closes only when nothing is undispositioned.
 
 - **Report destination**: the tracker item each run posts its report to and closes: a standing item, or the rule that creates one per run. It must be writable and closable: §4 posts to it and §5 closes it, so a read-only query cannot fill this slot.
 - **Lane-count threshold (N)**: merged lanes since the last review that open gate 2.
-- **Rejection memory**: where rejected candidates and their load-bearing reasons live. In repos also bound to [domain-memory](../../orient/domain-memory/SKILL.md), this slot points at its memory home and rejections land as decision records there: one store, never two.
+- **Rejection memory**: where rejected candidates and their load-bearing reasons live. In repos also bound to [domain-memory](../../orient/domain-memory/SKILL.md), this slot points at its memory home and rejections land as decision records there (call the Skill tool with `domain-memory` to write them): one store, never two.
 - **Executor mechanics**: how the review lane is launched, claimed, and tracked (in repos running the [orchestrate](../../run/orchestrate/SKILL.md) skill, its lane-launch machinery is the natural answer).
 
 On a first run before the setup interview has filled these, the executor creates the tracker item itself and the report names the unbound slots.

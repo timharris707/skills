@@ -67,7 +67,7 @@ Confirm the labels exist on the tracker before filing. A frontier query against 
 
 - **It does not claim.** Filing an item and starting it are separate acts by separate sessions. Run the claim recipe when work begins; a filer who claims their own batch has locked the board against every other lane.
 - **It does not decide.** Anything genuinely open when you reach it goes back to the decider as a question, or becomes a [decision-map](../../decide/decision-map/SKILL.md) ticket if the open questions gate each other. Filing a build slice over an undecided question buries the decision where nobody will see it until a lane hits it.
-- **It does not spec what nobody pressure-tested.** If the source is a conversation rather than a recorded decision, run [grilling](../../decide/grilling/SKILL.md) first. A ticket set derived from unexamined agreement inherits every silent assumption and multiplies it by the number of items.
+- **It does not spec what nobody pressure-tested.** If the source is a conversation rather than a recorded decision, run [grilling](../../decide/grilling/SKILL.md) first: open and read the `grilling` skill's SKILL.md completely. A ticket set derived from unexamined agreement inherits every silent assumption and multiplies it by the number of items.
 
 ## Done when (checkable: verify each line before reporting complete)
 

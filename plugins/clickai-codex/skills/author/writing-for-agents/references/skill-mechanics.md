@@ -34,6 +34,16 @@ Optional fields, used sparingly:
 
 The third row is a real pattern, not a workaround: an agent-invoked reference skill holds the process and a short user-invoked skill exists purely so a person can name it. Keep the process in exactly one of them: the alias points, it does not restate. That pointing link is also how the catalog reads the pattern: a SKILL.md link from a user-invoked skill to another promoted skill's SKILL.md is an alias claim (the target classifies as invocable either way), so a user-invoked skill that merely wants to mention a sibling links to its directory or names it in plain text, not its SKILL.md.
 
+## Loading another skill
+
+Naming a skill in prose does not reliably load it. When a step must make another skill load, the step says so in Codex's own terms for using a skill: "open and read the `<name>` skill's SKILL.md completely", beside the relative link where the step carries one. Codex has no Skill tool for skills installed as files: it loads one by reading its SKILL.md. A step that needs two skills gives each its own instruction, one skill per instruction, as the Claude edition makes one call per skill.
+
+The test is whether the text tells its reader to run the other skill's procedure now: a step in the skill itself, or a prompt or pointer the skill writes for another task to follow. A routing table, a note on where a skill sits, a hand-off that only names which skill owns the work, a read of another skill's reference file, and an attribution all name a skill without loading it, so they keep the plain link. Text written for any runner to read, such as a lane brief or a pointer in an `AGENTS.md`, names the skill without a harness's load mechanics, because it must work on whichever runner reads it ([runner parity](../../../run/orchestrate/references/runner-parity.md)).
+
+The target must be a skill the agent may invoke. An explicit-only skill (`policy.allow_implicit_invocation: false`) fires only when the user names it, so a step that needs one tells the user to run `$<name>`.
+
+The Claude edition says "call the Skill tool with `<name>`" at the same sites.
+
 ## Buckets
 
 Every skill lives in a **bucket**, a directory under `skills/` declared in [`skills/buckets.json`](../../../buckets.json). The bucket does two jobs at once: it says what the skill is *for*, and whether it *ships*.

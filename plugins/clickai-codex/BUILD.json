@@ -54,11 +54,11 @@
       "executable": false
     },
     "skills/author/writing-for-agents/CHANGELOG.md": {
-      "sha256": "e835d3b59de38d6870195c3e6b0fec75ebcdb0557645cd1f809747e4625faec1",
+      "sha256": "e29e5d96f79fc85bfeb272a0359e092ccdd2faaba6d3077bd8b87a5b19e19946",
       "executable": false
     },
     "skills/author/writing-for-agents/SKILL.md": {
-      "sha256": "69127a2e6dadac9ae0180e6847bafb33b0368beb3f8251011521922490ddd642",
+      "sha256": "1c3753026bd0e31dd34a90160f7425c5c202c81a48d42ea77eb9d473a6247187",
       "executable": false
     },
     "skills/author/writing-for-agents/agents/openai.yaml": {
@@ -66,7 +66,7 @@
       "executable": false
     },
     "skills/author/writing-for-agents/references/skill-mechanics.md": {
-      "sha256": "d99ea1ec9c4fa118c4561dd4201482160b6b6dd591a4dcb2de8d9ea58e1b4c9e",
+      "sha256": "1d940b9c7d6e94eaaea28cfbf12912b01e090c1d3287d53a80aa24f85df47b79",
       "executable": false
     },
     "skills/author/writing-for-humans/CHANGELOG.md": {
@@ -362,7 +362,7 @@
       "executable": false
     },
     "skills/decide/decision-map/SKILL.md": {
-      "sha256": "ba005faab3610df5e3f860c9992db98e3794103ca43adde8ea49d7a4e32a5ecc",
+      "sha256": "053750d2a9ea77d0ffd2a0f36b9a3092f77bccc4b42539db1215d6de9512bf38",
       "executable": false
     },
     "skills/decide/decision-map/agents/openai.yaml": {
@@ -374,7 +374,7 @@
       "executable": false
     },
     "skills/decide/grilling/SKILL.md": {
-      "sha256": "31bccfa2b532b89a959828248d6733578bc6f1b07fd453b496da40dbca31f38d",
+      "sha256": "d62473d1e8b740bcba5eb78da02df08dd7927fdda15ad97080b6aaea56061a31",
       "executable": false
     },
     "skills/decide/grilling/agents/openai.yaml": {
@@ -382,7 +382,7 @@
       "executable": false
     },
     "skills/investigate/codebase-review/SKILL.md": {
-      "sha256": "53d15f969eccf91f3c5359d93aa1c790e5a878b1f4c90a1914b534f06010f270",
+      "sha256": "bb61c914ce887c4667ceae555f4860f39d0c5a7c1b6cc2a609adb1e336d42e3e",
       "executable": false
     },
     "skills/investigate/codebase-review/agents/openai.yaml": {
@@ -454,7 +454,7 @@
       "executable": false
     },
     "skills/orient/router/SKILL.md": {
-      "sha256": "b1ec9d8a8ad8adb47da273eda31ce7b734d3cb298d7be2c81363bb9e89418aee",
+      "sha256": "c85da5616dda6619a8cddc18ef1efce34084974732ba241fc4ab3e15bebf8e74",
       "executable": false
     },
     "skills/orient/router/agents/openai.yaml": {
@@ -498,7 +498,7 @@
       "executable": true
     },
     "skills/run/adversarial-review/SKILL.md": {
-      "sha256": "0414c1056204989a9396da2b7e610376a3f74cbc3236ba41b704fa1eaff21ab5",
+      "sha256": "b8ff6e9eca983f08421f0189a96521418f5264ea481469bc6ae22ead46bb68cf",
       "executable": false
     },
     "skills/run/adversarial-review/agents/openai.yaml": {
@@ -518,7 +518,7 @@
       "executable": false
     },
     "skills/run/diagnose/SKILL.md": {
-      "sha256": "9d5d50aaf1e0ac4421fe2839ea7cd477b1cc6be466eff074018452ca2535ca80",
+      "sha256": "69c335361692655f95061e2b70e38622ee884d448761a91ba8a6060192d1a4dc",
       "executable": false
     },
     "skills/run/diagnose/agents/openai.yaml": {
@@ -538,7 +538,7 @@
       "executable": false
     },
     "skills/run/implement/SKILL.md": {
-      "sha256": "171a33aed8e098c810933c471c51bb3e0842b6d20fc939d14568fc9930d5ed88",
+      "sha256": "3efe68d19c01cf3563dbe906ef759011be552b234c54b367f461ab727a86e0a3",
       "executable": false
     },
     "skills/run/implement/agents/openai.yaml": {
@@ -546,7 +546,7 @@
       "executable": false
     },
     "skills/run/orchestrate/SKILL.md": {
-      "sha256": "af6790f193db84569ad8c195971c8950e5c4f3152f5711427a263e2cea4271c7",
+      "sha256": "05913d94bc350fb3c01373a8287e00507436f06568d3dd59bdb7f9377eb5d4e3",
       "executable": false
     },
     "skills/run/orchestrate/agents/openai.yaml": {
@@ -570,7 +570,7 @@
       "executable": false
     },
     "skills/run/pr-writing/SKILL.md": {
-      "sha256": "479935285e1cb8c62fe610a2d58c1fe09f400d3c7e478599202f55cd68490f9a",
+      "sha256": "40326fed31b51ed3223eb730da509dbf13d523c0e1c25cefc0656c4ee585f90b",
       "executable": false
     },
     "skills/run/pr-writing/agents/openai.yaml": {
@@ -578,7 +578,7 @@
       "executable": false
     },
     "skills/run/show-me-your-work/SKILL.md": {
-      "sha256": "ee1558eb24f0b0e0a716708e80524890d587aee4c7e92b7eaace53450df10817",
+      "sha256": "0d7e9e1f8d9513ac4d6b0a0d44c6322fddc2e3745ba6364e2b0307fdf524751c",
       "executable": false
     },
     "skills/run/show-me-your-work/agents/openai.yaml": {
@@ -594,7 +594,7 @@
       "executable": true
     },
     "skills/run/to-tickets/SKILL.md": {
-      "sha256": "ebeedc8b16458efba29d693488ae5d6cf7d46d77c9fce1a1b97c38943306bcb0",
+      "sha256": "5c9ea69090df45b7e2c1ff7f7afbf49d15187aac7606db0a6d50a8ecc8c57e24",
       "executable": false
     },
     "skills/run/to-tickets/agents/openai.yaml": {

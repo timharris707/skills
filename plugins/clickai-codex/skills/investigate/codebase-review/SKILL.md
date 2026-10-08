@@ -60,7 +60,7 @@ Plain Markdown, delivered in the current task for a bounded review or posted to 
 
 The report can be complete while decisions remain pending. Report that status as "report delivered; decisions pending" and list the unresolved recommendations. Keep the tracker item open for those decisions; never force answers merely to end the reviewing turn. The orchestrator (or whoever ran the review) presents every survivor to the decider as a structured question card, [grilling](../../decide/grilling/SKILL.md)-style: the claim, the skeptic's verdict, cost and payoff, with the recommendation marked on an option; numbered-text fallback where no card tool exists. The decider dispositions each:
 
-- **Adopt**: becomes a tracker ticket ([to-tickets](../../run/to-tickets/SKILL.md) where bound) and rides normal lane flow.
+- **Adopt**: becomes a tracker ticket ([to-tickets](../../run/to-tickets/SKILL.md) where bound: open and read the `to-tickets` skill's SKILL.md completely to file it) and rides normal lane flow.
 - **Reject**: recorded in rejection memory with the load-bearing reason. The reason is the record's value: a future run needs to know *why*, so it can tell new evidence from repetition.
 - **Defer**: carried at the top of the next run's report, where each is re-dispositioned or re-deferred, and named in session handoffs so it survives the context boundary.
 
@@ -70,7 +70,7 @@ The run's tracker item closes only when nothing is undispositioned.
 
 - **Report destination**: the tracker item a tracked review can post to and eventually close when authorized, or the current task for a bounded review. A query can discover a tracked destination but cannot receive the report itself.
 - **Lane-count threshold (N)**: merged lanes since the last review that open gate 2.
-- **Rejection memory**: where rejected candidates and their load-bearing reasons live. In repos also bound to [domain-memory](../../orient/domain-memory/SKILL.md), this slot points at its memory home and rejections land as decision records there: one store, never two.
+- **Rejection memory**: where rejected candidates and their load-bearing reasons live. In repos also bound to [domain-memory](../../orient/domain-memory/SKILL.md), this slot points at its memory home and rejections land as decision records there (open and read the `domain-memory` skill's SKILL.md completely to write them): one store, never two.
 - **Executor mechanics**: how the review lane is launched, claimed, and tracked (in repos running the [orchestrate](../../run/orchestrate/SKILL.md) skill, its lane-launch machinery is the natural answer).
 
 Before a tracker binding exists, report in the current task and name the unbound slots. Create a tracking item only when the user authorizes it; a read-only review does not grant publication permission.
