@@ -14,6 +14,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [v1.10.0] - 2026-10-08 — skills load the skills they need; sturdier guardrail and handoffs
+
 ### Added
 - **setup: audit mode checks that a seeded git guardrail's script is still there**
   (#306). The guardrail's settings entry skips a missing script on purpose, so one missing
