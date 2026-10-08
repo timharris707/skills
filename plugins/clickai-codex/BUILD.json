@@ -462,7 +462,7 @@
       "executable": false
     },
     "skills/orient/setup/SKILL.md": {
-      "sha256": "636b1c821ea5abb36f20c49df34a17bc68fa8c10ed0c53f690326a4e1994e731",
+      "sha256": "67fd597d1d0782009f82fed3a3e1f7304f4033aec1624a1727bd73b4a183b200",
       "executable": false
     },
     "skills/orient/setup/agents/openai.yaml": {
@@ -494,7 +494,7 @@
       "executable": false
     },
     "skills/orient/setup/scripts/git_guardrails.py": {
-      "sha256": "f8bdae15c314990beee5071e1bcda599c6b162840db702e6b1c23a3d95d83a65",
+      "sha256": "46e747c6ccf04141a289f3df15778ea53dbce46dc3227aac7e14a520f978cd98",
       "executable": true
     },
     "skills/run/adversarial-review/SKILL.md": {

@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+- Carry team-workflow's git guardrail fix (#309): the bundled, unwired
+  `setup/scripts/git_guardrails.py` reads a `git tag` listing filter such as `--merged` as
+  listing, never as creating a tag, and skips a `--sort` or `--format` value so it is
+  never read as the tag name or as a mode option.
+- Carry setup's new audit check (#306): where a binding doc records the git guardrail as
+  seeded, as a repo shared with Claude Code can, the audit reports a script that is missing
+  or git-ignored, and names the fix as restoring the bundled script or un-ignoring it. This
+  edition records the guardrail as a gap on Codex, which produces no finding. Setup's
+  un-ignore guidance for the guardrail's settings file (#311) sits in the part this edition
+  replaces, so it changes nothing here.
 - Carry team-workflow's two new labels (#305): setup's reference vocabulary, the tracker
   reference, and the binding-doc template add `needs-info` and `wontfix`. A project bound
   earlier keeps working without them.

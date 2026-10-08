@@ -209,6 +209,77 @@ class MatcherTests(unittest.TestCase):
         self.assertEqual([guard.RESET_HARD, guard.FORCE_PUSH], found)
 
 
+class TagListingFilterTests(unittest.TestCase):
+    """A `git tag` carrying a listing filter lists tags and creates none, as in git (skills#309).
+
+    Git reads any of the five filters, wherever it sits, as list mode, so the commit or
+    branch named after one is never a new tag, and pushing it later in the line passes.
+    """
+
+    def setUp(self):
+        self.cwd = scratch_dir(self)
+
+    def assert_lists(self, option):
+        for command in [f"git tag {option} main && git push origin main",
+                        f"git tag {option}=main feature-x && git push origin feature-x",
+                        f"git tag feature-x {option} main && git push origin feature-x"]:
+            with self.subTest(command=command):
+                self.assertEqual([], guard.check(command, self.cwd))
+
+    def test_contains_lists(self):
+        self.assert_lists("--contains")
+
+    def test_no_contains_lists(self):
+        self.assert_lists("--no-contains")
+
+    def test_merged_lists(self):
+        self.assert_lists("--merged")
+
+    def test_no_merged_lists(self):
+        self.assert_lists("--no-merged")
+
+    def test_points_at_lists(self):
+        self.assert_lists("--points-at")
+
+    def test_creating_and_pushing_tags_still_asks(self):
+        for command in ["git tag v9.9.9 && git push origin v9.9.9", "git push --tags", "git push --follow-tags"]:
+            with self.subTest(command=command):
+                self.assertEqual([guard.TAG_PUSH], guard.check(command, self.cwd))
+
+    def test_a_mode_option_after_the_name_records_no_tag(self):
+        for option in ["-d", "-n", "-l", "-v"]:
+            command = f"git tag v1 {option} && git push origin v1"
+            with self.subTest(command=command):
+                self.assertEqual([], guard.check(command, self.cwd))
+
+
+class TagOptionValueTests(unittest.TestCase):
+    """An option's value is never read as the tag name or as a mode option, wherever it sits.
+
+    Git creates v1 in each command below, so pushing v1 after it must ask.
+    """
+
+    def setUp(self):
+        self.cwd = scratch_dir(self)
+
+    def assert_asks(self, *commands):
+        for command in commands:
+            with self.subTest(command=command):
+                self.assertEqual([guard.TAG_PUSH], guard.check(command, self.cwd))
+
+    def test_sort_value_is_skipped(self):
+        self.assert_asks("git tag v1 --sort -version:refname && git push origin v1",
+                         "git tag --sort refname v1 && git push origin v1")
+
+    def test_format_value_is_skipped(self):
+        self.assert_asks("git tag v1 --format -d && git push origin v1",
+                         "git tag --format x v1 && git push origin v1")
+
+    def test_other_value_options_skip_a_dash_led_value(self):
+        self.assert_asks(*[f"git tag v1 {option} -d && git push origin v1" for option in
+                           ["-m", "--message", "-F", "--file", "-u", "--local-user", "--trailer", "--cleanup"]])
+
+
 class TagLookupTests(unittest.TestCase):
     """A bare refspec is a tag push only when a local tag by that name exists."""
 
@@ -297,6 +368,38 @@ class SeededCommandTests(unittest.TestCase):
         result = self.run_seeded(project)
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertEqual("ask", json.loads(result.stdout)["hookSpecificOutput"]["permissionDecision"])
+
+
+class UnignoreExampleTests(unittest.TestCase):
+    """Setup's un-ignore lines, applied in a repo that ignored .claude/ wholesale (skills#311).
+
+    Both halves of the guardrail must be committable, the script and the settings file
+    that runs it, while local-only settings stay ignored.
+    """
+
+    def unignore_lines(self):
+        sentence = re.search(r"replace that line with (.+?), or stage", SETUP.read_text())
+        self.assertIsNotNone(sentence, "setup should name the lines that replace a wholesale .claude/ ignore")
+        return re.findall(r"`([^`]+)`", sentence[1])
+
+    def check_ignore(self, repo, path):
+        return subprocess.run(["git", "-C", repo, "check-ignore", "-q", path]).returncode
+
+    def test_script_and_settings_are_tracked_and_local_settings_ignored(self):
+        repo = scratch_dir(self)
+        subprocess.run(["git", "init", "-q", repo], check=True)
+        (Path(repo) / ".gitignore").write_text("\n".join(self.unignore_lines()) + "\n")
+        for path in [".claude/hooks/git_guardrails.py", ".claude/settings.json", ".claude/settings.local.json"]:
+            (Path(repo) / path).parent.mkdir(parents=True, exist_ok=True)
+            (Path(repo) / path).write_text("{}\n")
+        self.assertEqual(1, self.check_ignore(repo, ".claude/hooks/git_guardrails.py"))
+        self.assertEqual(1, self.check_ignore(repo, ".claude/settings.json"))
+        self.assertEqual(0, self.check_ignore(repo, ".claude/settings.local.json"))
+
+    def test_proof_commands_check_the_settings_file(self):
+        proof = re.search(r"Prove the wiring on the seeded copy: (.+?) so both will be committed\.", SETUP.read_text())
+        self.assertIsNotNone(proof, "setup should carry the guardrail's proof-commands sentence")
+        self.assertIn("`git check-ignore -q .claude/settings.json` each exit 1", proof[1])
 
 
 if __name__ == "__main__":
