@@ -4,7 +4,7 @@
      skills read repo-specific facts from; keep it current via a setup re-run (idempotent
      refresh), not hand-drift. -->
 
-_Pack version: v1.9.0 (this repo is the pack source; main carries unreleased changes ahead of the tag) · Last confirmed: 2026-10-07_
+_Pack version: v1.10.0 (this repo is the pack source; main carries unreleased changes ahead of the tag) · Last confirmed: 2026-10-07_
 
 ## Tracker binding
 
