@@ -1,0 +1,11 @@
+{
+  "generator": "scripts/build_site_fonts.py",
+  "fonttools": "4.63.0",
+  "brotli": "1.2.0",
+  "unicodes": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2190-2194,U+2197,U+2212,U+2215,U+2753,U+27A1,U+FE0F,U+FEFF,U+FFFD",
+  "files": {
+    "archivo/Archivo-latin.woff2": "6766078b22692acae9b44b31ed04e62b345bc9244980978d8f58f628c238b98b",
+    "newsreader/Newsreader-Italic-latin.woff2": "9bbadc12f71fbf2a88adb75c51d191e4d21d17fc1ad91f3770a2ec8a22ae6d5c",
+    "JetBrainsMono-latin.woff2": "7a23aeb6569da2484c56dcdbcd02a5878f17594a8da43ae52778e0e72c9f3fd4"
+  }
+}

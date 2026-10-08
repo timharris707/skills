@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Archivo, Newsreader, JetBrains_Mono } from "next/font/google";
+import localFont from "next/font/local";
 import Link from "next/link";
 import { FlipProvider, FlipToggle, FlipView } from "@/components/AgentFlip";
 import Runtimes from "@/components/Runtimes";
@@ -7,25 +7,51 @@ import ThemeToggle from "@/components/ThemeToggle";
 import { openGraph } from "@/lib/meta";
 import "./globals.css";
 
-const body = Archivo({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+/* The fonts ship with the site instead of being fetched from Google Fonts at
+   build time: Google sometimes answers with a font file address that has no
+   extension, and Next's Google loader crashes on it (#319). Each file is cut
+   from its foundry's own font file, with that foundry's OFL.txt beside it, by
+   scripts/build_site_fonts.py (sources, versions, and character set are
+   recorded there and in fonts/fonts.json). Each family keeps the name and the
+   faces Google's stylesheet gave it, over one file as Google served it, so
+   the CSS variables hold the values they had. */
+const body = localFont({
+  src: [
+    { path: "../fonts/archivo/Archivo-latin.woff2", weight: "400" },
+    { path: "../fonts/archivo/Archivo-latin.woff2", weight: "500" },
+    { path: "../fonts/archivo/Archivo-latin.woff2", weight: "600" },
+    { path: "../fonts/archivo/Archivo-latin.woff2", weight: "700" },
+  ],
+  declarations: [{ prop: "font-family", value: "Archivo" }],
+  // The fallback face is pinned in globals.css: Next would size it from this
+  // file's SemiBold default, not the regular weight Google's metrics used.
+  adjustFontFallback: false,
+  fallback: ["'Archivo Fallback'"],
   variable: "--font-body",
   display: "swap",
 });
 
 // Region names are lettered like the water features on a survey chart.
-const display = Newsreader({
-  subsets: ["latin"],
-  weight: ["400"],
-  style: ["italic"],
+// Not preloaded: only the index pages use it, and the home page only below
+// the first screen.
+const display = localFont({
+  src: "../fonts/newsreader/Newsreader-Italic-latin.woff2",
+  weight: "400",
+  style: "italic",
+  declarations: [{ prop: "font-family", value: "Newsreader" }],
+  adjustFontFallback: "Times New Roman",
+  preload: false,
   variable: "--font-display",
   display: "swap",
 });
 
-const mono = JetBrains_Mono({
-  subsets: ["latin"],
-  weight: ["400", "500", "700"],
+const mono = localFont({
+  src: [
+    { path: "../fonts/JetBrainsMono-latin.woff2", weight: "400" },
+    { path: "../fonts/JetBrainsMono-latin.woff2", weight: "500" },
+    { path: "../fonts/JetBrainsMono-latin.woff2", weight: "700" },
+  ],
+  declarations: [{ prop: "font-family", value: "JetBrains Mono" }],
   variable: "--font-mono",
   display: "swap",
 });

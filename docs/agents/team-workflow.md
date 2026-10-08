@@ -39,6 +39,7 @@ python3 scripts/check_positioning.py
 python3 scripts/check_lineage_counts.py
 python3 -m unittest discover -s tests/gate -p 'test*.py'
 python3 -m unittest discover -s tests/hooks -p 'test*.py'
+python3 -m unittest discover -s tests/site -p 'test*.py'
 python3 scripts/build_codex_plugin.py --check
 python3 scripts/check_codex_publication.py
 python3 -m unittest discover -s tests/codex -p 'test*.py'
@@ -50,7 +51,7 @@ python3 -m compileall -q skills/in-progress/retro/scripts
 python3 -m unittest discover -s skills/in-progress/retro/tests -t skills/in-progress/retro/tests -p 'test*.py'
 ```
 
-Two further CI checks run against the built site and need its server up first: in `site/`, run `npm ci && npm run build`, start the server in the background or a second terminal (`npm run start &`), then, still from `site/`, run `python3 ../scripts/check_skill_og_cards.py` and `python3 ../scripts/check_skill_md_twins.py` (both retry until the server responds). CI additionally greps skill docs for unqualified `gh` commands (every one carries `--repo`), runs `git diff --check` for whitespace, and syntax-checks the advisory-board shell mocks (`bash -n`) on every pull request, whatever files changed.
+Four further CI checks run against the built site. The first three need its server up: in `site/`, run `npm ci && npm run build`, start the server in the background or a second terminal (`npm run start &`), then, still from `site/`, run `python3 ../scripts/check_skill_og_cards.py`, `python3 ../scripts/check_skill_md_twins.py`, and `python3 ../scripts/check_site_font_coverage.py` (each retries until the server responds). The fourth checks that the build asks Google Fonts for no font: stop the server, then from `site/` run `rm -rf .next && NEXT_FONT_GOOGLE_MOCKED_RESPONSES="$PWD/../tests/site/google-fonts-mock.cjs" npm run build`. CI additionally greps skill docs for unqualified `gh` commands (every one carries `--repo`), runs `git diff --check` for whitespace, and syntax-checks the advisory-board shell mocks (`bash -n`) on every pull request, whatever files changed.
 
 Doc-only changes keep the reviewer-run gate: every changed file's relative Markdown links resolve, checked at close-out review; no script exists yet (revisit at next setup re-run).
 

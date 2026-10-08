@@ -7,6 +7,18 @@
  * italic serif the way charts letter water features.
  */
 
+/* Archivo's fallback while the font loads, with the exact values the Google
+   Fonts build generated (#319). The shipped file's default weight is
+   SemiBold, so Next's own calculation would size Arial wider than before. */
+@font-face {
+  font-family: "Archivo Fallback";
+  src: local("Arial");
+  ascent-override: 88.96%;
+  descent-override: 21.28%;
+  line-gap-override: 0%;
+  size-adjust: 98.7%;
+}
+
 :root {
   /*
    * Day and night are the same drawing under a different lamp, so every token
