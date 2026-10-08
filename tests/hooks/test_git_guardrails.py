@@ -397,7 +397,7 @@ class UnignoreExampleTests(unittest.TestCase):
         self.assertEqual(0, self.check_ignore(repo, ".claude/settings.local.json"))
 
     def test_proof_commands_check_the_settings_file(self):
-        proof = re.search(r"Prove the wiring on the seeded copy: (.+?) so both will be committed\.", SETUP.read_text())
+        proof = re.search(r"Prove the wiring on the seeded copy: (.+?) so both can be committed\.", SETUP.read_text())
         self.assertIsNotNone(proof, "setup should carry the guardrail's proof-commands sentence")
         self.assertIn("`git check-ignore -q .claude/settings.json` each exit 1", proof[1])
 
