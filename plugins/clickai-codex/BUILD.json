@@ -578,7 +578,7 @@
       "executable": false
     },
     "skills/run/show-me-your-work/SKILL.md": {
-      "sha256": "0d7e9e1f8d9513ac4d6b0a0d44c6322fddc2e3745ba6364e2b0307fdf524751c",
+      "sha256": "21f1b9a509687658484d089f13daa080ca640b0ce3bf9a3420471aa0eb5e92e2",
       "executable": false
     },
     "skills/run/show-me-your-work/agents/openai.yaml": {
@@ -590,7 +590,7 @@
       "executable": false
     },
     "skills/run/show-me-your-work/scripts/log.sh": {
-      "sha256": "45008177372810129bcbe07f6658237a88e0a5af6111731b00ab65ecda2d76ca",
+      "sha256": "60cb6aea9713c4cfab495aab90d0cdaa9ddc718bb1a8b4cc74155e7c3e0d8f21",
       "executable": true
     },
     "skills/run/to-tickets/SKILL.md": {

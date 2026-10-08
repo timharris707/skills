@@ -40,6 +40,7 @@ python3 scripts/check_lineage_counts.py
 python3 -m unittest discover -s tests/gate -p 'test*.py'
 python3 -m unittest discover -s tests/hooks -p 'test*.py'
 python3 -m unittest discover -s tests/site -p 'test*.py'
+python3 -m unittest discover -s tests/show-me-your-work -p 'test*.py'
 python3 scripts/build_codex_plugin.py --check
 python3 scripts/check_codex_publication.py
 python3 -m unittest discover -s tests/codex -p 'test*.py'

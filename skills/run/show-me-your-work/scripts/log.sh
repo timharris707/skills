@@ -32,9 +32,26 @@ else
 		printf 'log.sh: %s exists but its header is not the decision-log header; refusing to append\n' "$logfile" >&2
 		exit 1
 	fi
-	# Heal a missing trailing newline (a crash mid-write) so the new row
-	# can never concatenate onto a partial last line.
+	# Heal a missing trailing newline so the new row can never concatenate
+	# onto the last line. A last line with fewer than six fields, or with an
+	# empty last field (this script never writes one), is a row cut short
+	# mid-write: terminating it would leave it looking finished, so stop and
+	# name it instead.
 	if [ -s "$logfile" ] && [ "$(tail -c 1 "$logfile")" != "" ]; then
+		lastline=$(tail -n 1 "$logfile")
+		fields=$(printf '%s\n' "$lastline" | awk -F '\t' '{ print NF }')
+		detail="$fields of 6 fields"
+		partial=0
+		if [ "$fields" -lt 6 ]; then partial=1; fi
+		tab=$(printf '\t')
+		case "$lastline" in
+			*"$tab") partial=1 detail="$detail, the last one empty" ;;
+		esac
+		if [ "$partial" = 1 ]; then
+			lineno=$(awk 'END { print NR }' "$logfile")
+			printf 'log.sh: %s line %s is a partial record (%s), likely a write cut short; refusing to append. History stays append-only: add a newline to the end of the log, then log a row that supersedes line %s as a write cut short. The partial line: %s\n' "$logfile" "$lineno" "$detail" "$lineno" "$lastline" >&2
+			exit 1
+		fi
 		printf '\n' >> "$logfile"
 	fi
 fi

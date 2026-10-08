@@ -50,6 +50,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   already fixed). They serve the triage skill now in progress (decision 0009). No recipe
   queries either label, so a repo bound earlier keeps working without them, and a re-run
   offers to create them.
+- **show-me-your-work: the loop rule and the fork check each read one way** (#284). "For
+  loop runs, one row per iteration" sat beside "skip the trivial and self-evident", so two
+  readers could log the same loop differently. A loop now follows the rule every run
+  follows, inside each iteration: a row for a fork chosen, a unit completed with its
+  verification result, a pivot or revert, a blocker, or a gate fixed, and no row for an
+  iteration that contains none of these. The Done-when line that asked that "no shaping
+  fork or pivot is missing" is now its own line: the forks, pivots, and abandoned
+  approaches that shaped the work are listed from the run's record, and each one on that
+  list has its own row.
 
 ### Fixed
 - **git guardrail: listing tags with a filter no longer asks before an ordinary push**
@@ -96,6 +105,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   command it ends with. CI runs the hook under every installed shell against throwaway
   repos with several worktrees, for every `source` value, including a check that git runs
   twice per handoff found, never once per worktree or per pair of handoffs (`tests/hooks`).
+- **show-me-your-work: `log.sh` stops at a last row with missing fields instead of finishing it** (#283).
+  When the log's last line had no final newline, the helper added one before appending
+  without checking that the line was a whole row, so a row a crash cut short stayed in the
+  log looking finished. When that last line has fewer than six fields, or an empty last
+  field (the helper never writes one), the helper now exits non-zero, leaves the log
+  untouched, and names the line, its field count, and its text, with an append-only
+  remedy: add a newline, then log a row superseding that line. A complete last line still
+  gets its newline, and the new row goes after it. CI runs the helper under sh, bash, and
+  dash against these cases (`tests/show-me-your-work`).
 
 ## [v1.9.0] - 2026-10-06 — pr-writing becomes its own skill
 
