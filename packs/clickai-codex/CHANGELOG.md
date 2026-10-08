@@ -5,6 +5,10 @@
 - Carry team-workflow's two new labels (#305): setup's reference vocabulary, the tracker
   reference, and the binding-doc template add `needs-info` and `wontfix`. A project bound
   earlier keeps working without them.
+- Ship team-workflow's new handoff hook reference (#320), `setup/references/handoff-hook.md`,
+  unwired: it is the Claude Code session-start entry, and setup's Codex continuity step now
+  says to leave it unwired, as it does for the git guardrail script. Codex continuity still
+  uses the task checkpoint resolver; the handoff adaptation is unchanged.
 
 ## [v1.3.0] - 2026-10-06 — adopts team-workflow v1.9.0
 
