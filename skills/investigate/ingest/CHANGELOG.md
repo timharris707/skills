@@ -53,6 +53,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   allows. Covers every command that claims a directory (run, preview, link,
   sweep).
 
+- **The by-hand pipeline reference covers the retention contract** (#245):
+  `references/pipeline.md` had no manual equivalent of `link` and `sweep`, so a
+  packet built without the script could not meet the skill's own retention
+  rules. A new section gives the steps: record each derived item in the
+  manifest's `derived_items` when it is filed; check each item's resolution the
+  way the sweep does, offering a packet to the decider only when every item is
+  resolved; and delete only after the decider takes the offer, by ledger, under
+  the ownership rules the script enforces. No script change.
+
 ## [v1.2.1] - 2026-08-13 — preview-then-run fix, audit dedup
 
 ### Changed

@@ -23,7 +23,7 @@ Claiming is a read-modify-write with the read mandatory:
    gh issue comment <N> --repo <owner>/<repo> --body "Lane-start: workspace=<name> branch=<branch>"
    ```
 
-   Re-read claims after posting and before building. If another unretracted workspace claimed the item, pause and resolve ownership with the coordinator or decider; a later timestamp alone never grants takeover. Coordinators serialize claims for their workers.
+   Re-read claims after posting and before building. A race is another workspace's unretracted claim that appeared since your first read and is not a takeover. When you find one, the earlier of the two claims stands, and the later claimer retracts with step 4's marker and unassigns itself; a later timestamp alone never grants takeover. Coordinators serialize claims for their workers.
 
    `<name>` is a machine-matchable token identifying your working copy (worktree, clone, or machine+dir); the retraction scanner matches on it literally, so pick something unique and reuse it exactly.
 4. **Releasing your OWN claim** posts the machine-recognized marker and unassigns:

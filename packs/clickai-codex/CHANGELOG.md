@@ -2,6 +2,23 @@
 
 ## [Unreleased]
 
+- Carry decision-map's sub-issue links (#308): at deep weight, every child ticket a map
+  files is attached to the map's parent ticket as a native sub-issue, with tracker
+  discipline's `gh api` and `Part of #<parent-number>` fallbacks; the charting Done-when
+  checks it.
+- Carry team-workflow's wording fixes (#245). The claim recipe's re-check now follows the
+  decider's rule for a race: the earlier of two claims stands, and the later claimer
+  retracts with the standard marker and unassigns itself. It replaces this edition's
+  "pause and resolve ownership" step; a later timestamp alone still never grants takeover.
+  The router's setup row says only when to use setup (binding, refreshing, or auditing
+  installed skills, continuity targets, and duplicate personal copies), and its
+  domain-memory row drops the store's mechanics. decision-map's intro and protocol point at
+  the map-done condition, implement says the verification set names the behavioral bar,
+  one part of done, and orchestrate says every applicable step and drops restated phrasing
+  from three sentences this edition shares. Ingest's by-hand pipeline
+  reference gains the derived-items, resolution, and deletion steps, and its changelog the
+  matching entry. This edition's handoff never carried the Done-when wording #245 fixes,
+  so it is unchanged.
 - Carry team-workflow's two show-me-your-work fixes (#283, #284). The bundled `log.sh`
   stops with an error, instead of finishing the row, when the log's unterminated last row
   has fewer than six fields or an empty last field; a row cut inside a nonempty last field
