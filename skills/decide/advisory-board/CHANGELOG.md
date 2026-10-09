@@ -9,6 +9,27 @@ versioned separately and do not replace the skill release version.
 
 ## [Unreleased]
 
+### Fixed
+- **`prompt-templates.md` fences equal the prompts the conductor ships, and a test keeps them
+  equal** (#241): the Round 1 and Round 2 fences showed a pre-hardening shape (no `BEGIN`/`END
+  MATERIAL UNDER REVIEW` markers, no `{repo_grounding}` splice point, no `BASIS:` or `VERDICT:`
+  footer), and the Claude-seat override fence carried different words than
+  `CLAUDE_OUTPUT_OVERRIDE`. Each is now the constant itself, the two Round 2 cross-reading blocks
+  are shown, and every slot is named. `tests/test_prompt_templates_doc.py` fails when a bound
+  fence, or a verbatim excerpt of a constant, differs from the code, and when any other fenced
+  block (any language tag or none, the intro included) sits outside the bound sections and the
+  hand-run ones. The shipped constants and `prompt_template_sha()` are unchanged. The Round 3
+  and Final Synthesis fences are hand-run starting points and stay unbound.
+- **`changes-schema.md`**: the finding refs under `unresolved[].findings` are model-authored
+  (the revision seat emits them; the conductor validates and copies them, never derives them),
+  as `resolves` refs are. The doc had listed them as conductor-derived. The list of what the
+  model authors now also names `edits[].locator`, which the conductor validates the same way.
+- **`execution-harness.md`**: the classification text matches its capture helper, which judges
+  by exit code and output alone. Noisy stderr with exit 0 and a non-empty artifact is `ran`,
+  not `degraded`.
+- **`modes.md`**: the intro names Competitive's three-seat minimum as the exception to "any
+  mode composes with any board size".
+
 ## [v1.18.3] - 2026-09-05 — fixes found in the Codex edition, brought home
 
 ### Fixed

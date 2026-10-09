@@ -12,14 +12,37 @@ Where the logs come from:
 A session belongs to the repo when the working directory it recorded is the repo
 root, one of the repo's git worktrees, or anywhere beneath them. A subagent belongs
 to its parent session and folds into it: its trimmed log follows the parent's in the
-same file, and its raw size and roughness add to the parent's.
+same file, and its raw size and roughness add to the parent's. A Claude Code
+subagent is found in its parent's folder. A Codex subagent writes a rollout log of
+its own; its session header marks it (source.subagent) and names the parent thread
+(source.subagent.thread_spawn.parent_thread_id, or a top-level parent_thread_id for
+the other kinds). The script indexes every Codex log's header by that id, so a Codex
+session folds in its subagents, and theirs, wherever they ran, once per session id
+even when several Codex folders hold a copy. A subagent stands as a session of its
+own when no session in the sample reaches it through its parents: it is named
+directly with --session, or its chain of parents ends outside the repo, outside
+--days, or at a log that is gone. A subagent forked from its parent carries a copy
+of the parent's history in its log; the copy is not its work and is left out (see
+copied_until).
+
+Sessions that may be missing: a worktree removed from outside the repo folder leaves
+logs whose recorded working directory no longer exists, so they no longer match the
+repo. When recent logs look like the repo's and are skipped for that reason alone (a
+Claude Code log whose project folder name starts with the repo's, a Codex log whose
+header records one of the repo's git remotes), one warning line on stderr gives their
+count and says to name them by path with --session. It is written for the agent
+running the script, and it prints whether or not other sessions matched.
 
 What a trimmed log keeps, in log order, each line tagged L<n> with its line number
 in the raw log: the human's messages (in a subagent's log, PROMPT lines from its
 parent agent), tool errors, interruptions, and compactions. A closing list names
 every command or tool call run more than once and how many of those runs failed.
 Everything else is dropped. Common secret shapes are replaced with <REDACTED> before
-anything is written; no pattern list catches every secret.
+anything is written; no pattern list catches every secret. The unquoted value after
+a --token, --secret, or --api-key style flag is replaced when it has 8 or more
+characters, digit or not, so an ordinary long word right after such a flag in prose
+is replaced too; a value that is only an environment-variable reference ($NAME or
+${NAME}) is kept, since it names a secret without holding one.
 
 Which sessions: --session (an id, an id prefix, or a log path; repeatable) names
 them outright. Otherwise every repo session modified in the last --days days is
@@ -32,7 +55,8 @@ temp folder), named by tool, start date, and full session id, and a table on
 stdout with each session's size before and after trimming and its trimmed size in
 estimated tokens (characters / 4), so a cost estimate rests on real numbers.
 
-Standard library only. Exit 0 on success; 1 when no session matched.
+Standard library only. Exit 0 on success; 1 when no session matched. Warnings go to
+stderr, so stdout stays the table.
 """
 
 from __future__ import annotations
@@ -83,11 +107,14 @@ KEYED_SECRET = re.compile(
 # A secret passed as a command-line value: --password <pw>, mysql's -p<pw>, curl's -u user:pw.
 FLAG_PASSWORD = re.compile(r"(?i)((?<!\S)--?[\w-]{0,30}passw(?:or)?d\s+)(\"[^\"\n]*\"|'[^'\n]*'|[^\s\"'-]\S*)")
 # A secret passed to a --token, --secret, or --api-key style flag. The flag name must end at that
-# word (so --max-tokens is not one), and an unquoted value needs 8+ characters with a digit in
-# them, so prose after the flag ("--api-key flag is documented") is left alone.
+# word (so --max-tokens is not one). An unquoted value of 8+ characters is hidden whether or not
+# it holds a digit, because a lowercase passphrase is a secret too. The cost: in prose, an ordinary
+# word of 8+ characters right after such a flag ("--api-key documentation") is hidden as well;
+# a shorter word ("--api-key flag"), a next flag ("--token --verbose"), and a value that is just an
+# environment-variable reference ("$API_KEY", "${GITHUB_TOKEN}") are left alone.
 FLAG_SECRET = re.compile(
     r"(?i)((?<!\S)--[\w-]{0,30}(?:token|secret|api[_-]?key|access[_-]?key|private[_-]?key)[ \t]+)"
-    r"(\"[^\"\n]*\"|'[^'\n]*'|(?=\S*\d)[^\s\"'-]\S{7,})"
+    r"(\"[^\"\n]*\"|'[^'\n]*'|(?!\$(?:[A-Za-z0-9_]+|\{[A-Za-z0-9_]+\})(?!\S))[^\s\"'-]\S{7,})"
 )
 MYSQL_PASSWORD = re.compile(r"(\b(?:mysql|mariadb)[\w-]*\b[^\n;|&]{0,200}?\s-p)(\"[^\"\n]*\"|'[^'\n]*'|[^\s\"']+)")
 USER_PASSWORD = re.compile(r"((?<!\S)(?:-u|--user)[\s=]*[\"']?(?!\d+:)[^\s:\"'/]+:)(?!//)([^\s\"'@]+)")
@@ -256,7 +283,7 @@ class Session:
                 + 2 * self.count("COMPACTED") + self.retries() + sum(s.score() for s in self.subagents))
 
     def raw_total(self) -> int:
-        return self.raw_bytes + sum(s.raw_bytes for s in self.subagents)
+        return self.raw_bytes + sum(s.raw_total() for s in self.subagents)
 
     def file_name(self) -> str:
         """Tool, start date, and the full id, so no two sessions share a file."""
@@ -392,29 +419,121 @@ def output_text(output) -> str:
     return block_text(output)
 
 
-def parse_codex(path: Path) -> Session:
+def subagent_parent(header: dict):
+    """The parent thread id a Codex session header records for a subagent, else None.
+
+    A subagent's `source` is {"subagent": ...}. Its parent id sits in source.subagent.thread_spawn;
+    the other kinds (a review, a guardian) record it at the header's top level instead.
+    """
+    source = header.get("source")
+    kind = source.get("subagent") if isinstance(source, dict) else None
+    if kind is None:
+        return None
+    spawn = kind.get("thread_spawn") if isinstance(kind, dict) else None
+    parent = (spawn.get("parent_thread_id") if isinstance(spawn, dict) else None) or header.get("parent_thread_id")
+    return parent if isinstance(parent, str) and parent else None
+
+
+def codex_header(path: Path) -> dict:
+    """A Codex log's session_meta payload, which opens the log; {} when there is none or it cannot be read."""
+    try:
+        for number, obj in read_jsonl(path):
+            if obj.get("type") == "session_meta" and isinstance(obj.get("payload"), dict):
+                return obj["payload"]
+            if number >= 5:
+                break
+    except OSError:  # a broken symlink or an unreadable file is left out of the index, not fatal
+        pass
+    return {}
+
+
+def codex_children(codex_homes) -> dict:
+    """Parent thread id -> the Codex subagent logs whose header names it, one per session id.
+
+    Read from headers alone. Folders that hold copies of one session count it once, the first path in sort order.
+    """
+    found = {}
+    for path, _ in sorted(codex_logs(codex_homes)):
+        header = codex_header(path)
+        parent = subagent_parent(header)
+        if parent:
+            found.setdefault(parent, {}).setdefault(header.get("id") or str(path), path)
+    return {parent: sorted(paths.values()) for parent, paths in found.items()}
+
+
+def without_folded(paths, children, among=None) -> list:
+    """`paths` minus each Codex log whose session a session in `among` (default `paths`) folds in, at any depth.
+
+    Compared by session id, so every copy of a folded subagent goes; a session never folds itself in.
+    """
+    among = paths if among is None else among
+    ids = {p: codex_header(p).get("id") for p in set(paths) | set(among) if p.name.startswith("rollout-")}
+    folded = set()
+    for root in {ids[p] for p in among if ids.get(p)}:
+        seen, todo = {root}, [root]  # `seen` also stops a parent cycle
+        while todo:
+            for child in children.get(todo.pop(), []):
+                child_id = codex_header(child).get("id")
+                if child_id and child_id not in seen:
+                    seen.add(child_id)
+                    todo.append(child_id)
+        folded |= seen - {root}
+    return [p for p in paths if ids.get(p) not in folded]
+
+
+def copied_until(rows) -> int:
+    """The last line of a forked Codex subagent's log that is its parent's history, 0 when none is copied.
+
+    A subagent forked from its parent (header has forked_from_id) logs its own header, then a copy of the
+    parent's history (the parent's header again, its turns, compactions, errors), then its own rows. Two
+    markers say where the copy ends. Newer headers carry subagent_history_start_ordinal, the count of lines
+    before the subagent's own. Older ones carry nothing, but the task the parent hands the subagent arrives as
+    an inter_agent_communication_metadata row that the copy never holds, so the copy ends just before it. A
+    forked log with neither marker is counted whole, and a subagent that is not forked copies nothing.
+    """
+    header = next((o["payload"] for _, o in rows if o.get("type") == "session_meta"
+                   and isinstance(o.get("payload"), dict)), {})
+    if "forked_from_id" not in header:
+        return 0
+    ordinal = header.get("subagent_history_start_ordinal")
+    if isinstance(ordinal, int):
+        return ordinal
+    return next((line - 1 for line, o in rows if o.get("type") == "inter_agent_communication_metadata"), 0)
+
+
+def parse_codex(path: Path, children=None, lineage=frozenset()) -> Session:
+    """Parse one Codex log, folding in its subagents; `lineage` holds the logs above it, which a cycle skips."""
     s = Session("codex", path)
     shell_calls = {}  # call_id -> description
     shell_outputs = []  # (line, ts, call_id, output)
     has_command_items = False
-    for line, o in read_jsonl(path):
+    opened = False  # whether the log's own session_meta has been read
+    rows = list(read_jsonl(path))
+    copied = copied_until(rows)
+    for line, o in rows:
+        if opened and line <= copied:  # a forked subagent's copy of its parent's history is not its own work
+            continue
         ts = o.get("timestamp")
         s.saw_time(ts)
         kind = o.get("type")
         p = o.get("payload") if isinstance(o.get("payload"), dict) else {}
         ptype = p.get("type")
         if kind == "session_meta":
-            s.id = str(p.get("id") or s.id)
-            s.cwd = p.get("cwd") or s.cwd
+            if not opened:  # a forked subagent's log repeats its parent's header later; only the first is its own
+                opened = True
+                s.id = str(p.get("id") or s.id)
+                s.cwd = p.get("cwd") or s.cwd
+                s.parent = subagent_parent(p)
         elif kind == "turn_context":
             s.cwd = s.cwd or p.get("cwd")
         elif kind == "compacted":
             s.compaction("compacted", line, ts)
         elif kind == "event_msg":
+            who = "PROMPT" if s.parent else "HUMAN"  # a subagent's user messages come from its parent agent
             if ptype == "user_message":
                 text = str(p.get("message") or "")
                 if not text.lstrip().startswith(CODEX_INJECTED):
-                    s.human(line, ts, text)
+                    s.human(line, ts, text, who)
             elif ptype == "turn_aborted":
                 s.add(line, ts, "INTERRUPTED", str(p.get("reason") or ""))
             elif ptype == "context_compacted":
@@ -425,7 +544,7 @@ def parse_codex(path: Path) -> Session:
                 if itype == "UserMessage":
                     text = block_text(item.get("content"))
                     if not text.lstrip().startswith(CODEX_INJECTED):
-                        s.human(line, ts, text)
+                        s.human(line, ts, text, who)
                 elif itype == "CommandExecution":
                     has_command_items = True
                     key = s.call("shell", command_text(item.get("command")))
@@ -452,15 +571,18 @@ def parse_codex(path: Path) -> Session:
             code = exit_code_of(output)
             if code not in (None, 0):
                 s.failed(line, ts, keys[call_id], f"exit {code}: {output_text(output)}")
+    above = lineage | {path}
+    s.subagents = [parse_codex(p, children, above) for p in (children or {}).get(s.id, []) if p not in above]
     s.finish()
     return s
 
 
-def parse(path: Path) -> Session:
+def parse(path: Path, children=None) -> Session:
+    """Parse one log. `children` is codex_children()'s index: with it, a Codex session folds its subagents in."""
     if path.name.startswith("rollout-"):
-        return parse_codex(path)
+        return parse_codex(path, children)
     for _, obj in read_jsonl(path):
-        return parse_codex(path) if "payload" in obj else parse_claude(path)
+        return parse_codex(path, children) if "payload" in obj else parse_claude(path)
     return parse_claude(path)
 
 
@@ -545,14 +667,47 @@ def codex_logs(codex_homes) -> list:
     return out
 
 
-def find_recent(roots: set, claude_dirs, codex_homes, days: float, now: float) -> list:
-    """Every log modified in the window whose recorded working directory is in the repo."""
+def recent_logs(roots: set, claude_dirs, codex_homes, days: float, now: float) -> list:
+    """(path, is Codex, recorded working directory) for each log modified in the window that could be the repo's:
+    a Claude Code log whose project folder is named for the repo or a worktree, and any Codex log."""
     cutoff = now - days * 86400
     prefixes = {slug(r) for r in roots}
     candidates = [(f, c) for f, c in claude_logs(claude_dirs)
                   if any(f.parent.name == p or f.parent.name.startswith(p + "-") for p in prefixes)]
-    return [path for path, codex in candidates + codex_logs(codex_homes)
-            if path.stat().st_mtime >= cutoff and under(first_cwd(path, codex), roots)]
+    return [(path, codex, first_cwd(path, codex)) for path, codex in candidates + codex_logs(codex_homes)
+            if path.stat().st_mtime >= cutoff]
+
+
+def find_recent(roots: set, claude_dirs, codex_homes, days: float, now: float) -> list:
+    """Every log modified in the window whose recorded working directory is in the repo."""
+    return [path for path, _, cwd in recent_logs(roots, claude_dirs, codex_homes, days, now) if under(cwd, roots)]
+
+
+def find_skipped(roots: set, remotes: set, claude_dirs, codex_homes, days: float, now: float) -> list:
+    """Recent logs that look like the repo's but are left out only because the working directory they
+    recorded is gone: a Claude Code log by its project folder's name, a Codex log by its header's git remote."""
+    return [path for path, codex, cwd in recent_logs(roots, claude_dirs, codex_homes, days, now)
+            if cwd and not under(cwd, roots) and not os.path.exists(cwd)
+            and (not codex or codex_remote(path) in remotes)]
+
+
+def codex_remote(path: Path):
+    """The git remote URL a Codex log's header records, else None."""
+    git_info = codex_header(path).get("git")
+    return git_info.get("repository_url") if isinstance(git_info, dict) else None
+
+
+def repo_remotes(repo: str) -> set:
+    """The URLs of the repo's git remotes."""
+    configured = git(repo, "config", "--get-regexp", r"^remote\..*\.url$").stdout.splitlines()
+    return {url for _, _, url in (line.partition(" ") for line in configured) if url}
+
+
+def skipped_warning(count: int) -> str:
+    """The one line, written for the agent running the script, that says sessions may be missing."""
+    return ("Warning: sessions may be missing. Recent logs skipped because the working folder they record no "
+            "longer exists, though they match this repo by project folder name or git remote: "
+            f"{count}. Name a skipped log by path with --session to read it.")
 
 
 def find_named(names, claude_dirs, codex_homes) -> list:
@@ -598,17 +753,27 @@ def main(argv=None) -> int:
 
     claude_dirs = config_dirs(args.claude_dir, "CLAUDE_CONFIG_DIR", ".claude")
     codex_homes = config_dirs(args.codex_home, "CODEX_HOME", ".codex")
+    children = codex_children(codex_homes)
+    skipped = []
     if args.session:
-        sessions = [parse(p) for p in find_named(args.session, claude_dirs, codex_homes)]
+        named = find_named(args.session, claude_dirs, codex_homes)
+        sessions = [parse(p, children) for p in without_folded(named, children)]  # a named parent folds its subagent in
         heading = f"{len(sessions)} named sessions."
     else:
-        found = find_recent(repo_roots(args.repo), claude_dirs, codex_homes, args.days, time.time())
-        ranked = sorted((parse(p) for p in found), key=lambda s: (s.score(), s.mtime), reverse=True)
+        roots, now = repo_roots(args.repo), time.time()
+        recent = find_recent(roots, claude_dirs, codex_homes, args.days, now)
+        passed_over = find_skipped(roots, repo_remotes(args.repo), claude_dirs, codex_homes, args.days, now)
+        found = without_folded(recent, children)
+        # a subagent of a found session is read with it, so it is not missing
+        skipped = without_folded(passed_over, children, recent + passed_over)
+        ranked = sorted((parse(p, children) for p in found), key=lambda s: (s.score(), s.mtime), reverse=True)
         sessions = ranked[:args.limit]
         heading = f"{len(sessions)} of {len(found)} sessions from the last {args.days:g} days, roughest first."
     if not sessions:
         searched = ", ".join(str(d) for d in claude_dirs + codex_homes)
         print(f"No sessions found for {os.path.abspath(args.repo)} in {searched}.", file=sys.stderr)
+        if skipped:
+            print(skipped_warning(len(skipped)), file=sys.stderr)
         return 1
 
     if args.out:
@@ -635,6 +800,8 @@ def main(argv=None) -> int:
     trimmed_total = sum(t for _, t, _ in rows)
     tokens_total = sum(len(s.trimmed) // 4 for s, _, _ in rows)
     print(f"{'TOTAL':<35}{size(raw_total):>10}{size(trimmed_total):>10}{tokens_total:>9,}")
+    if skipped:
+        print(skipped_warning(len(skipped)), file=sys.stderr)
     return 0
 
 

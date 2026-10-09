@@ -90,7 +90,7 @@
       "executable": false
     },
     "skills/decide/advisory-board/CHANGELOG.md": {
-      "sha256": "46be4e63d54b4da0e334709e35ad45ea37623486c799faf4691ff101278e7636",
+      "sha256": "128132bd69ac20c9823b1cd01b28ea785874cfd99bc5b60e5efe1a9cafa94f4c",
       "executable": false
     },
     "skills/decide/advisory-board/README.md": {
@@ -110,7 +110,7 @@
       "executable": false
     },
     "skills/decide/advisory-board/references/changes-schema.md": {
-      "sha256": "1056a802c389360dd7933b08a3e8bb338a87ce1d287d11973d2d9a5ae78fa153",
+      "sha256": "94711707d6b18c084dcd8a4429699adba13a38b30aba8211d5b8aadd07d75f21",
       "executable": false
     },
     "skills/decide/advisory-board/references/data-handling.md": {
@@ -122,7 +122,7 @@
       "executable": false
     },
     "skills/decide/advisory-board/references/execution-harness.md": {
-      "sha256": "696ab196266b5040b22396d0e72ae2e64d22c04e614e2c40ce4cbb96f165f4bc",
+      "sha256": "51d07c04b604b0ff645308309b61787e771141e2d0528d2fa7ae1814aa036486",
       "executable": false
     },
     "skills/decide/advisory-board/references/handoff-template.html": {
@@ -142,7 +142,7 @@
       "executable": false
     },
     "skills/decide/advisory-board/references/modes.md": {
-      "sha256": "0777ad1976d2f45c6a12188f328e5020dc6cba03b067097da7022c51af136b6d",
+      "sha256": "0d3b083023bb8f10f5672629bbd970602076c1d94fc83531918100a866ef12d0",
       "executable": false
     },
     "skills/decide/advisory-board/references/output-formats.md": {
@@ -162,7 +162,7 @@
       "executable": false
     },
     "skills/decide/advisory-board/references/prompt-templates.md": {
-      "sha256": "cd8aaacb121132d4ca3d1d7b4fb07cefc871ab6460b1bf1254596388a193023d",
+      "sha256": "3c6c90bdc3e28b618f4061bd3f16e46f58b072a42a5a95ea1c4d89579cbc62c4",
       "executable": false
     },
     "skills/decide/advisory-board/references/quick-verdict-template.html": {
@@ -462,7 +462,7 @@
       "executable": false
     },
     "skills/orient/setup/SKILL.md": {
-      "sha256": "67fd597d1d0782009f82fed3a3e1f7304f4033aec1624a1727bd73b4a183b200",
+      "sha256": "eaaecdcf486c5d564a06d2ef5b9b4e75bf5b6dcc4c35067c274e983b977f989d",
       "executable": false
     },
     "skills/orient/setup/agents/openai.yaml": {
@@ -474,7 +474,7 @@
       "executable": false
     },
     "skills/orient/setup/references/templates/binding-doc.md": {
-      "sha256": "9368d28ce5300c90c0a1d57b741db724665f1e7889aecf9bb8c7784270ed0a39",
+      "sha256": "0477099177e2a836ff1fd01d1aa1caee636c1edda9e5ec1f9c27d04a42de7e8f",
       "executable": false
     },
     "skills/orient/setup/references/templates/defect-classes.md": {
@@ -546,7 +546,7 @@
       "executable": false
     },
     "skills/run/orchestrate/SKILL.md": {
-      "sha256": "74146b6644cd5a864b4b75e2892438ce0224e1cf4dcdd53fa0395f975ac2cae9",
+      "sha256": "e4639cd69bba88a3788cf78dd3d909cc05c49f2e62ec4bc68a17e5357628105f",
       "executable": false
     },
     "skills/run/orchestrate/agents/openai.yaml": {
@@ -562,7 +562,7 @@
       "executable": false
     },
     "skills/run/orchestrate/references/integration-branch.md": {
-      "sha256": "e43c508f12a97ffee832edb6ec8ed2734e47a9b0f605c4c60048e4923a3db1e2",
+      "sha256": "690eb0a4e959e247279a946bded4c9fc309747e138690b93778753d7bca96d82",
       "executable": false
     },
     "skills/run/orchestrate/references/runner-parity.md": {
