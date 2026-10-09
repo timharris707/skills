@@ -14,11 +14,11 @@ The work item's body IS the spec: destination, acceptance criteria, out-of-scope
 
 Claiming is a read-modify-write with the read mandatory:
 
-1. **Read the item's comments first.** A claim is LIVE when the latest comment matching
+1. **Read the item's comments first.** A workspace's claim is LIVE when its latest comment matching
    `Lane-start: workspace=<name> branch=<branch>`
-   has no later `Lane-start-retracted: workspace=<same-name>` marker after it (a later `Lane-start` supersedes an earlier one; takeover chains post a new one).
+   has no later `Lane-start-retracted: workspace=<same-name>` marker after it, and no later takeover (step 5) names that workspace as its prior one. A later `Lane-start` supersedes an earlier one only as a takeover; takeover chains post a new one. Two claims that race are settled by step 3's re-check, where the earlier one stands.
 2. **A live claim refuses your claim.** No external pointer ever overrides a live Lane-start: not a handoff note, a stale to-do list, or a plan doc. Those pointers go stale the moment anyone else claims; the tracker comment is the truth.
-3. **On clear: claim atomically.** Set yourself assignee AND post the marker in one pass:
+3. **On clear: claim, then re-check.** Set yourself assignee AND post the marker back to back. These are two separate writes, so a session that read the item before you posted can claim it alongside you:
 
    ```bash
    gh issue edit <N> --repo <owner>/<repo> --add-assignee "@me"
@@ -26,6 +26,8 @@ Claiming is a read-modify-write with the read mandatory:
    ```
 
    `<name>` is a machine-matchable token identifying your working copy (worktree, clone, or machine+dir); the retraction scanner matches on it literally, so pick something unique and reuse it exactly.
+
+   After posting, re-read the item's comments before starting work. A race is another workspace's live `Lane-start` that appeared since your first read and is not a takeover. When you find one, the earlier of the two claims stands, and the later claimer retracts with step 4's marker and unassigns itself. When both claims came from the same GitHub account, the later claimer retracts but keeps the assignee, which the standing claim shares.
 4. **Releasing your OWN claim** posts the machine-recognized marker and unassigns:
 
    ```bash

@@ -9,7 +9,7 @@ Vocabulary and repo bindings come from the consuming repo's team-workflow bindin
 - **The map doc lives tracked in the repo's docs** (`docs/<scope>-decision-map.md`, or the docs home the binding doc names), so it is reviewable like any other source-of-truth doc.
 - **Child tickets ride the existing tracker machinery**: a `gate-decision` type label, the repo's claim recipe, one session per ticket. A map invents no parallel tracker.
 - **Adjudication authority is unchanged: sessions brief the decision, the decider decides.** A session that reaches a decision point records its recommendation on the ticket and waits. A grilling ticket is answered by the decider, on the record, before anything downstream builds on it.
-- **A map produces decisions, not deliverables.** When the map's frontier is empty, the scope specs and builds normally; deviations from a recorded decision go back to the decider, never into a build brief.
+- **A map produces decisions, not deliverables.** At the map-done condition (frontier empty and the Not-yet-specified ledger empty; see "The map doc carries two ledgers" below), the scope specs and builds normally; deviations from a recorded decision go back to the decider, never into a build brief.
 - **Refer by name.** In anything the human reads, tickets go by their titles, never bare numbers; that covers round briefs, map narration, verdict lines, and close-out comments. A wall of `#42, #43, #44` is illegible; a name reads at a glance. The id and URL ride *inside* the name as its link, canonical form `[<ticket title> (#<id>)](<url>)`, and a bare id outside that form never appears in human-facing text.
 
 ## Charting a map (destination first)
@@ -68,6 +68,10 @@ gh api repos/<owner>/<repo>/issues/<child-number>/dependencies/blocked_by -F iss
 ```
 
 The frontier query dual-reads: a ticket is blocked when it carries dependency edges **or** a `blocked` label (recipe: the setup skill's tracker-discipline reference). The division of labor: **edges are authoritative wherever the blocker is a tracker ticket** (wire the edge; closing the blocker un-blocks the child with no label flip); **the `blocked` label** is the human-readable mirror and the only expressible form for non-ticket blockers: vendor gates, scheduling gates, pending adjudications. A purely edge-backed ticket does **not** carry the mirror label: a stale label would hold it blocked after its edges clear, defeating the self-unblocking; the label rides only while a non-ticket blocker exists and comes off when that blocker resolves.
+
+## Sub-issue links (deep weight)
+
+Every child ticket a deep-weight map files is attached to the map's parent ticket as a **native sub-issue**, so the parent shows its children and their progress. The recipe is the "Sub-issue links" section of the setup skill's [tracker-discipline reference](../../../orient/setup/references/tracker-discipline.md). Where `gh` rejects the recipe's `--add-sub-issue` flag as unknown, use that section's `gh api` form (it takes the child's database id, not its number). Where the tracker has no sub-issues, put `Part of #<parent-number>` as the first line of each child ticket's body instead. The link records where a ticket came from; blocking stays with the edges and the `blocked` label above.
 
 ## Map maintenance and close
 

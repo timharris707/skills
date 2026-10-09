@@ -7,7 +7,7 @@ description: "For a build brief, implementing a spec or tracked item, or mid-bui
 
 Read the [Codex desktop binding](../../../CODEX.md) when this workflow needs harness mechanics, model routing, or recovery.
 
-How a working lane builds an item. The item's body is the spec, the brief's verification set defines done, and this skill is the discipline between those two points. It is not a lane type of its own, and it deliberately has no binding slots: everything repo-specific (verify commands, constraints, the tracker) already arrived in the lane's brief.
+How a working lane builds an item. The item's body is the spec, the brief's verification set names the behavioral bar, and this skill is the discipline between those two points. That bar is one part of done; this skill's close-out artifacts (below) and [orchestrate](../orchestrate/SKILL.md)'s merge gate are also part of it. It is not a lane type of its own, and it deliberately has no binding slots: everything repo-specific (verify commands, constraints, the tracker) already arrived in the lane's brief.
 
 ## Tracer first
 

@@ -362,7 +362,7 @@
       "executable": false
     },
     "skills/decide/decision-map/SKILL.md": {
-      "sha256": "053750d2a9ea77d0ffd2a0f36b9a3092f77bccc4b42539db1215d6de9512bf38",
+      "sha256": "2d629763f806b4895c6b2ca7e0f6aa85125cceac6f6364c114a1128a0ec3d69d",
       "executable": false
     },
     "skills/decide/decision-map/agents/openai.yaml": {
@@ -370,7 +370,7 @@
       "executable": false
     },
     "skills/decide/decision-map/references/protocol.md": {
-      "sha256": "6e3998fd7e5767b0949928d61efeb162371bc3c574cd21f7e2e088e5de11954b",
+      "sha256": "c536ac384897a7225baa37c1c0f7749a46cf1edfc42b1668ac93a1ac35c39c44",
       "executable": false
     },
     "skills/decide/grilling/SKILL.md": {
@@ -394,7 +394,7 @@
       "executable": false
     },
     "skills/investigate/ingest/CHANGELOG.md": {
-      "sha256": "f126b0ecc2dae39fc0e00164e5a93a39e664442ec98fdc975d6cf36e40df1a67",
+      "sha256": "34b2d5d2d7c5f810c5a7a13207ee0c292ddb0fdfbdb91a54a72fa1c3011964cb",
       "executable": false
     },
     "skills/investigate/ingest/SKILL.md": {
@@ -406,7 +406,7 @@
       "executable": false
     },
     "skills/investigate/ingest/references/pipeline.md": {
-      "sha256": "421573fd797756ee1fc39e3d530536e5a14546b7dfee97150b523ef7d5ae39a5",
+      "sha256": "644c79b04b62e29ff226916c9807e426f06188eefafb9effb5d85a6c5a00fb51",
       "executable": false
     },
     "skills/investigate/ingest/scripts/ingest.py": {
@@ -454,7 +454,7 @@
       "executable": false
     },
     "skills/orient/router/SKILL.md": {
-      "sha256": "c85da5616dda6619a8cddc18ef1efce34084974732ba241fc4ab3e15bebf8e74",
+      "sha256": "e38947b6b1d899b9764d3041f695e088964f8dea26db88e17ee4f259c0e39dc9",
       "executable": false
     },
     "skills/orient/router/agents/openai.yaml": {
@@ -490,7 +490,7 @@
       "executable": false
     },
     "skills/orient/setup/references/tracker-discipline.md": {
-      "sha256": "ad043411cb8f0db76637886adf66b543ef5c553f48227ba064f45ee017592b29",
+      "sha256": "ff2c366fc954ee179ee40b7a89f2b454fe9329290f659eb4cf575cfc22b27cfd",
       "executable": false
     },
     "skills/orient/setup/scripts/git_guardrails.py": {
@@ -538,7 +538,7 @@
       "executable": false
     },
     "skills/run/implement/SKILL.md": {
-      "sha256": "3efe68d19c01cf3563dbe906ef759011be552b234c54b367f461ab727a86e0a3",
+      "sha256": "08e43733e7ae5f546106fc15dc9d7294300aa009f205b09abb69a087d0474820",
       "executable": false
     },
     "skills/run/implement/agents/openai.yaml": {
@@ -546,7 +546,7 @@
       "executable": false
     },
     "skills/run/orchestrate/SKILL.md": {
-      "sha256": "b27e7ab1f9bfc5dc63e92a9678caa40c900437b3fa8b1a66b981a8e35ed378b2",
+      "sha256": "e4639cd69bba88a3788cf78dd3d909cc05c49f2e62ec4bc68a17e5357628105f",
       "executable": false
     },
     "skills/run/orchestrate/agents/openai.yaml": {

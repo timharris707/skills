@@ -14,7 +14,50 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **decision-map: a map's child tickets attach to its parent ticket as GitHub sub-issues**
+  (#308). At deep weight, every child ticket a map files becomes a native sub-issue of the
+  map's parent ticket, so the parent shows its children and their progress. The protocol's
+  new "Sub-issue links" section points at tracker discipline's recipe rather than restating
+  it, with the fallbacks to-tickets already uses: the `gh api` form where `gh` rejects
+  `--add-sub-issue`, and a `Part of #<parent-number>` first body line where the tracker has
+  no sub-issues. The link records where a ticket came from; blocking stays with the edges
+  and the `blocked` label. The charting Done-when checks every child ticket for the link or
+  the fallback line, and the Attribution credits Matt Pocock's later wayfinder change.
+
 ### Changed
+- **Six long-standing wording fixes, so two careful readers carry out each rule the same
+  way** (#245). Every existing rule stays except one, which narrows: the claim recipe's "a
+  later `Lane-start` supersedes an earlier one" now holds only for takeovers.
+  - **Tracker discipline: the claim recipe re-checks after claiming.** Setting the assignee
+    and posting the `Lane-start` comment are two separate writes, so the recipe no longer
+    calls them atomic. After posting, the claimer re-reads the item's comments before
+    starting work. When another workspace's live `Lane-start` appeared since its first read
+    and is not a takeover, the earlier of the two claims stands, and the later claimer
+    retracts with the standard marker and unassigns itself; when both claims came from the
+    same GitHub account, it retracts but keeps the assignee, which the standing claim
+    shares. A later `Lane-start` supersedes an earlier one only as a takeover, and a
+    claim's liveness is read per workspace, so the
+    earlier claim still reads as live after the later one retracts.
+  - **Router: the setup and domain-memory rows say only when to use each skill.** What each
+    skill does (setup's interview and idempotent re-runs, the memory store's structure,
+    consolidation, and backfill) stays in the linked skill, so a rule change there cannot
+    leave the router out of date.
+  - **decision-map: the intro and the protocol's matching invariant point at the map-done
+    condition** (the frontier empty and the Not-yet-specified ledger empty), instead of
+    saying "when the map's frontier is empty", so a reader of the front half alone cannot
+    start specs early.
+  - **handoff: the Done-when check matches the template.** STATE and GOTCHAS are short
+    inline notes, DONE and NEXT point into durable records, and nothing holds a pasted code
+    block or a recap of the conversation. The secret-scan check is unchanged.
+  - **implement: the brief's verification set names the behavioral bar**, one part of done;
+    the skill's own close-out artifacts and orchestrate's merge gate are also part of it.
+  - **orchestrate: "do every applicable step, every time"**, and a step's conditions
+    (harness support, toggles, unfilled slots) are part of the step. To stay within the
+    file's 2,500-word bound, four other sentences drop restated phrasing, with no rule
+    changed. `wc -w`: 2,498 before (after #194), 2,495 now.
+
+  The seventh fix, ingest's by-hand pipeline reference, is in ingest's own changelog.
 - **orchestrate, setup: the announce toggle is now `announce extras: on/off`** (#194). Two
   reviewers read the old name, `announce model/effort`, as making model reporting optional.
   It never did: every launch and lane mention names the runner, model or session, item, and
