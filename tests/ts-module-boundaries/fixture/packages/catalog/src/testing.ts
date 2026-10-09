@@ -1,3 +1,1 @@
-export function fakeItems(): string[] {
-  return [];
-}
+export type FakeItem = { id: string };
