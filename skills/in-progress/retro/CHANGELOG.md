@@ -60,3 +60,25 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   characters, and flags that only contain a secret word (`--max-tokens`) are as before,
   and so is a value that is only an environment-variable reference (`$API_KEY` or
   `${GITHUB_TOKEN}`), which names a secret without holding one.
+- **The cost estimate counts what a reader really spends, and readers are told to
+  spend less** (#321). On a real run of 16 sessions the estimate said about 460K
+  tokens for the readers and the harness reported about 1.91M, because the estimate
+  counted only the trimmed log text. The trim script's table now has a `READER_EST`
+  column, with a total, that guesses each reader's spend as 75,000 tokens of startup
+  plus 1.6 times its log's trimmed tokens, and step 3 has the agent show that figure
+  beside the trimmed token total, marked as a guess. Both numbers are fitted to that one
+  run and may be refined; the estimate likely runs high once readers follow the new
+  reading instruction. Step 4 now briefs each reader to read its trimmed log in one call
+  where the harness allows, otherwise in the fewest, largest pieces, never re-reading a
+  part, so the real cost drops as well. Tests pin the formula and check that the skill
+  and the script state the same two numbers.
+
+### Fixed
+- **Messages the human types while the agent is mid-turn are kept** (#329). Claude Code
+  logs such a message as a queued command, not as a user turn, and the trim script
+  skipped it, so the readers and the judge never saw some of the clearest corrections.
+  A queued command the human sent now shows in the trimmed log as a human line like
+  any other: the same tag, `L<n>` line number, time stamp, size limit, and secret
+  redaction, counted in the signal line's human-message total. A queued command from
+  any other sender (a background task, another agent) stays out. Claude Code logs
+  only; Codex logs are as before.

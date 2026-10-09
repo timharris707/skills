@@ -11,6 +11,7 @@ import contextlib
 import io
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -128,6 +129,29 @@ def claude_log(path: Path, cwd) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps({"type": "user", "cwd": cwd, "timestamp": "2026-10-01T09:00:00.000Z",
                                 "message": {"content": "hi"}}) + "\n")
+    return path
+
+
+def human_entry(content, cwd, **extra) -> dict:
+    """An invented Claude Code user turn typed by the human."""
+    return {"type": "user", "cwd": cwd, "timestamp": "2026-10-01T09:00:00.000Z", "origin": {"kind": "human"},
+            "message": {"role": "user", "content": content}, **extra}
+
+
+def queued_entry(prompt, cwd, origin="human", **extra) -> dict:
+    """An invented queued_command entry, a message that arrived while the agent was mid-turn.
+
+    `origin` is an origin kind; None leaves the origin out, the way background-task notices do.
+    """
+    attachment = {"type": "queued_command", "prompt": prompt, "commandMode": "prompt"}
+    if origin is not None:
+        attachment["origin"] = {"kind": origin}
+    return {"type": "attachment", "cwd": cwd, "timestamp": "2026-10-01T09:01:00.000Z", "attachment": attachment,
+            **extra}
+
+
+def write_entries(path: Path, *entries) -> Path:
+    path.write_text("".join(json.dumps(e) + "\n" for e in entries))
     return path
 
 
@@ -424,6 +448,122 @@ class TestSubagents(TempCase):
         self.assertIn("# claude subagent agent-a1b2c3 of session p1", s.trimmed)
         self.assertIn("L1 09:05 PROMPT: Run the tests.", s.trimmed)
         self.assertIn("ERROR: Bash: make test-1 => Exit code 2", s.trimmed)
+
+
+class TestQueuedMessages(TempCase):
+    """A message the human types while the agent is mid-turn is logged as a queued_command attachment."""
+
+    IMAGE = {"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": "iVBORw0KGgo="}}
+
+    def texts(self, *entries):
+        """(kind, text) of each event parsed from a log of `entries`."""
+        return [e[2:] for e in ts.parse(write_entries(self.base / "q.jsonl", *entries)).events]
+
+    def test_a_queued_human_message_is_kept_like_any_human_message(self):
+        path = materialize("claude-queued-session.jsonl", self.base / "q.jsonl", self.repo)
+        s = ts.parse(path)
+        self.assertIn("L1 09:00 HUMAN: Rename the config loader to read_settings.", s.trimmed)
+        self.assertIn("L3 09:01 HUMAN: Hold on, keep the old name and add an alias instead.", s.trimmed)
+        self.assertIn("signal: 2 human messages,", s.trimmed)
+        self.assertIn("alias instead", path.read_text().splitlines()[2])  # L3 is the raw log's third line
+        for marker in ("QUEUED-NOTIFY-MARKER", "QUEUED-PEER-MARKER"):
+            self.assertNotIn(marker, s.trimmed, marker)
+
+    def test_a_queued_command_from_any_other_source_stays_out(self):
+        for origin in (None, "peer", "task-notification", "channel", "something-new"):
+            with self.subTest(origin=origin):
+                self.assertEqual(self.texts(queued_entry("NOT-THE-HUMAN-MARKER", self.repo, origin)), [])
+        entry = queued_entry("NOT-THE-HUMAN-MARKER", self.repo)
+        entry["attachment"]["origin"] = "human"  # an origin that is not an object names no kind
+        self.assertEqual(self.texts(entry), [])
+        entry = queued_entry("NOT-THE-HUMAN-MARKER", self.repo)
+        entry["attachment"]["type"] = "file"  # only queued commands carry typed messages
+        self.assertEqual(self.texts(entry), [])
+
+    def test_a_prompt_that_is_a_list_of_blocks_reads_like_an_ordinary_message(self):
+        text = "Use the helper in utils.<system-reminder>QUEUED-REMINDER</system-reminder>"
+        blocks = [{"type": "text", "text": text}, self.IMAGE]
+        self.assertEqual(self.texts(queued_entry(blocks, self.repo)), [("HUMAN", "Use the helper in utils.\n[image]")])
+        self.assertEqual(self.texts(queued_entry([self.IMAGE], self.repo)),
+                         self.texts(human_entry([self.IMAGE], self.repo)))
+        self.assertEqual(self.texts(queued_entry([self.IMAGE], self.repo)), [("HUMAN", "[image]")])
+
+    def test_a_long_queued_message_is_cut_like_an_ordinary_one(self):
+        long_text = "pad " * 1000
+        (queued_event,) = self.texts(queued_entry(long_text, self.repo))
+        self.assertEqual([queued_event], self.texts(human_entry(long_text, self.repo)))
+        self.assertIn("chars trimmed", queued_event[1])
+        self.assertLess(len(queued_event[1]), ts.HUMAN_LIMIT + 100)
+
+    def test_a_secret_in_a_queued_message_never_reaches_the_written_file(self):
+        path = write_entries(self.base / "s.jsonl",
+                             queued_entry(f"Use the staging token {GH_TOKEN} for the deploy.", self.repo))
+        out = self.base / "out"
+        self.assertEqual(self.run_main("--session", str(path), "--out", str(out)), 0)
+        (written,) = out.iterdir()
+        text = written.read_text(encoding="utf-8")
+        self.assertNotIn(GH_TOKEN, text)
+        self.assertIn("staging token " + ts.REDACTED, text)
+
+    def test_in_a_subagents_own_transcript_it_takes_the_tag_that_logs_user_messages_take(self):
+        events = self.texts(human_entry("Review the diff.", self.repo, isSidechain=True),
+                            queued_entry("Also check the tests.", self.repo, isSidechain=True))
+        self.assertEqual(events, [("PROMPT", "Review the diff."), ("PROMPT", "Also check the tests.")])
+
+
+class TestReaderEstimate(TempCase):
+    """The reader-cost guess: a fixed startup cost per reader plus a multiple of that log's trimmed tokens.
+
+    The figures are written as literals here so changing either number on purpose means changing this test.
+    """
+
+    def table(self, *message_lengths):
+        """Run the CLI over one invented session per message length: (header, rows, total row, written files)."""
+        paths = [write_entries(self.base / f"s{n}.jsonl", human_entry("w" * length, self.repo))
+                 for n, length in enumerate(message_lengths)]
+        out = self.base / "out"
+        stdout = io.StringIO()
+        with contextlib.redirect_stdout(stdout):
+            code = ts.main([arg for p in paths for arg in ("--session", str(p))] + ["--out", str(out)])
+        self.assertEqual(code, 0)
+        lines = stdout.getvalue().splitlines()
+        return ([l for l in lines if l.startswith("TOOL")][0], [l for l in lines if l.startswith("claude")],
+                [l for l in lines if l.startswith("TOTAL")][0], sorted(out.iterdir()))
+
+    @staticmethod
+    def number(cell):
+        return int(cell.replace(",", ""))
+
+    def test_one_readers_guess_is_75000_plus_1_6_times_its_trimmed_tokens(self):
+        self.assertEqual(ts.reader_estimate(0), 75_000)
+        self.assertEqual(ts.reader_estimate(1_000), 76_600)
+        self.assertEqual(ts.reader_estimate(3), 75_005)  # 4.8 tokens, to the whole token
+
+    def test_the_table_shows_the_guess_per_session_and_the_total_row_adds_the_sessions_up(self):
+        header, rows, total, files = self.table(400, 1_600)
+        self.assertIn("EST", header)
+        self.assertEqual(len(rows), 2)
+        guesses = []
+        for row in rows:
+            cells = row.split()  # counted from the end, so the size units and the date's two words do not matter
+            tokens, guess = self.number(cells[-4]), self.number(cells[-3])
+            written = Path(cells[-1]).read_text(encoding="utf-8")
+            self.assertEqual(tokens, len(written) // 4)
+            self.assertEqual(guess, 75_000 + round(1.6 * tokens))
+            guesses.append(guess)
+        self.assertEqual(self.number(total.split()[-1]), sum(guesses))
+        # the startup cost is paid once per session, not once for the whole total
+        self.assertNotEqual(sum(guesses), 75_000 + round(1.6 * self.number(total.split()[-2])))
+
+    def test_the_issues_run_replays_to_within_two_percent_of_what_the_harness_reported(self):
+        # 16 readers, about 444K trimmed tokens in all, 1.91M tokens reported spent
+        spent = sum(ts.reader_estimate(444_000 // 16) for _ in range(16))
+        self.assertLess(abs(spent - 1_910_000) / 1_910_000, 0.02)
+
+    def test_skill_md_states_the_same_two_numbers_as_the_script(self):
+        text = (Path(ts.__file__).resolve().parents[1] / "SKILL.md").read_text(encoding="utf-8")
+        stated = re.findall(r"([\d,]+) tokens plus ([\d.]+) times", text)
+        self.assertEqual(stated, [(f"{ts.READER_OVERHEAD_TOKENS:,}", f"{ts.READER_TOKEN_MULTIPLE:g}")])
 
 
 class TestCodexLog(TempCase):

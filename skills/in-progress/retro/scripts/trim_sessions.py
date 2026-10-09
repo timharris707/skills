@@ -35,7 +35,10 @@ running the script, and it prints whether or not other sessions matched.
 
 What a trimmed log keeps, in log order, each line tagged L<n> with its line number
 in the raw log: the human's messages (in a subagent's log, PROMPT lines from its
-parent agent), tool errors, interruptions, and compactions. A closing list names
+parent agent), tool errors, interruptions, and compactions. That includes a message
+the human typed while the agent was mid-turn, which Claude Code logs as a queued
+command rather than a user turn; queued commands from any other sender (a background
+task, another agent) are dropped. A closing list names
 every command or tool call run more than once and how many of those runs failed.
 Everything else is dropped. Common secret shapes are replaced with <REDACTED> before
 anything is written; no pattern list catches every secret. The unquoted value after
@@ -53,7 +56,10 @@ newest first on a tie.
 Output: one trimmed Markdown file per session in --out (default: a new private
 temp folder), named by tool, start date, and full session id, and a table on
 stdout with each session's size before and after trimming and its trimmed size in
-estimated tokens (characters / 4), so a cost estimate rests on real numbers.
+estimated tokens (characters / 4), so a cost estimate rests on real numbers. The
+READER_EST column, and its total, is a guess at what a subagent reader spends on each
+log: READER_OVERHEAD_TOKENS plus READER_TOKEN_MULTIPLE times the trimmed tokens, each
+session paying the overhead once (see reader_estimate).
 
 Standard library only. Exit 0 on success; 1 when no session matched. Warnings go to
 stderr, so stdout stays the table.
@@ -76,6 +82,12 @@ HUMAN_LIMIT = 2000
 ERROR_LIMIT = 600
 CALL_LIMIT = 200
 GIT_TIMEOUT = 30  # seconds
+# What one subagent reader spends: a fixed startup cost (system prompt, tool definitions, the skill
+# sections it reads) plus a multiple of its log's trimmed tokens (a reader that reads in many small
+# pieces re-sends the whole conversation on every call). A calibrated guess from one run, 16 readers
+# that spent about 1.91M tokens against 460K first estimated; SKILL.md states the same two numbers.
+READER_OVERHEAD_TOKENS = 75_000
+READER_TOKEN_MULTIPLE = 1.6
 
 SECRET_PATTERNS = [
     re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY(?: BLOCK)?-----"
@@ -161,6 +173,11 @@ def excerpt(text: str, limit: int) -> str:
         return text
     head = limit * 2 // 3
     return f"{text[:head]} [... {total - limit} chars trimmed ...] {text[head - limit:]}"
+
+
+def reader_estimate(tokens: int) -> int:
+    """A guess at the tokens one reader spends on a log of `tokens` trimmed tokens, to the whole token."""
+    return READER_OVERHEAD_TOKENS + round(READER_TOKEN_MULTIPLE * tokens)
 
 
 def one_line(text: str) -> str:
@@ -344,6 +361,13 @@ def parse_claude(path: Path) -> Session:
         if kind == "system" and o.get("subtype") == "compact_boundary":
             trigger = (o.get("compactMetadata") or {}).get("trigger")
             s.compaction("boundary", line, ts, trigger or "")
+            continue
+        if kind == "attachment":  # a message typed while the agent was mid-turn is kept when the human sent it
+            queued = o.get("attachment") if isinstance(o.get("attachment"), dict) else {}
+            sender = queued.get("origin") if isinstance(queued.get("origin"), dict) else {}
+            if queued.get("type") == "queued_command" and sender.get("kind") == "human":
+                text = SYSTEM_REMINDER.sub("", block_text(queued.get("prompt")))
+                s.human(line, ts, text, "PROMPT" if sidechain_only else "HUMAN")
             continue
         message = o.get("message") if isinstance(o.get("message"), dict) else {}
         content = message.get("content")
@@ -791,15 +815,19 @@ def main(argv=None) -> int:
     print(heading)
     print("RAW is the log on disk with its subagents' logs, TRIMMED the file a reader gets; "
           "TOKENS is trimmed characters / 4.")
+    print(f"READER_EST is a guess at the tokens one subagent reader spends on the log: {READER_OVERHEAD_TOKENS:,} "
+          f"+ {READER_TOKEN_MULTIPLE:g} x TOKENS, calibrated on one earlier run.")
     print(f"{'TOOL':<7}{'STARTED (UTC)':<18}{'SESSION':<10}{'RAW':>10}{'TRIMMED':>10}"
-          f"{'TOKENS':>9}{'SCORE':>7}  FILE")
+          f"{'TOKENS':>9}{'READER_EST':>12}{'SCORE':>7}  FILE")
     for s, trimmed_bytes, target in rows:
+        tokens = len(s.trimmed) // 4
         print(f"{s.tool:<7}{stamp(s.start):<18}{s.id[:8]:<10}{size(s.raw_total()):>10}"
-              f"{size(trimmed_bytes):>10}{len(s.trimmed) // 4:>9,}{s.score():>7}  {target}")
+              f"{size(trimmed_bytes):>10}{tokens:>9,}{reader_estimate(tokens):>12,}{s.score():>7}  {target}")
     raw_total = sum(s.raw_total() for s, _, _ in rows)
     trimmed_total = sum(t for _, t, _ in rows)
     tokens_total = sum(len(s.trimmed) // 4 for s, _, _ in rows)
-    print(f"{'TOTAL':<35}{size(raw_total):>10}{size(trimmed_total):>10}{tokens_total:>9,}")
+    reader_total = sum(reader_estimate(len(s.trimmed) // 4) for s, _, _ in rows)  # startup cost once per reader
+    print(f"{'TOTAL':<35}{size(raw_total):>10}{size(trimmed_total):>10}{tokens_total:>9,}{reader_total:>12,}")
     if skipped:
         print(skipped_warning(len(skipped)), file=sys.stderr)
     return 0
