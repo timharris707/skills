@@ -22,7 +22,7 @@ The merge-flow binding slot ([SKILL.md](../SKILL.md) §7) records each opted-in 
 
   ```bash
   # Open items that <N> blocks, each as "<owner>/<repo> <number>"; <owner>/<repo> is the bound tracker repo, written literally:
-  gh api 'repos/<owner>/<repo>/issues/<N>/dependencies/blocking?per_page=100' --jq '.[] | select(.state == "open") | "\(.repository_url | sub("https://api.github.com/repos/"; "")) \(.number)"'
+  gh api --paginate 'repos/<owner>/<repo>/issues/<N>/dependencies/blocking?per_page=100' --jq '.[] | select(.state == "open") | "\(.repository_url | sub("https://api.github.com/repos/"; "")) \(.number)"'
   gh issue edit <dependent> --repo <owner>/<repo> --add-label blocked
   gh issue comment <dependent> --repo <owner>/<repo> --body "Blocked until <spec>'s final PR reaches <default-branch>: #<N> is merged into <integration-branch> only."
   ```
@@ -36,5 +36,5 @@ The merge-flow binding slot ([SKILL.md](../SKILL.md) §7) records each opted-in 
 
    ```bash
    gh issue edit <dependent> --repo <owner>/<repo> --remove-label blocked
-   gh issue comment <dependent> --repo <owner>/<repo> --body "Unblocked: <spec>'s final PR is merged into <default-branch>."
+   gh issue comment <dependent> --repo <owner>/<repo> --body "<spec>'s final PR is merged into <default-branch>, so the integration-branch hold on this item is lifted."
    ```
