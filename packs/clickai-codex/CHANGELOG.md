@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+- Carry team-workflow's announce toggle rename (#194): orchestrate and the binding-doc
+  template name the toggle `announce extras: on/off`. orchestrate also names the former
+  name, `announce model/effort`, so a binding doc still using it keeps working, and setup's
+  audit reports that line as drift. Identity announcing is unchanged.
+- Carry orchestrate's integration-branch rule (#310): before closing a spec item at a
+  lane's close-out, the orchestrator gives its open dependents outside the spec the
+  `blocked` label until the spec's final PR reaches the default branch, and takes it off at
+  that PR's close-out unless another non-ticket blocker still applies. The reference is
+  shared unchanged with this edition.
 - Carry team-workflow's two show-me-your-work fixes (#283, #284). The bundled `log.sh`
   stops with an error, instead of finishing the row, when the log's unterminated last row
   has fewer than six fields or an empty last field; a row cut inside a nonempty last field

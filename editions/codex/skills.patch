@@ -1479,7 +1479,7 @@
  
 @@ -68,7 +70,7 @@
  
- - **Lane launch**: how a working session starts; what is stamped on the tracker item (runner, model, workspace, branch); titling mechanism/actor and which surfaces pre-title (§8 governs the rest); the decider's **runner policy**: available runners, launch mechanism for each, preference policy; whether native auto-archive on PR close is safe per §5 step 6 (`yes`/`no`); and the **announce toggle** (`announce model/effort: on/off`, default on) with §4's scope; only the recorded line is a valid off-switch, so audit mode can check it.
+ - **Lane launch**: how a working session starts; what is stamped on the tracker item (runner, model, workspace, branch); titling mechanism/actor and which surfaces pre-title (§8 governs the rest); the decider's **runner policy**: available runners, launch mechanism for each, preference policy; whether native auto-archive on PR close is safe per §5 step 6 (`yes`/`no`); and the **announce toggle** (`announce extras: on/off`, formerly `announce model/effort`, default on) with §4's scope; only the recorded line is a valid off-switch, so audit mode can check it.
  - **Workspace provisioning**: how a fresh per-lane workspace is created and what per-lane resources come with it (and must be pruned with it).
 -- **Monitoring**: how the orchestrator watches open PRs, inbound tracker activity, and lane liveness between turns, and how it confirms the watch is armed; the interval is the slot's to set but obeys §1 item 5's bounds.
 +- **Monitoring**: how the orchestrator watches open PRs, inbound tracker activity, and lane liveness between turns, and how it confirms the watch is armed; the interval follows the observed system latency and §1 item 5.

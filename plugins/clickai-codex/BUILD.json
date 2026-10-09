@@ -462,7 +462,7 @@
       "executable": false
     },
     "skills/orient/setup/SKILL.md": {
-      "sha256": "67fd597d1d0782009f82fed3a3e1f7304f4033aec1624a1727bd73b4a183b200",
+      "sha256": "eaaecdcf486c5d564a06d2ef5b9b4e75bf5b6dcc4c35067c274e983b977f989d",
       "executable": false
     },
     "skills/orient/setup/agents/openai.yaml": {
@@ -474,7 +474,7 @@
       "executable": false
     },
     "skills/orient/setup/references/templates/binding-doc.md": {
-      "sha256": "9368d28ce5300c90c0a1d57b741db724665f1e7889aecf9bb8c7784270ed0a39",
+      "sha256": "0477099177e2a836ff1fd01d1aa1caee636c1edda9e5ec1f9c27d04a42de7e8f",
       "executable": false
     },
     "skills/orient/setup/references/templates/defect-classes.md": {
@@ -546,7 +546,7 @@
       "executable": false
     },
     "skills/run/orchestrate/SKILL.md": {
-      "sha256": "05913d94bc350fb3c01373a8287e00507436f06568d3dd59bdb7f9377eb5d4e3",
+      "sha256": "b27e7ab1f9bfc5dc63e92a9678caa40c900437b3fa8b1a66b981a8e35ed378b2",
       "executable": false
     },
     "skills/run/orchestrate/agents/openai.yaml": {
@@ -562,7 +562,7 @@
       "executable": false
     },
     "skills/run/orchestrate/references/integration-branch.md": {
-      "sha256": "e43c508f12a97ffee832edb6ec8ed2734e47a9b0f605c4c60048e4923a3db1e2",
+      "sha256": "5deec4126984352e18f771518c6b3362acf2d33828d9d56059ece9728281010e",
       "executable": false
     },
     "skills/run/orchestrate/references/runner-parity.md": {
