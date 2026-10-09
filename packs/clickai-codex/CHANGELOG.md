@@ -8,8 +8,10 @@
   checks it.
 - Carry team-workflow's wording fixes (#245). The claim recipe's re-check now follows the
   decider's rule for a race: the earlier of two claims stands, and the later claimer
-  retracts with the standard marker and unassigns itself. It replaces this edition's
-  "pause and resolve ownership" step; a later timestamp alone still never grants takeover.
+  retracts with the standard marker and unassigns itself; when both claims came from the
+  same GitHub account, it retracts but keeps the assignee, which the standing claim shares.
+  It replaces this edition's "pause and resolve ownership" step; a later timestamp alone
+  still never grants takeover.
   The router's setup row says only when to use setup (binding, refreshing, or auditing
   installed skills, continuity targets, and duplicate personal copies), and its
   domain-memory row drops the store's mechanics. decision-map's intro and protocol point at

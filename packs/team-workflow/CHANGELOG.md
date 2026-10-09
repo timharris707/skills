@@ -34,8 +34,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
     calls them atomic. After posting, the claimer re-reads the item's comments before
     starting work. When another workspace's live `Lane-start` appeared since its first read
     and is not a takeover, the earlier of the two claims stands, and the later claimer
-    retracts with the standard marker and unassigns itself. A later `Lane-start` supersedes
-    an earlier one only as a takeover, and a claim's liveness is read per workspace, so the
+    retracts with the standard marker and unassigns itself; when both claims came from the
+    same GitHub account, it retracts but keeps the assignee, which the standing claim
+    shares. A later `Lane-start` supersedes an earlier one only as a takeover, and a
+    claim's liveness is read per workspace, so the
     earlier claim still reads as live after the later one retracts.
   - **Router: the setup and domain-memory rows say only when to use each skill.** What each
     skill does (setup's interview and idempotent re-runs, the memory store's structure,

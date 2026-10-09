@@ -490,7 +490,7 @@
       "executable": false
     },
     "skills/orient/setup/references/tracker-discipline.md": {
-      "sha256": "2464548676276c3e1c5b592f5f4d1501cba367d265f2add1fb18d05a89e8f685",
+      "sha256": "ff2c366fc954ee179ee40b7a89f2b454fe9329290f659eb4cf575cfc22b27cfd",
       "executable": false
     },
     "skills/orient/setup/scripts/git_guardrails.py": {
