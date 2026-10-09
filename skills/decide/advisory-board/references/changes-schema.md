@@ -78,9 +78,11 @@ revision seat's own build produces.)
 ### Fields
 
 Everything structural is **conductor-computed**: the model authors only `summary`, `resolves`,
-and (on an `unresolved` entry) `reason`/`note`; the conductor computes `n`, `status`, the shas,
-`source_type`, `revision_seat`, `title`, and the `endorsements` rows (built from the endorsement
-seats' tokens; the model never authors an endorsement row).
+and `locator` on an edit, and `findings`, `reason`, and `note` on an `unresolved` entry; the
+conductor computes `n`, `status`, the shas, `source_type`, `revision_seat`, `title`, and the
+`endorsements` rows (built from the endorsement seats' tokens; the model never authors an
+endorsement row). The conductor validates each model-authored finding ref and locator, then
+copies it; it never derives one.
 
 - `schema`: always `advisory-board/changes@1`.
 - `title`: the run title (same one the verdict and other artifacts carry).
