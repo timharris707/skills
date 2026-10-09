@@ -1,0 +1,62 @@
+name: ts-module-boundaries
+
+# The ts-module-boundaries skill ships a TypeScript support guard and a
+# dependency-cruiser boundary config (#314). This re-runs both against a small
+# fixture repo, so an edit that breaks either turns CI red. It lives in its own
+# workflow so the paths filter below keeps it from ever starting on a pull
+# request that touches none of them. The filter names the skill in any bucket,
+# so promoting it out of in-progress/ does not switch the job off.
+#
+# Pinned exactly: Node here, dependency-cruiser and TypeScript by the lockfile
+# in each fixture folder. Bump them together, on purpose.
+
+on:
+  pull_request:
+    paths:
+      - "skills/*/ts-module-boundaries/**"
+      - "tests/ts-module-boundaries/**"
+      - ".github/workflows/ts-module-boundaries.yml"
+  push:
+    branches: [main]
+    paths:
+      - "skills/*/ts-module-boundaries/**"
+      - "tests/ts-module-boundaries/**"
+      - ".github/workflows/ts-module-boundaries.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ts-module-boundaries-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  guard-and-config:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22.23.3
+          cache: npm
+          cache-dependency-path: |
+            tests/ts-module-boundaries/fixture/package-lock.json
+            tests/ts-module-boundaries/out-of-range-typescript/package-lock.json
+
+      # `npm ci` installs exactly what each lockfile records and fails if the
+      # lockfile and package.json disagree.
+      - name: Install the fixtures
+        run: |
+          npm ci --prefix tests/ts-module-boundaries/fixture
+          npm ci --prefix tests/ts-module-boundaries/out-of-range-typescript
+
+      # Runs the shipped guard and config against the fixtures: the guard exits
+      # 0 on the pinned TypeScript and 1 on one outside dependency-cruiser's
+      # range, the clean fixture passes, and each rule fails on its own probe.
+      # See the test's docstring.
+      - name: Check the skill's guard and boundary config
+        run: python3 -m unittest discover -s tests/ts-module-boundaries -p 'test*.py'
