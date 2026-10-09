@@ -18,11 +18,11 @@ The merge-flow binding slot ([SKILL.md](../SKILL.md) §7) records each opted-in 
 - Each lane branches off the integration branch, and the integration branch is the merge target it catches up with before handing back (§4).
 - Each lane still closes out per §5, merged into the integration branch.
 - A lane PR into the integration branch does not close its item: GitHub honors `Closes #N` only on PRs into the default branch. The orchestrator closes the item at that lane's close-out, with a comment naming the integration branch and the merge commit, so dependent items inside the spec reach the frontier.
-- A dependent outside the spec stays blocked until the final PR merges: it would branch off the default branch, which lacks the item's code until then. Before closing the item, find its open dependents (the items whose native blocked-by edges point at it) that are outside the spec, and give each the `blocked` label with a comment naming the integration branch and saying the item waits for the spec's final PR to reach the default branch. This is a non-ticket blocker in [tracker discipline's](../../../orient/setup/references/tracker-discipline.md) terms. A dependent in another repo is out of the bound tracker's reach: name it in the closing comment instead of labeling it.
+- A dependent outside the spec stays blocked until the final PR merges: it would branch off the default branch, which lacks the item's code until then. Before closing the item, find its open dependents (the items whose native blocked-by edges point at it) that are outside the spec, and give each the `blocked` label with a comment naming the integration branch and saying the item waits for the spec's final PR to reach the default branch. This is a non-ticket blocker in [tracker discipline's](../../../orient/setup/references/tracker-discipline.md) terms. Label only the dependents the lookup lists under the bound repo; a dependent in another repo is out of the bound tracker's reach, so name it in the closing comment instead.
 
   ```bash
-  # Open items that <N> blocks; <owner>/<repo> is the bound tracker repo, written literally:
-  gh api 'repos/<owner>/<repo>/issues/<N>/dependencies/blocking?per_page=100' --jq '.[] | select(.state == "open" and .repository_url == "https://api.github.com/repos/<owner>/<repo>") | .number'
+  # Open items that <N> blocks, each as "<owner>/<repo> <number>"; <owner>/<repo> is the bound tracker repo, written literally:
+  gh api 'repos/<owner>/<repo>/issues/<N>/dependencies/blocking?per_page=100' --jq '.[] | select(.state == "open") | "\(.repository_url | sub("https://api.github.com/repos/"; "")) \(.number)"'
   gh issue edit <dependent> --repo <owner>/<repo> --add-label blocked
   gh issue comment <dependent> --repo <owner>/<repo> --body "Blocked until <spec>'s final PR reaches <default-branch>: #<N> is merged into <integration-branch> only."
   ```
