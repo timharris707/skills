@@ -113,7 +113,7 @@ How the pack composes with this repo's resident rule systems. Resident rules win
 ## Orchestration
 
 - **Lane launch**: default in-process Claude Agent subagent in an isolated worktree (`Agent` tool, `isolation: worktree`); background-task chip session for lanes expecting mid-flight approvals, long-lived work, or decider-watching (per orchestrate §4's shape rule). Claim posted as a `Lane-start` comment on the issue before launch, stamping runner, model/effort source, and workspace. Titling: launcher titles; subagent lanes have no picker entry; the launch report carries identity. Chip-launched sessions are pre-titled by the chip label (title protocol outranks the chip's imperative-label convention). Native auto-archive on PR close: no; the notification path per orchestrate §5 step 6.
-- **Announce model/effort**: on
+- **Announce extras**: on
 - **Runner inventory**: Claude (Agent tool subagents; background-task chips; `claude` CLI for detached sessions). No launcher script: launches are tool-call-native; this section is the recipe doc.
 - **Runner policy**: Claude only, orchestrator's choice of vehicle (decider-set 2026-08-12). Fallbacks loud per orchestrate §4.
 - **Workspace provisioning**: git worktrees under `.claude/worktrees/` (harness-provisioned per lane); no per-lane resources beyond the worktree and branch; prune both at close-out.

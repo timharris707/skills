@@ -14,6 +14,37 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+- **orchestrate, setup: the announce toggle is now `announce extras: on/off`** (#194). Two
+  reviewers read the old name, `announce model/effort`, as making model reporting optional.
+  It never did: every launch and lane mention names the runner, model or session, item, and
+  workspace whatever the toggle says, and the toggle governs only the extras (the effort
+  line, the per-round repeats, and the close-out cost line). The rename changes the label,
+  never what the toggle covers. orchestrate §7 and the binding-doc template carry the new
+  name, and this repo's own binding doc is renamed with them. orchestrate's SKILL.md stays
+  within its 2,500-word bound (`wc -w`: 2,498).
+  **Migration:** consuming repos are not updated in one sweep. A binding doc that still
+  records `announce model/effort` keeps working, because orchestrate §7 names it as the
+  toggle's former name. Setup's audit mode reports the old name as drift under its
+  binding-doc currency check and proposes `announce extras` with the recorded value kept,
+  so each repo picks up the rename at its next setup audit.
+
+### Fixed
+- **orchestrate: an item from another spec waits for an integration branch's final PR**
+  (#310). Under the integration-branch flow, the orchestrator closes each spec item when
+  its lane merges into the integration branch. That cleared the item's dependency edges, so
+  an item from a different spec that depended on it reached the frontier and branched off
+  the default branch, which did not have the code yet. Before closing a spec item, the
+  orchestrator now finds its open dependents outside the spec and gives each the `blocked`
+  label, with a comment naming the integration branch: a non-ticket blocker in tracker
+  discipline's terms. At the final PR's close-out, after it merges into the default branch,
+  the label comes off unless another non-ticket blocker still applies, with a comment that
+  the code is on the default branch. Dependents inside the spec still reach the frontier at
+  each lane's close-out. The integration-branch reference states the rule, says the spec's
+  items are the ones the spec records (for example its sub-issues), and carries the lookup
+  for an item's dependents. The decider declined the alternative, branching dependents off
+  the integration branch.
+
 ## [v1.10.0] - 2026-10-08 — skills load the skills they need; sturdier guardrail and handoffs
 
 ### Added
