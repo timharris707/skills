@@ -1,0 +1,9 @@
+{
+  "name": "ts-module-boundaries-fixture",
+  "private": true,
+  "workspaces": ["packages/*"],
+  "devDependencies": {
+    "dependency-cruiser": "18.5.0",
+    "typescript": "6.0.3"
+  }
+}
