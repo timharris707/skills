@@ -56,6 +56,81 @@ def subagent_log(path: Path, cwd: str, errors: int) -> Path:
     return path
 
 
+def codex_log(path: Path, thread_id: str, cwd, parent=None, shape="spawn", errors=0, remote=None,
+              prompt="Look into the build.", replay=False, meta_extra=None) -> Path:
+    """A small invented Codex log whose first `errors` shell commands fail.
+
+    With `parent`, the header marks a subagent the way current Codex does, in one of three shapes:
+    "spawn" (the parent id inside source.subagent.thread_spawn), "review" (source.subagent is a
+    string), or "other" (source.subagent.other); the last two carry the parent id at the top level.
+    With `replay`, the log repeats the parent's own header after its first line, the way a subagent
+    forked from its parent's history does. `meta_extra` adds keys to the header.
+    """
+    meta = {"id": thread_id, "timestamp": "2026-10-02T14:00:00.000Z", "cwd": cwd, "originator": "codex_exec",
+            "cli_version": "0.150.0", "source": "exec", **(meta_extra or {})}
+    if parent and shape == "spawn":
+        meta["source"] = {"subagent": {"thread_spawn": {"parent_thread_id": parent, "depth": 1,
+                                                        "agent_nickname": "Scout", "agent_role": "worker"}}}
+    elif parent:
+        meta["source"] = {"subagent": "review" if shape == "review" else {"other": "checker"}}
+        meta["parent_thread_id"] = parent
+    if remote:
+        meta["git"] = {"repository_url": remote, "branch": "main", "commit_hash": "0" * 40}
+    rows = [{"timestamp": "2026-10-02T14:00:00.000Z", "type": "session_meta", "payload": meta}]
+    if replay:
+        rows.append({"timestamp": "2026-10-02T13:00:00.000Z", "type": "session_meta", "payload": {
+            "id": parent, "timestamp": "2026-10-02T13:00:00.000Z", "cwd": cwd, "originator": "codex_exec",
+            "cli_version": "0.150.0", "source": "exec"}})
+    rows.append({"timestamp": "2026-10-02T14:00:01.000Z", "type": "event_msg",
+                 "payload": {"type": "user_message", "message": prompt}})
+    for i in range(errors):
+        item = {"type": "CommandExecution", "command": ["/bin/sh", "-c", f"make step-{i}"],
+                "status": "failed", "exit_code": 2, "stderr": f"step {i} broke"}
+        rows.append({"timestamp": f"2026-10-02T14:01:{i:02d}.000Z", "type": "event_msg",
+                     "payload": {"type": "item_completed", "item": item}})
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("".join(json.dumps(r) + "\n" for r in rows))
+    return path
+
+
+def forked_codex_log(path: Path, thread_id: str, parent_log: Path, parent_id: str, marker: str, errors=0,
+                     prompt="Run the build and report.") -> Path:
+    """A Codex subagent forked from `parent_log`: its header, the parent's whole log copied in (the parent's
+    header again, then its history), then its own rows.
+
+    `marker` says how the log shows where the copy ends: "ordinal" (the header carries
+    subagent_history_start_ordinal), "inter_agent" (only the parent's task arrives as an
+    inter_agent_communication_metadata row, as in older Codex), or "none" (neither).
+    """
+    copied = [json.loads(line) for line in parent_log.read_text().splitlines()]
+    meta = {"id": thread_id, "timestamp": "2026-10-02T15:00:00.000Z", "cwd": copied[0]["payload"]["cwd"],
+            "originator": "codex_exec", "cli_version": "0.150.0", "forked_from_id": parent_id, "source": {
+                "subagent": {"thread_spawn": {"parent_thread_id": parent_id, "depth": 1}}}}
+    if marker == "ordinal":
+        meta["subagent_history_start_ordinal"] = 1 + len(copied)
+    stamp = "2026-10-02T15:00:01.000Z"
+    own = [{"timestamp": stamp, "type": "event_msg", "payload": {"type": "task_started"}}]
+    if marker != "none":
+        own.append({"timestamp": stamp, "type": "inter_agent_communication_metadata", "payload": {"author": "root"}})
+    own.append({"timestamp": stamp, "type": "event_msg", "payload": {"type": "user_message", "message": prompt}})
+    for i in range(errors):
+        item = {"type": "CommandExecution", "command": ["/bin/sh", "-c", f"make own-{i}"],
+                "status": "failed", "exit_code": 2, "stderr": f"own {i} broke"}
+        own.append({"timestamp": stamp, "type": "event_msg", "payload": {"type": "item_completed", "item": item}})
+    rows = [{"timestamp": "2026-10-02T15:00:00.000Z", "type": "session_meta", "payload": meta}] + copied + own
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("".join(json.dumps(r) + "\n" for r in rows))
+    return path
+
+
+def claude_log(path: Path, cwd) -> Path:
+    """A one-message invented Claude Code log recording `cwd`."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({"type": "user", "cwd": cwd, "timestamp": "2026-10-01T09:00:00.000Z",
+                                "message": {"content": "hi"}}) + "\n")
+    return path
+
+
 class TempCase(unittest.TestCase):
     def setUp(self):
         tmp = tempfile.TemporaryDirectory()
@@ -181,6 +256,46 @@ class TestRedaction(unittest.TestCase):
                 self.assertIn(kept, out)
                 self.assertEqual(ts.redact(out), out)
 
+    def test_a_secret_flags_unquoted_value_is_redacted_with_or_without_a_digit(self):
+        lowercase = "correcthorsebatterystaple"
+        for flag in ("--api-key", "--token", "--secret", "--access-key", "--private-key", "--client-secret",
+                     "--with-token"):
+            with self.subTest(flag=flag):
+                out = ts.redact(f"deploy {flag} {lowercase} --region x")
+                self.assertEqual(out, f"deploy {flag} {ts.REDACTED} --region x")
+                self.assertEqual(ts.redact(out), out)
+        # the exact form from the bug report, and a value that is exactly eight characters
+        self.assertEqual(ts.redact("deploy --api-key lowercaseonlysecret --region x"),
+                         "deploy --api-key " + ts.REDACTED + " --region x")
+        self.assertEqual(ts.redact("tool --token abcdefgh go"), "tool --token " + ts.REDACTED + " go")
+        # what the digit-free rule leaves as it was
+        for text in [
+            "tool --token abcdefg go",  # seven characters, under the floor
+            "tool --api-key short go",
+            "set --max-tokens abcdefghijkl and --token-file abcdefghijkl and --secret-store abcdefghijkl",
+            "run --tokenizer abcdefghijkl --secrets-dir abcdefghijkl",
+            "tool --token --verbose-output-please",  # the next flag is not a value
+        ]:
+            with self.subTest(text=text[:22]):
+                self.assertEqual(ts.redact(text), text)
+        for quoted in ('"short one"', "'x'", '"a long quoted passphrase"'):  # quoted values stay redacted
+            self.assertEqual(ts.redact(f"tool --token {quoted} go"), "tool --token " + ts.REDACTED + " go")
+
+    def test_the_accepted_cost_is_an_ordinary_long_word_right_after_a_secret_flag(self):
+        self.assertEqual(ts.redact("the --api-key documentation says to rotate it"),
+                         "the --api-key " + ts.REDACTED + " says to rotate it")
+
+    def test_a_value_that_is_only_an_environment_variable_reference_is_kept(self):
+        for text in ["deploy --api-key $API_KEY --region x", "deploy --token ${GITHUB_TOKEN} --region x",
+                     "run --secret $db_password_2 now", "run --token $GITHUB_TOKEN"]:
+            with self.subTest(text=text):
+                self.assertEqual(ts.redact(text), text)
+        # a literal value, or a reference with more attached, is still hidden
+        for flag_value in ("correcthorsebatterystaple", "$GITHUB_TOKEN;rm", "${GITHUB_TOKEN}x", "$ecret.word.here"):
+            with self.subTest(value=flag_value):
+                self.assertEqual(ts.redact(f"deploy --api-key {flag_value} --region x"),
+                                 "deploy --api-key " + ts.REDACTED + " --region x")
+
     def test_prose_that_resembles_the_new_shapes_is_untouched(self):
         for text in [
             "the SG.1 release shipped; SG. is SendGrid's key prefix",
@@ -264,6 +379,17 @@ class TestClaudeLog(TempCase):
         s = ts.parse(path)
         self.assertEqual([e[2:] for e in s.events], [("PROMPT", "Review the diff.")])
 
+    def test_a_digit_free_flag_secret_never_reaches_the_written_file(self):
+        path = self.base / "f.jsonl"
+        path.write_text(json.dumps({"type": "user", "cwd": self.repo, "timestamp": "2026-10-01T09:00:00.000Z",
+                                    "message": {"content": "deploy --api-key lowercaseonlysecret --region x"}}) + "\n")
+        out = self.base / "out"
+        self.assertEqual(self.run_main("--session", str(path), "--out", str(out)), 0)
+        (written,) = out.iterdir()
+        text = written.read_text(encoding="utf-8")
+        self.assertNotIn("lowercaseonlysecret", text)
+        self.assertIn("deploy --api-key " + ts.REDACTED + " --region x", text)
+
     def test_a_lone_surrogate_in_a_log_is_written_not_fatal(self):
         path = self.base / "u.jsonl"
         path.write_text(json.dumps({"type": "user", "cwd": self.repo, "timestamp": "2026-10-01T09:00:00.000Z",
@@ -334,6 +460,212 @@ class TestCodexLog(TempCase):
         self.assertEqual(kinds.count("INTERRUPTED"), 1)
         self.assertEqual(kinds.count("COMPACTED"), 1)
         self.assertNotIn("INJECTED-MARKER", s.trimmed)
+
+
+PARENT_ID = "0199d001-0000-7000-8000-000000000010"
+CHILD_ID = "0199d002-0000-7000-8000-000000000011"
+GRANDCHILD_ID = "0199d003-0000-7000-8000-000000000012"
+OUTSIDE_ID = "0199d004-0000-7000-8000-000000000013"
+MISSING_ID = "0199d005-0000-7000-8000-000000000014"
+ORPHAN_ID = "0199d006-0000-7000-8000-000000000015"
+STRAY_ID = "0199d007-0000-7000-8000-000000000016"
+
+
+class TestCodexSubagents(TempCase):
+    """A Codex subagent writes its own log whose header names the parent thread; it folds into that parent."""
+
+    def setUp(self):
+        super().setUp()
+        self.day = self.codex / "sessions" / "2026" / "10" / "02"
+        self.parent = codex_log(self.day / f"rollout-2026-10-02T14-00-00-{PARENT_ID}.jsonl", PARENT_ID, self.repo,
+                                errors=1)
+        self.child = codex_log(self.day / f"rollout-2026-10-02T14-05-00-{CHILD_ID}.jsonl", CHILD_ID, self.repo,
+                               parent=PARENT_ID, errors=2, prompt="Run the build and report.")
+
+    def sample(self, *args):
+        """Run the CLI over the repo's sample: (exit code, stdout lines, table rows, written files)."""
+        out = self.base / "out"
+        stdout = io.StringIO()
+        with contextlib.redirect_stdout(stdout):
+            code = ts.main(["--repo", self.repo, "--out", str(out), *args])
+        lines = stdout.getvalue().splitlines()
+        rows = [r for r in lines if r.startswith(("claude", "codex"))]
+        return code, lines, rows, sorted(out.iterdir())
+
+    def test_a_parent_and_its_subagent_make_one_trimmed_file_parent_first(self):
+        code, _, rows, files = self.sample()
+        self.assertEqual(code, 0)
+        self.assertEqual(len(rows), 1)
+        (written,) = files
+        text = written.read_text(encoding="utf-8")
+        parent_at = text.index(f"# codex session {PARENT_ID}")
+        child_at = text.index(f"# codex subagent {CHILD_ID} of session {PARENT_ID}")
+        self.assertLess(parent_at, child_at)
+        self.assertIn("PROMPT: Run the build and report.", text[child_at:])
+        self.assertIn("shell: make step-1 => exit 2: step 1 broke", text[child_at:])
+
+    def test_the_subagents_errors_count_in_the_parents_score_and_its_size_in_the_parents_size(self):
+        s = ts.parse(self.parent, ts.codex_children([self.codex]))
+        self.assertEqual([sub.path for sub in s.subagents], [self.child])
+        self.assertEqual(s.score(), 1 + 2)
+        self.assertEqual(s.raw_total(), self.parent.stat().st_size + self.child.stat().st_size)
+        self.assertEqual(ts.parse(self.parent).score(), 1)  # read alone, the parent scores only its own error
+
+    def test_a_subagent_whose_parent_is_in_the_sample_is_not_also_a_separate_session(self):
+        _, lines, rows, files = self.sample()
+        self.assertTrue(lines[0].startswith("1 of 1 sessions from the last 30 days"))
+        self.assertEqual([r.split()[3] for r in rows], [PARENT_ID[:8]])
+        self.assertEqual(len(files), 1)
+
+    def test_a_subagent_whose_parent_is_outside_the_sample_stands_alone(self):
+        self.parent.unlink()
+        self.child.unlink()
+        # one orphan's parent ran outside the repo; the other's parent has no log on disk
+        codex_log(self.day / f"rollout-2026-10-02T13-00-00-{OUTSIDE_ID}.jsonl", OUTSIDE_ID, "/elsewhere", errors=1)
+        for n, (orphan, parent) in enumerate([(ORPHAN_ID, OUTSIDE_ID), (STRAY_ID, MISSING_ID)]):
+            codex_log(self.day / f"rollout-2026-10-02T14-1{n}-00-{orphan}.jsonl", orphan, self.repo, parent=parent,
+                      errors=1)
+        _, _, rows, files = self.sample()
+        self.assertEqual(sorted(r.split()[3] for r in rows), [ORPHAN_ID[:8], STRAY_ID[:8]])
+        self.assertEqual([f.name for f in files], [f"codex-2026-10-02-{OUTSIDE_ID}-{ORPHAN_ID}.md",
+                                                   f"codex-2026-10-02-{MISSING_ID}-{STRAY_ID}.md"])
+        for f in files:
+            self.assertTrue(f.read_text(encoding="utf-8").startswith("# codex subagent "))
+
+    def test_a_subagent_named_directly_stands_alone_and_a_named_parent_brings_its_subagents(self):
+        out = self.base / "out"
+        self.assertEqual(self.run_main("--session", str(self.child), "--out", str(out)), 0)
+        (alone,) = out.iterdir()
+        text = alone.read_text(encoding="utf-8")
+        self.assertTrue(text.startswith(f"# codex subagent {CHILD_ID} of session {PARENT_ID}"))
+        self.assertNotIn(f"# codex session {PARENT_ID}", text)
+        both = self.base / "out2"
+        self.assertEqual(self.run_main("--session", str(self.parent), "--out", str(both)), 0)
+        (one,) = both.iterdir()
+        self.assertIn(f"# codex subagent {CHILD_ID} of session {PARENT_ID}", one.read_text(encoding="utf-8"))
+
+    def test_every_subagent_header_shape_links_to_its_parent_and_other_logs_link_to_nothing(self):
+        review = codex_log(self.day / "rollout-r.jsonl", "id-review", self.repo, parent=PARENT_ID, shape="review")
+        other = codex_log(self.day / "rollout-o.jsonl", "id-other", self.repo, parent=PARENT_ID, shape="other")
+        codex_log(self.day / "rollout-p.jsonl", "id-plain", self.repo)
+        materialize("codex-older-session.jsonl", self.day / "rollout-old.jsonl", self.repo)
+        materialize("codex-session.jsonl", self.day / "rollout-new.jsonl", self.repo)
+        self.assertEqual(ts.codex_children([self.codex]), {PARENT_ID: sorted([self.child, review, other])})
+
+    def test_a_forked_subagent_that_replays_its_parents_header_keeps_its_own_identity(self):
+        codex_log(self.child, CHILD_ID, self.repo, parent=PARENT_ID, errors=2, replay=True)
+        s = ts.parse(self.parent, ts.codex_children([self.codex]))
+        (sub,) = s.subagents
+        self.assertEqual((s.id, sub.id, sub.parent), (PARENT_ID, CHILD_ID, PARENT_ID))
+        self.assertEqual(sub.subagents, [])
+        _, _, rows, files = self.sample()
+        self.assertEqual(len(rows), 1)
+        self.assertIn(f"# codex subagent {CHILD_ID} of session {PARENT_ID}", files[0].read_text(encoding="utf-8"))
+
+    def test_a_subagents_own_subagents_fold_in_through_it(self):
+        grand = codex_log(self.day / f"rollout-2026-10-02T14-06-00-{GRANDCHILD_ID}.jsonl", GRANDCHILD_ID, self.repo,
+                          parent=CHILD_ID, errors=4)
+        _, _, rows, files = self.sample()
+        self.assertEqual(len(rows), 1)
+        self.assertIn(f"# codex subagent {GRANDCHILD_ID} of session {CHILD_ID}", files[0].read_text(encoding="utf-8"))
+        s = ts.parse(self.parent, ts.codex_children([self.codex]))
+        self.assertEqual(s.score(), 1 + 2 + 4)
+        self.assertEqual(s.raw_total(), sum(p.stat().st_size for p in (self.parent, self.child, grand)))
+
+    def roughen_parent(self):
+        """Give the parent a compaction and an interruption besides its one error: it scores 1 + 2 + 2 = 5."""
+        rows = [{"timestamp": "2026-10-02T14:02:00.000Z", "type": "compacted", "payload": {"message": "summary"}},
+                {"timestamp": "2026-10-02T14:03:00.000Z", "type": "event_msg",
+                 "payload": {"type": "turn_aborted", "reason": "interrupted"}}]
+        with open(self.parent, "a", encoding="utf-8") as fh:
+            fh.write("".join(json.dumps(r) + "\n" for r in rows))
+        self.assertEqual(ts.parse(self.parent).score(), 5)
+
+    def test_a_forked_subagents_copy_of_its_parents_history_is_not_counted_as_its_work(self):
+        self.roughen_parent()
+        for marker in ("ordinal", "inter_agent"):
+            with self.subTest(marker=marker):
+                forked_codex_log(self.child, CHILD_ID, self.parent, PARENT_ID, marker, errors=2)
+                s = ts.parse(self.parent, ts.codex_children([self.codex]))
+                (sub,) = s.subagents
+                self.assertEqual((sub.id, sub.parent), (CHILD_ID, PARENT_ID))
+                self.assertEqual([e[2] for e in sub.events], ["PROMPT", "ERROR", "ERROR"])  # its own, none copied
+                self.assertEqual(sub.score(), 2)
+                self.assertEqual(s.score(), 5 + 2)  # the parent's own roughness once, plus the subagent's own
+                self.assertEqual(s.raw_total(), self.parent.stat().st_size + self.child.stat().st_size)
+                _, _, rows, files = self.sample()
+                self.assertEqual(len(rows), 1)
+                text = files[0].read_text(encoding="utf-8")
+                own = text[text.index(f"# codex subagent {CHILD_ID}"):]
+                self.assertIn("PROMPT: Run the build and report.", own)
+                self.assertNotIn("Look into the build.", own)  # the parent's message, copied into the fork
+                self.assertNotIn("make step-0", own)  # the parent's failed command, copied into the fork
+                self.assertNotIn("COMPACTED", own)
+
+    def test_a_forked_log_with_no_marker_for_where_its_copy_ends_is_counted_whole(self):
+        self.roughen_parent()
+        forked_codex_log(self.child, CHILD_ID, self.parent, PARENT_ID, "none", errors=2)
+        (sub,) = ts.parse(self.parent, ts.codex_children([self.codex])).subagents
+        self.assertEqual((sub.count("COMPACTED"), sub.count("INTERRUPTED"), sub.count("ERROR")), (1, 1, 3))
+
+    def test_a_subagent_that_is_not_forked_keeps_every_row_whatever_its_header_says_about_history(self):
+        codex_log(self.child, CHILD_ID, self.repo, parent=PARENT_ID, errors=2, prompt="Run the build and report.",
+                  meta_extra={"subagent_history_start_ordinal": 99})
+        sub = ts.parse(self.child)
+        self.assertEqual([e[2] for e in sub.events], ["PROMPT", "ERROR", "ERROR"])
+
+    def test_copies_of_one_subagent_in_several_codex_folders_fold_in_once(self):
+        other = self.base / "codex-two"
+        for log in (self.parent, self.child):
+            copy = other / "sessions" / "2026" / "10" / "02" / log.name
+            copy.parent.mkdir(parents=True, exist_ok=True)
+            copy.write_bytes(log.read_bytes())
+        children = ts.codex_children([self.codex, other])
+        self.assertEqual(len(children[PARENT_ID]), 1)
+        for parent in (self.parent, other / "sessions" / "2026" / "10" / "02" / self.parent.name):
+            s = ts.parse(parent, children)
+            self.assertEqual(len(s.subagents), 1)
+            self.assertEqual(s.score(), 1 + 2)
+        _, _, rows, files = self.sample("--codex-home", str(other))
+        self.assertEqual({r.split()[3] for r in rows}, {PARENT_ID[:8]})  # neither copy stands alone as a session
+        for f in files:
+            self.assertEqual(f.read_text(encoding="utf-8").count("# codex subagent"), 1)
+
+    def test_a_subagent_below_a_parent_outside_the_repo_is_folded_not_also_a_separate_session(self):
+        codex_log(self.day / "rollout-mid.jsonl", OUTSIDE_ID, "/elsewhere", parent=PARENT_ID, errors=1)
+        codex_log(self.day / "rollout-low.jsonl", GRANDCHILD_ID, self.repo, parent=OUTSIDE_ID, errors=1)
+        _, _, rows, files = self.sample()
+        self.assertEqual([r.split()[3] for r in rows], [PARENT_ID[:8]])
+        (written,) = files
+        text = written.read_text(encoding="utf-8")
+        self.assertEqual(text.count(f"# codex subagent {OUTSIDE_ID}"), 1)
+        self.assertEqual(text.count(f"# codex subagent {GRANDCHILD_ID}"), 1)
+
+    def test_naming_a_parent_and_its_subagent_counts_the_subagent_once(self):
+        out = self.base / "out"
+        self.assertEqual(self.run_main("--session", str(self.child), "--session", str(self.parent),
+                                       "--out", str(out)), 0)
+        (written,) = out.iterdir()
+        self.assertEqual(written.read_text(encoding="utf-8").count("# codex subagent"), 1)
+
+    def test_a_session_that_names_itself_or_a_cycle_as_its_parent_still_ends(self):
+        selfish = codex_log(self.day / "rollout-self.jsonl", "id-self", self.repo, parent="id-self", errors=1)
+        loop = codex_log(self.day / "rollout-a.jsonl", "id-a", self.repo, parent="id-b", errors=1)
+        codex_log(self.day / "rollout-b.jsonl", "id-b", self.repo, parent="id-a", errors=1)
+        for name, path, sections in (("self", selfish, 1), ("cycle", loop, 2)):
+            with self.subTest(name):
+                out = self.base / f"out-{name}"
+                self.assertEqual(self.run_main("--session", str(path), "--out", str(out)), 0)
+                (written,) = out.iterdir()
+                self.assertEqual(written.read_text(encoding="utf-8").count("# codex "), sections)
+
+    def test_a_named_session_run_skips_codex_logs_it_cannot_read(self):
+        (self.day / "rollout-dangling.jsonl").symlink_to(self.day / "gone.jsonl")  # a broken symlink
+        (self.day / "rollout-folder.jsonl").mkdir()  # matches the log name but opens as nothing
+        out = self.base / "out"
+        self.assertEqual(self.run_main("--session", str(self.parent), "--out", str(out)), 0)
+        (written,) = out.iterdir()
+        self.assertIn(f"# codex subagent {CHILD_ID} of session {PARENT_ID}", written.read_text(encoding="utf-8"))
 
 
 class TestFinding(TempCase):
@@ -439,6 +771,82 @@ class TestFinding(TempCase):
             code = ts.main(["--repo", str(self.base / "empty"), "--claude-dir", str(self.claude),
                             "--codex-home", str(self.codex), "--out", str(self.base / "o")])
         self.assertEqual(code, 1)
+
+
+@unittest.skipUnless(subprocess.run(["git", "--version"], capture_output=True).returncode == 0, "needs git")
+class TestSkippedSessions(TempCase):
+    """Recent logs passed over only because the working folder they recorded is gone are counted and flagged."""
+
+    REMOTE = "https://git.example.test/team/app.git"
+
+    def setUp(self):
+        super().setUp()
+        subprocess.run(["git", "init", "-q", self.repo], check=True)
+        subprocess.run(["git", "-C", self.repo, "remote", "add", "origin", self.REMOTE], check=True)
+        self.projects = self.claude / "projects"
+        self.day = self.codex / "sessions" / "2026" / "10" / "02"
+        self.gone = self.repo + "-wt-removed"  # a worktree beside the repo, since deleted
+        self.alive = self.repo + "-wt-alive"  # a folder beside the repo that still exists
+        os.makedirs(self.alive)
+
+    def skipped(self):
+        return sorted(ts.find_skipped(ts.repo_roots(self.repo), ts.repo_remotes(self.repo), [self.claude],
+                                      [self.codex], 14, time.time()))
+
+    def cli(self, *args):
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            code = ts.main(["--repo", self.repo, "--out", str(self.base / "out"), *args])
+        return code, out.getvalue(), err.getvalue()
+
+    def test_a_claude_log_counts_when_its_project_folder_is_named_for_the_repo_and_its_working_folder_is_gone(self):
+        removed = claude_log(self.projects / ts.slug(self.gone) / "r1.jsonl", self.gone)
+        claude_log(self.projects / ts.slug(self.alive) / "r2.jsonl", self.alive)  # its folder still exists
+        stranger = str(self.base / "other-gone")  # a gone folder whose project folder is not named for the repo
+        claude_log(self.projects / ts.slug(stranger) / "r3.jsonl", stranger)
+        old = claude_log(self.projects / ts.slug(self.gone) / "r4.jsonl", self.gone)  # named for the repo, too old
+        os.utime(old, (time.time() - 60 * 86400,) * 2)
+        self.assertEqual(self.skipped(), [removed])
+
+    def test_a_codex_log_counts_when_its_header_records_the_repos_remote_and_its_working_folder_is_gone(self):
+        match = codex_log(self.day / "rollout-a.jsonl", "id-a", self.gone, remote=self.REMOTE)
+        codex_log(self.day / "rollout-b.jsonl", "id-b", self.gone, remote="https://git.example.test/team/other.git")
+        codex_log(self.day / "rollout-c.jsonl", "id-c", self.gone)  # records no remote
+        codex_log(self.day / "rollout-d.jsonl", "id-d", self.alive, remote=self.REMOTE)  # its folder still exists
+        old = codex_log(self.day / "rollout-e.jsonl", "id-e", self.gone, remote=self.REMOTE)
+        os.utime(old, (time.time() - 60 * 86400,) * 2)
+        self.assertEqual(self.skipped(), [match])
+
+    def test_the_warning_gives_the_count_and_the_session_hint_in_one_line(self):
+        claude_log(self.projects / ts.slug(self.gone) / "r1.jsonl", self.gone)
+        codex_log(self.day / "rollout-a.jsonl", "id-a", self.gone, remote=self.REMOTE)
+        # a subagent of a skipped parent comes with its parent, so it is not a third session
+        codex_log(self.day / "rollout-s.jsonl", "id-s", self.gone, parent="id-a", remote=self.REMOTE)
+        # nor is a subagent whose own folder is gone but whose parent is in the sample: the parent folds it in
+        codex_log(self.day / "rollout-p.jsonl", "id-p", self.repo)
+        codex_log(self.day / "rollout-t.jsonl", "id-t", self.gone, parent="id-p", remote=self.REMOTE)
+        claude_log(self.projects / ts.slug(self.repo) / "in.jsonl", self.repo)
+        code, out, err = self.cli()
+        self.assertEqual(code, 0)
+        warning = [line for line in err.splitlines() if "--session" in line]
+        self.assertEqual(len(warning), 1)
+        self.assertIn(": 2.", warning[0])
+        self.assertNotIn("--session", out)  # the table on stdout is unchanged
+
+    def test_the_warning_also_appears_when_no_session_matched_at_all(self):
+        claude_log(self.projects / ts.slug(self.gone) / "r1.jsonl", self.gone)
+        code, out, err = self.cli()
+        self.assertEqual(code, 1)
+        self.assertEqual(out, "")
+        self.assertIn("No sessions found", err)
+        self.assertEqual(len([line for line in err.splitlines() if "--session" in line and ": 1." in line]), 1)
+
+    def test_no_warning_when_nothing_was_skipped_or_when_sessions_are_named(self):
+        claude_log(self.projects / ts.slug(self.repo) / "in.jsonl", self.repo)
+        self.assertNotIn("--session", self.cli()[2])
+        removed = claude_log(self.projects / ts.slug(self.gone) / "r1.jsonl", self.gone)
+        self.assertIn("--session", self.cli()[2])
+        self.assertNotIn("--session", self.cli("--session", str(removed))[2])
 
 
 if __name__ == "__main__":
