@@ -90,6 +90,34 @@ Use `"status": "skipped"` with a reason for a stage you deliberately did not run
 
 **9. Retention deletes by ledger.** When the source is re-fetchable and you are discarding media, delete exactly the paths the manifest recorded under `fetch`/`stage`/`audio`, never the `media/` directory wholesale. Remove the directory only if it ends up empty; anything else in there was not yours. Remember a URL is not a promise: signed, expiring, and private links look identical to durable ones, so keep the media whenever the source might not survive.
 
+## Derived items and the cleanup sweep by hand
+
+The retention contract in [SKILL.md](../SKILL.md)'s "Derived items and the cleanup sweep" section continues after the pipeline ends. The script's `link` and `sweep` commands carry it out, so a by-hand packet does each of their steps by hand.
+
+**Record each derived item when it is filed.** The moment a work item filed from the packet exists, append it to the manifest's `derived_items` list, the ledger the sweep reads:
+
+```json
+"derived_items": [{"id": "owner/repo#123", "added": "2026-08-08"}]
+```
+
+Use `owner/repo#number` for a GitHub item; any other tracker's id resolves only through the binding doc's resolution command. Ids use letters, digits, and `. _ / # -` only. An id already in the list (compared case-insensitively) stays as recorded, with its original date. Write the entry at filing time; a list reconstructed later is not the ledger.
+
+**Check resolution before offering anything.** For each recorded id, a GitHub item is resolved when its state reads `closed`, and open when it reads anything else, but a `gh` read that fails to run or exits nonzero is unknown, never open:
+
+```bash
+gh api repos/<owner>/<repo>/issues/<number> --jq .state
+```
+
+Any other id runs the binding doc's resolution command, the id passed to it as an argument rather than spliced into its text: exit 0 is resolved, exit 1 is open, anything else is unknown. A command that fails, or an id with no resolution command bound, is unknown, never resolved. A packet with any id open stays, with no question to ask. Otherwise, a packet with an unknown id, or with no derived items recorded, is listed for the decider to settle, and a packet with every id resolved is eligible: its offer goes to the decider. This step deletes nothing.
+
+**Delete only after the decider takes the offer, and only by ledger.** The script's ownership rules apply unchanged:
+
+- Check resolution again first: an offer goes stale between the sweep and the yes, and a packet that is no longer fully resolved stays.
+- Refuse a directory without the `.ingest-run` marker, or one outside the output home the sweep covered.
+- Delete exactly the files the manifest records: every stage's `artifacts` and every frame's `file`. Delete each one only where it resolves to a regular file inside the packet directory; leave a path that is now a symlink, or that resolves outside the packet, in place.
+- Remove only the subdirectories this deletion emptied.
+- When anything else remains, a saved recap email or any file ingest did not create, keep `manifest.json` and the `.ingest-run` marker, so the next sweep still sees the packet. Otherwise delete `manifest.json` (and any `manifest.json.tmp` or `manifest.json.corrupt` beside it), then the marker last, then the empty directory.
+
 ## The gotcha ledger
 
 Merged from four `video-review` runs (loanmeld) and the first `playtest-review` runs (gameoflife). Each entry cost a real session.

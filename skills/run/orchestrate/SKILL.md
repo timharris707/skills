@@ -7,7 +7,7 @@ description: "Run one session as the lead developer of an agent team: it takes t
 
 This is the seat a non-engineer sits in. Everything else in the pack is something a developer does; this skill is how one session plays the lead that decides which of those happens next and runs it. The human brings the idea and the decisions; the seat brings the team. The rules below are strict because a lead that drifts costs the human their afternoon.
 
-The orchestrator claims nothing for itself: it routes tracked work items into **lanes** (working sessions, agent or human, each in its own workspace on its own branch), audits what comes back, and owns integration. Do every step, every time.
+The orchestrator claims nothing for itself: it routes tracked work items into **lanes** (working sessions, agent or human, each in its own workspace on its own branch), audits what comes back, and owns integration. Do every applicable step, every time; a step's conditions (harness support, toggles, unfilled slots) are part of it.
 
 Read the team-workflow binding doc first. The tracker discipline (claims, frontier, blocking; [setup's references](../../orient/setup/references/tracker-discipline.md)) is assumed throughout. Measurements behind the cost-shaped rules: [references/evidence.md](references/evidence.md).
 
@@ -21,7 +21,7 @@ Read the team-workflow binding doc first. The tracker discipline (claims, fronti
 
 ## 2. The single-orchestrator rule
 
-**Exactly one live orchestrator at a time.** Check for other active sessions before claiming or launching anything: a running session beats an unclaimed item; an existing orchestrator beats a new one. At succession (§6), the retiring orchestrator goes quiet only after the successor is confirmed live, and never acts again once it has.
+**Exactly one live orchestrator at a time.** Check for other active sessions before claiming or launching anything: a running session beats an unclaimed item; an existing orchestrator beats a new one. At succession (§6), the retiring orchestrator goes quiet only after the successor is confirmed live, then never acts again.
 
 ## 3. Startup checklist
 
@@ -29,7 +29,7 @@ Read the team-workflow binding doc first. The tracker discipline (claims, fronti
 2. Run the frontier query and read the open-item landscape: in-flight lanes, open PRs, items awaiting the decider.
 3. Check for other active sessions (§2).
 4. **Title the session**, after the §2 check unless §8's pre-titling carve-out applies; a session that must stand down never wears the title.
-5. Start the repo's standing watches; the **monitoring binding slot** (§7) names what they cover. Confirm the watch runs rather than asserting it; investigate any event it raises immediately, after any waiting user message (§1).
+5. Start the repo's standing watches; the **monitoring binding slot** (§7) names what they cover. Confirm the watch runs; investigate any event it raises immediately, after any waiting user message (§1).
 
 ## 4. Launching lanes
 
@@ -60,7 +60,7 @@ When a lane enters close-out review, announce the hand-off per §4's announce di
 1. **At roughly half the context window, wrap up**: finish the current step, start no new large work past the line (half-window rule: [handoff skill](../handoff/SKILL.md)).
 2. Write the handoff (call the Skill tool with `handoff`): state, shipped record, the tracker query as NEXT, and the expensive lessons in GOTCHAS.
 3. **Arrange the successor** (per the lane-launch slot) with a prompt saying "call the Skill tool with `orchestrate` and follow its startup checklist" plus only what is unique to this moment.
-4. Once the successor is confirmed live, with evidence of its startup checklist completing (the §3 step 4 title switch included; a pre-titled successor's evidence is the rest of the checklist), stop your watches, **shed the orchestrator title**: retitle `Orchestrator (retired) — <repo>` (§8), and go quiet (§2). The human archives the retired session when they see fit, never automatically (§5 step 6).
+4. Once the successor is confirmed live, with evidence of its startup checklist completing (the §3 step 4 title switch included; a pre-titled successor's evidence is the rest of the checklist), stop your watches, **shed the orchestrator title**: retitle `Orchestrator (retired) — <repo>` (§8), and go quiet (§2). The human archives the retired session, never automatically (§5 step 6).
 
 ## 7. Binding slots (the setup interview fills these per-repo)
 
@@ -81,7 +81,7 @@ Titles keep picker, tracker, and workspace speaking one name, and the §2 check 
 - **Orchestrator title**: default `Orchestrator — <repo>`, the session telling its launcher once the §2 check clears (§3 step 4). A binding may refine the shape so long as it says *orchestrator* and tells siblings apart.
 - **Lane title**: default `#<N> — <short item name>` in the repo's own item notation, at launch; a binding may refine the shape so long as the id survives. In-process subagents have no picker entry; the launch report carries the name.
 - **Actor**: whoever launched the session titles it; self-titling only where the harness supports it. A retitle the harness can't self-perform (§6's retirement marker) falls to the successor or the human.
-- **A role change retitles**: a lane adopted mid-flight or a session promoted to orchestrator is retitled the moment the role changes, same actor rule.
+- **A role change retitles at once**: a lane adopted mid-flight or a session promoted to orchestrator; same actor rule.
 - **The carve-out: pre-titling surfaces.** Some launch surfaces fix the title at spawn from their own label: the title protocol outranks the surface's label convention: a chip-arranged successor gets the orchestrator shape. Pre-titling precedes the §2 check (the only ordering exception); one that stands down is retitled by whoever archives it.
 - **Degrade**: no titling surface at all → the launch report carries the name, and retirement is recorded in the handoff and final report.
 

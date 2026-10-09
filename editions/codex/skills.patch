@@ -429,7 +429,7 @@
 +
 +Read the [Codex desktop binding](../../../CODEX.md) when this workflow needs harness mechanics, model routing, or recovery.
  
- A decision map turns fog into recorded decisions. It is for work nobody can spec in one sitting, where the open questions gate each other. It produces decisions, not deliverables: when the map's frontier is empty, the scope specs and builds as ordinary tracked work.
+ A decision map turns fog into recorded decisions. It is for work nobody can spec in one sitting, where the open questions gate each other. It produces decisions, not deliverables: once the protocol's map-done condition holds (frontier empty and the Not-yet-specified ledger empty), the scope specs and builds as ordinary tracked work.
  
 @@ -20,7 +22,7 @@
  ## Mode 2: working a ticket (invoked with a map ticket)
@@ -449,7 +449,7 @@
 -- **Child tickets ride the existing tracker machinery**: a `gate-decision` type label, the repo's claim recipe, one session per ticket. A map invents no parallel tracker.
 +- **Child tickets ride the existing tracker machinery**: a `gate-decision` type label, the repo's claim recipe, one clearly owned work unit per ticket; a new conversation is not required. A map invents no parallel tracker.
  - **Adjudication authority is unchanged: sessions brief the decision, the decider decides.** A session that reaches a decision point records its recommendation on the ticket and waits. A grilling ticket is answered by the decider, on the record, before anything downstream builds on it.
- - **A map produces decisions, not deliverables.** When the map's frontier is empty, the scope specs and builds normally; deviations from a recorded decision go back to the decider, never into a build brief.
+ - **A map produces decisions, not deliverables.** At the map-done condition (frontier empty and the Not-yet-specified ledger empty; see "The map doc carries two ledgers" below), the scope specs and builds normally; deviations from a recorded decision go back to the decider, never into a build brief.
  - **Refer by name.** In anything the human reads, tickets go by their titles, never bare numbers; that covers round briefs, map narration, verdict lines, and close-out comments. A wall of `#42, #43, #44` is illegible; a name reads at a glance. The id and URL ride *inside* the name as its link, canonical form `[<ticket title> (#<id>)](<url>)`, and a bare id outside that form never appears in human-facing text.
 @@ -17,9 +17,9 @@
  1. **State the destination** before surveying anything: one paragraph on what "decided" looks like for this scope (a speccable milestone, a buildable primitive, an adjudicated slate). The destination bounds every later out-of-scope call.
@@ -797,9 +797,9 @@
  
  | Skill | Reach for it when |
  | --- | --- |
--| [setup](../setup/SKILL.md) | Installing the pack into a repo, or refreshing its bindings. Once-per-repo interview: confirms the tracker, verify commands, the decider, the binding-doc home, and the working mode (lead from the orchestrator seat, or read code and pick skills); seeds the binding doc, templates, and the session-start handoff hook; re-runs are idempotent diffs, never overwrites. |
-+| [setup](../setup/SKILL.md) | Bind or refresh a repo using recorded decisions, then ask about new or changed bindings, including the working mode (lead from the orchestrator seat, or read code and pick skills). Audit actual installed skills, continuity targets, and duplicate personal copies. |
- | [domain-memory](../domain-memory/SKILL.md) | The repo's institutional memory needs writing or reading: a grilling just closed, a review disposition landed, the decider corrected a wrong assumption, or a session is starting and wants the settled terms and decisions. One store, two artifacts: a small domain glossary plus supersede-never-edit decision records, written as side effects of work at the memory home the binding names; consolidation and backfill happen only by decider disposition. |
+-| [setup](../setup/SKILL.md) | Installing the pack into a repo, or refreshing its bindings. |
++| [setup](../setup/SKILL.md) | Binding a repo to the pack, refreshing its bindings, or auditing its installed skills, continuity targets, and duplicate personal copies. |
+ | [domain-memory](../domain-memory/SKILL.md) | The repo's institutional memory needs writing or reading: a grilling just closed, a review disposition landed, the decider corrected a wrong assumption, or a session is starting and wants the settled terms and decisions. |
  | [grilling](../../decide/grilling/SKILL.md) | An idea or plan is half-formed and nobody has pressure-tested it. Interviews the decider in rounds over a design tree, where the frontier is every decision whose prerequisites are settled, until nothing load-bearing is still assumed. Facts are the agent's job; decisions are the decider's. Run it before charting a map or writing a spec off a conversation. |
  | [decision-map](../../decide/decision-map/SKILL.md) | The work is genuinely foggy: open questions gate each other and nobody can spec it in one sitting. Charts a map (destination, clusters, two ledgers), files gate-decision tickets, and runs briefed decision rounds with the decider. Not for work you could already spec: a map with nothing undecided is overhead. |
 @@ -28,14 +30,14 @@
@@ -982,28 +982,32 @@
    skill: problem-first description, before-and-after evidence, a
 --- a/skills/orient/setup/references/tracker-discipline.md
 +++ b/skills/orient/setup/references/tracker-discipline.md
-@@ -14,16 +14,16 @@
+@@ -14,20 +14,18 @@
  
  Claiming is a read-modify-write with the read mandatory:
  
--1. **Read the item's comments first.** A claim is LIVE when the latest comment matching
+-1. **Read the item's comments first.** A workspace's claim is LIVE when its latest comment matching
 -   `Lane-start: workspace=<name> branch=<branch>`
--   has no later `Lane-start-retracted: workspace=<same-name>` marker after it (a later `Lane-start` supersedes an earlier one; takeover chains post a new one).
+-   has no later `Lane-start-retracted: workspace=<same-name>` marker after it, and no later takeover (step 5) names that workspace as its prior one. A later `Lane-start` supersedes an earlier one only as a takeover; takeover chains post a new one. Two claims that race are settled by step 3's re-check, where the earlier one stands.
 +1. **Read the item's comments first.** A `Lane-start: workspace=<name> branch=<branch>` claim remains LIVE until a later `Lane-start-retracted: workspace=<same-name>` marker. Check all unretracted claims; only a takeover backed by the death evidence in step 5 supersedes another workspace.
  2. **A live claim refuses your claim.** No external pointer ever overrides a live Lane-start: not a handoff note, a stale to-do list, or a plan doc. Those pointers go stale the moment anyone else claims; the tracker comment is the truth.
--3. **On clear: claim atomically.** Set yourself assignee AND post the marker in one pass:
+-3. **On clear: claim, then re-check.** Set yourself assignee AND post the marker back to back. These are two separate writes, so a session that read the item before you posted can claim it alongside you:
 +3. **On clear: post an optimistic claim.** Set yourself assignee and post the marker. These are separate remote writes, not a lock:
  
     ```bash
     gh issue edit <N> --repo <owner>/<repo> --add-assignee "@me"
     gh issue comment <N> --repo <owner>/<repo> --body "Lane-start: workspace=<name> branch=<branch>"
     ```
-+
-+   Re-read claims after posting and before building. If another unretracted workspace claimed the item, pause and resolve ownership with the coordinator or decider; a later timestamp alone never grants takeover. Coordinators serialize claims for their workers.
  
++   Re-read claims after posting and before building. A race is another workspace's unretracted claim that appeared since your first read and is not a takeover. When you find one, the earlier of the two claims stands, and the later claimer retracts with step 4's marker and unassigns itself, except that when both claims came from the same GitHub account it keeps the assignee, which the standing claim shares; a later timestamp alone never grants takeover. Coordinators serialize claims for their workers.
++
     `<name>` is a machine-matchable token identifying your working copy (worktree, clone, or machine+dir); the retraction scanner matches on it literally, so pick something unique and reuse it exactly.
+-
+-   After posting, re-read the item's comments before starting work. A race is another workspace's live `Lane-start` that appeared since your first read and is not a takeover. When you find one, the earlier of the two claims stands, and the later claimer retracts with step 4's marker and unassigns itself. When both claims came from the same GitHub account, the later claimer retracts but keeps the assignee, which the standing claim shares.
  4. **Releasing your OWN claim** posts the machine-recognized marker and unassigns:
-@@ -48,15 +48,25 @@
+ 
+    ```bash
+@@ -50,15 +48,25 @@
  The frontier is the set of grabbable items: ready-labeled, unassigned, and **not blocked, read blocking two ways**: native dependency edges OR a `blocked` label. A query that checks only the label misses edge-blocked items; one that checks only edges misses non-ticket blockers.
  
  ```bash
@@ -1233,7 +1237,7 @@
  
 -- The handoff file exists at the binding doc's confirmed location in this session's own checkout, or at `.claude/handoff.md` in this checkout where that write was refused, overwriting any previous one, no appended history.
 -- All four template sections are filled; NEXT contains the tracker query and enumerates no specific work items.
--- The saved file was re-read after writing: every entry is a pointer into a durable record with no pasted code blocks, and rule 5's secret scan ran against the saved text; any candidate value it flagged was replaced with its pointer and the file re-saved before reporting.
+-- The saved file was re-read after writing: STATE and GOTCHAS are short inline notes, DONE and NEXT point into durable records, nothing holds a pasted code block or a recap of the conversation, and rule 5's secret scan ran against the saved text; any candidate value it flagged was replaced with its pointer and the file re-saved before reporting.
 -- The user was told the handoff is saved and at which path. In either copy-command case under "Where it goes", the report says a fresh session or context reset is safe once the copy command runs, and ends with that one-line command; otherwise it says one is now safe.
 +Report the saved path and what was verified. Do not promise lossless recovery:
 +an unresolved worker, stale evidence, or missing record remains explicitly
@@ -1323,7 +1327,7 @@
 +
 +Read the [Codex desktop binding](../../../CODEX.md) when this workflow needs harness mechanics, model routing, or recovery.
  
- How a working lane builds an item. The item's body is the spec, the brief's verification set defines done, and this skill is the discipline between those two points. It is not a lane type of its own, and it deliberately has no binding slots: everything repo-specific (verify commands, constraints, the tracker) already arrived in the lane's brief.
+ How a working lane builds an item. The item's body is the spec, the brief's verification set names the behavioral bar, and this skill is the discipline between those two points. That bar is one part of done; this skill's close-out artifacts (below) and [orchestrate](../orchestrate/SKILL.md)'s merge gate are also part of it. It is not a lane type of its own, and it deliberately has no binding slots: everything repo-specific (verify commands, constraints, the tracker) already arrived in the lane's brief.
  
  ## Tracer first
  
@@ -1469,7 +1473,7 @@
 -1. **At roughly half the context window, wrap up**: finish the current step, start no new large work past the line (half-window rule: [handoff skill](../handoff/SKILL.md)).
 -2. Write the handoff (call the Skill tool with `handoff`): state, shipped record, the tracker query as NEXT, and the expensive lessons in GOTCHAS.
 -3. **Arrange the successor** (per the lane-launch slot) with a prompt saying "call the Skill tool with `orchestrate` and follow its startup checklist" plus only what is unique to this moment.
--4. Once the successor is confirmed live, with evidence of its startup checklist completing (the §3 step 4 title switch included; a pre-titled successor's evidence is the rest of the checklist), stop your watches, **shed the orchestrator title**: retitle `Orchestrator (retired) — <repo>` (§8), and go quiet (§2). The human archives the retired session when they see fit, never automatically (§5 step 6).
+-4. Once the successor is confirmed live, with evidence of its startup checklist completing (the §3 step 4 title switch included; a pre-titled successor's evidence is the rest of the checklist), stop your watches, **shed the orchestrator title**: retitle `Orchestrator (retired) — <repo>` (§8), and go quiet (§2). The human archives the retired session, never automatically (§5 step 6).
 +1. At the measured context checkpoint or a meaningful milestone, finish the atomic step and write the task-owned checkpoint through [handoff](../handoff/SKILL.md) (open and read the `handoff` skill's SKILL.md completely). Preserve authorization, stop points, workers, processes, workspaces, evidence, and the current next step.
 +2. Continue in the same task through native compaction. Re-read the checkpoint, project instructions, relevant decisions, and live state afterward. Half a context window does not retire the coordinator.
 +3. A fresh task requires the user's request. On an explicit ownership transfer, give the successor the verified checkpoint and the current worker inventory. Start no competing integration while the transfer is pending.
@@ -1494,7 +1498,7 @@
 +- **Orchestrator title**: default `Orchestrator — <repo>`, the session telling its launcher once the §2 check clears (§3 step 4). A binding may refine the shape so long as it says *orchestrator* and tells siblings apart; retirement adds the retired marker (§6 step 4).
  - **Lane title**: default `#<N> — <short item name>` in the repo's own item notation, at launch; a binding may refine the shape so long as the id survives. In-process subagents have no picker entry; the launch report carries the name.
  - **Actor**: whoever launched the session titles it; self-titling only where the harness supports it. A retitle the harness can't self-perform (§6's retirement marker) falls to the successor or the human.
- - **A role change retitles**: a lane adopted mid-flight or a session promoted to orchestrator is retitled the moment the role changes, same actor rule.
+ - **A role change retitles at once**: a lane adopted mid-flight or a session promoted to orchestrator; same actor rule.
 --- a/skills/run/orchestrate/references/evidence.md
 +++ b/skills/run/orchestrate/references/evidence.md
 @@ -1,4 +1,6 @@
