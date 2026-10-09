@@ -1,0 +1,8 @@
+{
+  "name": "ts-module-boundaries-out-of-range-typescript",
+  "private": true,
+  "devDependencies": {
+    "dependency-cruiser": "18.5.0",
+    "typescript": "7.0.2"
+  }
+}

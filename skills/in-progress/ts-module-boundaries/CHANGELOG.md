@@ -35,3 +35,28 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   is skipped); existing violations are fixed or baselined with tickets; the shape
   decision is the decider's and is recorded through domain-memory; the new check
   reaches the binding doc through a setup re-run.
+- **Unresolved imports fail the check** (#316): the config gains a fifth rule,
+  `not-to-unresolvable`, that fails any import dependency-cruiser could not
+  resolve. Before, such an import kept its raw text, matched no rule, and passed,
+  so any resolution gap not already closed by the extension list would have let
+  a deep import through. The rule needs package `exports` resolution to keep a
+  legitimate second entry such as `@pkg/billing/testing` passing, so the config
+  also turns on `exportsFields` and `conditionNames` (`import`, `require`,
+  `node`, `default`, `types`, the set dependency-cruiser's own init template
+  uses). That changes how every package-name import resolves: a deep
+  package-name import into a package with an `exports` map now fails as
+  unresolved rather than as a boundary breach, and a repo's first run may
+  surface new failures, which go to the decider in step 5. The skill lists five
+  rules, step 3 says what the exports setting changes, and step 6 names the new
+  rule's probe.
+- **A permanent test for the guard and the config** (#314): the repo's first
+  Node test job. A fixture repo at `tests/ts-module-boundaries/` (an npm
+  workspace with three packages, code outside them, and one probe per rule) runs
+  the shipped guard and the shipped config, with the config's three constants
+  set by the test. The guard must exit 0 on the pinned TypeScript 6.0.3 and
+  exit 1 on TypeScript 7.0.2, outside dependency-cruiser 18.5.0's supported
+  range. The clean fixture must pass, and each probe must fail naming exactly
+  its own rule, once. A rule added to the config without a probe fails the
+  test. The job is its own workflow file, runs only when the skill, the
+  fixture, or the workflow changes, and pins Node 22.23.3 exactly, with
+  dependency-cruiser and TypeScript pinned by a lockfile per fixture.
