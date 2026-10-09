@@ -1,6 +1,6 @@
 # Board Modes
 
-A **mode** is the board's interaction topology: who sees whom, in what order, and how the run ends. It is orthogonal to every other axis: any mode composes with any board size, lens preset, tier, or output shape. The vocabulary is shared with panely.ai, so one set of names covers both products.
+A **mode** is the board's interaction topology: who sees whom, in what order, and how the run ends. It is orthogonal to every other axis: any mode composes with any board size, lens preset, tier, or output shape, except that Competitive needs at least three seats (see its section). The vocabulary is shared with panely.ai, so one set of names covers both products.
 
 | Mode | One-liner | Reach for it when |
 | --- | --- | --- |

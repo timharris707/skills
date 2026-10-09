@@ -38,8 +38,8 @@ capture() {
 
 Classification, in one place:
 
-- **ran**: exit 0 and a non-empty artifact.
-- **degraded**: usable content came back, but the exit was non-zero or stderr was noisy (the Gemini CLI does this routinely: model-router retries on stderr, valid review on stdout). Judge by whether the artifact is usable, not by stderr.
+- **ran**: exit 0 and a non-empty artifact. The helper never reads stderr, so noisy stderr does not change this: the Gemini CLI routinely prints model-router retries to stderr beside a valid review on stdout, and with exit 0 that is `ran`.
+- **degraded**: a non-empty artifact came back, but the exit was non-zero. Judge by whether the artifact is usable, not by stderr.
 - **dropped**: timed out, or produced nothing. Does not count toward the two-voice minimum.
 
 `</dev/null` closes stdin for every seat. That is safe **because each prompt is passed as an argument below**, so no seat needs stdin, and it is exactly what stops `codex exec` from hanging (it reads stdin to EOF). If instead you feed a seat its prompt *on stdin* (see the large-packet note), drop `</dev/null` for that seat and keep it for Codex.
