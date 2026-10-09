@@ -32,7 +32,7 @@ The merge-flow binding slot ([SKILL.md](../SKILL.md) §7) records each opted-in 
 1. Before the final PR opens, the integration branch catches up with the default branch by the same rule as a lane (§4): updated from the default branch, any conflict resolved, verification re-run, and the default-branch commit it caught up to named in the PR.
 2. The final PR gets the whole-spec close-out review: §5 again, scoped to the whole spec.
 3. The final PR to the default branch lists the spec's items for the record.
-4. At the final PR's close-out, after it merges into the default branch, rerun the lookup on each spec item. Take the `blocked` label off each open dependent outside the spec, unless another non-ticket blocker still applies, and comment on each that the code is on the default branch.
+4. At the final PR's close-out, after it merges into the default branch, rerun the lookup on each spec item. Take the `blocked` label off each open dependent outside the spec that the lookup lists under the bound repo, the only ones labeled, unless another non-ticket blocker still applies, and comment on each that the code is on the default branch.
 
    ```bash
    gh issue edit <dependent> --repo <owner>/<repo> --remove-label blocked
