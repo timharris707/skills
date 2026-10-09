@@ -19,8 +19,9 @@ All `error`:
 2. **Across packages.** A package's own files import each other freely and reach another package only through its entry points.
 3. **Tests (opt-in).** For repos where each package keeps its tests in a private `tests/` folder: tests import any package's entry points and their own `tests/` fixtures, never any package's internals (not even their own), and nothing outside a `tests/` folder imports one. The interface is the test surface.
 4. **No runtime cycles.** Type-only imports do not count.
+5. **Every import resolves.** An import the linter cannot resolve fails the check. Left unresolved it matches no rule above and passes, so a gap in resolution would let a deep import through.
 
-Entry points come in three shapes, set by the config's `ENTRY_POINTS` constant: one file per package (`src/index.ts`, for a workspace package whose `main` points there), several named files, or every file at the package root with the code in subfolders. A non-code export, such as a stylesheet, is listed by name with its extension (`styles\\.css`). Prefer several small entry points to a barrel that re-exports a whole subtree: a barrel makes the interface nearly as wide as the implementation, which is what shallow means.
+Entry points come in three shapes, set by the config's `ENTRY_POINTS` constant: one file per package (`src/index.ts`, for a workspace package whose `main` points there; an `exports` "." entry, when present, wins over `main`), several named files, or every file at the package root with the code in subfolders. A non-code export, such as a stylesheet, is listed by name with its extension (`styles\\.css`). Prefer several small entry points to a barrel that re-exports a whole subtree: a barrel makes the interface nearly as wide as the implementation, which is what shallow means.
 
 ## Steps
 
@@ -53,6 +54,7 @@ A repo with no package yet has nothing to enforce. The decider names the areas t
 - Install `dependency-cruiser` as a devDependency with the detected package manager.
 - Copy [references/dependency-cruiser.config.cjs](references/dependency-cruiser.config.cjs) to `.dependency-cruiser.cjs` (`.cjs` so it loads in a `"type": "module"` repo). Set its three constants to the step 2 answers and `tsConfig.fileName` to the alias tsconfig.
 - Copy [references/check-typescript-support.mjs](references/check-typescript-support.mjs) to `scripts/check-typescript-support.mjs` (or the repo's equivalent scripts folder). It exits 1 when dependency-cruiser cannot read TypeScript, which step 4 puts in front of every run.
+- The config resolves a package-name import through the package's `exports` map, so a second entry such as `@pkg/billing/testing` resolves. This changes how every package-name import resolves, so the first run in step 5 may surface failures the repo never saw: an import that never resolved, or a package subpath that now resolves and meets the boundary rules for the first time.
 - Merge into an existing `.dependency-cruiser.*` and report what was added; the existing file is never overwritten.
 - Leave `tsconfig` and the repo's path aliases as they are.
 
@@ -82,7 +84,7 @@ The rules, scope, and `pathNot` entries stay as step 2 decided; a violation is f
 Observe each outcome; assume none.
 
 1. Run `lint:boundaries`: it passes.
-2. Add a deliberate deep import in a real importer file, once per enabled rule and once per import style the repo uses (relative path, alias, package name). Write each probe in a `.ts` or `.tsx` file: a module count proves nothing about TypeScript, because dependency-cruiser counts plain `.js` and `.mjs` files while skipping every `.ts` file it cannot read, so only a probe that fails in a TypeScript file shows TypeScript is being read. Each run fails naming the rule: `entrypoint-boundary-from-outside`, `entrypoint-boundary-across-packages`, `tests-through-entrypoints`, `tests-folder-is-private` (probe it from a package's own non-test file importing its own `tests/` folder; an outside file would also trip `entrypoint-boundary-from-outside` and prove less), and, for a two-file import loop, `no-circular`.
+2. Add a deliberate bad import in a real importer file, once per enabled rule and once per import style the repo uses (relative path, alias, package name). Write each probe in a `.ts` or `.tsx` file: a module count proves nothing about TypeScript, because dependency-cruiser counts plain `.js` and `.mjs` files while skipping every `.ts` file it cannot read, so only a probe that fails in a TypeScript file shows TypeScript is being read. Each run fails naming the rule: `entrypoint-boundary-from-outside`, `entrypoint-boundary-across-packages`, `tests-through-entrypoints`, `tests-folder-is-private` (probe it from a package's own non-test file importing its own `tests/` folder; an outside file would also trip `entrypoint-boundary-from-outside` and prove less), for a two-file import loop, `no-circular`, and, for an import of a file that does not exist, `not-to-unresolvable`. A package-name probe into a package whose `package.json` has an `exports` map also fails as `not-to-unresolvable`, because the map does not list the deep path: the check is holding. The same probe into a package with only `main` fails as `entrypoint-boundary-from-outside` when it sits outside every package, and as `entrypoint-boundary-across-packages` when it sits inside another package.
 3. Revert every probe and run again: it passes, and `git diff` shows no trace of them.
 
 A repo with no package yet scaffolds `<packages-root>/example/` in the decided shape: an entry file exporting a function that delegates to an internal file in a subfolder, and, with the tests rule on, a test importing only the entry. It is the copy-me template and the probe target, and nothing else in the repo is enforced until code lives in packages; say so plainly.
@@ -108,7 +110,7 @@ A package whose code is one flat folder has nothing to hide, and an entry point 
 - `.dependency-cruiser.cjs` carries constants matching those answers and an alias tsconfig that resolves the repo's aliased imports.
 - `lint:boundaries` covers every importer directory, starts with the TypeScript guard, and runs in a CI job that gates merge; the file and job are named.
 - `lint:boundaries` exits 0, and every pre-existing violation is fixed or in the committed baseline with a ticket.
-- A pass, then a named fail for each probe (every enabled rule, every import style in use, each probe in a TypeScript file), then a pass, were all observed; the working tree holds no probe.
+- A pass, then a named fail for each probe (every enabled rule including the unresolved-import rule, every import style in use, each probe in a TypeScript file), then a pass, were all observed; the working tree holds no probe.
 - The README and the context pointer exist, and the decider was told to re-run setup.
 - The diff holds the config, the guard, the script, the CI step, the docs, and the dependency-cruiser devDependency with its lockfile change, plus the baseline if step 5 baselined any violation, the decider-approved import fixes if step 5 fixed any, and the `<packages-root>/example/` scaffold if the repo had no package, and nothing else.
 

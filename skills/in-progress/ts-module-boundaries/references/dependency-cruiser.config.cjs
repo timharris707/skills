@@ -81,6 +81,13 @@ module.exports = {
       from: {},
       to: { circular: true, viaOnly: { dependencyTypesNot: ["pre-compilation-only"] } },
     },
+    {
+      name: "not-to-unresolvable",
+      comment: "An import the linter cannot resolve fails. It would keep its raw text, match no boundary rule, and pass, so a deep import could slip through unseen.",
+      severity: "error",
+      from: {},
+      to: { couldNotResolve: true },
+    },
 
     // Layering (optional, off by default). The rules above control HOW a package is
     // imported; layering controls WHICH packages may depend on which. Add your own, e.g.:
@@ -94,9 +101,21 @@ module.exports = {
     tsPreCompilationDeps: "specify",
     // The tsconfig that holds the repo's path aliases, so aliased imports resolve.
     tsConfig: { fileName: "tsconfig.json" },
-    // Every extension an extensionless import can land on. An import the linter cannot
-    // resolve keeps its raw text, matches no rule above, and passes.
     enhancedResolveOptions: {
+      // Resolve a package-name import through the package's `exports` map, so a subpath
+      // such as "@pkg/billing/testing" lands on the file the package exposes for it. This
+      // changes how every package-name import resolves, and a deep import past an
+      // `exports` map the package does not list now fails as unresolvable. Without it the
+      // subpath goes unresolved and not-to-unresolvable fails a legitimate entry point.
+      exportsFields: ["exports"],
+      // The `exports` keys that may match. This list does not rank them: the package's own
+      // map order picks the branch (the first key in the map that is in this list), with no
+      // fallback if that file is missing. "types" is for TypeScript, "import" and "require"
+      // cover both module styles, then "node" and "default". A repo whose packages expose
+      // their sources under a custom key adds it here.
+      conditionNames: ["import", "require", "node", "default", "types"],
+      // Every extension an extensionless import can land on; one missing from this list
+      // is unresolved, so not-to-unresolvable fails it.
       extensions: [".ts", ".tsx", ".d.ts", ".mts", ".d.mts", ".cts", ".d.cts", ".js", ".jsx", ".mjs", ".cjs", ".json"],
     },
   },

@@ -1,0 +1,9 @@
+{
+  "name": "@fixture/catalog",
+  "version": "1.0.0",
+  "private": true,
+  "exports": {
+    ".": { "import": "./src/index.ts" },
+    "./testing": { "types": "./src/testing.ts" }
+  }
+}
