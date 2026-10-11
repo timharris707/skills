@@ -125,7 +125,7 @@ Close with one line on what was read (sessions, and any skipped with the reason)
 ## Done when (checkable: verify each line before reporting complete)
 
 - Repo, sessions, log folders, and confidentiality were settled before the trim ran.
-- The user saw the cost estimate (sessions, raw and trimmed sizes, trimmed tokens, the reader cost marked as a guess, the reader plan, a rough cost) and said go before any reader started.
+- The user saw the cost estimate (sessions, raw and trimmed sizes, trimmed tokens, the reader cost or, where the main session reads, the trimmed token total, marked as a guess, the reader plan, a rough cost) and said go before any reader started.
 - Every trimmed log had a reader, every reader was briefed to read its log in as few large pieces as the harness allows, and every reader's list was judged.
 - Every finding cites a session and log lines the judge verified; none rests on a reader's word alone.
 - Every finding names one destination and carries the label its rules give, and the list runs in label order.
