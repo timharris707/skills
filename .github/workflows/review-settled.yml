@@ -117,7 +117,7 @@ jobs:
               '[.[][] | select(.user.login == "coderabbitai[bot]" and .commit_id == $head)] | length')
 
             # A zero-finding pass posts NO review object (proven live:
-            # timharris707/chili#307 sat red for 20 minutes after a clean
+            # a pull request in another repository sat red for 20 minutes after a clean
             # review). The walkthrough comment is updated every pass and its
             # Commits section names the reviewed range, so the head SHA as
             # the range's endpoint ("between <sha> and <head>") is the same
