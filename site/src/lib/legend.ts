@@ -538,7 +538,7 @@ export const ENTRIES: Entry[] = [
     skill: "handoff",
     gloss: "One small file so a fresh session resumes with no re-explanation. Overwrite, never append.",
     definition:
-      "A handoff artifact is one small file capturing where the work stands, so a fresh session resumes with no re-explanation. It is written at roughly half the window rather than when it fills, because the oldest details fall away and long-chain reasoning degrades before the hard limit is ever reached. Two rules keep it useful: overwrite rather than append, since an appended handoff decays into a transcript nobody reads; and stay a pointer rather than a transcript, linking the durable records instead of copying them.",
+      "A handoff artifact is one small file capturing where the work stands, so a fresh session resumes with no re-explanation. It is saved at roughly half the window and at milestones, and the session keeps working through compaction, reading the file back afterward; a fresh session is for a transfer, a pause, a major change of project or phase, the user's request, or a visible drop in quality. Two rules keep it useful: overwrite rather than append, since an appended handoff decays into a transcript nobody reads; and stay a pointer rather than a transcript, linking the durable records instead of copying them.",
     seeAlso: ["stale-next-rule", "compaction", "context-rot"],
   },
   {
