@@ -24,6 +24,12 @@ on:
         description: minutes to wait for CodeRabbit to review the head commit before failing
         type: number
         default: 20
+      runs-on:
+        description: >-
+          runner for the gate job, as JSON: a label string ('"ubuntu-latest"') or a
+          label array ('["self-hosted","linux"]'). The job needs bash, gh and jq.
+        type: string
+        default: '"ubuntu-latest"'
 
 # contents: none — this workflow never checks out code or reads repo contents
 # (REST reviews, issue labels/comments, and GraphQL reviewThreads only).
@@ -37,7 +43,7 @@ permissions:
 
 jobs:
   check:
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(inputs.runs-on) }}
     timeout-minutes: 30
     steps:
       # PR fields flow in via env, never inline ${{ }} in run: a PR title is
@@ -52,6 +58,8 @@ jobs:
           SKIP_TITLE_REGEX: ${{ inputs.skip-title-regex }}
           SKIP_LABEL: ${{ inputs.skip-label }}
           WAIT_MINUTES: ${{ inputs.wait-minutes }}
+        # Named so a runs-on input that picks a Windows runner still gets bash, not pwsh.
+        shell: bash
         run: |
           set -euo pipefail
           owner=${REPO%/*}
