@@ -1,6 +1,6 @@
 ---
 name: review-loop
-description: "Have a second model review a branch on this machine before its pull request opens, fix what holds up, and repeat until a round comes back clean or three rounds pass. Use before opening a pull request or pushing a fix to one, when the user says review loop or asks for a second opinion before the PR, or when a repo's instructions call for a pre-PR review."
+description: "Have a second model review a branch on this machine before its pull request opens, fix what holds up, and repeat until a round comes back clean or three rounds pass. Use when about to open a pull request or push a fix to one, when the user says review loop or asks for a second opinion before the PR, or when a repo's instructions name the review loop."
 ---
 
 # Review loop
@@ -21,15 +21,20 @@ The reviewer is Codex through `codex review`, on the Codex subscription the mach
    codex review "Review the changes on this branch against origin/<base> (git diff origin/<base>...HEAD). <goal of the driving item, one sentence>. Report only defects: wrong behavior, missing or broken tests for changed behavior, security problems, and breaks of this repo's written rules. Skip style." > "$out" 2>&1
    ```
 
-   The findings are the block after the last line that reads `codex`; everything above it is the session log. A round takes from under a minute to several; give the command a 15-minute timeout. A round that ends in `401 Unauthorized` ran without a signed-in Codex: set `CODEX_HOME` to the profile the machine's Codex agents use and rerun it. Done when the round's file ends in the reviewer's findings or its statement that it found none.
+   A round takes from under a minute to several. Run it with your command tool's timeout set to 15 minutes (macOS has no `timeout` command). A nonzero exit is a failed round, not a review: read the error at the end of the file, fix the cause, and rerun the round. A `401 Unauthorized` means Codex ran without a sign-in; set `CODEX_HOME` to the profile the machine's Codex agents use. On a zero exit, the findings are the block after the last line that reads `codex`; everything above it is the session log. Done when the command exited 0 and that block holds findings or says it found none.
 
 3. **Settle every finding.** For each one, read the code it points at and decide:
    - **Fix** it when it is real and inside the driving item's goal, with the smallest change that answers it.
    - **Decline** it, with a one-line reason, when it is wrong or asks for work beyond the item. Scope creep is a decline even when the idea is good; file real outside work as its own tracked item.
 
-   Commit the fixes and rerun the repo's checks. Done when every finding in the round is fixed or declined with its reason written down.
+   Append each finding's disposition (fixed, or declined and why) to the end of the round's file, then commit the fixes and rerun the repo's checks. Done when every finding in the round has its disposition in the round file.
 
-4. **Repeat or stop.** Stop when a round returns no finding you fixed: **clean**. Otherwise run the next round on the updated branch. After round 3, stop anyway: the findings still open go into the PR as open. Done when the loop has stopped on one of those two conditions.
+4. **Repeat or stop.** Stop on whichever comes first:
+   - **Clean:** the round reports no findings.
+   - **Settled:** you declined every finding in the round. Rerunning would return the same ones.
+   - **Round 3 done:** findings you fixed in it stay unreviewed and go into the PR as such, and any still open are named there.
+
+   Otherwise run the next round on the updated branch. Done when the loop has stopped on one of those three conditions.
 
 5. **Record it in the PR.** The PR description carries one line the reviewer and the decider can read at a glance:
 
@@ -37,12 +42,12 @@ The reviewer is Codex through `codex review`, on the Codex subscription the mach
    **Review loop:** 2 rounds (Codex). Fixed 3, declined 1 (out of scope: <reason>). Final round clean.
    ```
 
-   On a stop after round 3, name each finding still open. A fix pushed to an open PR runs the loop again on the new commits before the push, and updates this line.
+   A settled stop says "final round settled (all declined)", never clean. On a stop after round 3, name each finding still open. A fix pushed to an open PR runs the loop again on the new commits before the push, and updates this line.
 
 ## Done when (checkable: verify each line before reporting complete)
 
 - Every round reviewed the diff against the PR's actual base branch, and its file under the git dir ends in findings or a clean verdict, never an error.
-- Every finding was fixed or declined with a written reason; no finding was skipped.
-- The loop stopped on a clean round or after round 3, never earlier with fixed findings unreviewed.
+- Every finding has its disposition and reason in its round file; no finding was skipped.
+- The loop stopped clean, settled, or after round 3, never earlier with fixed findings unreviewed.
 - The repo's required checks pass on the final commit.
 - The PR description carries the review-loop line, and any finding left open is named there.
