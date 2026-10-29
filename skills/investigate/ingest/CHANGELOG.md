@@ -7,8 +7,22 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [v1.3.0] - 2026-10-28 — Runs on Linux, recovers loop-wedged spans
+
 ### Added
 
+- **Linux support.** Agents on a Linux box could not transcribe at all: the
+  script always called mlx-whisper, which runs only on Apple Silicon. Off
+  Apple Silicon it now calls whisper-ctranslate2 (faster-whisper, the same
+  large-v3-turbo model) through `uvx`, with the same flags in underscore
+  spelling and `--threads` set to the core count, capped at 16 (1.7x faster
+  than its default of 4 on a 32-core box). The manifest records the model
+  repo actually used, so a packet started on a Mac and resumed on Linux is
+  refused as a different identity rather than mixed. `doctor` prints Linux
+  install commands, names the transcriber, and notes a missing deno, which
+  yt-dlp needs to fetch YouTube. A refused copy on Linux now fails with a
+  plain error instead of a traceback from the macOS-only Finder fallback.
+  SKILL.md and `references/pipeline.md` give the Linux commands.
 - **Loop-wedge auto-recovery in the transcription stage.** Twice on real
   recordings (2026-08-17 and 2026-08-18 team calls) mlx-whisper wedged over
   quiet-but-substantive spans, emitting identical-line runs the reading copy

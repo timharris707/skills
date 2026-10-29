@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+- Carry ingest v1.3.0's Linux support: off Apple Silicon the pipeline transcribes
+  with whisper-ctranslate2 (the same large-v3-turbo model) instead of mlx-whisper,
+  `doctor` prints Linux install commands and notes a missing deno, and a refused copy
+  on Linux fails with a plain error instead of reaching the macOS-only Finder fallback.
 - Carry decision-map's sub-issue links (#308): at deep weight, every child ticket a map
   files is attached to the map's parent ticket as a native sub-issue, with tracker
   discipline's `gh api` and `Part of #<parent-number>` fallbacks; the charting Done-when
