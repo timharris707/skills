@@ -31,3 +31,6 @@ jobs:
       # matches the keyword anywhere in the title; the gate greps -Ei.
       skip-title-regex: 'docs:'
       skip-label: skip-review
+      # .coderabbit.yaml sets auto_incremental_review: false, so CodeRabbit
+      # never reviews a later head on its own.
+      review-once: true

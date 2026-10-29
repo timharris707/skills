@@ -23,11 +23,37 @@ from pathlib import Path
 WORKFLOW = Path(__file__).resolve().parents[2] / ".github/workflows/review-settled.yml"
 
 
+ARGS = r"--arg head \"\$HEAD_SHA\" --argjson once \"\$REVIEW_ONCE\" \\\n\s+'(.+?)'\)"
+
+
 def reviewed_filter() -> str:
     text = WORKFLOW.read_text()
-    m = re.search(r"reviewed=\$\(gh api \"repos/\$REPO/issues/\$PR_NUMBER/comments\" --paginate \| jq -s \\\n\s+--arg head \"\$HEAD_SHA\" \\\n\s+'(.+?)'\)", text, re.S)
+    m = re.search(r"reviewed=\$\(gh api \"repos/\$REPO/issues/\$PR_NUMBER/comments\" --paginate \| jq -s \\\n\s+" + ARGS, text, re.S)
     assert m, "walkthrough filter not found in the workflow"
     return m.group(1)
+
+
+def reviews_filter() -> str:
+    text = WORKFLOW.read_text()
+    m = re.search(r"reviewed=\$\(gh api \"repos/\$REPO/pulls/\$PR_NUMBER/reviews\" --paginate \| jq -s \\\n\s+" + ARGS, text, re.S)
+    assert m, "review-object filter not found in the workflow"
+    return m.group(1)
+
+
+def pending_filter() -> str:
+    text = WORKFLOW.read_text()
+    m = re.search(r"pending=\$\(gh api \"repos/\$REPO/issues/\$PR_NUMBER/comments\" --paginate \| jq -s \\\n\s+'(.+?)'\)", text, re.S)
+    assert m, "in-progress filter not found in the workflow"
+    return m.group(1)
+
+
+def count_pages(filter_text: str, *pages: list, head: str = "", once: bool = False) -> int:
+    # The workflow feeds `--paginate` output (one JSON array per page, one per
+    # line) to jq -s, which wraps the pages into the outer list itself.
+    stream = "\n".join(json.dumps(p) for p in pages)
+    args = ["jq", "-s", "--arg", "head", head, "--argjson", "once", json.dumps(once), filter_text]
+    out = subprocess.run(args, input=stream, capture_output=True, text=True, check=True)
+    return int(out.stdout.strip())
 
 
 def filters() -> tuple[str, str]:
@@ -104,12 +130,7 @@ class ReviewSettledFilters(unittest.TestCase):
                    "body": f"<!-- auto-generated comment: summarize by coderabbit.ai -->\n<!-- auto-generated comment: review in progress by coderabbit.ai -->\nCurrently processing {rng}."}
         f = reviewed_filter()
         def count(*pages):
-            # The workflow feeds `--paginate` output (one JSON array per page, one per
-            # line) to jq -s, which wraps the pages into the outer list itself.
-            stream = "\n".join(json.dumps(page) for page in pages)
-            out = subprocess.run(["jq", "-s", "--arg", "head", head, f],
-                                 input=stream, capture_output=True, text=True, check=True)
-            return int(out.stdout.strip())
+            return count_pages(f, *pages, head=head)
         self.assertEqual(count([walkthrough]), 1)
         self.assertEqual(count([limited]), 0)
         self.assertEqual(count([pending]), 0)
@@ -117,6 +138,34 @@ class ReviewSettledFilters(unittest.TestCase):
         # Across pages, as --paginate delivers them: the notice on one, the walkthrough on another.
         self.assertEqual(count([limited], [walkthrough]), 1)
         self.assertEqual(count([pending], [limited]), 0)
+
+    def test_review_once_counts_a_review_of_an_earlier_commit(self) -> None:
+        # chili, 2026-10-29: CodeRabbit reviews once, so after a fix push the
+        # head-only gate waited 20 minutes for a pass that never comes.
+        head, old = "4f355d22f64f20b6e131f95a9640fa95c28d7c6a", "e60004682df7de66be55e0acd83445281d8c421c"
+        review = {"user": {"login": "coderabbitai[bot]"}, "commit_id": old}
+        walkthrough = {"user": {"login": "coderabbitai[bot]"},
+                       "body": f"<!-- auto-generated comment: summarize by coderabbit.ai -->\nReviewing files between {'1' * 40} and {old}."}
+        for f, item in ((reviews_filter(), review), (reviewed_filter(), walkthrough)):
+            self.assertEqual(count_pages(f, [item], head=head, once=False), 0)
+            self.assertEqual(count_pages(f, [item], head=head, once=True), 1)
+        other = {"user": {"login": "someone[bot]"}, "commit_id": head}
+        self.assertEqual(count_pages(reviews_filter(), [other], head=head, once=True), 0)
+
+    def test_review_once_still_skips_rate_limit_and_in_progress_notices(self) -> None:
+        rng = f"between {'1' * 40} and {'2' * 40}"
+        marker = "<!-- auto-generated comment: summarize by coderabbit.ai -->\n"
+        limited = {"user": {"login": "coderabbitai[bot]"},
+                   "body": marker + f"<!-- auto-generated comment: rate limited by coderabbit.ai -->\n{rng}"}
+        pending = {"user": {"login": "coderabbitai[bot]"},
+                   "body": marker + f"<!-- auto-generated comment: review in progress by coderabbit.ai -->\n{rng}"}
+        self.assertEqual(count_pages(reviewed_filter(), [limited], [pending], once=True), 0)
+        # A review someone asked for explicitly holds the gate while it runs.
+        self.assertEqual(count_pages(pending_filter(), [limited], [pending]), 1)
+        self.assertEqual(count_pages(pending_filter(), [limited]), 0)
+        text = WORKFLOW.read_text()
+        self.assertIn('[ "$REVIEW_ONCE" = "true" ] && [ "$reviewed" -gt 0 ]', text)
+        self.assertIn('[ "$pending" -eq 0 ] || reviewed=0', text)
 
     def test_merge_condition_still_requires_a_reply(self) -> None:
         # The filters mean nothing if the exit condition stops consuming them (#288).

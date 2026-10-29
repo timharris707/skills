@@ -8,6 +8,11 @@ name: review-settled
 # three repos), and the quieter escape where every thread is clicked resolved
 # with no fix or reason on record (skills#288). Callers make this a required
 # status check so the merge button waits for the review instead of racing it.
+# A caller whose CodeRabbit reviews each PR only once (auto_incremental_review
+# false) sets review-once: CodeRabbit never reviews a later head on its own, so
+# waiting for one stalls every fix push for the full wait window. Under
+# review-once any finished CodeRabbit review of the PR counts, and a review
+# still in progress (an explicit "@coderabbitai review") holds the gate.
 
 on:
   workflow_call:
@@ -30,6 +35,10 @@ on:
           label array ('["self-hosted","linux"]'). The job needs bash, gh and jq.
         type: string
         default: '"ubuntu-latest"'
+      review-once:
+        description: the caller's CodeRabbit reviews each PR once (auto_incremental_review false), so a finished review of any commit on the PR counts, not only one of the head
+        type: boolean
+        default: false
 
 # contents: none — this workflow never checks out code or reads repo contents
 # (REST reviews, issue labels/comments, and GraphQL reviewThreads only).
@@ -58,6 +67,7 @@ jobs:
           SKIP_TITLE_REGEX: ${{ inputs.skip-title-regex }}
           SKIP_LABEL: ${{ inputs.skip-label }}
           WAIT_MINUTES: ${{ inputs.wait-minutes }}
+          REVIEW_ONCE: ${{ inputs.review-once }}
         # Named so a runs-on input that picks a Windows runner still gets bash, not pwsh.
         shell: bash
         run: |
@@ -118,11 +128,12 @@ jobs:
           deadline=$((SECONDS + WAIT_MINUTES * 60))
           while :; do
             # A review object whose commit_id is the current head means the
-            # bot has seen this exact code, fix pushes included. --paginate
+            # bot has seen this exact code, fix pushes included; under
+            # review-once a review of any commit counts. --paginate
             # emits one JSON array per page, so aggregate with jq -s.
             reviewed=$(gh api "repos/$REPO/pulls/$PR_NUMBER/reviews" --paginate | jq -s \
-              --arg head "$HEAD_SHA" \
-              '[.[][] | select(.user.login == "coderabbitai[bot]" and .commit_id == $head)] | length')
+              --arg head "$HEAD_SHA" --argjson once "$REVIEW_ONCE" \
+              '[.[][] | select(.user.login == "coderabbitai[bot]" and ($once or .commit_id == $head))] | length')
 
             # A zero-finding pass posts NO review object (proven live:
             # a pull request in another repository sat red for 20 minutes after a clean
@@ -133,15 +144,26 @@ jobs:
             # appearing elsewhere in a bot comment proves nothing. A
             # rate-limit notice carries the same summarize marker and range
             # but reviews nothing (skills#291 passed the gate unread), so it
-            # is excluded by its own marker; "in progress" likewise.
+            # is excluded by its own marker; "in progress" likewise. Under
+            # review-once any reviewed range counts.
             if [ "$reviewed" -eq 0 ]; then
               reviewed=$(gh api "repos/$REPO/issues/$PR_NUMBER/comments" --paginate | jq -s \
-                --arg head "$HEAD_SHA" \
+                --arg head "$HEAD_SHA" --argjson once "$REVIEW_ONCE" \
                 '[.[][] | select(.user.login == "coderabbitai[bot]"
                                  and (.body | contains("auto-generated comment: summarize"))
                                  and (.body | contains("rate limited by coderabbit") | not)
                                  and (.body | contains("review in progress by coderabbit") | not)
-                                 and (.body | test("between [0-9a-f]{40} and " + $head)))] | length')
+                                 and (.body | test("between [0-9a-f]{40} and " + (if $once then "[0-9a-f]{40}" else $head end))))] | length')
+            fi
+
+            # Under review-once an earlier review already counts, so a pass
+            # someone asked for explicitly would be raced: hold the gate while
+            # CodeRabbit marks a review in progress.
+            if [ "$REVIEW_ONCE" = "true" ] && [ "$reviewed" -gt 0 ]; then
+              pending=$(gh api "repos/$REPO/issues/$PR_NUMBER/comments" --paginate | jq -s \
+                '[.[][] | select(.user.login == "coderabbitai[bot]"
+                                 and (.body | contains("review in progress by coderabbit")))] | length')
+              [ "$pending" -eq 0 ] || reviewed=0
             fi
 
             # Assign first so a failed count aborts under set -e; a bare
@@ -152,12 +174,16 @@ jobs:
 
             echo "head-reviewed=$reviewed unresolved-threads=$unresolved unreplied-findings=$unreplied"
             if [ "$reviewed" -gt 0 ] && [ "$unresolved" -eq 0 ] && [ "$unreplied" -eq 0 ]; then
-              echo "settled: CodeRabbit has seen $HEAD_SHA, every review thread is resolved, and every finding has a reply"
+              if [ "$REVIEW_ONCE" = "true" ]; then
+                echo "settled: CodeRabbit has reviewed this PR (review-once), every review thread is resolved, and every finding has a reply"
+              else
+                echo "settled: CodeRabbit has seen $HEAD_SHA, every review thread is resolved, and every finding has a reply"
+              fi
               exit 0
             fi
             if [ "$SECONDS" -ge "$deadline" ]; then
               echo "not settled after $WAIT_MINUTES minutes."
-              echo "needs: a CodeRabbit review of head $HEAD_SHA, zero unresolved threads, and a non-bot reply on every thread CodeRabbit opened (fixed, or declined with a reason)."
+              echo "needs: a finished CodeRabbit review (of head $HEAD_SHA unless review-once is set), zero unresolved threads, and a non-bot reply on every thread CodeRabbit opened (fixed, or declined with a reason)."
               echo "if CodeRabbit is configured to skip this PR, exempt it explicitly via the skip label or title regex."
               echo "after dispositioning findings and resolving threads, re-run this check (gh run rerun <run-id>)."
               exit 1
