@@ -86,6 +86,8 @@ The script enforces these; a by-hand run has to enforce them itself, or the pack
 }
 ```
 
+`whisper_model` names the weights that actually ran: `mlx-community/whisper-large-v3-turbo` on Apple Silicon, `mobiuslabsgmbh/faster-whisper-large-v3-turbo` with whisper-ctranslate2.
+
 **One packet, one source.** Before reusing a directory, compare its recorded `identity` with this run's. Any difference (a different URL, an edited local file, a changed ladder or frame policy) means **stop and use a fresh directory**. Reusing it mixes two sources' evidence under one label, which is the failure this contract exists to prevent.
 
 **A stage is complete when it says so.** Each entry records a status and what it produced:
