@@ -13,15 +13,15 @@ The reviewer is Codex through `codex review`, on the Codex subscription the mach
 
 1. **Ready the branch.** Commit the work and run the checks the repo requires before a PR. Fetch the base branch the PR will target. Done when the working tree is clean and `git log origin/<base>..HEAD` lists exactly the work for this PR.
 
-2. **Run a round.** One review of the whole branch against its base:
+2. **Run a round.** One review of the whole branch against its base. `codex review` refuses `--base` together with instructions, so the base goes inside the instructions:
 
    ```bash
-   mkdir -p "$(git rev-parse --git-dir)/review-loop"
-   codex review --base "origin/<base>" "<focus>" \
-     > "$(git rev-parse --git-dir)/review-loop/round-<n>.md" 2>&1
+   out="$(git rev-parse --git-dir)/review-loop/round-<n>.md"
+   mkdir -p "$(dirname "$out")"
+   codex review "Review the changes on this branch against origin/<base> (git diff origin/<base>...HEAD). <goal of the driving item, one sentence>. Report only defects: wrong behavior, missing or broken tests for changed behavior, security problems, and breaks of this repo's written rules. Skip style." > "$out" 2>&1
    ```
 
-   The focus is two sentences: the goal of the driving item, then "Report only defects: wrong behavior, missing or broken tests for changed behavior, security problems, and breaks of this repo's written rules. Skip style." A round takes several minutes; give the command a 15-minute timeout. Done when the round's file holds the reviewer's findings or its statement that it found none.
+   The findings are the block after the last line that reads `codex`; everything above it is the session log. A round takes from under a minute to several; give the command a 15-minute timeout. A round that ends in `401 Unauthorized` ran without a signed-in Codex: set `CODEX_HOME` to the profile the machine's Codex agents use and rerun it. Done when the round's file ends in the reviewer's findings or its statement that it found none.
 
 3. **Settle every finding.** For each one, read the code it points at and decide:
    - **Fix** it when it is real and inside the driving item's goal, with the smallest change that answers it.
@@ -41,7 +41,7 @@ The reviewer is Codex through `codex review`, on the Codex subscription the mach
 
 ## Done when (checkable: verify each line before reporting complete)
 
-- Every round ran against the PR's actual base branch, and its output is in `review-loop/round-<n>.md` under the git dir.
+- Every round reviewed the diff against the PR's actual base branch, and its file under the git dir ends in findings or a clean verdict, never an error.
 - Every finding was fixed or declined with a written reason; no finding was skipped.
 - The loop stopped on a clean round or after round 3, never earlier with fixed findings unreviewed.
 - The repo's required checks pass on the final commit.
