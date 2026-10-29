@@ -7,12 +7,14 @@ invariants are testable without ever invoking ffmpeg or whisper.
 Run:  python3 -m unittest discover -s tests -t tests
 """
 import contextlib
+import importlib
 import io
 import json
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
@@ -99,6 +101,71 @@ class TestIdentity(unittest.TestCase):
             self.assertNotEqual(
                 first, ing.identity_hash(ing.run_identity(Args(input=str(f))))
             )
+
+
+class TestTranscriberPerPlatform(unittest.TestCase):
+    """mlx-whisper exists only on Apple Silicon; Linux agents could not
+    transcribe at all until the script picked whisper-ctranslate2 there."""
+
+    def argv_on(self, system, machine, *options, arm64_hardware=False):
+        """whisper_argv as the script builds it on another machine: the module
+        is reloaded so its platform choice runs again, then restored.
+        arm64_hardware is what macOS's sysctl hw.optional.arm64 reports."""
+        self.addCleanup(importlib.reload, ing)
+        sysctl = mock.Mock(stdout="1\n" if arm64_hardware else "0\n")
+        with mock.patch.object(sys, "platform", system), \
+             mock.patch("platform.machine", return_value=machine), \
+             mock.patch("subprocess.run", return_value=sysctl):
+            importlib.reload(ing)
+        return ing.whisper_argv(Path("a.wav"), Path("/runs/my_run"), *options)
+
+    def test_apple_silicon_keeps_the_mlx_command(self):
+        argv = self.argv_on("darwin", "arm64", "--condition_on_previous_text", "False")
+        self.assertEqual(argv, [
+            "uvx", "--from", "mlx-whisper", "mlx_whisper", "a.wav",
+            "--model", "mlx-community/whisper-large-v3-turbo",
+            "--output-format", "srt", "--output-dir", "/runs/my_run",
+            "--condition-on-previous-text", "False",
+        ])
+
+    def test_linux_uses_whisper_ctranslate2_with_underscore_flags(self):
+        argv = self.argv_on("linux", "x86_64", "--condition_on_previous_text", "False")
+        self.assertEqual(argv[:4], ["uvx", "--from", "whisper-ctranslate2",
+                                    "whisper-ctranslate2"])
+        self.assertEqual(argv[argv.index("--model") + 1], "large-v3-turbo")
+        self.assertIn("--condition_on_previous_text", argv)
+        self.assertIn("--output_format", argv)
+        self.assertIn("--threads", argv)
+
+    def test_an_intel_mac_cannot_run_mlx_and_uses_whisper_ctranslate2(self):
+        self.assertEqual(self.argv_on("darwin", "x86_64")[3], "whisper-ctranslate2")
+
+    def test_a_failed_hardware_probe_is_reported(self):
+        self.addCleanup(importlib.reload, ing)
+        with mock.patch.object(sys, "platform", "darwin"), \
+             mock.patch("platform.machine", return_value="x86_64"), \
+             mock.patch("subprocess.run", side_effect=OSError("no sysctl")), \
+             contextlib.redirect_stderr(io.StringIO()) as err:
+            importlib.reload(ing)
+        self.assertIn("could not ask sysctl", err.getvalue())
+        self.assertEqual(ing.WHISPER_CLI[3], "whisper-ctranslate2")
+
+    def test_a_rosetta_python_on_apple_silicon_keeps_mlx(self):
+        argv = self.argv_on("darwin", "x86_64", arm64_hardware=True)
+        self.assertEqual(argv[:4], ["uvx", "--from", "mlx-whisper", "mlx_whisper"])
+
+    def test_a_refused_copy_off_macos_fails_without_finder(self):
+        with tempfile.TemporaryDirectory() as t:
+            src = Path(t) / "call.mp4"
+            src.write_text("media")
+            m = ing.Manifest(Path(t), identity_hash="abc")
+            with mock.patch.object(ing.sys, "platform", "linux"), \
+                 mock.patch.object(ing.shutil, "copy2", side_effect=PermissionError), \
+                 mock.patch.object(ing, "run_cmd", side_effect=AssertionError("osascript called")), \
+                 contextlib.redirect_stderr(io.StringIO()):
+                with self.assertRaises(SystemExit) as cm:
+                    ing.stage_local(src, Path(t), m)
+            self.assertEqual(cm.exception.code, 1)
 
 
 class TestOutDirOwnership(unittest.TestCase):

@@ -24,7 +24,7 @@ Every run carries a **purpose**: a named intent plus the user's goal in their ow
 
 ## Run the pipeline
 
-`scripts/ingest.py` owns everything mechanical, from staging (with the macOS TCC fallback), URL fetch, caption preview, and true duration through transcription, frames, and the manifest:
+`scripts/ingest.py` owns everything mechanical, from staging (with the macOS TCC fallback), URL fetch, caption preview, and true duration through transcription, frames, and the manifest. It runs on macOS and Linux: transcription uses mlx-whisper on Apple Silicon and whisper-ctranslate2 everywhere else, both running the same large-v3-turbo model and both fetched by `uvx` on first use, so the commands below are identical on either machine.
 
 ```bash
 python3 scripts/ingest.py doctor                 # first run: checks tools, prints fixes
@@ -54,7 +54,7 @@ End with the takeaways ranked and each one routed, as a recommendation, in the l
 - **Tracker-shaped** items name the issue they'd update or the item they'd become, with the binding doc's labels. No binding doc bound: say so, and route in prose. Hand the filing session its follow-through in the same breath: the exact `link` command (Derived items below) to run for each item it files, so the packet's derived-items ledger is written at filing time.
 - **Undecided-shaped** items name the open questions; offer a [grilling](../../decide/grilling/SKILL.md) session rather than answers.
 - **Decider-shaped** items (pricing, partnerships, strategy) are listed for discussion, never resolved.
-- A `call` run whose stated purpose asks for it also drafts the thank-you/recap email: saved to the run dir, put on the clipboard as plain text, never sent.
+- A `call` run whose stated purpose asks for it also drafts the thank-you/recap email: saved to the run dir, put on the clipboard as plain text where the machine has one (a headless Linux box does not: give the file's path instead), never sent.
 
 ## Retention
 

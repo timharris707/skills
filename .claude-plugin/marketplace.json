@@ -50,7 +50,7 @@
       "name": "ingest",
       "source": "./",
       "strict": false,
-      "version": "1.2.1",
+      "version": "1.3.0",
       "description": "Turn a video, recording, voice memo, or media URL into an evidence packet — authoritative whisper transcript, timestamped frames, manifest — plus a routing recommendation. Six intents behind a mandatory purpose gate; the pipeline script is resumable and encodes the hard-won gotchas.",
       "license": "MIT",
       "skills": [

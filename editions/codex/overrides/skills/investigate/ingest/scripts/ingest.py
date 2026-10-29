@@ -4,7 +4,7 @@
 Turns a media file or URL into an evidence packet: authoritative transcript,
 timestamped frames with a manifest, true duration, and (for URLs) an instant
 caption preview. Python 3 standard library only; shells out to ffmpeg/ffprobe,
-yt-dlp, and uvx (mlx-whisper).
+yt-dlp, and uvx (mlx-whisper on Apple Silicon, whisper-ctranslate2 elsewhere).
 
 Stages are resumable, but resume is bound to IDENTITY: the run's input,
 intent, and processing options are fingerprinted, and a re-run whose
@@ -28,7 +28,8 @@ Hard-won rules encoded here so no agent re-derives them:
     comes from a fixed 10s ladder; extras come from transcript signals and
     freeze-boundary detection, not scene scores.
   * macOS TCC blocks plain reads of Dropbox/Documents/Downloads paths even
-    unsandboxed — staging falls back to Finder duplication via AppleScript.
+    unsandboxed — staging falls back to Finder duplication via AppleScript
+    (macOS only; elsewhere a refused copy is a plain failure).
   * Provider captions are a preview, never the record: they garble names
     ("Matt PCO" for Matt Pocock, "clot code" for Claude Code).
 
@@ -53,6 +54,7 @@ import argparse
 import hashlib
 import json
 import os
+import platform
 import re
 import shlex
 import shutil
@@ -63,7 +65,41 @@ import urllib.parse
 from pathlib import Path
 
 SCRIPT_VERSION = 2
-WHISPER_MODEL = "mlx-community/whisper-large-v3-turbo"
+
+
+def _apple_silicon() -> bool:
+    """True on an Apple Silicon Mac, including under an x86_64 Python running in
+    Rosetta, where platform.machine() says x86_64 but mlx still runs."""
+    if sys.platform != "darwin":
+        return False
+    if platform.machine() == "arm64":
+        return True
+    try:
+        r = subprocess.run(["sysctl", "-n", "hw.optional.arm64"],
+                           capture_output=True, text=True, timeout=5)
+    except (OSError, subprocess.SubprocessError) as e:
+        # An Intel Mac answers with a non-zero exit, not an exception; reaching
+        # here means the probe itself could not run, so say which engine follows.
+        print(f"[ingest] WARNING: could not ask sysctl whether this Mac is Apple "
+              f"Silicon ({e}); using whisper-ctranslate2", file=sys.stderr)
+        return False
+    return r.stdout.strip() == "1"
+
+
+# mlx-whisper runs only on Apple Silicon. Everywhere else (Linux agents
+# included) the same large-v3-turbo weights run through faster-whisper via
+# whisper-ctranslate2, whose CLI spells mlx_whisper's flags with underscores.
+# WHISPER_MODEL is the Hugging Face repo the weights come from: it is what the
+# manifest records and what doctor looks for in the cache.
+APPLE_SILICON = _apple_silicon()
+if APPLE_SILICON:
+    WHISPER_CLI = ["uvx", "--from", "mlx-whisper", "mlx_whisper"]
+    WHISPER_MODEL = "mlx-community/whisper-large-v3-turbo"
+    WHISPER_MODEL_ARG = WHISPER_MODEL
+else:
+    WHISPER_CLI = ["uvx", "--from", "whisper-ctranslate2", "whisper-ctranslate2"]
+    WHISPER_MODEL = "mobiuslabsgmbh/faster-whisper-large-v3-turbo"
+    WHISPER_MODEL_ARG = "large-v3-turbo"
 INTENTS = ("call", "playtest", "demo", "memo", "triage", "reference")
 # memo is audio-thinking aloud: frames are noise. Everything else gets them
 # when the media has a video stream at all.
@@ -122,13 +158,23 @@ def run_cmd(argv, timeout=None, **kw):
 
 # ---------------------------------------------------------------- doctor ---
 
-TOOLS = {
-    "ffmpeg": "brew install ffmpeg",
-    "ffprobe": "brew install ffmpeg",
-    "yt-dlp": "brew install yt-dlp",
-    "uvx": "brew install uv",
-    "gh": "brew install gh",   # the sweep's GitHub-first resolution checks
-}
+if sys.platform == "darwin":
+    TOOLS = {
+        "ffmpeg": "brew install ffmpeg",
+        "ffprobe": "brew install ffmpeg",
+        "yt-dlp": "brew install yt-dlp",
+        "uvx": "brew install uv",
+        "gh": "brew install gh",   # the sweep's GitHub-first resolution checks
+    }
+else:
+    TOOLS = {
+        "ffmpeg": "sudo apt install ffmpeg",
+        "ffprobe": "sudo apt install ffmpeg",
+        # [default] brings yt-dlp-ejs, the YouTube challenge solver.
+        "yt-dlp": "uv tool install 'yt-dlp[default]'",
+        "uvx": "curl -LsSf https://astral.sh/uv/install.sh | sh",
+        "gh": "sudo apt install gh",
+    }
 
 
 def doctor(quiet: bool = False) -> bool:
@@ -143,6 +189,10 @@ def doctor(quiet: bool = False) -> bool:
             ok = False
             log(f"MISSING  {tool} — install with: {fix}")
     if not quiet:
+        if shutil.which("uvx"):
+            log(f"ok       transcriber: {WHISPER_CLI[2]} (fetched by uvx on first use)")
+        else:
+            log(f"note     transcriber: {WHISPER_CLI[2]} (needs uvx to run)")
         cached = Path.home() / ".cache/huggingface/hub"
         hit = list(cached.glob(f"models--{WHISPER_MODEL.replace('/', '--')}*"))
         log(
@@ -150,6 +200,9 @@ def doctor(quiet: bool = False) -> bool:
             if hit
             else "note     whisper model not cached — first run downloads it (~1.6 GB)"
         )
+        if not shutil.which("deno"):
+            log("note     deno not found — yt-dlp needs it to fetch YouTube; "
+                "local files are unaffected")
     return ok
 
 
@@ -324,6 +377,8 @@ def stage_local(src: Path, out_dir: Path, manifest: Manifest) -> Path:
         manifest.finish("stage", [dest], source=str(src))
         return dest
     except (PermissionError, OSError) as e:
+        if sys.platform != "darwin":
+            die(f"could not stage {src}: {e}")
         log(f"plain copy refused ({e.__class__.__name__}) — trying Finder")
     script = (
         'tell application "Finder" to duplicate '
@@ -646,6 +701,21 @@ def wedged_spans(cues):
     return spans
 
 
+def whisper_argv(audio: Path, out_dir: Path, *options: str) -> list:
+    """This machine's whisper command: one file in, SRT into out_dir. Options
+    use whisper-ctranslate2's underscore flag spelling; mlx_whisper takes the
+    same flags with hyphens. Off Apple Silicon the transcriber runs on CPU
+    unless CUDA is present, and its default of 4 threads leaves most of a big
+    machine idle: 16 ran 1.7x faster on a 32-core box, and 32 was no faster."""
+    opts = ["--model", WHISPER_MODEL_ARG, "--output_format", "srt",
+            "--output_dir", str(out_dir), *options]
+    if APPLE_SILICON:
+        opts = [o.replace("_", "-") if o.startswith("--") else o for o in opts]
+    else:
+        opts += ["--threads", str(min(os.cpu_count() or 4, 16))]
+    return [*WHISPER_CLI, str(audio), *opts]
+
+
 def retranscribe_span(wav: Path, start: float, end: float, out_dir: Path):
     """One recovery window: cut it from the extracted audio with the
     normalization filter, transcribe it with conditioning OFF (conditioning on
@@ -667,13 +737,7 @@ def retranscribe_span(wav: Path, start: float, end: float, out_dir: Path):
         if r.returncode != 0 or not clip.exists():
             return None
         r = run_cmd(
-            [
-                "uvx", "--from", "mlx-whisper", "mlx_whisper", str(clip),
-                "--model", WHISPER_MODEL,
-                "--output-format", "srt",
-                "--output-dir", str(out_dir),
-                "--condition-on-previous-text", "False",
-            ],
+            whisper_argv(clip, out_dir, "--condition_on_previous_text", "False"),
             timeout=3600,
         )
         if r.returncode != 0 or not produced.exists():
@@ -780,15 +844,7 @@ def transcribe(wav: Path, out_dir: Path, manifest: Manifest) -> tuple:
                              rec.get("failed_spans") or []))
         return srt, txt, reading
     log(f"transcribing with {WHISPER_MODEL} (minutes, not seconds — patience)")
-    r = run_cmd(
-        [
-            "uvx", "--from", "mlx-whisper", "mlx_whisper", str(wav),
-            "--model", WHISPER_MODEL,
-            "--output-format", "srt",
-            "--output-dir", str(out_dir),
-        ],
-        timeout=4 * 3600,
-    )
+    r = run_cmd(whisper_argv(wav, out_dir), timeout=4 * 3600)
     produced = out_dir / (wav.stem + ".srt")
     if r.returncode != 0 or not produced.exists():
         die(f"whisper failed:\n{(r.stderr or r.stdout).strip()[-2000:]}")
@@ -958,6 +1014,7 @@ def tool_versions() -> dict:
         except Exception:
             out[tool] = "unknown"
     out["whisper_model"] = WHISPER_MODEL
+    out["transcriber"] = WHISPER_CLI[2]
     return out
 
 
