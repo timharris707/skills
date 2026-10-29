@@ -173,6 +173,8 @@ def doctor(quiet: bool = False) -> bool:
     if not quiet:
         if shutil.which("uvx"):
             log(f"ok       transcriber: {WHISPER_CLI[2]} (fetched by uvx on first use)")
+        else:
+            log(f"note     transcriber: {WHISPER_CLI[2]} (needs uvx to run)")
         cached = Path.home() / ".cache/huggingface/hub"
         hit = list(cached.glob(f"models--{WHISPER_MODEL.replace('/', '--')}*"))
         log(
@@ -994,6 +996,7 @@ def tool_versions() -> dict:
         except Exception:
             out[tool] = "unknown"
     out["whisper_model"] = WHISPER_MODEL
+    out["transcriber"] = WHISPER_CLI[2]
     return out
 
 

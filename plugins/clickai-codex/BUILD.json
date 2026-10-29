@@ -410,7 +410,7 @@
       "executable": false
     },
     "skills/investigate/ingest/scripts/ingest.py": {
-      "sha256": "c4dc88d628b7e6303920e4771754ca28e1e0b08380a3e069446e7b2435110355",
+      "sha256": "84d42a28fcd632a8062cf2b9e1ad24f996a882e4808869a8c1c416cbaaec57c6",
       "executable": false
     },
     "skills/investigate/prototype/SKILL.md": {
