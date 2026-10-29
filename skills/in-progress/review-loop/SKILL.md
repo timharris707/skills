@@ -16,8 +16,10 @@ The reviewer is Codex through `codex review`, on the Codex subscription the mach
 2. **Run a round.** One review of the whole branch against its base. `codex review` refuses `--base` together with instructions, so the base goes inside the instructions:
 
    ```bash
-   out="$(git rev-parse --git-dir)/review-loop/round-<n>.md"
-   mkdir -p "$(dirname "$out")"
+   # Set run once, at the loop's first round, so a later loop keeps this one's records.
+   run="$(git rev-parse --git-dir)/review-loop/$(git branch --show-current | tr / -)-$(date +%Y%m%d-%H%M%S)"
+   out="$run/round-<n>.md"
+   mkdir -p "$run"
    codex review "Review the changes on this branch against origin/<base> (git diff origin/<base>...HEAD). <goal of the driving item, one sentence>. Report only defects: wrong behavior, missing or broken tests for changed behavior, security problems, and breaks of this repo's written rules. Skip style." > "$out" 2>&1
    ```
 
