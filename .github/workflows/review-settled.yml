@@ -13,6 +13,9 @@ name: review-settled
 # waiting for one stalls every fix push for the full wait window. Under
 # review-once any finished CodeRabbit review of the PR counts, and a review
 # still in progress (an explicit "@coderabbitai review") holds the gate.
+# That hold covers a request made before or during a gate run; a request made
+# after the gate has passed is not awaited, because a PR comment does not
+# re-trigger it (head mode has the same gap for a re-review of the same head).
 
 on:
   workflow_call:
