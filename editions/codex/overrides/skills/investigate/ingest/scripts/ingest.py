@@ -77,7 +77,11 @@ def _apple_silicon() -> bool:
     try:
         r = subprocess.run(["sysctl", "-n", "hw.optional.arm64"],
                            capture_output=True, text=True, timeout=5)
-    except (OSError, subprocess.SubprocessError):
+    except (OSError, subprocess.SubprocessError) as e:
+        # An Intel Mac answers with a non-zero exit, not an exception; reaching
+        # here means the probe itself could not run, so say which engine follows.
+        print(f"[ingest] WARNING: could not ask sysctl whether this Mac is Apple "
+              f"Silicon ({e}); using whisper-ctranslate2", file=sys.stderr)
         return False
     return r.stdout.strip() == "1"
 

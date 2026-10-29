@@ -140,6 +140,16 @@ class TestTranscriberPerPlatform(unittest.TestCase):
     def test_an_intel_mac_cannot_run_mlx_and_uses_whisper_ctranslate2(self):
         self.assertEqual(self.argv_on("darwin", "x86_64")[3], "whisper-ctranslate2")
 
+    def test_a_failed_hardware_probe_is_reported(self):
+        self.addCleanup(importlib.reload, ing)
+        with mock.patch.object(sys, "platform", "darwin"), \
+             mock.patch("platform.machine", return_value="x86_64"), \
+             mock.patch("subprocess.run", side_effect=OSError("no sysctl")), \
+             contextlib.redirect_stderr(io.StringIO()) as err:
+            importlib.reload(ing)
+        self.assertIn("could not ask sysctl", err.getvalue())
+        self.assertEqual(ing.WHISPER_CLI[3], "whisper-ctranslate2")
+
     def test_a_rosetta_python_on_apple_silicon_keeps_mlx(self):
         argv = self.argv_on("darwin", "x86_64", arm64_hardware=True)
         self.assertEqual(argv[:4], ["uvx", "--from", "mlx-whisper", "mlx_whisper"])
