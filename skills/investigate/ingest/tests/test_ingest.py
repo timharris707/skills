@@ -107,12 +107,15 @@ class TestTranscriberPerPlatform(unittest.TestCase):
     """mlx-whisper exists only on Apple Silicon; Linux agents could not
     transcribe at all until the script picked whisper-ctranslate2 there."""
 
-    def argv_on(self, system, machine, *options):
+    def argv_on(self, system, machine, *options, arm64_hardware=False):
         """whisper_argv as the script builds it on another machine: the module
-        is reloaded so its platform choice runs again, then restored."""
+        is reloaded so its platform choice runs again, then restored.
+        arm64_hardware is what macOS's sysctl hw.optional.arm64 reports."""
         self.addCleanup(importlib.reload, ing)
+        sysctl = mock.Mock(stdout="1\n" if arm64_hardware else "0\n")
         with mock.patch.object(sys, "platform", system), \
-             mock.patch("platform.machine", return_value=machine):
+             mock.patch("platform.machine", return_value=machine), \
+             mock.patch("subprocess.run", return_value=sysctl):
             importlib.reload(ing)
         return ing.whisper_argv(Path("a.wav"), Path("/runs/my_run"), *options)
 
@@ -136,6 +139,10 @@ class TestTranscriberPerPlatform(unittest.TestCase):
 
     def test_an_intel_mac_cannot_run_mlx_and_uses_whisper_ctranslate2(self):
         self.assertEqual(self.argv_on("darwin", "x86_64")[3], "whisper-ctranslate2")
+
+    def test_a_rosetta_python_on_apple_silicon_keeps_mlx(self):
+        argv = self.argv_on("darwin", "x86_64", arm64_hardware=True)
+        self.assertEqual(argv[:4], ["uvx", "--from", "mlx-whisper", "mlx_whisper"])
 
     def test_a_refused_copy_off_macos_fails_without_finder(self):
         with tempfile.TemporaryDirectory() as t:

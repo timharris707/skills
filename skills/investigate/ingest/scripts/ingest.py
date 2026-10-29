@@ -65,12 +65,29 @@ import urllib.parse
 from pathlib import Path
 
 SCRIPT_VERSION = 2
+
+
+def _apple_silicon() -> bool:
+    """True on an Apple Silicon Mac, including under an x86_64 Python running in
+    Rosetta, where platform.machine() says x86_64 but mlx still runs."""
+    if sys.platform != "darwin":
+        return False
+    if platform.machine() == "arm64":
+        return True
+    try:
+        r = subprocess.run(["sysctl", "-n", "hw.optional.arm64"],
+                           capture_output=True, text=True, timeout=5)
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return r.stdout.strip() == "1"
+
+
 # mlx-whisper runs only on Apple Silicon. Everywhere else (Linux agents
 # included) the same large-v3-turbo weights run through faster-whisper via
 # whisper-ctranslate2, whose CLI spells mlx_whisper's flags with underscores.
 # WHISPER_MODEL is the Hugging Face repo the weights come from: it is what the
 # manifest records and what doctor looks for in the cache.
-APPLE_SILICON = sys.platform == "darwin" and platform.machine() == "arm64"
+APPLE_SILICON = _apple_silicon()
 if APPLE_SILICON:
     WHISPER_CLI = ["uvx", "--from", "mlx-whisper", "mlx_whisper"]
     WHISPER_MODEL = "mlx-community/whisper-large-v3-turbo"
