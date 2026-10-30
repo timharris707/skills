@@ -55,11 +55,11 @@ When a lane enters close-out review, announce the hand-off per §4's announce di
 5. **Prune the lane**: workspace, branch, per-lane resources. Check for uncommitted work and surface it before pruning. Verify its processes are dead yourself before tearing down shared resources: a "servers down" claim is not evidence.
 6. **Last of all, hand the dead lane's session to the human for archiving**: tell the human, naming the session **verbatim as the picker shows it**, that the lane is safe to archive; they archive on their own time. Never call an archive surface yourself; retitle the finished lane first if useful (no confirmation needed). Archive, never delete; name only the closed-out lane's session, never a human's working session. An unanswered notification gates no work. Native auto-archive on PR close fires at merge time: use it for PR-linked lanes only where the lane has stopped, the workspace is done with, and the tracker close-out doesn't need the session live; otherwise record `no` and notify. Subagent lanes have nothing to archive.
 
-## 6. Wrap-up and succession
+## 6. Checkpoint and succession
 
-1. **At roughly half the context window, wrap up**: finish the current step, start no new large work past the line (half-window rule: [handoff skill](../handoff/SKILL.md)).
-2. Write the handoff (call the Skill tool with `handoff`): state, shipped record, the tracker query as NEXT, and the expensive lessons in GOTCHAS.
-3. **Arrange the successor** (per the lane-launch slot) with a prompt saying "call the Skill tool with `orchestrate` and follow its startup checklist" plus only what is unique to this moment.
+1. **At half the context window, checkpoint**: finish the current step, write the handoff (call the Skill tool with `handoff`): state, shipped record, tracker query as NEXT, expensive lessons in GOTCHAS.
+2. **Continue through compaction**; after it, re-read the handoff and live state before acting.
+3. **Only for a fresh-session reason** ([handoff](../handoff/SKILL.md)), re-save it, then **arrange the successor** (per the lane-launch slot) with a prompt saying "call the Skill tool with `orchestrate` and follow its startup checklist" plus only what is unique to this moment.
 4. Once the successor is confirmed live, with evidence of its startup checklist completing (the §3 step 4 title switch included; a pre-titled successor's evidence is the rest of the checklist), stop your watches, **shed the orchestrator title**: retitle `Orchestrator (retired) — <repo>` (§8), and go quiet (§2). The human archives the retired session, never automatically (§5 step 6).
 
 ## 7. Binding slots (the setup interview fills these per-repo)
