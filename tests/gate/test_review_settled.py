@@ -14,9 +14,12 @@ skipping it, so a green run always means the filters ran.
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 import subprocess
+import tempfile
+import textwrap
 import unittest
 from pathlib import Path
 
@@ -83,6 +86,34 @@ def thread(*comments: dict, resolved: bool = True) -> dict:
 
 def page(*threads: dict) -> dict:
     return {"pageInfo": {"hasNextPage": False, "endCursor": None}, "nodes": list(threads)}
+
+
+STUB_GH = """#!/bin/bash
+# Stub gh for the gate script: no reviews, no comments, no threads; the PR
+# head is $STUB_HEAD.
+case "$*" in
+  *"pulls/7/reviews"*|*"issues/7/comments"*) echo '[]' ;;
+  "api graphql"*) echo '{"pageInfo":{"hasNextPage":false,"endCursor":null},"nodes":[]}' ;;
+  *"pulls/7 "*) echo "$STUB_HEAD" ;;
+  *) echo "unexpected gh call: $*" >&2; exit 2 ;;
+esac
+"""
+
+
+def run_gate(stub_head: str, head: str) -> tuple[int, str]:
+    """Run the workflow's shipped run: script with a zero-minute wait window."""
+    m = re.search(r"\n {8}run: \|\n(.+)\Z", WORKFLOW.read_text(), re.S)
+    assert m, "gate script not found in the workflow"
+    script = textwrap.dedent(m.group(1))
+    with tempfile.TemporaryDirectory() as tmp:
+        gh = Path(tmp) / "gh"
+        gh.write_text(STUB_GH)
+        gh.chmod(0o755)
+        env = {**os.environ, "PATH": f"{tmp}:{os.environ['PATH']}", "STUB_HEAD": stub_head,
+               "REPO": "o/r", "PR_NUMBER": "7", "HEAD_SHA": head, "PR_TITLE": "t",
+               "SKIP_TITLE_REGEX": "", "SKIP_LABEL": "", "WAIT_MINUTES": "0", "REVIEW_ONCE": "false"}
+        out = subprocess.run(["bash", "-c", script], env=env, capture_output=True, text=True, timeout=60)
+    return out.returncode, out.stdout + out.stderr
 
 
 class ReviewSettledFilters(unittest.TestCase):
@@ -173,6 +204,19 @@ class ReviewSettledFilters(unittest.TestCase):
             '[ "$reviewed" -gt 0 ] && [ "$unresolved" -eq 0 ] && [ "$unreplied" -eq 0 ]',
             WORKFLOW.read_text(),
         )
+
+    def test_superseded_run_passes_at_once_and_head_run_still_waits(self) -> None:
+        # modeldeck-private, 2026-11-01: runs for a commit pushed over within
+        # minutes waited out the full window and failed, though the head's own
+        # run gated the merge. Runs the shipped script against a stub gh.
+        head = "a" * 40
+        code, out = run_gate(stub_head="b" * 40, head=head)
+        self.assertEqual(code, 0, out)
+        self.assertIn("superseded", out)
+        # Same head: no shortcut; with nothing reviewed it times out as before.
+        code, out = run_gate(stub_head=head, head=head)
+        self.assertEqual(code, 1)
+        self.assertIn("not settled", out)
 
     def test_empty_page(self) -> None:
         self.assertEqual(run(self.unreplied, page()), 0)

@@ -16,6 +16,8 @@ name: review-settled
 # That hold covers a request made before or during a gate run; a request made
 # after the gate has passed is not awaited, because a PR comment does not
 # re-trigger it (head mode has the same gap for a re-review of the same head).
+# A run whose commit is no longer the PR head passes at once as superseded:
+# the merge is gated by the head commit's own run, not this one.
 
 on:
   workflow_call:
@@ -130,6 +132,17 @@ jobs:
 
           deadline=$((SECONDS + WAIT_MINUTES * 60))
           while :; do
+            # A push since this run started makes its commit stale: CodeRabbit
+            # reviews only the newest head, and the merge waits on the new
+            # head's own run. Waiting here only burned the full window and
+            # then failed on a commit nobody can merge (modeldeck-private,
+            # 2026-11-01: 17 of 214 runs, 347 runner minutes).
+            current=$(gh api "repos/$REPO/pulls/$PR_NUMBER" --jq '.head.sha')
+            if [ "$current" != "$HEAD_SHA" ]; then
+              echo "superseded: the PR head is now $current, so that commit's own run gates the merge; nothing to wait for on $HEAD_SHA."
+              exit 0
+            fi
+
             # A review object whose commit_id is the current head means the
             # bot has seen this exact code, fix pushes included; under
             # review-once a review of any commit counts. --paginate
