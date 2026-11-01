@@ -26,6 +26,25 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   the fallback line, and the Attribution credits Matt Pocock's later wayfinder change.
 
 ### Changed
+- **handoff, orchestrate, router: half the context window now means save a checkpoint and
+  keep working, not hand off.** A long session can keep going through automatic compaction
+  when it keeps a checkpoint file and re-reads it, while a mid-session handoff makes a fresh
+  session pay to re-ground and drops detail the file never held. At roughly half the
+  window, a session finishes its current step, overwrites the handoff, and continues; it
+  saves again at milestones and when compaction is near, and after a compaction it re-reads
+  the handoff and the live state before acting, finishing the work STATE names before it
+  runs NEXT's tracker query for new work. A fresh session is only for an explicit
+  transfer, a deliberate pause, a major change of project or phase, the user's request, or
+  a visible drop in quality. The save report suggests a fresh session only when the save is
+  for one; the copy command for a handoff the next session might not find is unchanged.
+  orchestrate §6 no longer retires the orchestrator at half the window: it checkpoints,
+  continues, and only for one of those reasons re-saves the handoff and arranges a
+  successor (`wc -w`: 2,495 before, 2,500 now, within the 2,500-word bound). The handoff's
+  file, rules, and template sections are unchanged, and so is the succession procedure
+  once a successor is warranted. The handoff description and the router row carry the new
+  triggers, and the site glossary and the docs catalog page say the same. The Codex
+  edition already worked this way: its patch and reviewed upstream hashes are refreshed,
+  and its generated package is byte-identical.
 - **Six long-standing wording fixes, so two careful readers carry out each rule the same
   way** (#245). Every existing rule stays except one, which narrows: the claim recipe's "a
   later `Lane-start` supersedes an earlier one" now holds only for takeovers.

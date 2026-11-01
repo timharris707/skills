@@ -806,7 +806,7 @@
  | [codebase-review](../../investigate/codebase-review/SKILL.md) | The codebase itself needs review: a spec is about to land in an area, enough lanes have merged since the last look, or lanes report the code fighting them. A read-only lane: lens-named finders, a built-in skeptic that kills unproven candidates, a plain-markdown report on the tracker, and a disposition loop where the decider adopts, rejects into rejection memory, or defers every survivor. Zero survivors is a success verdict, not a failure. |
  | [to-tickets](../../run/to-tickets/SKILL.md) | The decision is made and the work needs to be on the board. Turns a plan, a closed decision map, or a pressure-tested conversation into tracer-bullet items: issue-as-spec bodies filed in one pass, blocking edges wired in a second. Files and labels; never claims, never decides. |
  | [wizard](../../run/wizard/SKILL.md) | The next step is one only a human can take: a vendor dashboard, a registrar's DNS panel, a credential that must not enter an agent's context. Generates an interactive bash wizard that opens each URL, says what to click, captures the values, verifies what it can, and reports what still needs doing by hand. |
--| [handoff](../../run/handoff/SKILL.md) | Context is filling (around half the window), the session is wrapping up, or someone says "checkpoint" / "save state". Writes the structured session handoff (overwrite-don't-append, pointer-not-transcript, NEXT points at the tracker query) so a fresh session resumes losslessly. |
+-| [handoff](../../run/handoff/SKILL.md) | Context is around half the window or a milestone landed (save it, then keep working through compaction), the session is being transferred or paused, or someone says "checkpoint" / "save state". Writes the structured session handoff (overwrite-don't-append, pointer-not-transcript, NEXT points at the tracker query) that the session re-reads after compaction and a fresh session resumes from. |
 +| [handoff](../../run/handoff/SKILL.md) | Save or recover a task-owned checkpoint at a meaningful boundary or measured context threshold. Continue through compaction; transfer ownership only when requested. |
  | [show-me-your-work](../../run/show-me-your-work/SKILL.md) | A run will be reviewed by a human who stepped away: an unattended stretch, a long autonomous build, a loop. Keeps one append-only TSV decision log, one row per decision with its why, evidence pointer, and result, audited against the run's record before handback. The pack's third record type: handoff is the resume pointer, domain-memory the institutional why, this the per-run audit ledger. |
  | [orchestrate](../../run/orchestrate/SKILL.md) | One session should play the lead developer of an agent team instead of implementing: it routes tracked items into parallel working lanes, audits results, and owns integration, and the human brings decisions. The seat a non-engineer works from. Principles plus per-repo binding slots; the single-orchestrator rule applies. |
@@ -1142,13 +1142,13 @@
 @@ -1,49 +1,87 @@
  ---
  name: handoff
--description: Write a structured session handoff so a fresh session resumes losslessly. Use when context is filling up (around half the window), when wrapping a work session, or when the user says "handoff", "checkpoint", "wrap up", or "save state".
+-description: Write a structured session handoff, the checkpoint a session re-reads after automatic compaction and a fresh session resumes from. Use at roughly half the context window or a meaningful milestone (save it, then keep working), when compaction is near, before a transfer or deliberate pause, or when the user says "handoff", "checkpoint", "wrap up", or "save state".
 +description: "For checkpoint, save-state, wrap-up, or handoff requests, meaningful milestones, impending compaction, or recovery, save or recover the current Codex task with authorization and ownership intact. Continue in the same task unless a transfer is requested."
  ---
  
  # Handoff
  
--Capture where the work stands into one small file so the next session, or a fresh one after a context reset, resumes with zero re-explanation. The handoff is a **pointer, not a transcript**: it says where things are and where the durable records live; it never becomes a running log or a second copy of the plan.
+-Capture where the work stands into one small file so this session after a compaction, or the next session, resumes with zero re-explanation. The handoff is a **pointer, not a transcript**: it says where things are and where the durable records live; it never becomes a running log or a second copy of the plan.
 +Read the [Codex desktop binding](../../../CODEX.md) when this workflow needs harness mechanics, model routing, or recovery.
  
 -## When to write one
@@ -1157,10 +1157,10 @@
 +the task are separate actions. Continue in the same task through automatic
 +compaction unless the user requests a transfer.
  
--**At roughly half the context window, write the handoff; don't wait for the window to fill.** A context window is the fixed amount of conversation an agent session can hold; as it fills, the oldest details fall away and the quality of long-chain reasoning degrades before the hard limit is ever hit. Writing the handoff at the halfway point captures state while the session can still summarize it accurately, and makes the succession clean instead of a scramble.
+-**At roughly half the context window, save the handoff, then keep working.** Half the window is a reminder to checkpoint, not a reason to hand off. A context window is the fixed amount of conversation an agent session can hold; when it fills, the harness compacts it automatically (summarizes the conversation so the session can go on), and whatever the summary drops is gone unless a file holds it. So finish the current step, save, and continue through compaction. Save again at each meaningful milestone and when the harness reports that compaction is near. After a compaction, re-read the handoff and check the live state (git, the tracker, running lanes and processes) before acting, and finish the unfinished work STATE names before NEXT's tracker query. Anything that must survive goes in a file, not only the chat.
 +## Resolve the checkpoint
  
--Also write one at any natural wrap-up: end of a work session, before a deliberate context reset, or whenever the user asks for a checkpoint.
+-**Start a fresh session only for** an explicit transfer, a deliberate pause such as the end of a work session, a major change of project or phase, the user's request, or a visible drop in the session's quality. Write the handoff before any of them, and whenever the user asks for a checkpoint.
 +Read [checkpoint recovery](../../../runtime/CONTINUITY.md). Resolve the bundled
 +helper from this installed skill's directory. Pass the current project directory
 +and actual task ID, available as `CODEX_THREAD_ID` when the harness exposes it:
@@ -1224,7 +1224,7 @@
 -1. Resolve the target path from the binding doc (default `.claude/handoff.md`) inside this session's own checkout; create the directory if needed.
 -2. Fill the [reference template](references/template.md), STATE / DONE / NEXT / GOTCHAS, overwriting any existing handoff. If the harness refuses the write, save at `.claude/handoff.md` in this checkout instead.
 -3. Keep it tight and high-signal; apply the five rules above.
--4. Tell the user it's saved and at which path. In either copy-command case under "Where it goes", say a fresh session (or a context reset) is safe once they run the copy command, and end with that command; otherwise say one is now safe.
+-4. Tell the user it's saved and at which path. In either copy-command case under "Where it goes", end with that command. When the save is for a fresh session under "When to write one", say a fresh session (or a context reset) is safe once they run the copy command, or now when no copy is needed. Otherwise suggest no fresh session, and continue the current work.
 +## Recover and verify
  
 -## Done when (checkable: verify each line before reporting complete)
@@ -1238,7 +1238,7 @@
 -- The handoff file exists at the binding doc's confirmed location in this session's own checkout, or at `.claude/handoff.md` in this checkout where that write was refused, overwriting any previous one, no appended history.
 -- All four template sections are filled; NEXT contains the tracker query and enumerates no specific work items.
 -- The saved file was re-read after writing: STATE and GOTCHAS are short inline notes, DONE and NEXT point into durable records, nothing holds a pasted code block or a recap of the conversation, and rule 5's secret scan ran against the saved text; any candidate value it flagged was replaced with its pointer and the file re-saved before reporting.
--- The user was told the handoff is saved and at which path. In either copy-command case under "Where it goes", the report says a fresh session or context reset is safe once the copy command runs, and ends with that one-line command; otherwise it says one is now safe.
+-- The user was told the handoff is saved and at which path. In either copy-command case under "Where it goes", the report ends with that one-line command. For a save before a fresh session, the report says one (or a context reset) is safe once the copy command runs, or now when no copy is needed; any other save's report suggests no fresh session.
 +Report the saved path and what was verified. Do not promise lossless recovery:
 +an unresolved worker, stale evidence, or missing record remains explicitly
 +unverified. No checkpoint alone permits creating a successor task or archiving
@@ -1260,10 +1260,10 @@
 @@ -1,33 +1,34 @@
 -# Session handoff template
 -
--<!-- The handoff skill's reference template. Written at session wrap-up to the repo's
+-<!-- The handoff skill's reference template. Written at each checkpoint to the repo's
 -     confirmed handoff location (conventionally an untracked, auto-loaded file like
--     .claude/handoff.md; the binding doc names it) so a fresh session resumes without
--     re-explanation. Overwrite on each wrap-up; it is "where we are right now", never
+-     .claude/handoff.md; the binding doc names it) so a session resumes without
+-     re-explanation. Overwrite on each save; it is "where we are right now", never
 -     a running log. The tracker and the repo's tracked docs remain the durable record;
 -     the handoff is only the hot pointer. -->
 -
@@ -1467,12 +1467,12 @@
  5. **Prune the lane**: workspace, branch, per-lane resources. Check for uncommitted work and surface it before pruning. Verify its processes are dead yourself before tearing down shared resources: a "servers down" claim is not evidence.
  6. **Last of all, hand the dead lane's session to the human for archiving**: tell the human, naming the session **verbatim as the picker shows it**, that the lane is safe to archive; they archive on their own time. Never call an archive surface yourself; retitle the finished lane first if useful (no confirmation needed). Archive, never delete; name only the closed-out lane's session, never a human's working session. An unanswered notification gates no work. Native auto-archive on PR close fires at merge time: use it for PR-linked lanes only where the lane has stopped, the workspace is done with, and the tracker close-out doesn't need the session live; otherwise record `no` and notify. Subagent lanes have nothing to archive.
  
--## 6. Wrap-up and succession
+-## 6. Checkpoint and succession
 +## 6. Checkpoint, continue, or transfer ownership
  
--1. **At roughly half the context window, wrap up**: finish the current step, start no new large work past the line (half-window rule: [handoff skill](../handoff/SKILL.md)).
--2. Write the handoff (call the Skill tool with `handoff`): state, shipped record, the tracker query as NEXT, and the expensive lessons in GOTCHAS.
--3. **Arrange the successor** (per the lane-launch slot) with a prompt saying "call the Skill tool with `orchestrate` and follow its startup checklist" plus only what is unique to this moment.
+-1. **At half the context window, checkpoint**: finish the current step, write the handoff (call the Skill tool with `handoff`): state, shipped record, tracker query as NEXT, expensive lessons in GOTCHAS.
+-2. **Continue through compaction**; after it, re-read the handoff and live state before acting.
+-3. **Only for a fresh-session reason** ([handoff](../handoff/SKILL.md)), re-save it, then **arrange the successor** (per the lane-launch slot) with a prompt saying "call the Skill tool with `orchestrate` and follow its startup checklist" plus only what is unique to this moment.
 -4. Once the successor is confirmed live, with evidence of its startup checklist completing (the §3 step 4 title switch included; a pre-titled successor's evidence is the rest of the checklist), stop your watches, **shed the orchestrator title**: retitle `Orchestrator (retired) — <repo>` (§8), and go quiet (§2). The human archives the retired session, never automatically (§5 step 6).
 +1. At the measured context checkpoint or a meaningful milestone, finish the atomic step and write the task-owned checkpoint through [handoff](../handoff/SKILL.md) (open and read the `handoff` skill's SKILL.md completely). Preserve authorization, stop points, workers, processes, workspaces, evidence, and the current next step.
 +2. Continue in the same task through native compaction. Re-read the checkpoint, project instructions, relevant decisions, and live state afterward. Half a context window does not retire the coordinator.

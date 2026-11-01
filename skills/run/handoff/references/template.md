@@ -1,9 +1,9 @@
 # Session handoff template
 
-<!-- The handoff skill's reference template. Written at session wrap-up to the repo's
+<!-- The handoff skill's reference template. Written at each checkpoint to the repo's
      confirmed handoff location (conventionally an untracked, auto-loaded file like
-     .claude/handoff.md; the binding doc names it) so a fresh session resumes without
-     re-explanation. Overwrite on each wrap-up; it is "where we are right now", never
+     .claude/handoff.md; the binding doc names it) so a session resumes without
+     re-explanation. Overwrite on each save; it is "where we are right now", never
      a running log. The tracker and the repo's tracked docs remain the durable record;
      the handoff is only the hot pointer. -->
 

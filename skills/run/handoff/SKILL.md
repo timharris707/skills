@@ -1,17 +1,17 @@
 ---
 name: handoff
-description: Write a structured session handoff so a fresh session resumes losslessly. Use when context is filling up (around half the window), when wrapping a work session, or when the user says "handoff", "checkpoint", "wrap up", or "save state".
+description: Write a structured session handoff, the checkpoint a session re-reads after automatic compaction and a fresh session resumes from. Use at roughly half the context window or a meaningful milestone (save it, then keep working), when compaction is near, before a transfer or deliberate pause, or when the user says "handoff", "checkpoint", "wrap up", or "save state".
 ---
 
 # Handoff
 
-Capture where the work stands into one small file so the next session, or a fresh one after a context reset, resumes with zero re-explanation. The handoff is a **pointer, not a transcript**: it says where things are and where the durable records live; it never becomes a running log or a second copy of the plan.
+Capture where the work stands into one small file so this session after a compaction, or the next session, resumes with zero re-explanation. The handoff is a **pointer, not a transcript**: it says where things are and where the durable records live; it never becomes a running log or a second copy of the plan.
 
 ## When to write one
 
-**At roughly half the context window, write the handoff; don't wait for the window to fill.** A context window is the fixed amount of conversation an agent session can hold; as it fills, the oldest details fall away and the quality of long-chain reasoning degrades before the hard limit is ever hit. Writing the handoff at the halfway point captures state while the session can still summarize it accurately, and makes the succession clean instead of a scramble.
+**At roughly half the context window, save the handoff, then keep working.** Half the window is a reminder to checkpoint, not a reason to hand off. A context window is the fixed amount of conversation an agent session can hold; when it fills, the harness compacts it automatically (summarizes the conversation so the session can go on), and whatever the summary drops is gone unless a file holds it. So finish the current step, save, and continue through compaction. Save again at each meaningful milestone and when the harness reports that compaction is near. After a compaction, re-read the handoff and check the live state (git, the tracker, running lanes and processes) before acting, and finish the unfinished work STATE names before NEXT's tracker query. Anything that must survive goes in a file, not only the chat.
 
-Also write one at any natural wrap-up: end of a work session, before a deliberate context reset, or whenever the user asks for a checkpoint.
+**Start a fresh session only for** an explicit transfer, a deliberate pause such as the end of a work session, a major change of project or phase, the user's request, or a visible drop in the session's quality. Write the handoff before any of them, and whenever the user asks for a checkpoint.
 
 ## Where it goes
 
@@ -39,11 +39,11 @@ In repos with an approval-before-edit guardrail: invoking this skill **is** the 
 1. Resolve the target path from the binding doc (default `.claude/handoff.md`) inside this session's own checkout; create the directory if needed.
 2. Fill the [reference template](references/template.md), STATE / DONE / NEXT / GOTCHAS, overwriting any existing handoff. If the harness refuses the write, save at `.claude/handoff.md` in this checkout instead.
 3. Keep it tight and high-signal; apply the five rules above.
-4. Tell the user it's saved and at which path. In either copy-command case under "Where it goes", say a fresh session (or a context reset) is safe once they run the copy command, and end with that command; otherwise say one is now safe.
+4. Tell the user it's saved and at which path. In either copy-command case under "Where it goes", end with that command. When the save is for a fresh session under "When to write one", say a fresh session (or a context reset) is safe once they run the copy command, or now when no copy is needed. Otherwise suggest no fresh session, and continue the current work.
 
 ## Done when (checkable: verify each line before reporting complete)
 
 - The handoff file exists at the binding doc's confirmed location in this session's own checkout, or at `.claude/handoff.md` in this checkout where that write was refused, overwriting any previous one, no appended history.
 - All four template sections are filled; NEXT contains the tracker query and enumerates no specific work items.
 - The saved file was re-read after writing: STATE and GOTCHAS are short inline notes, DONE and NEXT point into durable records, nothing holds a pasted code block or a recap of the conversation, and rule 5's secret scan ran against the saved text; any candidate value it flagged was replaced with its pointer and the file re-saved before reporting.
-- The user was told the handoff is saved and at which path. In either copy-command case under "Where it goes", the report says a fresh session or context reset is safe once the copy command runs, and ends with that one-line command; otherwise it says one is now safe.
+- The user was told the handoff is saved and at which path. In either copy-command case under "Where it goes", the report ends with that one-line command. For a save before a fresh session, the report says one (or a context reset) is safe once the copy command runs, or now when no copy is needed; any other save's report suggests no fresh session.
