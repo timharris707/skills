@@ -22,8 +22,9 @@ or searches and the first two `mechanic` runs in the logs, replayed on the sessi
 give the same answers and together take at least 20% longer there; at most 1 in 5 `mechanic` runs handed its step back, for either reason (its report
 opens with `Handed back:`); and no close-out or review names a helper's mistake. Fewer runs than that
 extends the trial a week instead of deciding it. The measurement reads session logs outside
-the repo, and counts a helper run by the model recorded in its transcript, not by its name;
-no script for it lives here. A Claude Code session already running when a checkout first
+the repo. A run counts as a helper run only when its agent type is `scout`, `Explore`, or
+`mechanic` and its transcript shows that helper's pinned model, so a delegated verifier on
+Haiku is not counted. No script for it lives here. A Claude Code session already running when a checkout first
 gains `.claude/agents/` does not load the helpers until it restarts: until then `scout` and
 `mechanic` are unknown to it, and `Explore` is still the built-in on the session's model.
 
