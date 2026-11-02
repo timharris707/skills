@@ -95,7 +95,7 @@ How the pack composes with this repo's resident rule systems. Resident rules win
 ## Handoff
 
 - **Handoff location**: `.claude/handoff.md`, untracked
-- **Ignore entry**: already present (`.gitignore` ignores `.claude/*` except `settings.json` and `hooks/`)
+- **Ignore entry**: already present (`.gitignore` ignores `.claude/*` except `settings.json`, `hooks/`, and `agents/`)
 - **Session-start auto-load hook**: seeded in `.claude/settings.json` (git-tracked, repo-owned, not sync-managed) on 2026-08-12
 
 ## Git guardrail
@@ -123,6 +123,13 @@ How the pack composes with this repo's resident rule systems. Resident rules win
   - Mechanical verification re-runs: Haiku (or session model) at low effort · floor: never the adversarial pass itself
   - Adversarial review (finders, skeptics, re-probes): session model at high effort on pack-skill changes · floor: no low-effort skeptics on pack-skill protocol changes
   - Max tier: decider-named cases only, never a default
+- **Helper tiers** (decider-set 2026-11-01, this repo only; a one-week trial ending 2026-11-09, [#368](https://github.com/timharris707/skills/issues/368), then kept, changed, or dropped against the bar in [decision 0010](memory/decisions/0010-easy-helper-work-runs-on-faster-models.md)). Helper definitions live in `.claude/agents/`:
+  - Look-ups answered by reading (files, issue and PR state, CI logs, command output, docs): `scout`, Haiku 5.5 (`claude-haiku-5-5`) at low effort, read-only · floor: never judgment, review, design, or changing files
+  - Code searches: `Explore`, replacing the built-in, Haiku 5.5 (`claude-haiku-5-5`) at low effort, read-only · floor: as `scout`
+  - Mechanical steps whose request names a pass/fail check (bring a branch up to date with main, run named verify commands outside close-out, apply a specified edit or rename, fix a failure whose cause is already named): `mechanic`, Sonnet 5.5 (`claude-sonnet-5-5`) at medium effort · floor: hands the step back after its check fails twice, or when finishing it needs a call the request did not make
+  - Judgment (design, building a feature, review, any decision): the session's own model
+  - Redo: when `mechanic` hands a step back, the session's model redoes the step. Work moves up from a helper to the session's model, never down.
+  - Floor for every helper: never adversarial review, skeptic passes, design, or decisions. The review-tier policy above is unchanged and still sets the models for close-out machinery.
 - **Merge flow**: lane branch → PR → CI checks + CodeRabbit disposition per the merge rule above → squash-merge by the orchestrator → issue close-out comment → prune worktree/branch.
 
 ## Accepted drift (written by setup's audit mode)
