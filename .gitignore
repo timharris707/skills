@@ -9,6 +9,7 @@ dist/
 .claude/*
 !.claude/settings.json
 !.claude/hooks/
+!.claude/agents/
 
 # Python
 __pycache__/
